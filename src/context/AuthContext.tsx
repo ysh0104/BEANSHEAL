@@ -1,86 +1,100 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "@/utils/supabase";
+import type { User } from "@supabase/supabase-js";
 
 export interface UserProfile {
   name: string;
   email: string;
-  role: string; // '관리자' | '생산팀장' | '품질팀장' | '사원'
-  avatar?: string;
-  provider: "google" | "local";
+  role: string;
+  department?: string;
+  provider: string;
 }
 
 interface AuthContextType {
   user: UserProfile | null;
-  isLoading: boolean;
-  login: (profile: UserProfile) => void;
-  loginWithGoogle: () => void;
-  logout: () => void;
+  loading: boolean;
+  loginWithGoogle: () => Promise<void>;
+  signUpWithEmail: (name: string, email: string, password: string, role: string) => Promise<{ error: string | null }>;
+  loginWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
+  logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  isLoading: true,
-  login: () => {},
-  loginWithGoogle: () => {},
-  logout: () => {}
-});
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+
+  const loadProfile = async (authUser: User) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("full_name, department, role")
+      .eq("id", authUser.id)
+      .single();
+
+    setUser({
+      name: data?.full_name || authUser.email?.split("@")[0] || "사원",
+      email: authUser.email || "",
+      role: data?.role || "사원",
+      department: data?.department,
+      provider: authUser.app_metadata?.provider || "email",
+    });
+  };
 
   useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem("beansheal_auth_user");
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) loadProfile(session.user);
+      setLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        loadProfile(session.user);
       } else {
-        // 기본 웰컴 상태 (관리자)
-        const defaultUser: UserProfile = {
-          name: "김철수",
-          email: "chulsoo.kim@beansheal.com",
-          role: "관리자",
-          provider: "local"
-        };
-        setUser(defaultUser);
-        localStorage.setItem("beansheal_auth_user", JSON.stringify(defaultUser));
+        setUser(null);
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
-    }
+    });
+
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  const login = (profile: UserProfile) => {
-    setUser(profile);
-    localStorage.setItem("beansheal_auth_user", JSON.stringify(profile));
+  const loginWithGoogle = async () => {
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: `${window.location.origin}/` },  // /auth/callback 대신 홈으로
+  });
+};
+
+  const signUpWithEmail = async (name: string, email: string, password: string, role: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name, role } },
+    });
+    return { error: error?.message || null };
   };
 
-  const loginWithGoogle = () => {
-    const googleUser: UserProfile = {
-      name: "홍길동",
-      email: "gildong.hong@gmail.com",
-      role: "품질팀장",
-      avatar: "https://lh3.googleusercontent.com/a/default-user",
-      provider: "google"
-    };
-    login(googleUser);
+  const loginWithEmail = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error?.message || null };
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem("beansheal_auth_user");
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, loginWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, signUpWithEmail, loginWithEmail, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 }

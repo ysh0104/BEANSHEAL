@@ -446,7 +446,6 @@ export default function Home() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
             <span>BEANSHEAL 대시보드</span>
-            <span className="text-xs bg-blue-100 text-blue-800 font-extrabold px-2.5 py-0.5 rounded border border-blue-200">ERP 그리드 커스텀</span>
           </h2>
           <p className="text-sm text-gray-500 mt-1">상단 <strong>⣿ 핸들</strong>로 순서를 변경하고, 우측 하단 <strong>⤡ 코너</strong>를 끌어 가로/세로 크기를 커스텀하세요.</p>
         </div>
@@ -718,7 +717,7 @@ export default function Home() {
                           <p className="text-xs font-bold text-gray-800 break-keep pr-6">{memo.text}</p>
                           <div className="flex justify-between items-center mt-1.5">
                             <span className="text-[10px] text-gray-400 font-bold">{memo.date}</span>
-                            <span className="text-[10px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">{memo.author}</span>
+                            <span className="text-[10px] font-bold text-gray-5claude00 bg-gray-200 px-1.5 py-0.5 rounded">{memo.author}</span>
                           </div>
                           <button onClick={() => handleDeleteMemo(memo.id)} className="absolute top-2.5 right-2.5 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="메모 삭제">
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
