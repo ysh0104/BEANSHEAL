@@ -167,6 +167,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (authError) {
+      if (authError.message.includes("rate limit") || authError.message.includes("rate_limit")) {
+        return { 
+          error: "단시간 회원가입 요청 횟수 제한(Rate Limit)을 초과했습니다. Supabase 대시보드 (Auth ➔ Providers ➔ Email)에서 'Confirm email' 옵션을 OFF로 끄시면 전송 제한 없이 즉시 가입됩니다." 
+        };
+      }
       if (authError.message.includes("Database error") || authError.message.includes("saving new user")) {
         return { 
           error: "Supabase DB 연동 오류입니다. 관리자 문의 또는 SQL 스크립트를 확인해 주세요." 
