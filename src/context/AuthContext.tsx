@@ -139,8 +139,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ) => {
     const permissionRole = computePermissionRole(department, position);
     
-    // 1. Supabase Auth 가입
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    // 1. Supabase Auth 가입 시도
+    let { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -153,12 +153,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
 
+    // DB 트리거 예외("Database error saving new user") 발생 시 메타데이터 제거 후 안전 재시도
+    if (authError && (authError.message.includes("Database error") || authError.message.includes("saving new user"))) {
+      const fallbackAuth = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (!fallbackAuth.error && fallbackAuth.data?.user) {
+        authData = fallbackAuth.data;
+        authError = null;
+      }
+    }
+
     if (authError) {
+      if (authError.message.includes("Database error") || authError.message.includes("saving new user")) {
+        return { 
+          error: "Supabase DB 테이블 연동 오류입니다. 아래 제공되는 SQL 스크립트를 Supabase SQL Editor에서 실행해 주세요." 
+        };
+      }
       return { error: authError.message };
     }
 
-    // 2. Supabase DB 'profiles' 테이블에 회원 데이터 즉시 삽입 (Upsert)
-    if (authData.user) {
+    // 2. Supabase DB 'profiles' 테이블에 회원 데이터 삽입 (Upsert)
+    if (authData?.user) {
       try {
         const { error: profileError } = await supabase.from("profiles").upsert({
           id: authData.user.id,
@@ -171,10 +188,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (profileError) {
-          console.error("profiles DB 저장 실패:", profileError.message);
+          console.warn("profiles DB 저장 참고 경고:", profileError.message);
         }
       } catch (err) {
-        console.error("profiles DB 저장 예외 발생:", err);
+        console.warn("profiles DB 저장 처리 예외:", err);
       }
     }
 
