@@ -11,11 +11,15 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/index.html",
-        destination: "/admin.html",
+        destination: "/page.html",
+      },
+      {
+        source: "/admin.html",
+        destination: "/page.html",
       },
       {
         source: "/admin",
-        destination: "/admin.html",
+        destination: "/page.html",
       },
     ];
   },

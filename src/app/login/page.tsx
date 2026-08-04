@@ -43,7 +43,7 @@ export default function LoginPage() {
       return;
     }
     sessionStorage.setItem('beansheal_admin_authed', 'true');
-    window.location.href = "/admin.html";
+    window.location.href = "/page.html";
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {

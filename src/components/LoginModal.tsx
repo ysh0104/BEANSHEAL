@@ -50,7 +50,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     sessionStorage.setItem('beansheal_admin_authed', 'true');
     onClose();
     // 관리자/사원 로그인 성공 시 업무웹 대시보드로 이동
-    window.location.href = "/admin.html";
+    window.location.href = "/page.html";
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {

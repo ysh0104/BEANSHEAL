@@ -208,7 +208,7 @@
         
         // URL 쿼리 스트링 redirect 파라미터가 있으면 그곳으로, 없으면 /admin.html 이동
         const urlParams = new URLSearchParams(window.location.search);
-        const redirectUrl = urlParams.get('redirect') || '/admin.html';
+        const redirectUrl = urlParams.get('redirect') || '/page.html';
         window.location.href = redirectUrl;
       } else {
         errorMsg.style.display = 'block';
@@ -218,7 +218,7 @@
     // 이미 로그인된 상태라면 자동으로 대시보드로 이동
     if (sessionStorage.getItem('beansheal_admin_authed') === 'true') {
       const urlParams = new URLSearchParams(window.location.search);
-      const redirectUrl = urlParams.get('redirect') || '/admin.html';
+      const redirectUrl = urlParams.get('redirect') || '/page.html';
       window.location.href = redirectUrl;
     }
   </script>
