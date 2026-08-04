@@ -122,9 +122,17 @@ export default function Sidebar() {
           })}
         </nav>
 
-        {/* 우측 사용자 프로필 */}
+        {/* 우측 사용자 프로필 및 관리자 대시보드 바로가기 */}
         <div className="flex items-center gap-3 text-xs">
-          <div className="bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1 rounded-full font-medium flex items-center gap-1.5">
+          <a
+            href="/admin"
+            className="bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-500 px-3 py-1 rounded-md text-xs font-extrabold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+            title="빈스힐 홈페이지 통합 관리자 대시보드로 이동합니다 (admin.html)"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+            <span>⚙️ 관리자 시스템</span>
+          </a>
+          <div className="bg-slate-800 text-slate-300 border border-slate-700 px-3 py-1 rounded-full font-medium hidden sm:flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
             <span>관리자</span>
           </div>
