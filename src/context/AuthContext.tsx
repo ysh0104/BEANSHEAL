@@ -61,11 +61,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loginWithGoogle = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-  };
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: `${window.location.origin}/` },  // /auth/callback 대신 홈으로
+  });
+};
 
   const signUpWithEmail = async (name: string, email: string, password: string, role: string) => {
     const { error } = await supabase.auth.signUp({
