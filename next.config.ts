@@ -7,17 +7,12 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  async redirects() {
-    return [
-      {
-        source: "/",
-        destination: "/homepage.html",
-        permanent: false,
-      },
-    ];
-  },
   async rewrites() {
     return [
+      {
+        source: "/index.html",
+        destination: "/admin.html",
+      },
       {
         source: "/admin",
         destination: "/admin.html",
