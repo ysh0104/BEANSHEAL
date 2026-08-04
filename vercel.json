@@ -3,14 +3,6 @@
     {
       "src": "/",
       "dest": "/homepage.html"
-    },
-    {
-      "src": "/index.html",
-      "dest": "/admin.html"
-    },
-    {
-      "src": "/admin",
-      "dest": "/admin.html"
     }
   ]
 }
