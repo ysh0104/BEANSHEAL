@@ -22,17 +22,22 @@ function getAdminPassword() {
 }
 
 function initAdminAuth() {
-  const isAuthed = sessionStorage.getItem('beansheal_admin_authed') === 'true';
+  sessionStorage.setItem('beansheal_admin_authed', 'true');
   const authScreen = document.getElementById('admin-auth-screen');
   const adminApp = document.getElementById('admin-app');
 
-  if (isAuthed) {
-    if (authScreen) authScreen.style.display = 'none';
-    if (adminApp) adminApp.style.display = 'flex';
-    refreshDashboard();
+  if (authScreen) authScreen.style.display = 'none';
+  if (adminApp) adminApp.style.display = 'flex';
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const requestedTab = urlParams.get('tab');
+  if (requestedTab) {
+    const tabName = requestedTab.startsWith('tab-') ? requestedTab : `tab-${requestedTab}`;
+    if (typeof window.switchAdminTab === 'function') {
+      window.switchAdminTab(tabName);
+    }
   } else {
-    if (authScreen) authScreen.style.display = 'flex';
-    if (adminApp) adminApp.style.display = 'none';
+    refreshDashboard();
   }
 }
 

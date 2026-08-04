@@ -41,6 +41,16 @@ export default function Sidebar() {
       items: [
         { name: "감사 대응 (Audit)", path: "/audit" }
       ]
+    },
+    {
+      name: "🌐 홈페이지 관리",
+      items: [
+        { name: "📩 고객 견적 문의 관리", path: "/admin?tab=inquiries" },
+        { name: "🧮 견적 산출기 옵션 설정", path: "/admin?tab=calculator" },
+        { name: "🖼️ 포트폴리오 관리", path: "/admin?tab=portfolio" },
+        { name: "❓ FAQ 관리", path: "/admin?tab=faq" },
+        { name: "⚙️ 홈페이지 시스템 설정", path: "/admin?tab=settings" }
+      ]
     }
   ];
 
