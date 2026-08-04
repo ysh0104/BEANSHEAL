@@ -87,31 +87,31 @@ export default function Sidebar() {
                 >
                   <button
                     onClick={() => setActiveDropdown(isOpen ? null : group.name)}
-                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                    className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-md transition-all duration-200 cursor-pointer transform hover:scale-110 hover:text-slate-900 origin-center ${
                       hasActiveChild 
                         ? "bg-blue-50 text-blue-700 font-extrabold" 
-                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                        : "text-slate-700 hover:bg-slate-100"
                     }`}
                   >
-                    <span>{group.name}</span>
-                    <svg className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180 text-blue-600" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <span className="transition-transform duration-200">{group.name}</span>
+                    <svg className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180 text-blue-600" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
 
                   {/* Dropdown Menu */}
                   {isOpen && (
-                    <div className="absolute left-0 mt-0.5 w-52 bg-white text-slate-900 rounded-lg shadow-xl border border-slate-200 py-1.5 z-50 animate-fadeIn">
+                    <div className="absolute left-0 mt-0.5 w-56 bg-white text-slate-900 rounded-lg shadow-xl border border-slate-200 py-1.5 z-50 animate-fadeIn">
                       {group.items.map((item) => {
                         const isActive = pathname.startsWith(item.path);
                         return (
                           <Link
                             key={item.path}
                             href={item.path}
-                            className={`block px-4 py-2 text-xs font-bold transition-colors ${
+                            className={`block px-4 py-2.5 text-sm font-bold transition-all duration-150 transform hover:scale-105 hover:pl-5 origin-left ${
                               isActive 
                                 ? "bg-blue-50 text-blue-700 font-extrabold border-l-4 border-blue-600" 
-                                : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                                : "text-slate-700 hover:bg-slate-100 hover:text-blue-600"
                             }`}
                           >
                             {item.name}
