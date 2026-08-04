@@ -60,7 +60,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <header className="bg-red-600 text-white sticky top-0 z-50 shadow-md border-b border-red
+      <header className="bg-green-600 text-white sticky top-0 z-50 shadow-md border-b border-green
       -700 font-sans">
         <div className="max-w-7xl mx-auto px-4 md:px-6 flex items-center justify-between h-14">
           
