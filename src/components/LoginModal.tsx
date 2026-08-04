@@ -20,7 +20,8 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   // 회원가입 폼 상태
   const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
-  const [signupRole, setSignupRole] = useState("생산팀장");
+  const [signupDepartment, setSignupDepartment] = useState("생산관리");
+  const [signupPosition, setSignupPosition] = useState("사원");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
 
@@ -69,7 +70,8 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       signupName.trim(),
       signupEmail.trim(),
       signupPassword,
-      signupRole
+      signupDepartment,
+      signupPosition
     );
     setLoading(false);
     if (error) {
@@ -201,16 +203,32 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
               placeholder="사내 이메일 주소 (user@beansheal.com)"
               className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
             />
+
+            {/* 부서 선택 */}
             <select
-              value={signupRole}
-              onChange={(e) => setSignupRole(e.target.value)}
+              value={signupDepartment}
+              onChange={(e) => setSignupDepartment(e.target.value)}
               className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 font-bold bg-white cursor-pointer"
             >
-              <option value="생산팀장">생산관리 팀장</option>
-              <option value="품질팀장">품질검사 팀장</option>
-              <option value="관리자">최고관리자 (Admin)</option>
-              <option value="사원">일반 사원</option>
+              <option value="생산관리">생산관리</option>
+              <option value="품질관리">품질관리</option>
+              <option value="자재물류">자재/물류관리</option>
+              <option value="경영관리">경영관리</option>
             </select>
+
+            {/* 직급 선택 */}
+            <select
+              value={signupPosition}
+              onChange={(e) => setSignupPosition(e.target.value)}
+              className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 font-bold bg-white cursor-pointer"
+            >
+              <option value="사원">사원</option>
+              <option value="팀장">팀장</option>
+              <option value="과장">과장</option>
+              <option value="주임">주임</option>
+              <option value="관리자">관리자 (Admin)</option>
+            </select>
+
             <input
               type="password"
               value={signupPassword}
