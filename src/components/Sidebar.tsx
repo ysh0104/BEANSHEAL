@@ -60,13 +60,13 @@ export default function Sidebar() {
 
   return (
     <>
-      <header className="bg-white text-slate-800 sticky top-0 z-50 shadow-xs border-b border-slate-200 font-sans">
+      <header className="bg-red-600 text-white sticky top-0 z-50 shadow-md border-b border-red-700 font-sans">
         <div className="max-w-7xl mx-auto px-4 md:px-6 flex items-center justify-between h-14">
           
           {/* 좌측 로고 홈 링크 */}
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center group cursor-pointer">
-              <h1 className="text-2xl font-black tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
+              <h1 className="text-2xl font-black tracking-tight text-white group-hover:text-red-100 transition-colors">
                 BEANSHEAL
               </h1>
             </Link>
@@ -87,21 +87,21 @@ export default function Sidebar() {
                 >
                   <button
                     onClick={() => setActiveDropdown(isOpen ? null : group.name)}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-md transition-all duration-200 cursor-pointer transform hover:scale-110 hover:text-slate-900 origin-center ${
+                    className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-md transition-all duration-200 cursor-pointer transform hover:scale-110 origin-center ${
                       hasActiveChild 
-                        ? "bg-blue-50 text-blue-700 font-extrabold" 
-                        : "text-slate-700 hover:bg-slate-100"
+                        ? "bg-red-700 text-white font-extrabold shadow-inner" 
+                        : "text-white/90 hover:bg-red-700/80 hover:text-white"
                     }`}
                   >
                     <span className="transition-transform duration-200">{group.name}</span>
-                    <svg className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180 text-blue-600" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180 text-white" : "text-white/70"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
 
                   {/* Dropdown Menu */}
                   {isOpen && (
-                    <div className="absolute left-0 mt-0.5 w-56 bg-white text-slate-900 rounded-lg shadow-xl border border-slate-200 py-1.5 z-50 animate-fadeIn">
+                    <div className="absolute left-0 mt-0.5 w-56 bg-white text-slate-900 rounded-lg shadow-xl border border-red-100 py-1.5 z-50 animate-fadeIn">
                       {group.items.map((item) => {
                         const isActive = pathname.startsWith(item.path);
                         return (
@@ -110,8 +110,8 @@ export default function Sidebar() {
                             href={item.path}
                             className={`block px-4 py-2.5 text-sm font-bold transition-all duration-150 transform hover:scale-105 hover:pl-5 origin-left ${
                               isActive 
-                                ? "bg-blue-50 text-blue-700 font-extrabold border-l-4 border-blue-600" 
-                                : "text-slate-700 hover:bg-slate-100 hover:text-blue-600"
+                                ? "bg-red-50 text-red-700 font-extrabold border-l-4 border-red-600" 
+                                : "text-slate-700 hover:bg-red-50/70 hover:text-red-600"
                             }`}
                           >
                             {item.name}
@@ -129,18 +129,18 @@ export default function Sidebar() {
           <div className="flex items-center gap-2.5 text-xs">
             {user ? (
               <div className="flex items-center gap-2">
-                <div className="bg-slate-100 text-slate-800 border border-slate-200 px-3 py-1 rounded-full font-bold flex items-center gap-2 shadow-2xs">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <div className="bg-red-700/80 text-white border border-red-500/50 px-3 py-1 rounded-full font-bold flex items-center gap-2 shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span>{user.name} ({user.role})</span>
                   {user.provider === "google" && (
-                    <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.2 rounded font-extrabold">
+                    <span className="text-[10px] bg-white/20 text-white px-1.5 py-0.2 rounded font-extrabold">
                       Google
                     </span>
                   )}
                 </div>
                 <button
                   onClick={logout}
-                  className="text-slate-500 hover:text-red-600 font-bold px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="text-red-100 hover:text-white font-bold px-2 py-1 rounded hover:bg-red-700/80 transition-colors cursor-pointer"
                   title="로그아웃"
                 >
                   로그아웃
@@ -149,7 +149,7 @@ export default function Sidebar() {
             ) : (
               <button
                 onClick={() => setIsLoginModalOpen(true)}
-                className="bg-black hover:bg-gray-800 text-white font-extrabold px-4 py-1.5 rounded-full shadow-xs transition-colors cursor-pointer"
+                className="bg-white hover:bg-red-50 text-red-600 font-extrabold px-4 py-1.5 rounded-full shadow-xs transition-colors cursor-pointer"
               >
                 로그인
               </button>
