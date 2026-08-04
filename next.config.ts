@@ -10,12 +10,12 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: "/admin",
-        destination: "/admin.html",
+        source: "/",
+        destination: "/index.html",
       },
       {
-        source: "/homepage",
-        destination: "/homepage.html",
+        source: "/admin",
+        destination: "/admin.html",
       },
     ];
   },
