@@ -31,10 +31,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// 부서 + 직급에 따른 표시용 타이틀 자동 생성
+// - 과장, 팀장, 관리자 등 관리직: [부서]관리 [직급] (예: 생산관리 팀장, 품질관리 과장)
+// - 사원, 주임 등 실무직: [부서]팀 [직급] (예: 생산팀 사원, 경영팀 주임)
+export function formatJobTitle(department: string, position: string): string {
+  if (!department && !position) return "생산팀 사원";
+  
+  let baseDept = (department || "생산").replace(/(관리|팀)$/, "");
+  if (baseDept === "자재/물류" || baseDept === "자재물류") baseDept = "자재물류";
+
+  const pos = position || "사원";
+  const isManagement = ["팀장", "과장", "차장", "부장", "이사", "대표", "관리자"].includes(pos);
+
+  if (isManagement) {
+    return `${baseDept}관리 ${pos}`;
+  } else {
+    return `${baseDept}팀 ${pos}`;
+  }
+}
+
 // 부서 + 직급 조합으로 실제 권한을 자동 계산
 function computePermissionRole(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
   if (position === "관리자") return "ADMIN";
-  if (department === "품질관리") return "QA";
+  if (department.includes("품질")) return "QA";
   return "WORKER";
 }
 
@@ -43,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = async (authUser: User) => {
-    let department = authUser.user_metadata?.department || "생산관리";
+    let department = authUser.user_metadata?.department || "생산";
     let position = authUser.user_metadata?.position || "사원";
     let fullName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
 
@@ -74,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn("profiles 테이블 조회 중 오류 (기본 메타데이터 사용):", err);
     }
 
-    const jobTitle = `${department} ${position}`;
+    const jobTitle = formatJobTitle(department, position);
 
     setUser({
       name: fullName,
