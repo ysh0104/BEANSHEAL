@@ -43,22 +43,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = async (authUser: User) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("full_name, department, position, role")
-      .eq("id", authUser.id)
-      .single();
+    let department = authUser.user_metadata?.department || "생산관리";
+    let position = authUser.user_metadata?.position || "사원";
+    let fullName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
 
-    const department = data?.department || "미지정";
-    const position = data?.position || "사원";
+    // 만약 이름이 없으면 이메일 앞자리 또는 기본 한글 이름 사용
+    if (!fullName) {
+      const emailPrefix = authUser.email?.split("@")[0];
+      fullName = emailPrefix && emailPrefix !== "user" ? emailPrefix : "홍길동";
+    }
+
+    let permissionRole: "ADMIN" | "QA" | "WORKER" = 
+      authUser.user_metadata?.permission_role || computePermissionRole(department, position);
+
+    // Supabase DB 'profiles' 테이블 조회
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, department, position, role")
+        .eq("id", authUser.id)
+        .maybeSingle();
+
+      if (data) {
+        if (data.department) department = data.department;
+        if (data.position) position = data.position;
+        if (data.full_name) fullName = data.full_name;
+        if (data.role) permissionRole = data.role as "ADMIN" | "QA" | "WORKER";
+      }
+    } catch (err) {
+      console.warn("profiles 테이블 조회 중 오류 (기본 메타데이터 사용):", err);
+    }
+
+    const jobTitle = `${department} ${position}`;
 
     setUser({
-      name: data?.full_name || authUser.email?.split("@")[0] || "사원",
+      name: fullName,
       email: authUser.email || "",
       department,
       position,
-      role: (data?.role as "ADMIN" | "QA" | "WORKER") || "WORKER",
-      jobTitle: `${department} ${position}`,
+      role: permissionRole,
+      jobTitle,
       provider: authUser.app_metadata?.provider || "email",
     });
   };
@@ -67,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) loadProfile(session.user);
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
@@ -95,7 +119,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     position: string
   ) => {
     const permissionRole = computePermissionRole(department, position);
-    const { error } = await supabase.auth.signUp({
+    
+    // 1. Supabase Auth 가입
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -107,7 +133,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       },
     });
-    return { error: error?.message || null };
+
+    if (authError) {
+      return { error: authError.message };
+    }
+
+    // 2. Supabase DB 'profiles' 테이블에 회원 데이터 즉시 삽입 (Upsert)
+    if (authData.user) {
+      try {
+        const { error: profileError } = await supabase.from("profiles").upsert({
+          id: authData.user.id,
+          email: email,
+          full_name: name,
+          department,
+          position,
+          role: permissionRole,
+          updated_at: new Date().toISOString(),
+        });
+
+        if (profileError) {
+          console.error("profiles DB 저장 실패:", profileError.message);
+        }
+      } catch (err) {
+        console.error("profiles DB 저장 예외 발생:", err);
+      }
+    }
+
+    return { error: null };
   };
 
   const loginWithEmail = async (email: string, password: string) => {

@@ -17,8 +17,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
-      <body className={`${inter.className} bg-gray-50 text-gray-900 flex flex-col min-h-screen antialiased`}>
+    <html lang="ko" className="dark">
+      <body className={`${inter.className} bg-[#0b0b0b] text-zinc-100 flex flex-col min-h-screen antialiased selection:bg-zinc-800 selection:text-white`}>
         <AuthProvider>
           {/* 상단 가로 메뉴바 (GNB) */}
           <Sidebar />
