@@ -180,24 +180,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: authError.message };
     }
 
-    // 2. Supabase DB 'profiles' 테이블에 회원 데이터 삽입 (Upsert)
+    // 2. Supabase DB 'profiles' 테이블에 회원 데이터 즉시 삽입 (Upsert)
     if (authData?.user) {
       try {
-        const { error: profileError } = await supabase.from("profiles").upsert({
-          id: authData.user.id,
-          email: email,
-          full_name: name,
-          department,
-          position,
-          role: permissionRole,
-          updated_at: new Date().toISOString(),
-        });
+        const { error: profileError } = await supabase.from("profiles").upsert(
+          {
+            id: authData.user.id,
+            email: email,
+            full_name: name,
+            department,
+            position,
+            role: permissionRole,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
 
         if (profileError) {
-          console.warn("profiles DB 저장 참고 경고:", profileError.message);
+          console.error("profiles DB 저장 실패 (RLS 또는 테이블 설정 필요):", profileError.message);
+        } else {
+          console.log("profiles DB 저장 성공:", name);
         }
       } catch (err) {
-        console.warn("profiles DB 저장 처리 예외:", err);
+        console.error("profiles DB 저장 예외:", err);
       }
     }
 
