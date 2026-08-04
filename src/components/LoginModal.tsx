@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useAuth, UserProfile } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -9,11 +9,14 @@ interface LoginModalProps {
 }
 
 export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
-  const { login, loginWithGoogle } = useAuth();
-  
+  const { loginWithGoogle, loginWithEmail, signUpWithEmail } = useAuth();
+
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
-  
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
   // 회원가입 폼 상태
   const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
@@ -23,57 +26,66 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
   if (!isOpen) return null;
 
-  const handleGoogleLogin = () => {
-    loginWithGoogle();
-    onClose();
+  const handleGoogleLogin = async () => {
+    setError("");
+    await loginWithGoogle();
+    // 구글은 리디렉션되므로 onClose 불필요
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) {
-      alert("이메일 주소 또는 사원 아이디를 입력해 주세요.");
+    setError("");
+    if (!email.trim() || !password) {
+      setError("이메일과 비밀번호를 입력해 주세요.");
       return;
     }
-    const user: UserProfile = {
-      name: email.split("@")[0] || "사원",
-      email: email.trim(),
-      role: "사원",
-      provider: "local"
-    };
-    login(user);
+    setLoading(true);
+    const { error } = await loginWithEmail(email.trim(), password);
+    setLoading(false);
+    if (error) {
+      setError("로그인에 실패했습니다. 이메일/비밀번호를 확인해 주세요.");
+      return;
+    }
     onClose();
   };
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     if (!signupName.trim() || !signupEmail.trim() || !signupPassword) {
-      alert("모든 회원가입 정보를 입력해 주세요.");
+      setError("모든 회원가입 정보를 입력해 주세요.");
       return;
     }
     if (signupPassword !== signupConfirmPassword) {
-      alert("비밀번호가 일치하지 않습니다. 다시 확인해 주세요.");
+      setError("비밀번호가 일치하지 않습니다. 다시 확인해 주세요.");
       return;
     }
-
-    const newProfile: UserProfile = {
-      name: signupName.trim(),
-      email: signupEmail.trim(),
-      role: signupRole,
-      provider: "local"
-    };
-
+    if (signupPassword.length < 6) {
+      setError("비밀번호는 6자 이상이어야 합니다.");
+      return;
+    }
+    setLoading(true);
+    const { error } = await signUpWithEmail(
+      signupName.trim(),
+      signupEmail.trim(),
+      signupPassword,
+      signupRole
+    );
+    setLoading(false);
+    if (error) {
+      setError(error);
+      return;
+    }
     alert(`${signupName}님, 사내 회원가입이 완료되었습니다.`);
-    login(newProfile);
-    onClose();
+    setMode("login");
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fadeIn font-sans">
-      <div 
+      <div
         className="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-[420px] p-8 relative flex flex-col items-center animate-scaleUp"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 닫기 X 버튼 */}
         <button
           onClick={onClose}
           className="absolute top-5 right-5 text-gray-400 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
@@ -84,20 +96,18 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
           </svg>
         </button>
 
-        {/* 타이틀 및 서브 텍스트 */}
         <h2 className="text-2xl font-extrabold text-gray-900 text-center mb-1.5 tracking-tight">
           {mode === "login" ? "로그인 또는 회원가입" : "BEANSHEAL 사내 회원가입"}
         </h2>
         <p className="text-xs font-semibold text-gray-500 text-center mb-6 leading-relaxed px-2">
-          {mode === "login" 
+          {mode === "login"
             ? "BEANSHEAL 스마트 ERP 시스템 및 관리자 기능을 이용할 수 있습니다."
             : "새로운 사내 계정을 생성하고 시스템 이용 권한을 부여받으세요."}
         </p>
 
-        {/* 탭 전환 (로그인 / 회원가입) */}
         <div className="w-full flex bg-gray-100 p-1 rounded-full mb-5 text-xs font-extrabold">
           <button
-            onClick={() => setMode("login")}
+            onClick={() => { setMode("login"); setError(""); }}
             className={`flex-1 py-2 rounded-full transition-all cursor-pointer ${
               mode === "login" ? "bg-white text-gray-900 shadow-2xs" : "text-gray-500 hover:text-gray-900"
             }`}
@@ -105,7 +115,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             로그인
           </button>
           <button
-            onClick={() => setMode("signup")}
+            onClick={() => { setMode("signup"); setError(""); }}
             className={`flex-1 py-2 rounded-full transition-all cursor-pointer ${
               mode === "signup" ? "bg-white text-gray-900 shadow-2xs" : "text-gray-500 hover:text-gray-900"
             }`}
@@ -114,13 +124,17 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
           </button>
         </div>
 
-        {/* [모드 1] 로그인 View */}
+        {error && (
+          <div className="w-full mb-3 p-2.5 bg-red-50 border border-red-200 rounded-2xl text-xs font-semibold text-red-600 text-center">
+            {error}
+          </div>
+        )}
+
         {mode === "login" ? (
           <div className="w-full">
-            {/* 1. Google 계정으로 계속하기 (유일하게 Google G 로고 아이콘 허용) */}
             <button
               onClick={handleGoogleLogin}
-              className="w-full border border-gray-300 hover:border-gray-400 bg-white text-gray-800 font-bold py-3 px-4 rounded-full flex items-center justify-center gap-2.5 transition-all text-sm cursor-pointer shadow-2xs mb-3 group"
+              className="w-full border border-gray-300 hover:border-gray-400 bg-white text-gray-800 font-bold py-3 px-4 rounded-full flex items-center justify-center gap-2.5 transition-all text-sm cursor-pointer shadow-2xs mb-4 group"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -131,53 +145,40 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
               <span>Google 계정으로 계속하기</span>
             </button>
 
-            {/* 2. 사내 아이디 / 이메일로 계속하기 */}
-            <button
-              onClick={() => {
-                const promptEmail = prompt("사내 이메일 또는 사원번호를 입력하세요:", "chulsoo@beansheal.com");
-                if (promptEmail) {
-                  login({
-                    name: promptEmail.split("@")[0] || "사원",
-                    email: promptEmail,
-                    role: "사원",
-                    provider: "local"
-                  });
-                  onClose();
-                }
-              }}
-              className="w-full border border-gray-300 hover:border-gray-400 bg-white text-gray-800 font-bold py-3 px-4 rounded-full flex items-center justify-center gap-2.5 transition-all text-sm cursor-pointer shadow-2xs"
-            >
-              <span>사내 아이디 / 사원번호로 계속하기</span>
-            </button>
-
-            {/* 구분선 (또는) */}
             <div className="w-full flex items-center my-4">
               <div className="flex-1 border-t border-gray-200"></div>
               <span className="px-3 text-xs font-semibold text-gray-400">또는</span>
               <div className="flex-1 border-t border-gray-200"></div>
             </div>
 
-            {/* 이메일 직접 입력 및 계속 (검정 알약 버튼) */}
             <form onSubmit={handleLoginSubmit} className="w-full space-y-3">
               <input
-                type="text"
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="이메일 주소 또는 사원 아이디"
+                placeholder="이메일 주소"
+                className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-3 text-sm focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="비밀번호"
                 className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-3 text-sm focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
               />
 
               <button
                 type="submit"
-                className="w-full bg-black hover:bg-gray-800 text-white font-extrabold py-3.5 px-4 rounded-full transition-colors text-sm cursor-pointer shadow-md active:scale-[0.99]"
+                disabled={loading}
+                className="w-full bg-black hover:bg-gray-800 text-white font-extrabold py-3.5 px-4 rounded-full transition-colors text-sm cursor-pointer shadow-md active:scale-[0.99] disabled:opacity-50"
               >
-                계속
+                {loading ? "로그인 중..." : "계속"}
               </button>
             </form>
 
             <div className="text-center mt-4">
               <button
-                onClick={() => setMode("signup")}
+                onClick={() => { setMode("signup"); setError(""); }}
                 className="text-xs font-bold text-gray-500 hover:text-black transition-colors cursor-pointer"
               >
                 아직 사내 계정이 없으신가요? <span className="text-blue-600 underline">회원가입하기</span>
@@ -185,72 +186,58 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             </div>
           </div>
         ) : (
-          /* [모드 2] 회원가입 View */
           <form onSubmit={handleSignupSubmit} className="w-full space-y-3">
-            <div>
-              <input
-                type="text"
-                value={signupName}
-                onChange={(e) => setSignupName(e.target.value)}
-                placeholder="이름 (예: 홍길동)"
-                className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
-              />
-            </div>
-
-            <div>
-              <input
-                type="email"
-                value={signupEmail}
-                onChange={(e) => setSignupEmail(e.target.value)}
-                placeholder="사내 이메일 주소 (user@beansheal.com)"
-                className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
-              />
-            </div>
-
-            <div>
-              <select
-                value={signupRole}
-                onChange={(e) => setSignupRole(e.target.value)}
-                className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 font-bold bg-white cursor-pointer"
-              >
-                <option value="생산팀장">생산관리 팀장</option>
-                <option value="품질팀장">품질검사 팀장</option>
-                <option value="관리자">최고관리자 (Admin)</option>
-                <option value="사원">일반 사원</option>
-              </select>
-            </div>
-
-            <div>
-              <input
-                type="password"
-                value={signupPassword}
-                onChange={(e) => setSignupPassword(e.target.value)}
-                placeholder="비밀번호 설정"
-                className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
-              />
-            </div>
-
-            <div>
-              <input
-                type="password"
-                value={signupConfirmPassword}
-                onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                placeholder="비밀번호 확인"
-                className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
-              />
-            </div>
+            <input
+              type="text"
+              value={signupName}
+              onChange={(e) => setSignupName(e.target.value)}
+              placeholder="이름 (예: 홍길동)"
+              className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
+            />
+            <input
+              type="email"
+              value={signupEmail}
+              onChange={(e) => setSignupEmail(e.target.value)}
+              placeholder="사내 이메일 주소 (user@beansheal.com)"
+              className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
+            />
+            <select
+              value={signupRole}
+              onChange={(e) => setSignupRole(e.target.value)}
+              className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 font-bold bg-white cursor-pointer"
+            >
+              <option value="생산팀장">생산관리 팀장</option>
+              <option value="품질팀장">품질검사 팀장</option>
+              <option value="관리자">최고관리자 (Admin)</option>
+              <option value="사원">일반 사원</option>
+            </select>
+            <input
+              type="password"
+              value={signupPassword}
+              onChange={(e) => setSignupPassword(e.target.value)}
+              placeholder="비밀번호 설정 (6자 이상)"
+              className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
+            />
+            <input
+              type="password"
+              value={signupConfirmPassword}
+              onChange={(e) => setSignupConfirmPassword(e.target.value)}
+              placeholder="비밀번호 확인"
+              className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 placeholder-gray-400 font-medium transition-colors"
+            />
 
             <button
               type="submit"
-              className="w-full bg-black hover:bg-gray-800 text-white font-extrabold py-3.5 px-4 rounded-full transition-colors text-sm cursor-pointer shadow-md active:scale-[0.99] mt-2"
+              disabled={loading}
+              className="w-full bg-black hover:bg-gray-800 text-white font-extrabold py-3.5 px-4 rounded-full transition-colors text-sm cursor-pointer shadow-md active:scale-[0.99] mt-2 disabled:opacity-50"
             >
-              회원가입 완료
+              {loading ? "가입 중..." : "회원가입 완료"}
             </button>
 
             <div className="text-center pt-2">
               <button
                 type="button"
-                onClick={() => setMode("login")}
+                onClick={() => { setMode("login"); setError(""); }}
                 className="text-xs font-bold text-gray-500 hover:text-black transition-colors cursor-pointer"
               >
                 이미 계정이 있으신가요? <span className="text-blue-600 underline">로그인하기</span>
