@@ -1,21 +1,8 @@
-"use client";
-
-import { useEffect, useState, useRef } from "react";
-import { getRecipeList } from "./actions/recipe"; 
-import { 
-  syncNotionWithSupabase, 
-  createNotionSchedule, 
-  fetchNotionSchedules,
-  testNotionConnection, 
-  deleteNotionSchedule,
-  updateScheduleDate
-} from "@/app/actions/notionActions";
-
-const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
-const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
+  redirect("/homepage.html");
+}
 
   // 달력 및 메모장용 State
   const [currentDate, setCurrentDate] = useState(new Date());
