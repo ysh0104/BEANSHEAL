@@ -240,6 +240,7 @@ export default function LoginPage() {
               <option value="주임">주임</option>
               <option value="팀장">팀장</option>
               <option value="과장">과장</option>
+              <option value="이사">이사</option>
               <option value="관리자">관리자 (Admin)</option>
             </select>
 

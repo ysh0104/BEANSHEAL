@@ -32,16 +32,20 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // 부서 + 직급에 따른 표시용 타이틀 자동 생성
-// - 과장, 팀장, 관리자 등 관리직: [부서]관리 [직급] (예: 생산관리 팀장, 품질관리 과장)
+// - 관리자, 이사, 대표 등 전사 관리직: 부서명 없이 직급만 표시 (예: 관리자, 이사)
+// - 과장, 팀장 등 중간 관리직: [부서]관리 [직급] (예: 생산관리 팀장, 품질관리 과장)
 // - 사원, 주임 등 실무직: [부서]팀 [직급] (예: 생산팀 사원, 경영팀 주임)
 export function formatJobTitle(department: string, position: string): string {
-  if (!department && !position) return "생산팀 사원";
+  const pos = position || "사원";
+  
+  if (["관리자", "이사", "대표", "대표이사"].includes(pos)) {
+    return pos;
+  }
   
   let baseDept = (department || "생산").replace(/(관리|팀)$/, "");
   if (baseDept === "자재/물류" || baseDept === "자재물류") baseDept = "자재물류";
 
-  const pos = position || "사원";
-  const isManagement = ["팀장", "과장", "차장", "부장", "이사", "대표", "관리자"].includes(pos);
+  const isManagement = ["팀장", "과장", "차장", "부장"].includes(pos);
 
   if (isManagement) {
     return `${baseDept}관리 ${pos}`;
