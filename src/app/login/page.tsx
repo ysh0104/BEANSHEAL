@@ -39,7 +39,7 @@ export default function LoginPage() {
     const { error } = await loginWithEmail(email.trim(), password);
     setLoading(false);
     if (error) {
-      setError("로그인에 실패했습니다. 이메일/비밀번호를 확인해 주세요.");
+      setError(error);
       return;
     }
     router.push("/");

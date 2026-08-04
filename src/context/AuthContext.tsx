@@ -132,11 +132,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUpWithEmail = async (
     name: string,
-    email: string,
+    rawEmail: string,
     password: string,
     department: string,
     position: string
   ) => {
+    const email = rawEmail.includes("@") ? rawEmail.trim() : `${rawEmail.trim()}@beansheal.com`;
     const permissionRole = computePermissionRole(department, position);
     
     // 1. Supabase Auth 가입 시도
@@ -168,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (authError) {
       if (authError.message.includes("Database error") || authError.message.includes("saving new user")) {
         return { 
-          error: "Supabase DB 테이블 연동 오류입니다. 아래 제공되는 SQL 스크립트를 Supabase SQL Editor에서 실행해 주세요." 
+          error: "Supabase DB 연동 오류입니다. 관리자 문의 또는 SQL 스크립트를 확인해 주세요." 
         };
       }
       return { error: authError.message };
@@ -198,9 +199,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null };
   };
 
-  const loginWithEmail = async (email: string, password: string) => {
+  const loginWithEmail = async (rawEmail: string, password: string) => {
+    const email = rawEmail.includes("@") ? rawEmail.trim() : `${rawEmail.trim()}@beansheal.com`;
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message || null };
+    
+    if (error) {
+      if (error.message.includes("Email not confirmed")) {
+        return { error: "Supabase 이메일 인증이 진행 중입니다. (대시보드에서 'Confirm email' 해제 필요)" };
+      }
+      if (error.message.includes("Invalid login credentials")) {
+        return { error: "아이디 또는 비밀번호가 일치하지 않습니다. 입력한 정보와 회원가입 아이디를 다시 확인해 주세요." };
+      }
+      return { error: error.message };
+    }
+
+    return { error: null };
   };
 
   const logout = async () => {
