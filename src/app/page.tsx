@@ -1,16 +1,9 @@
-"use client";
-import { useEffect } from "react";
+import { redirect } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 
 export default function Home() {
-  useEffect(() => {
-    window.location.replace("/homepage.html");
-  }, []);
-
-  return (
-    <div style={{ background: "#FFFFFF", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "sans-serif" }}>
-      <p style={{ color: "#0F172A", fontWeight: 700 }}>(주)빈스힐 공식 홈페이지로 이동 중입니다...</p>
-    </div>
-  );
+  redirect("/homepage.html");
 }
 
   // 달력 및 메모장용 State
