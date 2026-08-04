@@ -48,6 +48,8 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       return;
     }
     onClose();
+    // 관리자/사원 로그인 성공 시 업무웹 대시보드로 이동
+    window.location.href = "/admin.html";
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {

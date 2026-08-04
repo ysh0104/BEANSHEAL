@@ -4,11 +4,11 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  if (pathname === '/index.html' || pathname === '/') {
-    return NextResponse.rewrite(new URL('/admin.html', request.url));
+  if (pathname === '/') {
+    return NextResponse.rewrite(new URL('/homepage.html', request.url));
   }
 }
 
 export const config = {
-  matcher: ['/', '/index.html'],
+  matcher: ['/'],
 };
