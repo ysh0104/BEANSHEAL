@@ -20,7 +20,7 @@
   <!-- ==========================================================================
        Admin Login Modal / Screen
        ========================================================================== -->
-  <div id="admin-auth-screen" class="admin-auth-overlay" style="display: none;">
+  <div id="admin-auth-screen" class="admin-auth-overlay">
     <div class="admin-auth-box">
       <div class="auth-logo">
         <img src="images/beansheal-b-logo.svg" alt="BEANSHEAL Logo" style="width: 64px; height: 64px; border-radius: 50%; object-fit: contain; box-shadow: 0 4px 16px rgba(46,125,50,0.25); margin-bottom: 12px;">
@@ -54,7 +54,7 @@
   <!-- ==========================================================================
        Main Admin Dashboard App Container (Visible after login)
        ========================================================================== -->
-  <div id="admin-app" class="admin-app-layout" style="display: flex;">
+  <div id="admin-app" class="admin-app-layout" style="display: none;">
     <!-- Admin Sidebar -->
     <aside class="admin-sidebar">
       <div class="sidebar-header">
@@ -94,12 +94,15 @@
       </nav>
 
       <div class="sidebar-footer">
-        <a href="/" class="btn btn-primary btn-sm" style="width: 100%; text-align: center; background: #2563EB; color: #FFFFFF; font-weight: 800; margin-bottom: 8px; border-radius: 8px; border: none; text-decoration: none; display: block;">
-          <i class="fas fa-arrow-left"></i> BEANSHEAL ERP 대시보드
+        <a href="https://beansheal.vercel.app/" target="_blank" class="btn btn-primary btn-sm" style="width: 100%; text-align: center; background: #000000; color: #FFFFFF; font-weight: 800; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); text-decoration: none; display: block;">
+          <i class="fas fa-globe" style="color: #38BDF8;"></i> Vercel 운영 사이트
         </a>
-        <a href="homepage.html" target="_blank" class="btn btn-outline btn-sm" style="width: 100%; text-align: center; color: #FFFFFF; border-color: rgba(255,255,255,0.2); border-radius: 8px; text-decoration: none; display: block;">
-          <i class="fas fa-globe"></i> 메인 홈페이지 미리보기
+        <a href="index.html" target="_blank" class="btn btn-outline btn-sm" style="width: 100%; text-align: center; color: #FFFFFF; border-color: rgba(255,255,255,0.2); border-radius: 8px; text-decoration: none; display: block;">
+          <i class="fas fa-laptop"></i> 로컬 사용자 사이트
         </a>
+        <button onclick="handleAdminLogout()" class="btn-logout" style="margin-top: 10px; width: 100%;">
+          <i class="fas fa-sign-out-alt"></i> 로그아웃
+        </button>
       </div>
     </aside>
 

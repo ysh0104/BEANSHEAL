@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/",
-        destination: "/index.html",
+        destination: "/homepage.html",
       },
       {
         source: "/admin",
