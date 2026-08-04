@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BEANSHEAL | 관리자 로그인</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: #F8FAFC;
+    }
+    .login-card {
+      background: #FFFFFF;
+      color: #0F172A;
+      width: 100%;
+      max-width: 440px;
+      padding: 40px 36px;
+      border-radius: 24px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+    .logo-container {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .logo-container img {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      object-fit: contain;
+      box-shadow: 0 4px 16px rgba(46, 125, 50, 0.25);
+      margin-bottom: 12px;
+    }
+    .logo-container h1 {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: #0F172A;
+      letter-spacing: -0.02em;
+    }
+    .logo-container h1 span {
+      color: #2E7D32;
+    }
+    .logo-container p {
+      font-size: 0.85rem;
+      color: #64748B;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 8px;
+    }
+    .input-wrapper {
+      position: relative;
+    }
+    .input-wrapper i {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94A3B8;
+      font-size: 1rem;
+    }
+    .form-input {
+      width: 100%;
+      height: 50px;
+      padding: 0 16px 0 46px;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #0F172A;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    .form-input:focus {
+      border-color: #2E7D32;
+      box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.12);
+    }
+    .error-msg {
+      color: #EF4444;
+      font-size: 0.825rem;
+      font-weight: 600;
+      margin-top: 8px;
+      display: none;
+    }
+    .btn-submit {
+      width: 100%;
+      height: 52px;
+      background: #2E7D32;
+      color: #FFFFFF;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
+    }
+    .btn-submit:hover {
+      background: #1B5E20;
+      transform: translateY(-1px);
+    }
+    .btn-submit:active {
+      transform: translateY(0);
+    }
+    .footer-note {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #F1F5F9;
+      text-align: center;
+      font-size: 0.825rem;
+      color: #64748B;
+    }
+    .back-home {
+      display: inline-block;
+      margin-top: 16px;
+      color: #2E7D32;
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .back-home:hover {
+      color: #1B5E20;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="login-card">
+    <div class="logo-container">
+      <img src="images/beansheal-b-logo.svg" alt="BEANSHEAL Logo">
+      <h1>BEANSHEAL <span>ADMIN</span></h1>
+      <p>(주)빈스힐 관리자 시스템 로그인</p>
+    </div>
+
+    <form id="login-form" onsubmit="handleLoginSubmit(event)">
+      <div class="form-group">
+        <label class="form-label" for="password-input">관리자 암호 (Admin Password)</label>
+        <div class="input-wrapper">
+          <i class="fas fa-lock"></i>
+          <input 
+            type="password" 
+            id="password-input" 
+            class="form-input" 
+            placeholder="관리자 비밀번호를 입력하세요" 
+            required 
+            autofocus
+          >
+        </div>
+        <p id="error-msg" class="error-msg">
+          <i class="fas fa-exclamation-circle"></i> 비밀번호가 올바르지 않습니다. (초기 암호: beansheal1234)
+        </p>
+      </div>
+
+      <button type="submit" class="btn-submit">
+        <i class="fas fa-sign-in-alt"></i> 로그인 및 대시보드 이동
+      </button>
+
+      <div class="footer-note">
+        초기 암호: <strong style="color: #2E7D32;">beansheal1234</strong>
+        <br>
+        <a href="/homepage.html" class="back-home">
+          <i class="fas fa-arrow-left"></i> (주)빈스힐 공식 홈페이지로 돌아가기
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    function handleLoginSubmit(e) {
+      e.preventDefault();
+      const password = document.getElementById('password-input').value;
+      const errorMsg = document.getElementById('error-msg');
+
+      if (password === 'beansheal1234') {
+        sessionStorage.setItem('beansheal_admin_authed', 'true');
+        errorMsg.style.display = 'none';
+        
+        // URL 쿼리 스트링 redirect 파라미터가 있으면 그곳으로, 없으면 /admin.html 이동
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectUrl = urlParams.get('redirect') || '/admin.html';
+        window.location.href = redirectUrl;
+      } else {
+        errorMsg.style.display = 'block';
+      }
+    }
+
+    // 이미 로그인된 상태라면 자동으로 대시보드로 이동
+    if (sessionStorage.getItem('beansheal_admin_authed') === 'true') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirectUrl = urlParams.get('redirect') || '/admin.html';
+      window.location.href = redirectUrl;
+    }
+  </script>
+
+</body>
+</html>
