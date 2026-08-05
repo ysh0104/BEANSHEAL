@@ -1,6 +1,6 @@
 'use server'
 
-import { supabase } from "../../utils/supabase";
+import { supabase } from "@/lib/supabase";
 
 // ============================================================================
 // [1] 사무실/대시보드용: 이카운트 데이터 동기화 및 바코드(LOT) 라벨 발행

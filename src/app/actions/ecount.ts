@@ -1,6 +1,6 @@
 "use server"
 
-import { supabase } from "../../utils/supabase"; 
+import { supabase } from "@/lib/supabase"; 
 
 // 1. 이카운트 로그인 및 세션 발급
 export async function getSessionId() {

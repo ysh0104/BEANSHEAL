@@ -1,5 +1,5 @@
 import React from "react";
-import { supabase } from "../utils/supabase";
+import { supabase } from "@/lib/supabase";
 
 export default function ShippingApproval({ selectedOrder, signatures, openSignModal }: any) {
   

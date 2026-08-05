@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect } from "react";
-import { supabase } from "../utils/supabase";
+import { supabase } from "@/lib/supabase";
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe"; 
 import { getSessionId, getRecentPurchases } from "@/app/actions/ecount";
 

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { supabase } from "../utils/supabase";
+import { supabase } from "@/lib/supabase";
 
 export default function CoverPage({ selectedOrder, signatures, openSignModal }: any) {
   const storageKey = `order_${selectedOrder?.id || 'temp'}_cover`;
