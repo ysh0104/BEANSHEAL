@@ -19,6 +19,11 @@ const PROTECTED_ROUTES = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // 메인 홈페이지(/) 방문 시 사용자가 직접 만드신 고객용 공식 웹사이트(homepage.html)를 원본 그대로 렌더링
+  if (pathname === "/") {
+    return NextResponse.rewrite(new URL("/legacy/homepage.html", request.url));
+  }
+
   // legacy html 라우트 요청 시 표준 Next.js 라우트로 자동 리다이렉트
   if (pathname === "/login.html") {
     return NextResponse.redirect(new URL("/login", request.url));
