@@ -12,6 +12,7 @@ const PROTECTED_ROUTES = [
   "/scan",
   "/audit",
   "/simulator",
+  "/admin",
 ];
 
 export function middleware(request: NextRequest) {
