@@ -15,6 +15,32 @@ import {
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
 
+// 🌟 노션 고유 색상을 화면용 디자인으로 변환하는 함수
+const getNotionColorClass = (colorStr?: string) => {
+  if (!colorStr) return "";
+  switch (colorStr) {
+    case "blue":
+    case "blue_background": return "bg-blue-100 text-blue-800 border-blue-200 font-bold";
+    case "green":
+    case "green_background": return "bg-green-100 text-green-800 border-green-200 font-bold";
+    case "red":
+    case "red_background": return "bg-red-100 text-red-800 border-red-200 font-bold";
+    case "yellow":
+    case "yellow_background": return "bg-yellow-100 text-yellow-800 border-yellow-200 font-bold";
+    case "pink":
+    case "pink_background": return "bg-pink-100 text-pink-800 border-pink-200 font-bold";
+    case "purple":
+    case "purple_background": return "bg-purple-100 text-purple-800 border-purple-200 font-bold";
+    case "orange":
+    case "orange_background": return "bg-orange-100 text-orange-800 border-orange-200 font-bold";
+    case "brown":
+    case "brown_background": return "bg-amber-100 text-amber-800 border-amber-200 font-bold";
+    case "gray":
+    case "gray_background": return "bg-gray-100 text-gray-800 border-gray-200 font-bold";
+    default: return "bg-slate-100 text-slate-900 border-slate-300 font-bold";
+  }
+};
+
 export default function Home() {
   const { user } = useAuth();
   const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
@@ -40,19 +66,7 @@ export default function Home() {
   const [isTestingConn, setIsTestingConn] = useState(false);
   const [draggedSchedule, setDraggedSchedule] = useState<any | null>(null);
   
-  // 🌟 일정 키워드별 노션 스타일 색상 지정 함수
-  const getScheduleColor = (text) => {
-    if (!text) return "bg-slate-100 text-slate-700 border-slate-200"; // 기본 색상(회색)
-
-    if (text.includes("입고")) return "bg-green-100 text-green-800 border-green-200"; // 초록
-    if (text.includes("생산")) return "bg-blue-100 text-blue-800 border-blue-200"; // 파랑
-    if (text.includes("출고") || text.includes("납품")) return "bg-orange-100 text-orange-800 border-orange-200"; // 주황
-    if (text.includes("점검") || text.includes("검수")) return "bg-red-100 text-red-800 border-red-200"; // 빨강
-    if (text.includes("휴가") || text.includes("연차")) return "bg-pink-100 text-pink-800 border-pink-200"; // 핑크
-    if (text.includes("미팅") || text.includes("회의")) return "bg-purple-100 text-purple-800 border-purple-200"; // 보라
-
-    return "bg-slate-100 text-slate-700 border-slate-200"; // 해당되는 단어가 없으면 기본 회색
-  };
+  
 
   // 🌟 마이 대시보드 그리드 커스텀 State
   const [isGridSnapEnabled, setIsGridSnapEnabled] = useState(true);
@@ -690,25 +704,36 @@ export default function Home() {
                                   </div>
 
                                   <div className="w-full space-y-0.5 mt-0.5 flex-1 min-h-0 overflow-y-auto">
-                                    {visibleSchedules.map(sch => (
-                                      <div 
-                                        key={sch.id} 
-                                        draggable={true}
-                                        onDragStart={(e) => {
-                                          e.stopPropagation();
-                                          handleDragStart(e, sch);
-                                        }}
-                                        className={`text-[9px] px-1 py-0.5 rounded truncate font-medium border flex items-center justify-between gap-0.5 cursor-grab active:cursor-grabbing hover:scale-102 transition-transform ${
-                                          sch.notion_page_id
-                                            ? "bg-slate-100 text-slate-900 border-slate-300 font-bold"
-                                            : "bg-blue-100 text-blue-800 border-blue-200"
-                                        }`} 
-                                        title={`${sch.product_name} (${sch.quantity}) ${sch.notion_page_id ? '[Notion 연동]' : ''}`}
-                                      >
-                                        <span className="truncate">{sch.product_name}</span>
-                                        {sch.notion_page_id && <span className="text-[8px] text-slate-500 bg-slate-200 px-0.5 rounded shrink-0 font-extrabold">N</span>}
-                                      </div>
-                                    ))}
+                                    {visibleSchedules.map(sch => {
+                                      // 노션 색상이 있으면 그 색상을, 없으면 기본 색상을 지정
+                                      const colorClass = sch.tag_color 
+                                        ? getNotionColorClass(sch.tag_color) 
+                                        : (sch.notion_page_id ? "bg-slate-100 text-slate-900 border-slate-300 font-bold" : "bg-blue-100 text-blue-800 border-blue-200");
+
+                                      return (
+                                        <div 
+                                          key={sch.id} 
+                                          draggable={true}
+                                          onDragStart={(e) => {
+                                            e.stopPropagation();
+                                            handleDragStart(e, sch);
+                                          }}
+                                          className={`text-[9px] px-1 py-0.5 rounded truncate font-medium border flex items-center justify-between gap-0.5 cursor-grab active:cursor-grabbing hover:scale-102 transition-transform ${colorClass}`} 
+                                          title={`${sch.product_name} (${sch.quantity}) ${sch.tag_name ? `[${sch.tag_name}]` : ''}`}
+                                        >
+                                          <div className="flex items-center gap-1 overflow-hidden">
+                                            {/* 노션 태그(태그명)가 있으면 앞에 작게 표시 */}
+                                            {sch.tag_name && (
+                                              <span className="shrink-0 bg-white/60 px-0.5 rounded text-[7px] border border-black/10">
+                                                {sch.tag_name}
+                                              </span>
+                                            )}
+                                            <span className="truncate">{sch.product_name}</span>
+                                          </div>
+                                          {sch.notion_page_id && <span className="text-[8px] opacity-60 font-extrabold shrink-0">N</span>}
+                                        </div>
+                                      );
+                                    })}
                                     {extraCount > 0 && (
                                       <div className="text-[9px] text-indigo-600 font-bold text-center bg-indigo-50 rounded py-0.5">
                                         +{extraCount}개

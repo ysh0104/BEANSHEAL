@@ -15,6 +15,8 @@ export interface ProductionScheduleItem {
   note?: string;
   notion_page_id?: string;
   source?: "supabase" | "notion";
+  tag_name?: string;  // 🌟 태그 이름 추가
+  tag_color?: string; // 🌟 태그 색상 추가
 }
 
 /**
@@ -146,6 +148,8 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
       let planDate = "";
       let quantity = "";
       let note = "";
+      let tagName = "";   // 🌟 추가됨
+      let tagColor = "";  // 🌟 추가됨
 
       // 1. 품목명/제목 파싱
       for (const key of Object.keys(props)) {
@@ -195,6 +199,20 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
         }
       }
 
+      // 5. 🌟 태그(Select / Multi-select) 및 색상 파싱
+      for (const key of Object.keys(props)) {
+        const prop = props[key];
+        if (prop.type === "select" && prop.select) {
+          tagName = prop.select.name;
+          tagColor = prop.select.color; // 노션이 주는 고유 색상값 (blue, green 등)
+          break;
+        } else if (prop.type === "multi_select" && prop.multi_select?.length > 0) {
+          tagName = prop.multi_select[0].name;
+          tagColor = prop.multi_select[0].color;
+          break;
+        }
+      }
+
       if (productName && planDate) {
         schedules.push({
           id: page.id,
@@ -204,6 +222,8 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
           quantity: quantity || "1",
           note: note || "",
           source: "notion",
+          tag_name: tagName,   // 🌟 추가됨
+          tag_color: tagColor, // 🌟 추가됨
         });
       }
     }
