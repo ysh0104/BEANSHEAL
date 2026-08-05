@@ -108,25 +108,28 @@ export default function Sidebar() {
                     </svg>
                   </button>
 
-                  {/* Dropdown Menu */}
+                  {/* Dropdown Menu - zero gap hit area for smooth hover and click navigation */}
                   {isOpen && (
-                    <div className="absolute left-0 mt-1 w-56 bg-[#121214] text-zinc-100 rounded-xl shadow-2xl border border-zinc-800 py-1.5 z-50 animate-fadeIn backdrop-blur-xl">
-                      {group.items.map((item) => {
-                        const isActive = pathname.startsWith(item.path);
-                        return (
-                          <Link
-                            key={item.path}
-                            href={item.path}
-                            className={`block px-4 py-2.5 text-sm font-bold transition-all duration-150 ${
-                              isActive 
-                                ? "bg-zinc-800 text-white font-extrabold border-l-4 border-white" 
-                                : "text-zinc-400 hover:bg-zinc-800/60 hover:text-white"
-                            }`}
-                          >
-                            {item.name}
-                          </Link>
-                        );
-                      })}
+                    <div className="absolute left-0 top-full pt-1.5 w-56 z-50 animate-fadeIn">
+                      <div className="bg-[#121214] text-zinc-100 rounded-xl shadow-2xl border border-zinc-800 py-1.5 backdrop-blur-xl">
+                        {group.items.map((item) => {
+                          const isActive = pathname.startsWith(item.path);
+                          return (
+                            <Link
+                              key={item.path}
+                              href={item.path}
+                              onClick={() => setActiveDropdown(null)}
+                              className={`block px-4 py-2.5 text-sm font-bold transition-all duration-150 ${
+                                isActive 
+                                  ? "bg-zinc-800 text-white font-extrabold border-l-4 border-white" 
+                                  : "text-zinc-400 hover:bg-zinc-800/60 hover:text-white"
+                              }`}
+                            >
+                              {item.name}
+                            </Link>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>

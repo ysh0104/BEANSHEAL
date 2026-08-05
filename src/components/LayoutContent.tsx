@@ -20,9 +20,9 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
   }
 
   // 사내 업무 ERP 관련 페이지(/workspace, /inventory 등)인 경우:
-  // 상단 GNB 메뉴바 노출 및 중앙 정렬 레이아웃 적용
+  // 화사하고 깔끔한 라이트 스포트 배경(bg-slate-100 text-slate-900) 적용
   return (
-    <div className="min-h-screen bg-[#0b0b0b] text-zinc-100 flex flex-col antialiased selection:bg-zinc-800 selection:text-white">
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col antialiased">
       <Sidebar />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 max-w-7xl mx-auto w-full">
         {children}
