@@ -1,19 +1,19 @@
-import fs from "fs";
-import path from "path";
+import React from "react";
 
 export default function CustomerHomepage() {
-  const filePath = path.join(process.cwd(), "public", "legacy", "homepage.html");
-  let htmlContent = "";
-  try {
-    htmlContent = fs.readFileSync(filePath, "utf-8");
-  } catch (err) {
-    console.error("Failed to read homepage.html:", err);
-  }
-
   return (
-    <div
-      style={{ width: "100%", minHeight: "100vh" }}
-      dangerouslySetInnerHTML={{ __html: htmlContent }}
+    <iframe
+      src="/homepage.html"
+      style={{
+        width: "100vw",
+        height: "100vh",
+        border: "none",
+        margin: 0,
+        padding: 0,
+        overflow: "hidden",
+        display: "block",
+      }}
+      title="BEANSHEAL Customer Main Website"
     />
   );
 }

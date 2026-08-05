@@ -19,9 +19,9 @@ const PROTECTED_ROUTES = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 메인 홈페이지(/) 방문 시 사용자가 직접 만드신 고객용 공식 웹사이트(homepage.html)를 원본 그대로 렌더링
+  // 메인 홈페이지(/) 방문 시 Vercel 및 Next.js에서 100% 원본 고객용 HTML(homepage.html)로 직접 리라이트
   if (pathname === "/") {
-    return NextResponse.rewrite(new URL("/legacy/homepage.html", request.url));
+    return NextResponse.rewrite(new URL("/homepage.html", request.url));
   }
 
   // legacy html 라우트 요청 시 표준 Next.js 라우트로 자동 리다이렉트
