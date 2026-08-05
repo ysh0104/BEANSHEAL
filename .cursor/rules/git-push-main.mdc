@@ -1,0 +1,32 @@
+---
+description: Push directly to main; do not open pull requests
+alwaysApply: true
+---
+
+# Git Workflow — Direct Push to main
+
+This project uses **direct push to `main`**. Do not create pull requests unless the user explicitly asks.
+
+## Default branch
+
+- Work on **`main`** only.
+- Before pushing: `git pull origin main` (merge/rebase as needed).
+- Push with: `git push origin main`
+
+## When the user asks to commit or push
+
+1. Confirm changes on `main` (`git status`, `git branch`).
+2. If not on `main`, checkout `main` and merge/rebase local work first.
+3. Commit on `main` when explicitly requested.
+4. Push to **`origin main`** — not feature branches, not PR flow.
+
+## Do not
+
+- Run `gh pr create` or suggest opening a PR by default.
+- Push to `cursor/*` or other long-lived feature branches unless the user asks.
+- Force-push `main` unless the user explicitly requests it.
+
+## If push is rejected (non-fast-forward)
+
+1. `git pull origin main` to integrate remote changes.
+2. Resolve conflicts if any, commit, then `git push origin main`.
