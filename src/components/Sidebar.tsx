@@ -99,10 +99,10 @@ export default function Sidebar() {
                 >
                   <button
                     onClick={() => setActiveDropdown(isOpen ? null : group.name)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 text-xs md:text-sm font-bold rounded-md transition-all duration-200 cursor-pointer text-slate-700 hover:bg-slate-100 hover:text-slate-900 ${
-                      hasActiveChild 
-                        ? "text-slate-900 font-extrabold" 
-                        : ""
+                    className={`flex items-center gap-1 px-3 py-1.5 text-xs md:text-sm font-bold rounded-lg transition-all duration-150 cursor-pointer ${
+                      isOpen 
+                        ? "bg-slate-100 text-slate-900" 
+                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                   >
                     <span>{group.name}</span>
@@ -114,25 +114,17 @@ export default function Sidebar() {
                   {/* Dropdown Menu - 화사한 화이트 서브 메뉴 스티키 */}
                   {isOpen && (
                     <div className="absolute left-0 top-full pt-1.5 w-56 z-50 animate-fadeIn">
-                      <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200/90 py-1.5 backdrop-blur-xl">
-                        {group.items.map((item) => {
-                          const basePath = item.path.split("?")[0];
-                          const isActive = pathname === basePath;
-                          return (
-                            <Link
-                              key={item.path}
-                              href={item.path}
-                              onClick={() => setActiveDropdown(null)}
-                              className={`block px-4 py-2.5 text-sm font-bold transition-all duration-150 ${
-                                isActive 
-                                  ? "bg-slate-100 text-slate-900 font-extrabold border-l-4 border-slate-800" 
-                                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                              }`}
-                            >
-                              {item.name}
-                            </Link>
-                          );
-                        })}
+                      <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200/90 p-1 backdrop-blur-xl">
+                        {group.items.map((item) => (
+                          <Link
+                            key={item.path}
+                            href={item.path}
+                            onClick={() => setActiveDropdown(null)}
+                            className="block px-4 py-2.5 text-xs md:text-sm font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors duration-150 rounded-lg"
+                          >
+                            {item.name}
+                          </Link>
+                        ))}
                       </div>
                     </div>
                   )}
