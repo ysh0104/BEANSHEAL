@@ -3,1032 +3,639 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>액상 건강기능식품 & 기능성 음료 생산 전문 기업 빈스힐 | BEANSHEAL OEM/ODM</title>
-  <meta name="description" content="액상 건강기능식품 생산 전문 제조업체 빈스힐(BEANSHEAL). 액상 기획부터 제조, GMP/HACCP 품질관리까지 액상 전용 맞춤 ODM/OEM 서비스. 액상 스틱, 스파우트 파우치 생산.">
-  <meta name="keywords" content="빈스힐, BEANSHEAL, OEM, ODM, 액상건강기능식품, 액상소량생산, 커피, 핸드드립커피, 액상스틱, 스파우트파우치, 기능성음료제조">
+  <title>빈스힐 관리자 대시보드 | BEANSHEAL Admin System</title>
   
-  <!-- Open Graph -->
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="빈스힐 (BEANSHEAL) - 액상 건강기능식품 & 기능성 음료 전문 기업">
-  <meta property="og:description" content="액상 건기식 소량생산부터 대량생산까지! 빈스힐 전담 연구진의 프리미엄 액상 전용 OEM/ODM 맞춤 제조 솔루션">
-  <meta property="og:image" content="https://cdn.imweb.me/upload/S20210310b04a5314853b7/f7e754898a1de.png">
-
-  <!-- Performance Optimization (Preconnect & DNS Prefetch) -->
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-  <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
-  <link rel="dns-prefetch" href="https://images.unsplash.com">
-
-  <!-- Fonts & Icons -->
-  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <!-- Google Fonts & FontAwesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Styles -->
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/admin.css">
+
+  <script>
+    if (sessionStorage.getItem('beansheal_admin_authed') !== 'true') {
+      window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+    }
+  </script>
 </head>
-<body>
+<body class="admin-body">
 
   <!-- ==========================================================================
-       Header & Navigation
+       Main Admin Dashboard App Container
        ========================================================================== -->
-  <header class="site-header">
-    <div class="container header-container">
-      <a href="#" class="brand-logo" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
-        <img src="images/beansheal-b-logo.svg" alt="BEANSHEAL" style="width: 44px; height: 44px; border-radius: 50%; object-fit: contain; box-shadow: 0 3px 10px rgba(0,0,0,0.15);">
-        <span style="font-size: 1.35rem; font-weight: 900; color: #0F172A; letter-spacing: -0.5px; line-height: 1.1;">BEANSHEAL <span style="color: #2E7D32; font-weight: 700; font-size: 0.8rem; display: block; margin-top: 2px; letter-spacing: 0.5px;">(주)빈스힐</span></span>
-      </a>
+  <div id="admin-app" class="admin-app-layout" style="display: flex;">
+    <!-- Admin Sidebar -->
+    <aside class="admin-sidebar">
+      <div class="sidebar-header">
+        <div class="admin-brand">
+          <img src="images/beansheal-b-logo.svg" alt="BEANSHEAL Logo" style="width: 38px; height: 38px; border-radius: 50%; object-fit: contain; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+          <span>BEANSHEAL <strong>ADMIN</strong></span>
+        </div>
+      </div>
 
-      <nav class="gnb-nav">
-        <a href="#about" class="gnb-link">회사소개</a>
-        <a href="#brand" class="gnb-link">브랜드</a>
-        <!-- <a href="#four-categories" class="gnb-link">4대 전문 라인업</a> -->
-        <a href="#production-types" class="gnb-link">OEM / ODM</a>
-        <a href="#portfolio" class="gnb-link">생산 포트폴리오</a>
-        <a href="#calculator" class="gnb-link">간편 견적</a>
-        <a href="#inquiry-board" class="gnb-link">문의하기</a>
-        <a href="#faq" class="gnb-link">자주 묻는 질문</a>
-        <a href="#location" class="gnb-link">오시는 길</a>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="tab-inquiries" onclick="switchAdminTab('tab-inquiries')">
+          <i class="fas fa-inbox"></i>
+          <span>견적 문의 관리</span>
+          <span class="nav-badge" id="badge-pending-count">0</span>
+        </button>
+
+        <button class="nav-item" data-tab="tab-calculator" onclick="switchAdminTab('tab-calculator')">
+          <i class="fas fa-calculator"></i>
+          <span>견적 산출기 설정</span>
+        </button>
+
+        <button class="nav-item" data-tab="tab-portfolio" onclick="switchAdminTab('tab-portfolio')">
+          <i class="fas fa-images"></i>
+          <span>포트폴리오 관리</span>
+          <span class="nav-badge" style="background: #3B82F6;" id="badge-portfolio-count">24/30</span>
+        </button>
+
+        <button class="nav-item" data-tab="tab-faq" onclick="switchAdminTab('tab-faq')">
+          <i class="fas fa-question-circle"></i>
+          <span>자주 묻는 질문 관리</span>
+        </button>
+
+        <button class="nav-item" data-tab="tab-settings" onclick="switchAdminTab('tab-settings')">
+          <i class="fas fa-cog"></i>
+          <span>시스템 설정</span>
+        </button>
       </nav>
 
-      <div class="header-actions">
-        <div class="quick-phone">
-          <i class="fas fa-phone-alt"></i>
-          <span>031-969-2428</span>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="openInquiryModal()">
-          <i class="fas fa-paper-plane"></i> 실시간 문의
+      <div class="sidebar-footer">
+        <a href="https://beansheal.vercel.app/" target="_blank" class="btn btn-primary btn-sm" style="width: 100%; text-align: center; background: #000000; color: #FFFFFF; font-weight: 800; margin-bottom: 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); text-decoration: none; display: block;">
+          <i class="fas fa-globe" style="color: #38BDF8;"></i> Vercel 운영 사이트
+        </a>
+        <a href="index.html" target="_blank" class="btn btn-outline btn-sm" style="width: 100%; text-align: center; color: #FFFFFF; border-color: rgba(255,255,255,0.2); border-radius: 8px; text-decoration: none; display: block;">
+          <i class="fas fa-laptop"></i> 로컬 사용자 사이트
+        </a>
+        <button onclick="handleAdminLogout()" class="btn-logout" style="margin-top: 10px; width: 100%;">
+          <i class="fas fa-sign-out-alt"></i> 로그아웃
         </button>
-        <button class="mobile-toggle" aria-label="메뉴 열기">
-          <i class="fas fa-bars"></i>
-        </button>
       </div>
-    </div>
-  </header>
+    </aside>
 
-  <!-- ==========================================================================
-       Hero Section
-       ========================================================================== -->
-  <section class="hero-section" id="about">
-    <div class="hero-bg-shapes">
-      <div class="hero-shape-1"></div>
-      <div class="hero-shape-2"></div>
-    </div>
-
-    <div class="container hero-grid">
-      <div class="hero-content reveal-on-scroll reveal-left">
-        <div class="hero-badge-group">
-          <span class="badge-tag"><i class="fas fa-coffee"></i> 액상 핸드드립 커피</span>
-          <span class="badge-tag"><i class="fas fa-vial"></i> 건강기능식품 (GMP)</span>
-          <span class="badge-tag"><i class="fas fa-microchip"></i> 기능성표시식품</span>
-          <span class="badge-tag"><i class="fas fa-bottle-droplet"></i> 일반식품 & 음료 (HACCP)</span>
+    <!-- Admin Main Content Area -->
+    <main class="admin-main">
+      <!-- Admin Top Navbar -->
+      <header class="admin-topbar">
+        <div class="topbar-left">
+          <h1 class="page-title" id="admin-page-title">견적 문의 관리 대시보드</h1>
+          <p class="page-subtitle">고객 접수 문의 내역 및 답변 상태를 실시간 관리합니다.</p>
         </div>
 
-        <h1 class="hero-title">
-          액상 핸드드립 커피 · 건기식 · 기능성표시식품 · 일반식품 <br>
-          <span class="highlight">(주)빈스힐 맞춤 제조·대량생산</span>
-        </h1>
+        <div class="topbar-right">
+          <!-- Vercel Site Direct Link Button -->
+          <a href="https://beansheal.vercel.app/" target="_blank" class="btn btn-sm" style="background: #000000; color: #FFFFFF; font-weight: 800; border-radius: 980px; padding: 7px 16px; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.18); font-size: 0.85rem; border: 1px solid #334155; transition: transform 0.2s ease;">
+            <i class="fas fa-globe" style="color: #38BDF8;"></i> 🌐 Vercel 라이브 사이트 이동 (beansheal.vercel.app)
+          </a>
 
-        <p class="hero-subtitle">
-          전문 바리스타 정통 저온 드립 커피부터 식약처 GMP 건강기능식품, 최신 트렌드 기능성표시식품, 일반음료까지!<br>
-          액상 전용 스마트 무균 자동 충진 공장에서 소량 및 대량생산을 제공합니다.
-        </p>
-
-        <div class="hero-cta-group">
-          <button class="btn btn-primary btn-lg" onclick="openInquiryModal()">
-            <i class="fas fa-paper-plane"></i> 1:1  맞춤 견적 문의
-          </button>
-        </div>
-      </div>
-
-      <!-- Hero Visual Slider Showcase -->
-      <div class="hero-visual-card reveal-on-scroll reveal-right">
-        <div class="visual-card-header">
-          <div class="visual-card-title">
-            <i class="fas fa-check-double" style="color: var(--primary);"></i>
-            <span>빈스힐 4대 제조 라인업 대표 제품</span>
+          <div class="stat-pill" style="background: #ECFDF5; border-color: #A7F3D0;">
+            <i class="fas fa-eye" style="color: #059669;"></i>
+            <span>오늘 방문자: <strong id="stat-today-visitors" style="color: #047857;">0</strong>명</span>
           </div>
-          <span style="font-size: 0.8rem; color: var(--gray-400);">Auto Play</span>
+          <div class="stat-pill" style="background: #EFF6FF; border-color: #BFDBFE;">
+            <i class="fas fa-chart-line" style="color: #2563EB;"></i>
+            <span>누적 방문자: <strong id="stat-total-visitors" style="color: #1D4ED8;">0</strong>명</span>
+          </div>
+          <div class="stat-pill warning">
+            <i class="fas fa-clock" style="color: #D97706;"></i>
+            <span>답변 대기: <strong id="stat-pending-inquiries">0</strong>건</span>
+          </div>
         </div>
+      </header>
 
-        <div class="hero-slider-wrap">
-          <div class="hero-slide active" style="background-image: url('https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=800&q=80');">
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content">
-              <span class="slide-category" style="background: #D97706;">1. 액상 핸드드립 커피</span>
-              <h3 class="slide-title">액상 핸드드립 커피</h3>
-              <p class="slide-desc">바리스타 저온 드립 원액을 10ml~30ml Easy-Cut 스틱</p>
+      <!-- TAB 1: 견적 문의 관리 -->
+      <section id="tab-inquiries" class="admin-tab-content active">
+        <!-- Visitor Analytics Grid Card -->
+        <div class="admin-card" style="margin-bottom: 24px; padding: 24px 28px; background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <h3 style="font-size: 1.1rem; font-weight: 800; color: #0F172A; margin: 0; display: flex; align-items: center; gap: 8px;">
+              <i class="fas fa-chart-pie" style="color: #2E7D32;"></i> 홈페이지 실시간 방문자 트래픽 현황
+            </h3>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button onclick="resetVisitorStats()" class="btn btn-outline btn-sm" style="font-size: 0.75rem; color: #64748B; border-color: #CBD5E1; padding: 3px 10px; border-radius: 6px;">
+                <i class="fas fa-redo"></i> 수치 0으로 리셋
+              </button>
+              <span style="font-size: 0.8rem; color: #64748B; background: #F1F5F9; padding: 4px 12px; border-radius: 99px; font-weight: 600;">
+                <i class="fas fa-sync-alt" style="font-size: 0.75rem;"></i> 자동 실시간 집계중
+              </span>
             </div>
           </div>
 
-          <div class="hero-slide" style="background-image: url('images/slide-fat-away.jpg');">
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content">
-              <span class="slide-category" style="background: #2E7D32;">2. 건강기능식품 (GMP)</span>
-              <h3 class="slide-title">고농축 액상 스틱 & 건기식 포뮬러</h3>
-              <p class="slide-desc">식약처 GMP 인증 공정으로 층분리 없는 고농축 액상 건기식 포 및 이중제형 샷 완벽 제조</p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">
+            <div style="background: #F0FDF4; border: 1px solid #DCFCE7; border-radius: 12px; padding: 16px; text-align: center;">
+              <div style="font-size: 0.825rem; font-weight: 700; color: #166534; margin-bottom: 6px;"><i class="fas fa-user-check"></i> 오늘 방문자 수</div>
+              <div style="font-size: 1.6rem; font-weight: 900; color: #15803D;" id="dash-today-visitors">0 명</div>
             </div>
-          </div>
 
-          <div class="hero-slide" style="background-image: url('images/slide-functional-food.jpg');">
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content">
-              <span class="slide-category" style="background: #059669;">3. 기능성 표시 식품</span>
-              <h3 class="slide-title">혈당·체중조절·면역 기능성 원료</h3>
-              <p class="slide-desc">일반 음료/파우치 제형에 식약처 검증 기능성 원료를 가공·표시하는 최신 히트 트렌드</p>
+            <div style="background: #EFF6FF; border: 1px solid #DBEAFE; border-radius: 12px; padding: 16px; text-align: center;">
+              <div style="font-size: 0.825rem; font-weight: 700; color: #1E40AF; margin-bottom: 6px;"><i class="fas fa-users"></i> 누적 총 방문자 수</div>
+              <div style="font-size: 1.6rem; font-weight: 900; color: #1D4ED8;" id="dash-total-visitors">0 명</div>
             </div>
-          </div>
 
-          <div class="hero-slide" style="background-image: url('images/slide-beverage-user.jpg');">
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content">
-              <span class="slide-category" style="background: #7C3AED;">4. 일반식품 & 음료 (HACCP)</span>
-              <h3 class="slide-title">과즙 엑기스, 무설탕 프레시 액상 음료</h3>
-              <p class="slide-desc">HACCP 안전 무균 충진으로 온가족이 안심하고 상쾌하게 마시는 대중적 고품질 음료 라인</p>
+            <div style="background: #FAF5FF; border: 1px solid #F3E8FF; border-radius: 12px; padding: 16px; text-align: center;">
+              <div style="font-size: 0.825rem; font-weight: 700; color: #6B21A8; margin-bottom: 6px;"><i class="fas fa-file-alt"></i> 오늘 총 페이지뷰</div>
+              <div style="font-size: 1.6rem; font-weight: 900; color: #7E22CE;" id="dash-today-pageviews">0 회</div>
+            </div>
+
+            <div style="background: #FFFBEB; border: 1px solid #FEF3C7; border-radius: 12px; padding: 16px; text-align: center;">
+              <div style="font-size: 0.825rem; font-weight: 700; color: #92400E; margin-bottom: 6px;"><i class="fas fa-bolt"></i> 실시간 견적 전환율</div>
+              <div style="font-size: 1.6rem; font-weight: 900; color: #B45309;" id="dash-conversion-rate">0.0%</div>
             </div>
           </div>
         </div>
 
-        <div class="slider-controls">
-          <div class="slider-dots"></div>
-          <span style="font-size: 0.85rem; color: var(--gray-300);">슬라이드를 클릭하여 변경할 수 있습니다</span>
-        </div>
-      </div>
-    </div>
-  </section>
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <div class="search-filter-box">
+              <div class="search-input-wrap">
+                <i class="fas fa-search"></i>
+                <input type="text" id="inquiry-search-input" placeholder="기업명, 작성자, 문의제목으로 검색..." onkeyup="filterInquiries()">
+              </div>
 
-  <!-- ==========================================================================
-       Brand Showcase Section (브랜드)
-       ========================================================================== -->
-  <section class="section" id="brand" style="background: var(--white); border-bottom: 1px solid var(--gray-200);">
-    <div class="container">
-      <div class="text-center reveal-on-scroll">
-        <span class="section-tag" style="background-color: #E8F5E9; color: #2E7D32; border-color: #C8E6C9;"><i class="fas fa-crown"></i> BEANSHEAL Brand Portfolio</span>
-        <h2 class="section-title">(주)빈스힐 <span>시그니처 브랜드</span></h2>
-        <p class="section-desc">
-          정통 액상 핸드드립 커피부터 식약처 GMP 건기식, 기능성표시식품까지 (주)빈스힐의 독자 브랜드 기술력을 소개합니다.
-        </p>
-      </div>
-
-      <div class="reveal-on-scroll stagger-item reveal-scale" id="brands-grid" style="margin: 48px auto 0 auto; max-width: 680px;"></div>
-    </div>
-  </section>
-
-  <!-- ==========================================================================
-       4-in-1 Certified Manufacturing Categories Showcase
-       ========================================================================== -->
-  <section class="section" id="four-categories" style="background: #F8FAFC; border-bottom: 1px solid var(--gray-200);">
-    <div class="container">
-      <div class="text-center reveal-on-scroll">
-        <span class="section-tag" style="background-color: #E8F5E9; color: #2E7D32; border-color: #C8E6C9;"><i class="fas fa-cubes"></i> 4 Core Production Lines</span>
-        <h2 class="section-title">(주)빈스힐 <span>4대 핵심 전문 제조 영역</span></h2>
-        <p class="section-desc">
-          원하는 식품 분류 규격과 제형에 맞춰 식약처 인증 전용 생산 라인에서 완벽하게 제조·대량 납품합니다.
-        </p>
-      </div>
-
-      <div class="grid-4 reveal-on-scroll stagger-item reveal-scale" style="margin-top: 48px;">
-        <!-- Card 1: 액상 핸드드립 커피 -->
-        <div style="background: #FFFFFF; padding: 32px 26px; border-radius: 18px; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0,0,0,0.04); display: flex; flex-direction: column;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <div style="width: 48px; height: 48px; background: #FEF3C7; color: #D97706; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-              <i class="fas fa-mug-hot"></i>
-            </div>
-            <span style="font-size: 0.75rem; font-weight: 700; background: #FFFBEB; color: #B45309; padding: 4px 10px; border-radius: 4px; border: 1px solid #FDE68A;">일 10만포 CAPA</span>
-          </div>
-          <h3 style="font-size: 1.3rem; font-weight: 800; color: #1D1D1F; margin-bottom: 8px;">1. 액상 핸드드립 커피</h3>
-          <p style="font-size: 0.95rem; color: #6E6E73; line-height: 1.6; margin-bottom: 20px; flex-grow: 1;">
-            전문 바리스타 정통 저온 드립 추출 자동화! 스페셜티 원두 아로마 보존 스틱파우치 대량생산
-          </p>
-          <ul style="font-size: 0.85rem; color: #4B5563; border-top: 1px solid #F1F5F9; padding-top: 14px; line-height: 1.8;">
-            <li><i class="fas fa-check" style="color: #D97706; margin-right: 6px;"></i> 정통 저온 드립 추출 공정</li>
-            <li><i class="fas fa-check" style="color: #D97706; margin-right: 6px;"></i> 10ml 스틱 & 20ml 원액</li>
-            <li><i class="fas fa-check" style="color: #D97706; margin-right: 6px;"></i> 레토르트 파우치 충진</li>
-          </ul>
-        </div>
-
-        <!-- Card 2: 건강기능식품 (GMP) -->
-        <div style="background: #FFFFFF; padding: 32px 26px; border-radius: 18px; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0,0,0,0.04); display: flex; flex-direction: column;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <div style="width: 48px; height: 48px; background: #E8F5E9; color: #2E7D32; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-              <i class="fas fa-vial"></i>
-            </div>
-            <span style="font-size: 0.75rem; font-weight: 700; background: #E8F5E9; color: #1B5E20; padding: 4px 10px; border-radius: 4px; border: 1px solid #C8E6C9;">식약처 GMP 인증</span>
-          </div>
-          <h3 style="font-size: 1.3rem; font-weight: 800; color: #1D1D1F; margin-bottom: 8px;">2. 건강기능식품 (GMP)</h3>
-          <p style="font-size: 0.95rem; color: #6E6E73; line-height: 1.6; margin-bottom: 20px; flex-grow: 1;">
-            식약처 인정 기능성 원료 고농축 액상화! 침전/층분리 방지 고기술력 및 무균 살균 포장으로 고효율 건기식 제조
-          </p>
-          <ul style="font-size: 0.85rem; color: #4B5563; border-top: 1px solid #F1F5F9; padding-top: 14px; line-height: 1.8;">
-            <li><i class="fas fa-check" style="color: #2E7D32; margin-right: 6px;"></i> 식약처 품목제조신고 풀케어</li>
-            <li><i class="fas fa-check" style="color: #2E7D32; margin-right: 6px;"></i> 복합 기능성 농축 액상</li>
-            <li><i class="fas fa-check" style="color: #2E7D32; margin-right: 6px;"></i> 체내 높은 흡수율 액상 수용화</li>
-          </ul>
-        </div>
-
-        <!-- Card 3: 기능성 표시 식품 -->
-        <div style="background: #FFFFFF; padding: 32px 26px; border-radius: 18px; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0,0,0,0.04); display: flex; flex-direction: column;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <div style="width: 48px; height: 48px; background: #D1FAE5; color: #059669; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-              <i class="fas fa-microchip"></i>
-            </div>
-            <span style="font-size: 0.75rem; font-weight: 700; background: #ECFDF5; color: #047857; padding: 4px 10px; border-radius: 4px; border: 1px solid #A7F3D0;">트렌드 히트 제형</span>
-          </div>
-          <h3 style="font-size: 1.3rem; font-weight: 800; color: #1D1D1F; margin-bottom: 8px;">3. 기능성 표시 식품</h3>
-          <p style="font-size: 0.95rem; color: #6E6E73; line-height: 1.6; margin-bottom: 20px; flex-grow: 1;">
-            일반 식품/음료 포맷에 혈당조절, 체중관리, 피로개선 등 검증된 기능성 소재를 표시 가공하여 신시장 선점
-          </p>
-          <ul style="font-size: 0.85rem; color: #4B5563; border-top: 1px solid #F1F5F9; padding-top: 14px; line-height: 1.8;">
-            <li><i class="fas fa-check" style="color: #059669; margin-right: 6px;"></i> 식약처 기능성 표시 등록 지원</li>
-            <li><i class="fas fa-check" style="color: #059669; margin-right: 6px;"></i> 마시는 혈당/체중 케어 음료</li>
-            <li><i class="fas fa-check" style="color: #059669; margin-right: 6px;"></i> 데일리 기호성 원액 포뮬러</li>
-          </ul>
-        </div>
-
-        <!-- Card 4: 일반식품 & 음료 (HACCP) -->
-        <div style="background: #FFFFFF; padding: 32px 26px; border-radius: 18px; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0,0,0,0.04); display: flex; flex-direction: column;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <div style="width: 48px; height: 48px; background: #EDE9FE; color: #7C3AED; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-              <i class="fas fa-bottle-droplet"></i>
-            </div>
-            <span style="font-size: 0.75rem; font-weight: 700; background: #F5F3FF; color: #6D28D9; padding: 4px 10px; border-radius: 4px; border: 1px solid #DDD6FE;">HACCP 안전 안심</span>
-          </div>
-          <h3 style="font-size: 1.3rem; font-weight: 800; color: #1D1D1F; margin-bottom: 8px;">4. 일반식품 & 음료 (HACCP)</h3>
-          <p style="font-size: 0.95rem; color: #6E6E73; line-height: 1.6; margin-bottom: 20px; flex-grow: 1;">
-            과즙 엑기스, 무설탕 액상, 레트르트 파우치등 대중적인 고품질 일반 식품을 안전 충진
-          </p>
-          <ul style="font-size: 0.85rem; color: #4B5563; border-top: 1px solid #F1F5F9; padding-top: 14px; line-height: 1.8;">
-            <li><i class="fas fa-check" style="color: #7C3AED; margin-right: 6px;"></i> 과채/한방 레토르트 엑기스</li>
-            <li><i class="fas fa-check" style="color: #7C3AED; margin-right: 6px;"></i> 유기농 파우치 음료</li>
-            <li><i class="fas fa-check" style="color: #7C3AED; margin-right: 6px;"></i> 대량생산 수율 최적화</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ==========================================================================
-       OEM / ODM Production Types
-       ========================================================================== -->
-  <section class="section section-alt" id="production-types">
-    <div class="container">
-      <div class="text-center reveal-on-scroll">
-        <span class="section-tag"><i class="fas fa-cogs"></i> Liquid Manufacturing System</span>
-        <h2 class="section-title">빈스힐 액상 맞춤형 <span>3대 생산 프로세스</span></h2>
-        <p class="section-desc">
-          액상 건강기능식품 신규 사업자부터 대형 브랜딩 유통사까지, 액상 전용 최 첨단 가공 공정을 제공합니다.
-        </p>
-      </div>
-
-      <div class="process-tabs reveal-on-scroll reveal-scale">
-        <button class="tab-btn" data-target="oem">
-          <i class="fas fa-tools"></i> 액상 OEM (주문자 위탁)
-        </button>
-        <button class="tab-btn active" data-target="odm">
-          <i class="fas fa-lightbulb"></i> 액상 ODM (개발 생산)
-        </button>
-        <!-- <button class="tab-btn" data-target="obm">
-          <i class="fas fa-crown"></i> 액상 OBM (브랜드 통합)
-        </button> -->
-      </div>
-
-      <!-- Tab Content Area (Rendered via JS) -->
-      <div id="production-detail-container"></div>
-    </div>
-  </section>
-
-
-
-  <!-- ==========================================================================
-       Portfolio Showcase (samjungbio.com Exact Fan Carousel)
-       ========================================================================== -->
-  <section class="section" id="portfolio" style="padding: 96px 28px 80px; background: #FFFFFF; overflow: hidden;">
-    <div class="container">
-      <div class="text-center reveal-on-scroll" style="margin-bottom: 32px;">
-        <span class="section-tag" style="background-color: #E8F5E9; color: #2E7D32; border-color: #C8E6C9;"><i class="fas fa-layer-group"></i> OUR PRODUCTS</span>
-        <h2 class="section-title">(주)빈스힐 <span>생산 완료 대표 포트폴리오</span></h2>
-        <p class="section-desc" style="max-width: 660px; margin: 0 auto;">
-          다양한 제형으로 생산한 (주)빈스힐의 액상 제조 사례입니다. 카드를 넘기거나 마우스를 올려보세요.
-        </p>
-      </div>
-
-      <div id="fanRoot" style="width: 100%;"></div>
-    </div>
-  </section>
-
-  <!-- ==========================================================================
-       Instant Quote Calculator (액상 스틱 파우치 전용 간편 견적 산출기)
-       ========================================================================== -->
-  <section class="section calc-section" id="calculator">
-    <div class="container">
-      <div class="text-center reveal-on-scroll">
-        <span class="section-tag" style="background: rgba(46, 125, 50, 0.25); color: #81C784; border-color: rgba(129, 199, 132, 0.4);"><i class="fas fa-calculator"></i> Liquid Stick Custom Estimator</span>
-        <h2 class="section-title">액상 스틱 파우치 전용 <span>실시간 간편 견적 산출기</span></h2>
-        <p class="section-desc">
-          (주)빈스힐은 프리미엄 액상 스틱 파우치 전문 무균 충진 공장입니다. 원하시는 용량, 원료 라인업, 포장재 및 생산 수량을 선택하시면 예상 제조 스펙을 실시간 확인하실 수 있습니다.
-        </p>
-      </div>
-
-      <div class="calc-wrapper reveal-on-scroll reveal-scale">
-        <!-- Top Fixed Spec Banner -->
-        <div style="background: rgba(46, 125, 50, 0.15); border: 1px solid rgba(129, 199, 132, 0.3); border-radius: 12px; padding: 14px 20px; margin-bottom: 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 36px; height: 36px; background: #2E7D32; color: #FFFFFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem;">
-              <i class="fas fa-prescription-bottle"></i>
-            </div>
-            <div>
-              <strong style="font-size: 0.95rem; color: #FFFFFF;">기본 제형: 프리미엄 액상 스틱 파우치 (100% 충진 전용 라인)</strong>
-              <p style="font-size: 0.825rem; color: #CBD5E1; margin-top: 2px;">저온 무균 살균 엑기스 & 층분리 방지 고농축 수용화 기술 적용</p>
-            </div>
-          </div>
-          <span style="font-size: 0.8rem; font-weight: 700; background: #1B5E20; color: #A5D6A7; padding: 4px 12px; border-radius: 20px; border: 1px solid #4CAF50;">HACCP & GMP 안전 안심</span>
-        </div>
-
-        <div class="calc-steps">
-          <div class="step-card active">
-            <div class="step-num">Step 01</div>
-            <div class="step-title">스틱 용량 (ml)</div>
-          </div>
-          <div class="step-card active">
-            <div class="step-num">Step 02</div>
-            <div class="step-title">원료 & 라인업</div>
-          </div>
-          <div class="step-card active">
-            <div class="step-num">Step 03</div>
-            <div class="step-title">포장 형태</div>
-          </div>
-          <div class="step-card active">
-            <div class="step-num">Step 04</div>
-            <div class="step-title">예상 생산 수량</div>
-          </div>
-        </div>
-
-        <div class="calc-form-grid">
-          <div class="calc-options-box">
-            <!-- 1. 용량 선택 -->
-            <div>
-              <div class="option-group-title"><i class="fas fa-flask" style="color: #81C784;"></i> 1. 액상 스틱 용량을 선택하세요</div>
-              <div class="option-buttons">
-                <button class="opt-btn calc-opt-btn" data-group="volume" data-value="15ml ~ 20ml (착즙 & 고농축 스틱)">15ml ~ 20ml (착즙/고농축)</button>
-                <button class="opt-btn calc-opt-btn selected" data-group="volume" data-value="25ml ~ 30ml (다이어트 & 액상커피)">25ml ~ 30ml (다이어트/커피)</button>
-                <button class="opt-btn calc-opt-btn" data-group="volume" data-value="35ml ~ 50ml (프리미엄 앰플 스틱)">35ml ~ 50ml (프리미엄/빅스틱)</button>
-                <button class="opt-btn calc-opt-btn" data-group="volume" data-value="기타 (맞춤 용량)">기타 (맞춤 용량)</button>
+              <div class="filter-btn-group">
+                <button class="filter-btn active" data-filter="all" onclick="setInquiryFilter('all')">전체 (<span id="cnt-all">0</span>)</button>
+                <button class="filter-btn" data-filter="대기중" onclick="setInquiryFilter('대기중')">답변 대기중 (<span id="cnt-pending">0</span>)</button>
+                <button class="filter-btn" data-filter="답변완료" onclick="setInquiryFilter('답변완료')">답변 완료 (<span id="cnt-done">0</span>)</button>
+                <button class="filter-btn" data-filter="trash" onclick="setInquiryFilter('trash')" style="color: #EF4444;">
+                  <i class="fas fa-trash-alt"></i> 휴지통 (<span id="cnt-trash">0</span>)
+                </button>
               </div>
             </div>
 
-            <!-- 2. 원료 및 라인업 선택 -->
-            <div>
-              <div class="option-group-title"><i class="fas fa-leaf" style="color: #81C784;"></i> 2. 원료 및 카테고리를 선택하세요</div>
-              <div class="option-buttons">
-                <button class="opt-btn calc-opt-btn selected" data-group="ingredient" data-value="다이어트 & 건강기능커피">다이어트 & 건강기능커피</button>
-                <button class="opt-btn calc-opt-btn" data-group="ingredient" data-value="유기농 원료 (NFC 100% 착즙)">유기농 원료 (NFC 100% 착즙)</button>
-                <button class="opt-btn calc-opt-btn" data-group="ingredient" data-value="기능성 표시 식품 (밀크씨슬/가르시니아)">기능성 표시 식품 (밀크씨슬/가르시니아)</button>
-                <button class="opt-btn calc-opt-btn" data-group="ingredient" data-value="과·채주스 & 효소 음료">과·채주스 & 효소 음료</button>
-                <button class="opt-btn calc-opt-btn" data-group="ingredient" data-value="기타 (맞춤 원료 개발)">기타 (맞춤 원료 개발)</button>
-              </div>
-            </div>
-
-            <!-- 3. 포장 형태 선택 -->
-            <div>
-              <div class="option-group-title"><i class="fas fa-box" style="color: #81C784;"></i> 3. 포장 형태를 선택하세요</div>
-              <div class="option-buttons">
-                <button class="opt-btn calc-opt-btn selected" data-group="packaging" data-value="7포 / 14포 단상자 패키지">7포 / 14포 단상자 패키지</button>
-                <button class="opt-btn calc-opt-btn" data-group="packaging" data-value="30포 / 50포 대용량 벌크 파우치">30포 / 50포 대용량 벌크 파우치</button>
-                <button class="opt-btn calc-opt-btn" data-group="packaging" data-value="디스플레이 RRP 박스 포장">디스플레이 RRP 박스 포장</button>
-                <button class="opt-btn calc-opt-btn" data-group="packaging" data-value="기타 (맞춤 포장)">기타 (맞춤 포장)</button>
-              </div>
-            </div>
-
-            <!-- 4. 예상 생산 수량 선택 -->
-            <div>
-              <div class="option-group-title"><i class="fas fa-sort-numeric-up" style="color: #81C784;"></i> 4. 예상 생산 수량을 선택하세요</div>
-              <div class="option-buttons">
-                <button class="opt-btn calc-opt-btn" data-group="quantity" data-value="10,000 포 (소량 테스트 배치)">10,000 포 (소량배치)</button>
-                <button class="opt-btn calc-opt-btn selected" data-group="quantity" data-value="30,000 포 (표준 생산 배치)">30,000 포 (표준배치)</button>
-                <button class="opt-btn calc-opt-btn" data-group="quantity" data-value="50,000 포 (대량 생산 최적화)">50,000 포 (대량생산)</button>
-                <button class="opt-btn calc-opt-btn" data-group="quantity" data-value="100,000 포 이상 (대형 유통사 맞춤)">100,000 포 이상</button>
-                <button class="opt-btn calc-opt-btn" data-group="quantity" data-value="기타 (맞춤 수량)">기타 (맞춤 수량)</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="calc-result-box">
-            <div class="result-title"><i class="fas fa-clipboard-check" style="color: #2E7D32;"></i> 선택 사양 예상 요약</div>
-            <div class="result-summary-list" id="quote-summary-list"></div>
-
-            <div class="price-estimate-box">
-              <div class="price-label">예상 최소 제조 시작 예산가</div>
-              <div class="price-amount" id="estimated-price-display">약 3,500,000 원 ~</div>
-              <p style="font-size: 0.75rem; color: var(--gray-500); margin-top: 4px;">* 부가세 별도 / 맞춤 레시피 및 포장재 스펙에 따라 변동</p>
-            </div>
-
-            <button class="btn btn-primary btn-lg" onclick="openQuoteInquiryModal()" style="width: 100%; border-radius: 12px; font-weight: 800; font-size: 1.05rem;">
-              <i class="fas fa-paper-plane"></i> 이 조건으로 1:1 액상 상담 신청하기
+            <button class="btn btn-primary btn-sm" onclick="openNewInquiryModal()" style="border-radius: 8px;">
+              <i class="fas fa-plus"></i> 수동 문의 등록
             </button>
           </div>
-        </div>
-      </div>
-    </div>
-  </section>
 
-  <!-- ==========================================================================
-       Real-Time Inquiry Board
-       ========================================================================== -->
-  <section class="section section-alt" id="inquiry-board">
-    <div class="container">
-      <div class="text-center reveal-on-scroll">
-        <span class="section-tag"><i class="fas fa-comments"></i> Real-time Inquiries</span>
-        <h2 class="section-title">실시간 <span>액상 제품 생산 문의 현황</span></h2>
-        <p class="section-desc">
-          빈스힐에 매일 접수되는 다양한 기업 및 유통사의 액상 생산 문의 현황입니다. 비밀글로 안전하게 보호됩니다.
-        </p>
-      </div>
-
-      <div class="board-container reveal-on-scroll reveal-scale">
-        <div class="board-header">
-          <div>
-            <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--navy-900);">최근 접수된 액상 OEM/ODM 문의</h3>
-            <p style="font-size: 0.85rem; color: var(--gray-500);">실시간으로 빈스힐 연구진이 검토 후 답변을 작성합니다.</p>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="openInquiryModal()">
-            <i class="fas fa-pen"></i> 신규 문의 작성하기
-          </button>
-        </div>
-
-        <div class="board-list" id="inquiry-board-list"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ==========================================================================
-       Frequently Asked Questions (FAQ) Section
-       ========================================================================== -->
-  <section class="section" id="faq" style="background: #FFFFFF; border-top: 1px solid var(--gray-200);">
-    <div class="container">
-      <div class="text-center reveal-on-scroll">
-        <span class="section-tag" style="background-color: #E0F2FE; color: #0284C7; border-color: #BAE6FD;"><i class="fas fa-question-circle"></i> FAQ</span>
-        <h2 class="section-title">자주 묻는 <span>질문 (FAQ)</span></h2>
-        <p class="section-desc">
-          (주)빈스힐 제품 생산, 최소 생산 수량(MOQ), 원료 배합 및 행정 절차에 관해 가장 자주 물으시는 질문과 답변입니다.
-        </p>
-      </div>
-
-      <div class="faq-container reveal-on-scroll reveal-scale" id="faq-accordion-list" style="max-width: 860px; margin: 40px auto 0 auto; display: flex; flex-direction: column; gap: 16px;">
-        
-        <!-- FAQ Item 1 -->
-        <div class="faq-item" style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 16px; overflow: hidden; transition: all 0.3s ease;">
-          <div class="faq-question" onclick="toggleFaq(this)" style="padding: 22px 28px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
-            <div style="display: flex; align-items: center; gap: 14px;">
-              <span style="font-weight: 900; font-size: 1.1rem; color: #2E7D32;">Q1.</span>
-              <strong style="font-size: 1.05rem; color: #0F172A; font-weight: 800;">최소 생산 수량(MOQ)은 얼마나 되나요?</strong>
-            </div>
-            <i class="fas fa-chevron-down faq-icon" style="color: #64748B; transition: transform 0.3s ease;"></i>
-          </div>
-          <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; background: #FFFFFF; border-top: 1px solid transparent;">
-            <div style="padding: 20px 28px 24px 58px; font-size: 0.95rem; color: #334155; line-height: 1.85;">
-              (주)빈스힐은 신규 브랜드 및 스타트업을 위해 <strong>100포 극소량 시험 생산(PILOT)</strong>부터 정식 표준 배치인 <strong>10,000포 ~ 30,000포</strong> 생산까지 맞춤 지원합니다. 부담 없이 시제품을 제작하여 시장 반응을 테스팅해 보실 수 있습니다.
-            </div>
+          <div class="table-responsive">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th style="width: 70px;">번호</th>
+                  <th style="width: 120px; min-width: 120px;">상태</th>
+                  <th>문의 제목 / 사양 요약</th>
+                  <th style="width: 140px;">작성자/기업명</th>
+                  <th style="width: 130px;">연락처</th>
+                  <th style="width: 110px;">접수일자</th>
+                  <th style="width: 110px;">관리</th>
+                </tr>
+              </thead>
+              <tbody id="inquiry-table-body">
+                <!-- JS Rendered Inquiry Rows -->
+              </tbody>
+            </table>
           </div>
         </div>
+      </section>
 
-        <!-- FAQ Item 2 -->
-        <div class="faq-item" style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 16px; overflow: hidden; transition: all 0.3s ease;">
-          <div class="faq-question" onclick="toggleFaq(this)" style="padding: 22px 28px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
-            <div style="display: flex; align-items: center; gap: 14px;">
-              <span style="font-weight: 900; font-size: 1.1rem; color: #2E7D32;">Q2.</span>
-              <strong style="font-size: 1.05rem; color: #0F172A; font-weight: 800;">샘플 제작 및 맛·향 배합 컨설팅 기간은 얼마나 걸리나요?</strong>
+      <!-- TAB: 견적 산출기 설정 -->
+      <section id="tab-calculator" class="admin-tab-content">
+        <div class="admin-card" style="max-width: 900px; margin: 0 auto; padding: 36px 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.06);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; border-bottom: 2px solid #E2E8F0; padding-bottom: 18px;">
+            <div>
+              <h3 style="font-size: 1.35rem; font-weight: 900; color: #0F172A; margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-calculator" style="color: #2E7D32;"></i> 실시간 견적 산출기 옵션 관리
+              </h3>
+              <p style="font-size: 0.875rem; color: #64748B; margin-top: 6px;">홈페이지 견적 산출기 선택 옵션을 줄바꿈(엔터)으로 간편하게 추가하고 편집하세요.</p>
             </div>
-            <i class="fas fa-chevron-down faq-icon" style="color: #64748B; transition: transform 0.3s ease;"></i>
+            <button onclick="saveCalcOptionsAdmin()" class="btn btn-primary" style="background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%); padding: 12px 24px; font-weight: 800; font-size: 0.95rem; border-radius: 10px; box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);">
+              <i class="fas fa-save"></i> 설정 저장 완료
+            </button>
           </div>
-          <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; background: #FFFFFF; border-top: 1px solid transparent;">
-            <div style="padding: 20px 28px 24px 58px; font-size: 0.95rem; color: #334155; line-height: 1.85;">
-              원료 선정 및 맞춤 포뮬러 설계 후 <strong>약 3일 ~ 5일 이내</strong>에 시험 샘플을 발송해 드립니다. 빈스힐 전담 연구진이 액상 이스케이프 포뮬러 기술을 적용하여 쓴맛·잡미 마스킹 및 층분리 방지 무료 컨설팅을 함께 제공합니다.
-            </div>
-          </div>
-        </div>
 
-        <!-- FAQ Item 3 -->
-        <div class="faq-item" style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 16px; overflow: hidden; transition: all 0.3s ease;">
-          <div class="faq-question" onclick="toggleFaq(this)" style="padding: 22px 28px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
-            <div style="display: flex; align-items: center; gap: 14px;">
-              <span style="font-weight: 900; font-size: 1.1rem; color: #2E7D32;">Q3.</span>
-              <strong style="font-size: 1.05rem; color: #0F172A; font-weight: 800;">식약처 품목제조신고 및 원스톱 행정 절차도 대행해 주시나요?</strong>
+          <div style="display: flex; flex-direction: column; gap: 28px;">
+            <!-- Category 1: Volume -->
+            <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-left: 5px solid #2E7D32; border-radius: 14px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
+              <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                <span><i class="fas fa-flask" style="color: #2E7D32; margin-right: 8px;"></i> 1. 액상 스틱 용량 옵션</span>
+                <span style="font-size: 0.775rem; font-weight: 600; color: #64748B; background: #F1F5F9; padding: 3px 10px; border-radius: 99px;">한 줄에 1개씩 작성</span>
+              </h4>
+              <textarea id="calc-admin-volume-lines" class="form-textarea" style="height: 110px; font-size: 0.9rem; line-height: 1.6; font-weight: 600; border-radius: 10px; border-color: #CBD5E1; padding: 12px; text-align: left;" placeholder="15ml ~ 20ml (착즙/고농축)&#10;25ml ~ 30ml (다이어트/커피)&#10;35ml ~ 50ml (프리미엄/빅스틱)&#10;기타 (맞춤 용량)"></textarea>
             </div>
-            <i class="fas fa-chevron-down faq-icon" style="color: #64748B; transition: transform 0.3s ease;"></i>
-          </div>
-          <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; background: #FFFFFF; border-top: 1px solid transparent;">
-            <div style="padding: 20px 28px 24px 58px; font-size: 0.95rem; color: #334155; line-height: 1.85;">
-              네, 그렇습니다. 건강기능식품 및 기능성 음료 생산에 필수적인 <strong>식약처 품목제조신고(FHR), 성분 표시 검토, GMP/HACCP 안전 패키지 가이드</strong>까지 전문 행정팀이 원스톱으로 신속하게 전담 대행해 드립니다.
+
+            <!-- Category 2: Ingredient -->
+            <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-left: 5px solid #10B981; border-radius: 14px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
+              <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                <span><i class="fas fa-leaf" style="color: #10B981; margin-right: 8px;"></i> 2. 원료 및 카테고리 옵션</span>
+                <span style="font-size: 0.775rem; font-weight: 600; color: #64748B; background: #F1F5F9; padding: 3px 10px; border-radius: 99px;">한 줄에 1개씩 작성</span>
+              </h4>
+              <textarea id="calc-admin-ingredient-lines" class="form-textarea" style="height: 130px; font-size: 0.9rem; line-height: 1.6; font-weight: 600; border-radius: 10px; border-color: #CBD5E1; padding: 12px; text-align: left;" placeholder="다이어트 & 건강기능커피&#10;유기농 원료 (NFC 100% 착즙)&#10;기능성 표시 식품 (밀크씨슬/가르시니아)&#10;과·채주스 & 효소 음료&#10;기타 (맞춤 원료 개발)"></textarea>
+            </div>
+
+            <!-- Category 3: Packaging -->
+            <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-left: 5px solid #3B82F6; border-radius: 14px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
+              <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                <span><i class="fas fa-box" style="color: #3B82F6; margin-right: 8px;"></i> 3. 포장 형태 옵션</span>
+                <span style="font-size: 0.775rem; font-weight: 600; color: #64748B; background: #F1F5F9; padding: 3px 10px; border-radius: 99px;">한 줄에 1개씩 작성</span>
+              </h4>
+              <textarea id="calc-admin-packaging-lines" class="form-textarea" style="height: 110px; font-size: 0.9rem; line-height: 1.6; font-weight: 600; border-radius: 10px; border-color: #CBD5E1; padding: 12px; text-align: left;" placeholder="7포 / 14포 단상자 패키지&#10;30포 / 50포 대용량 벌크 파우치&#10;디스플레이 RRP 박스 포장&#10;기타 (맞춤 포장)"></textarea>
+            </div>
+
+            <!-- Category 4: Quantity -->
+            <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-left: 5px solid #8B5CF6; border-radius: 14px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
+              <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                <span><i class="fas fa-sort-numeric-up" style="color: #8B5CF6; margin-right: 8px;"></i> 4. 예상 생산 수량 옵션</span>
+                <span style="font-size: 0.775rem; font-weight: 600; color: #64748B; background: #F1F5F9; padding: 3px 10px; border-radius: 99px;">한 줄에 1개씩 작성</span>
+              </h4>
+              <textarea id="calc-admin-quantity-lines" class="form-textarea" style="height: 120px; font-size: 0.9rem; line-height: 1.6; font-weight: 600; border-radius: 10px; border-color: #CBD5E1; padding: 12px; text-align: left;" placeholder="10,000 포 (소량배치)&#10;30,000 포 (표준배치)&#10;50,000 포 (대량생산)&#10;100,000 포 이상&#10;기타 (맞춤 수량)"></textarea>
+            </div>
+
+            <div style="text-align: center; margin-top: 10px;">
+              <button onclick="saveCalcOptionsAdmin()" class="btn btn-primary" style="background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%); padding: 14px 40px; font-weight: 900; font-size: 1.05rem; border-radius: 12px; box-shadow: 0 6px 20px rgba(46, 125, 50, 0.35);">
+                <i class="fas fa-check-circle"></i> 견적 산출기 옵션 저장 및 홈페이지 즉시 반영
+              </button>
             </div>
           </div>
         </div>
+      </section>
 
-        <!-- FAQ Item 4 -->
-        <div class="faq-item" style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 16px; overflow: hidden; transition: all 0.3s ease;">
-          <div class="faq-question" onclick="toggleFaq(this)" style="padding: 22px 28px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
-            <div style="display: flex; align-items: center; gap: 14px;">
-              <span style="font-weight: 900; font-size: 1.1rem; color: #2E7D32;">Q4.</span>
-              <strong style="font-size: 1.05rem; color: #0F172A; font-weight: 800;">제품 포장 형태(스틱 파우치, 단상자 등)는 어떤 종류가 가능한가요?</strong>
-            </div>
-            <i class="fas fa-chevron-down faq-icon" style="color: #64748B; transition: transform 0.3s ease;"></i>
-          </div>
-          <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; background: #FFFFFF; border-top: 1px solid transparent;">
-            <div style="padding: 20px 28px 24px 58px; font-size: 0.95rem; color: #334155; line-height: 1.85;">
-              15ml~35ml 액상 스틱 파우치(이지컷 무균 충진), 7포/14포/30포 단상자 패키지, 선물용 아웃박스 및 디스플레이 팝업 박스 등 고객사가 희망하는 모든 포장 사양으로 완제품 제조가 가능합니다.
-            </div>
-          </div>
-        </div>
-
-        <!-- FAQ Item 5 -->
-        <div class="faq-item" style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 16px; overflow: hidden; transition: all 0.3s ease;">
-          <div class="faq-question" onclick="toggleFaq(this)" style="padding: 22px 28px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
-            <div style="display: flex; align-items: center; gap: 14px;">
-              <span style="font-weight: 900; font-size: 1.1rem; color: #2E7D32;">Q5.</span>
-              <strong style="font-size: 1.05rem; color: #0F172A; font-weight: 800;">원료를 직접 제공(사급 원료)해도 생산이 가능한가요?</strong>
-            </div>
-            <i class="fas fa-chevron-down faq-icon" style="color: #64748B; transition: transform 0.3s ease;"></i>
-          </div>
-          <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; background: #FFFFFF; border-top: 1px solid transparent;">
-            <div style="padding: 20px 28px 24px 58px; font-size: 0.95rem; color: #334155; line-height: 1.85;">
-              가능합니다. 고객사 보유 사급 원료의 지표성분 시험성적서(COA) 및 식약처 기준 적합성을 검토한 후 생산 라인에 투입할 수 있으며, 빈스힐의 특허원료 및 프리미엄 개별인정형 원료를 조합하는 것도 가능합니다.
-            </div>
-          </div>
-        </div>
-
-        <!-- FAQ Item 6 -->
-        <div class="faq-item" style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 16px; overflow: hidden; transition: all 0.3s ease;">
-          <div class="faq-question" onclick="toggleFaq(this)" style="padding: 22px 28px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
-            <div style="display: flex; align-items: center; gap: 14px;">
-              <span style="font-weight: 900; font-size: 1.1rem; color: #2E7D32;">Q6.</span>
-              <strong style="font-size: 1.05rem; color: #0F172A; font-weight: 800;">정식 생산 계약 후 완제품 출고까지 총 소요 기간은 얼마인가요?</strong>
-            </div>
-            <i class="fas fa-chevron-down faq-icon" style="color: #64748B; transition: transform 0.3s ease;"></i>
-          </div>
-          <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; background: #FFFFFF; border-top: 1px solid transparent;">
-            <div style="padding: 20px 28px 24px 58px; font-size: 0.95rem; color: #334155; line-height: 1.85;">
-              원부자재(스틱 동판, 단상자) 입고 및 품목제조신고 완료 기준 <strong>약 14일 ~ 21일 이내</strong>에 완제품 출고가 가능합니다. 긴급 생산 가동 요청 시 우선 배치 생산이 지원됩니다.
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- ==========================================================================
-       Location & Directions Section (오시는 길 + 구글맵)
-       ========================================================================== -->
-  <section class="section" id="location" style="background: #F8FAFC; border-top: 1px solid var(--gray-200);">
-    <div class="container">
-      <div class="text-center reveal-on-scroll">
-        <span class="section-tag" style="background-color: #E8F5E9; color: #2E7D32; border-color: #C8E6C9;"><i class="fas fa-map-marked-alt"></i> LOCATION & MAP</span>
-        <h2 class="section-title">(주)빈스힐 <span>오시는 길</span></h2>
-        <p class="section-desc">
-          (주)빈스힐 본사 및 최첨단 무균 스마트 생산 공장 주소 안내입니다.
-        </p>
-      </div>
-
-      <div class="grid-2 reveal-on-scroll reveal-scale" style="margin-top: 48px; gap: 32px; align-items: stretch;">
-        <!-- Left: Location Info Card -->
-        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 20px; padding: 36px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between;">
-          <div>
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-              <span style="font-size: 0.8rem; font-weight: 700; background: #E8F5E9; color: #2E7D32; padding: 6px 14px; border-radius: 980px;">(주)빈스힐 본사 & 공장</span>
-            </div>
-            <h3 style="font-size: 1.6rem; font-weight: 800; color: #1D1D1F; margin-bottom: 16px;">(주)빈스힐 본사 주소</h3>
-            
-            <div style="background: #F8FAFC; border: 1px solid #F1F5F9; border-radius: 14px; padding: 20px; margin-bottom: 24px;">
-              <p style="font-size: 1.05rem; font-weight: 700; color: #1D1D1F; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-                <i class="fas fa-location-dot" style="color: #2E7D32;"></i> <span id="company-info-address">경기도 고양시 일산동구 견달산로 359 (주)빈스힐</span>
-              </p>
-              <p style="font-size: 0.9rem; color: #6E6E73;">((주)빈스힐 자동 충진 제조 공장 & 본사)</p>
+      <!-- TAB 2: 포트폴리오 관리 (1~30번) -->
+      <section id="tab-portfolio" class="admin-tab-content">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <div>
+              <h3 style="font-size: 1.1rem; font-weight: 800; color: #1E293B;">생산 포트폴리오 (총 30개 슬롯)</h3>
+              <p style="font-size: 0.85rem; color: #64748B;">각 카드를 클릭하여 제품명, 제형, 설명 및 이미지를 즉시 수정하실 수 있습니다.</p>
             </div>
 
-            <ul style="list-style: none; padding: 0; margin: 0 0 28px 0; font-size: 0.95rem; color: #475569; line-height: 2.2;">
-              <li><i class="fas fa-phone" style="color: #2E7D32; width: 24px;"></i> <strong>대표전화:</strong> <span id="company-info-phone">031-969-2428</span></li>
-              <li><i class="fas fa-envelope" style="color: #2E7D32; width: 24px;"></i> <strong>이메일:</strong> <span id="company-info-email">beansheal@beansheal.com</span></li>
-              <li><i class="fas fa-clock" style="color: #2E7D32; width: 24px;"></i> <strong>상담시간:</strong> <span id="company-info-hours">평일 09:00 ~ 18:00 (토/일/공휴일 휴무)</span></li>
-            </ul>
+            <div class="filter-btn-group">
+              <button class="filter-btn active" data-pfilter="all" onclick="setPortfolioFilter('all')">전체 30개</button>
+              <button class="filter-btn" data-pfilter="filled" onclick="setPortfolioFilter('filled')">등록 완료 (23개)</button>
+              <button class="filter-btn" data-pfilter="empty" onclick="setPortfolioFilter('empty')">하얀 빈칸 대기 (7개)</button>
+            </div>
           </div>
 
-          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <a id="company-info-map-naver" href="https://map.naver.com/v5/search/%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B3%A4%EC%96%91%EC%8B%9C%20%EC%9D%BC%EC%82%B0%EB%8F%99%EA%B5%AC%20%EA%B2%AC%EB%8B%AC%EC%82%B0%EB%A1%9C%20359" target="_blank" class="btn btn-secondary btn-md" style="flex: 1; border-radius: 980px; justify-content: center;">
-              <i class="fas fa-map-marker-alt" style="color: #03C75A;"></i> 네이버지도 보기
-            </a>
-            <a id="company-info-map-kakao" href="https://map.kakao.com/?q=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B3%A4%EC%96%91%EC%8B%9C%20%EC%9D%BC%EC%82%B0%EB%8F%99%EA%B5%AC%20%EA%B2%AC%EB%8B%AC%EC%82%B0%EB%A1%9C%20359" target="_blank" class="btn btn-secondary btn-md" style="flex: 1; border-radius: 980px; justify-content: center;">
-              <i class="fas fa-comment" style="color: #FEE500;"></i> 카카오맵 보기
-            </a>
+          <div class="portfolio-grid-admin" id="portfolio-admin-grid">
+            <!-- JS Rendered 30 Portfolio Edit Cards -->
           </div>
         </div>
+      </section>
 
-        <!-- Right: Embedded Google Maps Iframe -->
-        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); min-height: 420px; display: flex;">
-          <iframe 
-            id="company-info-iframe"
-            src="https://maps.google.com/maps?q=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B3%A4%EC%96%91%EC%8B%9C%20%EC%9D%BC%EC%82%B0%EB%8F%99%EA%B5%AC%20%EA%B2%AC%EB%8B%AC%EC%82%B0%EB%A1%9C%20359&t=&z=16&ie=UTF8&iwloc=&output=embed" 
-            width="100%" 
-            height="100%" 
-            style="border:0; min-height: 420px; width: 100%;" 
-            allowfullscreen="" 
-            loading="lazy" 
-            referrerpolicy="no-referrer-when-downgrade">
-          </iframe>
+      <!-- TAB 3: 시스템 설정 -->
+      <section id="tab-settings" class="admin-tab-content">
+        <!-- Company Info Management Card -->
+        <div class="admin-card" style="max-width: 800px; margin: 0 auto 32px auto; padding: 40px 48px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); text-align: left;">
+          <div style="margin-bottom: 28px; border-bottom: 2px solid #E2E8F0; padding-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <h3 style="font-size: 1.3rem; font-weight: 900; color: #0F172A; margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-building" style="color: #2E7D32;"></i> 회사 기본 정보 및 주소 변경
+              </h3>
+              <p style="font-size: 0.875rem; color: #64748B; margin-top: 4px;">회사 주소 이전 시 아래 본사 주소 및 대표 연락처를 수정하시면 메인 홈페이지, 위치 지도 및 푸터에 즉시 반영됩니다.</p>
+            </div>
+          </div>
+
+          <form onsubmit="handleSaveCompanyInfo(event)" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">회사명 / 브랜드명 *</label>
+              <input type="text" id="company-edit-name" class="form-input" required style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">대표자 성명 *</label>
+              <input type="text" id="company-edit-ceo" class="form-input" required style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">📍 본사 & 공장 도로명 주소 (주소 이전 시 수정) *</label>
+              <input type="text" id="company-edit-address" class="form-input" required placeholder="예: 경기도 고양시 일산동구 견달산로 359 (주)빈스힐" style="height: 46px; font-size: 0.95rem; font-weight: 700; color: #0F172A; border-color: #A5D6A7;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">대표 전화번호 *</label>
+              <input type="text" id="company-edit-phone" class="form-input" required style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">팩스 번호 *</label>
+              <input type="text" id="company-edit-fax" class="form-input" required style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">대표 이메일 주소 *</label>
+              <input type="email" id="company-edit-email" class="form-input" required style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">전화 상담시간 *</label>
+              <input type="text" id="company-edit-hours" class="form-input" required style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <div style="grid-column: span 2; margin-top: 10px;">
+              <button type="submit" class="btn btn-primary" style="width: 100%; height: 50px; background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%); font-weight: 900; font-size: 1rem; border-radius: 12px; box-shadow: 0 6px 20px rgba(46, 125, 50, 0.35);">
+                <i class="fas fa-save"></i> 회사 정보 및 주소 변경 저장하기
+              </button>
+            </div>
+          </form>
         </div>
-      </div>
-    </div>
-  </section>
 
-  <!-- ==========================================================================
-       Footer
-       ========================================================================== -->
-  <footer class="site-footer">
-    <div class="container">
-      <div class="footer-grid">
-        <div>
-          <div class="footer-brand" style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
-            <img src="images/beansheal-b-logo.svg" alt="BEANSHEAL" style="width: 36px; height: 36px; border-radius: 50%; object-fit: contain; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-            <span id="footer-company-name" style="font-size: 1.25rem; font-weight: 900; color: #FFFFFF;">빈스힐 (BEANSHEAL)</span>
-          </div>
-          <div class="footer-info-text">
-            <p id="footer-company-info-header"><strong>(주) 빈스힐</strong> | BEANSHEAL Co., Ltd. | 대표자: 주미정</p>
-            <p id="footer-company-address">본사 & 공장: 경기도 고양시 일산동구 견달산로 359 (주)빈스힐</p>
-            <p id="footer-company-tel">TEL : 031-969-2428 | FAX : 031-969-2429 | 전화상담시간: 09:00 ~ 18:00</p>
-          </div>
-        </div>
+        <!-- Notice Popup Management Card -->
+        <div class="admin-card" style="max-width: 800px; margin: 0 auto 32px auto; padding: 40px 48px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); text-align: left;">
+          <div style="margin-bottom: 28px; border-bottom: 2px solid #E2E8F0; padding-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3 style="font-size: 1.3rem; font-weight: 900; color: #0F172A; margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-bullhorn" style="color: #D97706;"></i> 메인 프로모션 팝업 노출 및 문구 관리
+              </h3>
+              <p style="font-size: 0.875rem; color: #64748B; margin-top: 4px;">메인 홈페이지 첫 화면에 접속할 때 뜨는 공지 팝업의 ON/OFF 켜기·끄기 스위치 및 문구를 수정합니다.</p>
+            </div>
 
-        <div>
-          <h4 class="footer-heading">주요 액상 서비스</h4>
-          <ul class="footer-links">
-            <li><a href="#production-types">액상 OEM 생산 안내</a></li>
-            <li><a href="#production-types">액상 ODM 개발 안내</a></li>
-            <!-- <li><a href="#patented-ingredients">개별인정형 특허원료</a></li> -->
-            <li><a href="#formulations">액상 스틱</a></li>
-            <li><a href="#calculator">실시간 간편 견적</a></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 class="footer-heading">인증 및 품질규격</h4>
-          <ul class="footer-links">
-            <li><i class="fas fa-award" style="color: var(--primary);"></i> 식약처 GMP 인증</li>
-            <li><i class="fas fa-shield-alt" style="color: var(--primary);"></i> HACCP 식품안전인증</li>
-            <li><i class="fas fa-globe" style="color: var(--primary);"></i> 할랄 인증</li>
-            <!-- <li><i class="fas fa-star" style="color: var(--primary);"></i> SQF 국제 품질인증</li> -->
-          </ul>
-        </div>
-      </div>
-
-      <div class="footer-bottom">
-        <p>Copyright © 2026 액상 건강기능식품 & 기능성 음료 전문 기업 (주)빈스힐 (BEANSHEAL). All rights reserved.</p>
-        <div style="display: flex; align-items: center; gap: 14px;">
-          <a href="javascript:void(0)" onclick="openTermsModal()" style="color: #CBD5E1; font-weight: 600; font-size: 0.85rem; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#FFFFFF'" onmouseout="this.style.color='#CBD5E1'">이용약관</a>
-          <span style="color: rgba(255,255,255,0.2); font-size: 0.8rem;">|</span>
-          <a href="javascript:void(0)" onclick="openPrivacyModal()" style="color: #CBD5E1; font-weight: 600; font-size: 0.85rem; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='#FFFFFF'" onmouseout="this.style.color='#CBD5E1'">개인정보처리방침</a>
-          <a href="index.html" target="_blank" style="color: #CBD5E1; font-size: 0.8rem; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); text-decoration: none; margin-left: 6px;">
-            <i class="fas fa-shield-alt" style="color: #4CAF50;"></i> 관리자 로그인
-          </a>
-        </div>
-      </div>
-    </div>
-  </footer>
-
-  <!-- ==========================================================================
-       Modals
-       ========================================================================== -->
-  <!-- 1. Inquiry Submission Modal -->
-  <div class="modal-overlay" id="inquiry-modal">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title"><i class="fas fa-paper-plane" style="color: var(--primary);"></i> 빈스힐 액상 생산 1:1 맞춤 문의</h3>
-        <button class="modal-close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body">
-        <form id="inquiry-form" style="display: flex; flex-direction: column; gap: 10px;">
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #1E293B;">회사명 / 담당자 성함 *</label>
-            <input type="text" id="form-name" class="form-input" placeholder="예: (주)바이오헬스 / 홍길동 팀장" required style="height: 42px; font-size: 0.9rem;">
-          </div>
-
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #1E293B;">연락처 *</label>
-            <input type="tel" id="form-phone" class="form-input" placeholder="010-0000-0000" required style="height: 42px; font-size: 0.9rem;">
-          </div>
-
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #1E293B;">이메일 주소</label>
-            <input type="email" id="form-email" class="form-input" placeholder="contact@example.com" style="height: 42px; font-size: 0.9rem;">
-          </div>
-
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #1E293B;">문의 제목 *</label>
-            <input type="text" id="form-title" class="form-input" placeholder="예: 액상 스틱 30,000포 OEM 견적 요청" required style="height: 42px; font-size: 0.9rem;">
-          </div>
-
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #2E7D32;">비밀글 비밀번호 (답변 열람용 4자리) *</label>
-            <input type="password" id="form-password" class="form-input" placeholder="답변 열람용 4자리 입력 (예: 1234)" maxlength="8" required style="height: 42px; font-size: 0.9rem; letter-spacing: 2px; font-weight: 700; border-color: #A5D6A7; background-color: #F1F8E9;">
-          </div>
-
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #1E293B;">상세 문의 내용</label>
-            <textarea id="form-content" class="form-textarea" placeholder="희망하시는 액상 스틱 용량, 원료 카테고리, 포장 형태, 예상 수량 등을 작성해 주세요." style="min-height: 60px; height: 62px; padding: 8px 12px; font-size: 0.85rem;"></textarea>
-          </div>
-
-          <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
-            <input type="checkbox" id="form-privacy-agree" required checked style="width: 16px; height: 16px; accent-color: #2E7D32; cursor: pointer;">
-            <label for="form-privacy-agree" style="font-size: 0.8rem; color: #475569; cursor: pointer; user-select: none;">
-              <strong style="color: #1E293B;">개인정보 수집 및 이용 동의</strong> (필수)
-              <a href="javascript:void(0)" onclick="openPrivacyModal()" style="color: #2E7D32; text-decoration: underline; margin-left: 4px;">[전문보기]</a>
+            <!-- ON/OFF Toggle Switch -->
+            <label style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; background: #F8FAFC; padding: 8px 16px; border-radius: 980px; border: 1px solid #CBD5E1; user-select: none;">
+              <span style="font-size: 0.9rem; font-weight: 800; color: #0F172A;">팝업 노출 상태:</span>
+              <input type="checkbox" id="popup-edit-enabled" onchange="toggleNoticePopupStatus(this.checked)" style="width: 20px; height: 20px; accent-color: #2E7D32; cursor: pointer;" checked>
+              <strong id="popup-status-text" style="color: #2E7D32; font-weight: 900; font-size: 0.95rem;">[ 🟢 켜짐 ON ]</strong>
             </label>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; height: 46px; margin-top: 4px; border-radius: 10px; font-weight: 800; font-size: 1.05rem; background: #2E7D32; box-shadow: 0 4px 16px rgba(46, 125, 50, 0.35);">
-            <i class="fas fa-check"></i> 빈스힐 액상 문의 접수하기
-          </button>
+          <form onsubmit="handleSaveNoticePopup(event)" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;">
+            <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">팝업 뱃지 텍스트 *</label>
+              <input type="text" id="popup-edit-badge" class="form-input" required placeholder="예: BEANSHEAL PROMOTION" style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">팝업 메인 대제목 *</label>
+              <input type="text" id="popup-edit-title" class="form-input" required placeholder="예: 빈스힐 소량 액상 건기식 OEM/ODM 특가 프로모션" style="height: 44px; font-size: 0.95rem; font-weight: 700;">
+            </div>
+
+            <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">팝업 서브 소제목 *</label>
+              <input type="text" id="popup-edit-subtitle" class="form-input" required placeholder="예: 액상 전용 무균 충진 및 신규 브랜드 전격 지원 혜택" style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">혜택 1 제목 *</label>
+              <input type="text" id="popup-edit-b1-title" class="form-input" required style="height: 42px; font-size: 0.9rem;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">혜택 1 상세 설명 *</label>
+              <input type="text" id="popup-edit-b1-desc" class="form-input" required style="height: 42px; font-size: 0.9rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">혜택 2 제목 *</label>
+              <input type="text" id="popup-edit-b2-title" class="form-input" required style="height: 42px; font-size: 0.9rem;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">혜택 2 상세 설명 *</label>
+              <input type="text" id="popup-edit-b2-desc" class="form-input" required style="height: 42px; font-size: 0.9rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">혜택 3 제목 *</label>
+              <input type="text" id="popup-edit-b3-title" class="form-input" required style="height: 42px; font-size: 0.9rem;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">혜택 3 상세 설명 *</label>
+              <input type="text" id="popup-edit-b3-desc" class="form-input" required style="height: 42px; font-size: 0.9rem;">
+            </div>
+
+            <div class="form-group" style="grid-column: span 2; margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">하단 CTA 상담 신청 버튼 문구 *</label>
+              <input type="text" id="popup-edit-cta" class="form-input" required style="height: 44px; font-size: 0.95rem; font-weight: 700;">
+            </div>
+
+            <div style="grid-column: span 2; margin-top: 10px;">
+              <button type="submit" class="btn btn-primary" style="width: 100%; height: 50px; background: linear-gradient(135deg, #D97706 0%, #B45309 100%); font-weight: 900; font-size: 1rem; border-radius: 12px; box-shadow: 0 6px 20px rgba(217, 119, 6, 0.35);">
+                <i class="fas fa-save"></i> 팝업 노출 및 문구 저장하기
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Email Notification Test & Setup Card -->
+        <div class="admin-card" style="max-width: 800px; margin: 0 auto 32px auto; padding: 40px 48px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); text-align: left;">
+          <div style="margin-bottom: 24px; border-bottom: 2px solid #E2E8F0; padding-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <h3 style="font-size: 1.3rem; font-weight: 900; color: #0F172A; margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-envelope-open-text" style="color: #0284C7;"></i> 실시간 이메일 수신 알림 설정
+              </h3>
+              <p style="font-size: 0.875rem; color: #64748B; margin-top: 4px;">고객이 홈페이지에서 견적 문의를 접수할 때 실시간 알림 메일을 받을 수신 이메일 주소를 관리하고 테스트합니다.</p>
+            </div>
+          </div>
+
+          <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 14px; padding: 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+            <div>
+              <span style="font-size: 0.85rem; color: #0369A1; font-weight: 700; display: block; margin-bottom: 4px;">현재 알림 수신 이메일 주소:</span>
+              <strong id="admin-email-target-display" style="font-size: 1.15rem; color: #0C4A6E; font-weight: 900;">beansheal@beansheal.com</strong>
+            </div>
+            <button type="button" onclick="testSendEmailNotification()" class="btn btn-secondary" style="border-radius: 10px; font-weight: 800; background: #0284C7; color: #FFFFFF; border: none; padding: 10px 20px; box-shadow: 0 4px 14px rgba(2,132,199,0.35);">
+              <i class="fas fa-paper-plane"></i> 🧪 테스트 이메일 발송해보기
+            </button>
+          </div>
+          <p style="font-size: 0.825rem; color: #64748B; margin: 0;">※ 상단 [회사 기본 정보 및 주소 변경]의 대표 이메일 주소를 수정하시면 수신 이메일 주소가 자동으로 동기화 변경됩니다.</p>
+        </div>
+
+        <div class="admin-card" style="max-width: 800px; margin: 0 auto; padding: 40px 48px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); text-align: center;">
+          <div style="margin-bottom: 32px; border-bottom: 2px solid #E2E8F0; padding-bottom: 20px;">
+            <div style="width: 64px; height: 64px; background: #E8F5E9; color: #2E7D32; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 1.6rem; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(46,125,50,0.15);">
+              <i class="fas fa-key"></i>
+            </div>
+            <h3 style="font-size: 1.4rem; font-weight: 900; color: #0F172A; margin: 0;">
+              관리자 암호 변경
+            </h3>
+            <p style="font-size: 0.875rem; color: #64748B; margin-top: 6px;">(주)빈스힐 관리자 시스템 보안을 위해 비밀번호를 변경합니다.</p>
+          </div>
+
+          <form onsubmit="handleChangePassword(event)" style="display: flex; flex-direction: column; gap: 18px; max-width: 480px; margin: 0 auto; text-align: left;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">현재 비밀번호 *</label>
+              <input type="password" id="current-pwd" class="form-input" placeholder="현재 비밀번호 (기본: beansheal1234)" required style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">새 비밀번호 *</label>
+              <input type="password" id="new-pwd" class="form-input" placeholder="변경할 새 비밀번호 입력" required minlength="4" style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1E293B; margin-bottom: 6px;">새 비밀번호 확인 *</label>
+              <input type="password" id="confirm-pwd" class="form-input" placeholder="새 비밀번호 한번 더 입력" required minlength="4" style="height: 44px; font-size: 0.95rem;">
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; height: 50px; margin-top: 10px; background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%); font-weight: 900; font-size: 1rem; border-radius: 12px; box-shadow: 0 6px 20px rgba(46, 125, 50, 0.35);">
+              <i class="fas fa-shield-alt"></i> 새 비밀번호 저장하기
+            </button>
+          </form>
+
+          <div style="margin-top: 48px; padding-top: 28px; border-top: 2px solid #E2E8F0; text-align: center;">
+            <h4 style="font-size: 1.1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px; display: inline-flex; align-items: center; gap: 8px;">
+              <i class="fas fa-file-excel" style="color: #059669;"></i> 견적 문의 데이터 백업 (CSV 엑셀)
+            </h4>
+            <p style="font-size: 0.85rem; color: #64748B; margin-bottom: 18px;">
+              접수된 모든 고객 문의 내역을 CSV 엑셀 파일 형태로 내보냅니다.
+            </p>
+            <button onclick="exportInquiriesCSV()" class="btn btn-outline" style="color: #059669; border-color: #059669; font-weight: 800; padding: 10px 24px; border-radius: 10px;">
+              <i class="fas fa-download"></i> 전체 견적 데이터 엑셀(CSV) 다운로드
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: 자주 묻는 질문(FAQ) 관리 -->
+      <section id="tab-faq" class="admin-tab-content">
+        <div style="max-width: 960px; margin: 0 auto;">
+          
+          <!-- Top Header Bar with Add New FAQ Button -->
+          <div style="background: #FFFFFF; border-radius: 20px; padding: 24px 32px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+            <div>
+              <h3 style="font-size: 1.35rem; font-weight: 900; color: #0F172A; margin: 0; display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-question-circle" style="color: #0284C7;"></i> 자주 묻는 질문 (FAQ) 전용 관리
+              </h3>
+              <p style="font-size: 0.875rem; color: #64748B; margin-top: 4px; margin-bottom: 0;">메인 홈페이지 FAQ 섹션에 노출되는 질문과 답변을 편리하게 수정, 추가, 삭제할 수 있습니다.</p>
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+              <button onclick="addNewFaqItemAdmin()" class="btn btn-primary" style="background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%); font-weight: 800; border-radius: 10px; padding: 10px 20px; box-shadow: 0 4px 14px rgba(2,132,199,0.35);">
+                <i class="fas fa-plus-circle"></i> ➕ 신규 질문 추가하기
+              </button>
+              <button onclick="saveAllFaqsAdmin()" class="btn btn-primary" style="background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%); font-weight: 800; border-radius: 10px; padding: 10px 20px; box-shadow: 0 4px 14px rgba(46,125,50,0.35);">
+                <i class="fas fa-save"></i> 💾 전체 저장
+              </button>
+            </div>
+          </div>
+
+          <!-- FAQ Cards Container -->
+          <div id="faq-admin-list-container" style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Rendered by renderFaqAdminList() -->
+          </div>
+
+          <!-- Bottom Save Button -->
+          <div style="margin-top: 32px; text-align: center;">
+            <button onclick="saveAllFaqsAdmin()" class="btn btn-primary btn-lg" style="width: 100%; max-width: 480px; height: 52px; background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%); font-weight: 900; font-size: 1.05rem; border-radius: 14px; box-shadow: 0 8px 24px rgba(46,125,50,0.35);">
+              <i class="fas fa-save"></i> FAQ 변경사항 저장 및 홈페이지 즉시 반영
+            </button>
+          </div>
+
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ==========================================================================
+       Inquiry View & Reply Detail Modal
+       ========================================================================== -->
+  <div id="inquiry-detail-modal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="detail-modal-title">견적 문의 상세보기</h3>
+        <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; background: #F8FAFC; padding: 14px 18px; border-radius: 10px; border: 1px solid #E2E8F0;">
+          <div>
+            <span id="detail-status-badge" class="status-badge status-pending">답변대기</span>
+            <span id="detail-date" style="font-size: 0.85rem; color: #64748B; margin-left: 10px;">2026-07-31</span>
+          </div>
+          <strong id="detail-author" style="font-size: 1rem; color: #1E293B;">(주)삼정바이오 / 김담당</strong>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <label style="font-size: 0.8rem; font-weight: 700; color: #64748B; display: block; margin-bottom: 6px;">연락처 & 이메일</label>
+          <div id="detail-contact-info" style="font-size: 0.95rem; font-weight: 700; color: #1E293B; background: #FFF; border: 1px solid #CBD5E1; padding: 10px 14px; border-radius: 8px;">
+            010-0000-0000 | example@beansheal.com
+          </div>
+        </div>
+
+        <div style="margin-bottom: 24px;">
+          <label style="font-size: 0.8rem; font-weight: 700; color: #64748B; display: block; margin-bottom: 6px;">문의 및 선택 사양 내용</label>
+          <div id="detail-content-box" style="font-size: 0.95rem; line-height: 1.7; color: #334155; background: #F1F5F9; border: 1px solid #E2E8F0; padding: 16px; border-radius: 10px; white-space: pre-wrap;">
+            내용...
+          </div>
+        </div>
+
+        <!-- Reply Input -->
+        <div style="border-top: 1px solid #E2E8F0; padding-top: 20px;">
+          <label class="form-label" style="font-weight: 800; color: #1E293B;">관리자 답변 작성</label>
+          <textarea id="admin-reply-input" class="form-textarea" placeholder="고객에게 전달할 관리자 처리 메모 및 답변을 입력하세요..." style="min-height: 90px; margin-bottom: 16px;"></textarea>
+
+          <div style="display: flex; gap: 10px; justify-content: space-between; align-items: center;">
+            <button onclick="deleteCurrentInquiryToTrash()" class="btn btn-outline btn-sm" style="color: #EF4444; border-color: #FCA5A5; background: #FEF2F2;">
+              <i class="fas fa-trash-alt"></i> 휴지통으로 이동
+            </button>
+
+            <div style="display: flex; gap: 10px;">
+              <button onclick="saveAdminReply('대기중')" class="btn btn-outline btn-sm" style="color: #64748B; border-color: #CBD5E1;">
+                <i class="fas fa-clock"></i> 대기 상태로 저장
+              </button>
+              <button onclick="saveAdminReply('답변완료')" class="btn btn-primary btn-sm" style="background: #2E7D32;">
+                <i class="fas fa-check"></i> 답변 완료 처리
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Portfolio Edit Modal
+       ========================================================================== -->
+  <div id="portfolio-edit-modal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">포트폴리오 카드 수정 (<span id="edit-card-id">#1</span>)</h3>
+        <button class="modal-close" onclick="closePortfolioEditModal()">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 24px;">
+        <form onsubmit="handleSavePortfolioCard(event)">
+          <input type="hidden" id="edit-item-index">
+
+          <div style="display: flex; gap: 16px; margin-bottom: 16px;">
+            <div style="width: 140px; height: 210px; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 6px;">
+              <img id="edit-img-preview" src="" alt="미리보기" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+            </div>
+
+            <div style="flex-grow: 1;">
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label">제품 이미지 경로/URL</label>
+                <input type="text" id="edit-item-image" class="form-input" required oninput="updateImagePreview(this.value)">
+                <p style="font-size: 0.75rem; color: #64748B; margin-top: 4px;">예: `images/portfolio-item-15.jpg` 또는 이미지 경로</p>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label">제품명 (Title)</label>
+                <input type="text" id="edit-item-title" class="form-input" required>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label">카테고리 / 제형 규격</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <input type="text" id="edit-item-category" class="form-input" placeholder="카테고리 (예: 일반식품음료)">
+              <input type="text" id="edit-item-format" class="form-input" placeholder="제형규격 (예: 액상 스틱 30ml)">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label">태그 (쉼표 분리)</label>
+            <input type="text" id="edit-item-tags" class="form-input" placeholder="예: 유기농레몬, NFC착즙, HACCP">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 20px;">
+            <label class="form-label">제품 설명 (Description)</label>
+            <textarea id="edit-item-desc" class="form-textarea" style="min-height: 70px;"></textarea>
+          </div>
+
+          <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button type="button" onclick="closePortfolioEditModal()" class="btn btn-outline btn-sm">취소</button>
+            <button type="submit" class="btn btn-primary btn-sm" style="background: #2E7D32;">
+              <i class="fas fa-save"></i> 저장 완료
+            </button>
+          </div>
         </form>
       </div>
     </div>
   </div>
 
-  <!-- 1-B. Customer Inquiry Unlock & Reply View Modal -->
-  <div class="modal-overlay" id="inquiry-unlock-modal">
-    <div class="modal-container" style="max-width: 580px;">
-      <div class="modal-header">
-        <h3 class="modal-title" id="unlock-modal-title"><i class="fas fa-lock" style="color: var(--primary);"></i> 비밀글 답변 열람</h3>
-        <button class="modal-close" onclick="closeInquiryUnlockModal()"><i class="fas fa-times"></i></button>
-      </div>
-
-      <div class="modal-body" style="padding: 24px;">
-        <div id="unlock-form-step">
-          <p style="font-size: 0.925rem; color: var(--navy-900); margin-bottom: 16px; font-weight: 700;">
-            문의글을 작성하실 때 설정하신 <span style="color: var(--primary);">비밀번호 4자리</span> (또는 연락처 뒤 4자리)를 입력해주세요.
-          </p>
-
-          <div class="form-group">
-            <input type="password" id="unlock-password-input" class="form-input" placeholder="비밀번호 4자리 입력" maxlength="8" style="height: 48px; font-size: 1.1rem; text-align: center; letter-spacing: 4px; font-weight: 800;" onkeyup="if(event.key==='Enter')verifyInquiryUnlock()">
-            <p id="unlock-error-msg" style="color: #EF4444; font-size: 0.825rem; font-weight: 700; margin-top: 8px; display: none;">
-              <i class="fas fa-exclamation-circle"></i> 비밀번호가 일치하지 않습니다.
-            </p>
-          </div>
-
-          <button onclick="verifyInquiryUnlock()" class="btn btn-primary btn-lg" style="width: 100%; border-radius: 10px;">
-            <i class="fas fa-key"></i> 비밀번호 확인 및 답변 읽기
-          </button>
-        </div>
-
-        <div id="unlock-result-step" style="display: none;">
-          <div style="background: #F8FAFC; border: 1px solid var(--gray-200); padding: 16px; border-radius: 12px; margin-bottom: 20px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-              <span id="user-view-status" class="status-badge status-pending">답변대기</span>
-              <span id="user-view-date" style="font-size: 0.825rem; color: var(--gray-500);">2026-07-31</span>
-            </div>
-            <h4 id="user-view-title" style="font-size: 1.05rem; font-weight: 800; color: var(--navy-900); margin-bottom: 6px;">제목</h4>
-            <p id="user-view-desc" style="font-size: 0.875rem; color: var(--gray-600); line-height: 1.6; white-space: pre-wrap;">문의 내용...</p>
-          </div>
-
-          <div style="border-top: 2px solid var(--gray-200); padding-top: 18px;">
-            <h5 style="font-size: 0.95rem; font-weight: 800; color: var(--primary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-              <i class="fas fa-user-shield"></i> (주)빈스힐 전담 연구원 공식 답변
-            </h5>
-
-            <div id="user-view-reply-box" style="background: #E8F5E9; border: 1px solid #C8E6C9; padding: 18px; border-radius: 12px; font-size: 0.925rem; color: #1B5E20; line-height: 1.7; white-space: pre-wrap;">
-              담당 연구원이 문의 내용을 검토 중입니다. 검토 후 24시간 이내에 세부 답변 및 연락처로 연락드리겠습니다.
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 2. Ingredient Detail Modal -->
-  <div class="modal-overlay" id="ingredient-modal">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title">특허 원료 상세 정보</h3>
-        <button class="modal-close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body">
-        <!-- Rendered via JS -->
-      </div>
-    </div>
-  </div>
-
-  <!-- 3. Entry Notice Event Popup Modal -->
-  <div class="modal-overlay" id="notice-popup-modal">
-    <div class="modal-container notice-modal-container">
-      <div class="notice-header">
-        <span class="notice-badge" id="notice-badge-text"><i class="fas fa-bullhorn"></i> BEANSHEAL PROMOTION</span>
-        <button class="modal-close notice-close-btn" id="notice-header-close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body notice-body">
-        <h3 class="notice-title" id="notice-title-box">빈스힐 (BEANSHEAL) <br><span class="highlight">소량 액상 건기식 OEM/ODM</span> 특가 프로모션</h3>
-        <p class="notice-subtitle" id="notice-subtitle-box">액상 전용 무균 충진 및 신규 브랜드 전격 지원 혜택</p>
-        
-        <div class="notice-benefits-list">
-          <div class="benefit-item">
-            <i class="fas fa-check-circle"></i>
-            <div>
-              <strong id="notice-b1-title">100포 극소량 액상 시험 생산(PILOT) 지원</strong>
-              <p id="notice-b1-desc">부담 없는 최소 배치(MOQ)로 시장 반응 및 샘플 테스팅 가능</p>
-            </div>
-          </div>
-          <div class="benefit-item">
-            <i class="fas fa-check-circle"></i>
-            <div>
-              <strong id="notice-b2-title">빈스힐 액상 맛·향 배합 무료 컨설팅</strong>
-              <p id="notice-b2-desc">마스킹 및 층분리 방지 액상 이스케이프 포뮬러 맞춤 설계</p>
-            </div>
-          </div>
-          <div class="benefit-item">
-            <i class="fas fa-check-circle"></i>
-            <div>
-              <strong id="notice-b3-title">식약처 행정 신속 원스톱 케어</strong>
-              <p id="notice-b3-desc">액상 품목제조신고 대행 및 GMP/HACCP 안전 패키지 가이드 제공</p>
-            </div>
-          </div>
-        </div>
-
-        <button class="btn btn-primary btn-lg" id="notice-cta-btn" style="width: 100%; margin-top: 20px;">
-          <i class="fas fa-paper-plane"></i> 지금 빈스힐 무료 상담 신청하기
-        </button>
-      </div>
-      <div class="notice-footer">
-        <label class="popup-hide-label">
-          <input type="checkbox" id="popup-hide-today-checkbox"> 오늘 하루 이 팝업 보지 않기
-        </label>
-        <button class="popup-close-text-btn" id="popup-close-btn">닫기</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 2. Privacy Policy Modal -->
-  <div class="modal-overlay" id="privacy-modal">
-    <div class="modal-container" style="max-width: 760px;">
-      <div class="modal-header">
-        <h3 class="modal-title"><i class="fas fa-user-shield" style="color: var(--primary);"></i> (주)빈스힐 개인정보 처리방침</h3>
-        <button class="modal-close" onclick="closePrivacyModal()"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body" style="max-height: 72vh; overflow-y: auto; padding: 28px; font-size: 0.875rem; line-height: 1.75; color: #334155;">
-        <p style="margin-bottom: 16px;">(주)빈스힐(이하 ‘회사’라 한다)는 개인정보 보호법 제30조에 따라 정보 주체의 개인정보를 보호하고 이와 관련한 고충을 신속하고 원활하게 처리할 수 있도록 하기 위하여 다음과 같이 개인정보 처리지침을 수립, 공개합니다.</p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제1조 (개인정보의 처리목적)</h4>
-        <p style="margin-bottom: 16px;">
-          회사는 다음의 목적을 위하여 개인정보를 처리합니다. 처리하고 있는 개인정보는 다음의 목적 이외의 용도로는 이용되지 않으며, 이용 목적이 변경되는 경우에는 개인정보보호법 제18조에 따라 별도의 동의를 받는 등 필요한 조치를 이행할 예정입니다.<br>
-          1. <strong>액상 OEM/ODM 견적 문의 및 상담 처리</strong> : 1:1 맞춤 견적 신청 의사 확인, 본인 식별·인증, 견적서 발송 및 비밀글 열람 검증, 상담 처리 결과를 통보합니다.<br>
-          2. <strong>제조 및 생산 서비스 제공</strong> : 샘플 제작, 액상 건기식/음료 제조 계약 체결, 제품 배송 및 품질 서비스 제공을 목적으로 합니다.<br>
-          3. <strong>고충 처리</strong> : 이용자의 신원 확인, 견적 민원사항 확인, 사실조사를 위한 연락·통지, 처리 결과 통보 등의 목적으로 개인정보를 처리합니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제2조 (개인정보의 처리 및 보유기간)</h4>
-        <p style="margin-bottom: 16px;">
-          ① 회사는 법령에 따른 개인정보 보유, 이용 기간 또는 정보주체로부터 개인정보를 수집 시에 동의 받은 개인정보 보유, 이용 기간 내에서 개인정보를 처리, 보유합니다.<br>
-          ② 각각의 개인정보 처리 및 보유 기간은 다음과 같습니다.<br>
-          1. <strong>견적 문의 접수 및 상담 기록</strong> : 견적 상담 종료 후 <strong>3년간 보관</strong> 후 파기합니다.<br>
-          2. <strong>전자상거래 거래 기록 (계약 체결 시)</strong> :<br>
-          - 계약 또는 청약 철회, 대금결제, 재화 등의 공급기록 : 5년<br>
-          - 소비자 불만 또는 분쟁 처리에 관한 기록 : 3년<br>
-          - 인터넷 웹사이트 접속 로그 기록 : 3개월
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제3조 (개인정보의 제3자 제공)</h4>
-        <p style="margin-bottom: 16px;">회사는 정보주체의 개인정보를 제1조(개인정보의 처리목적)에서 명시한 범위 내에서만 처리하며, 정보주체의 동의, 법률의 특별한 규정 등 개인정보 보호법 제17조에 해당하는 경우에만 개인정보를 제3자에게 제공합니다.</p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제4조 (개인정보처리의 위탁)</h4>
-        <p style="margin-bottom: 16px;">회사는 원활한 서비스 제공을 위해 필요한 경우에 한하여 법령에 따라 위탁 계약 시 안전하게 개인정보가 처리되도록 관리·감독하고 있습니다.</p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제5조 (이용자 및 법정대리인의 권리와 그 행사 방법)</h4>
-        <p style="margin-bottom: 16px;">
-          ① 정보주체는 회사에 대해 언제든지 개인정보 열람 요구, 정정 요구, 삭제 요구, 처리정지 요구의 권리를 행사할 수 있습니다.<br>
-          ② 권리 행사는 회사에 대해 서면, 전화, 전자우편, 모사전송(FAX) 등을 통하여 하실 수 있으며 회사는 이에 대해 지체 없이 조치하겠습니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제6조 (처리하는 개인정보 항목)</h4>
-        <p style="margin-bottom: 16px;">
-          회사는 다음의 개인정보 항목을 처리하고 있습니다.<br>
-          1. <strong>견적 문의 신청 시</strong> :<br>
-          - 필수항목: 회사명(담당자성함), 연락처(휴대전화번호), 문의제목, 비밀글 비밀번호 4자리<br>
-          - 선택항목: 이메일 주소, 상세 문의내용, 희망 생산사양(용량/원료/포장/수량)<br>
-          2. <strong>인터넷 서비스 이용 과정에서 자동 생성 수집 항목</strong> : IP주소, 쿠키, MAC주소, 서비스 이용기록, 방문기록
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제7조 (개인정보의 파기)</h4>
-        <p style="margin-bottom: 16px;">
-          ① 회사는 개인정보 보유 기간의 경과, 처리목적 달성 등 개인정보가 불필요하게 되었을 때에는 지체 없이 해당 개인정보를 파기합니다.<br>
-          ② 전자적 파일 형태의 개인정보는 기록을 복원할 수 없도록 영구 삭제 파기하며, 종이 문서는 분쇄하거나 소각합니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제8조 (개인정보의 안전성 확보조치)</h4>
-        <p style="margin-bottom: 16px;">회사는 내부관리계획 수립, 개인정보 암호화, 접근 통제 및 전산실 접근 통제 등 기술적·관리적·물리적 보안 조치를 이행하고 있습니다.</p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제9조 (개인정보 자동 수집 장치의 설치·운영 및 거부에 관한 사항)</h4>
-        <p style="margin-bottom: 16px;">회사는 개별 맞춤 서비스를 제공하기 위해 ‘쿠키(cookie)’를 사용하며, 이용자는 웹 브라우저 옵션 설정을 통해 쿠키 저장을 거부할 수 있습니다.</p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제10조 (개인정보 보호책임자)</h4>
-        <p style="margin-bottom: 16px;">
-          회사는 개인정보 처리에 관한 업무를 총괄해서 책임지고 불만 처리 및 피해구제를 위하여 아래와 같이 개인정보 보호책임자를 지정하고 있습니다.<br><br>
-          <strong>▶ 개인정보 보호책임자 및 담당부서</strong><br>
-          - 부서/담당: (주)빈스힐 고객지원팀 (개인정보보호 담당)<br>
-          - 대표전화: 031-969-2428<br>
-          - 팩스번호: 031-969-2429<br>
-          - 이메일: beansheal@beansheal.com
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제11조 (개인정보 열람청구)</h4>
-        <p style="margin-bottom: 16px;">정보주체는 개인정보 보호법 제35조에 따른 개인정보의 열람 청구를 위의 개인정보 보호 담당부서(031-969-2428 / beansheal@beansheal.com)에 하실 수 있습니다.</p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제12조 (권익침해 구제 방법)</h4>
-        <p style="margin-bottom: 16px;">
-          - 개인정보침해신고센터: (국번없이) 118 (privacy.kisa.or.kr)<br>
-          - 개인정보 분쟁조정위원회: (국번없이) 1833-6972 (www.kopico.go.kr)<br>
-          - 대검찰청 사이버범죄수사단: 02-3480-3573 (www.spo.go.kr)<br>
-          - 경찰청 사이버안전국: (국번없이) 182 (cyberbureau.police.go.kr)
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제13조 (개인정보 처리방침 시행 및 변경)</h4>
-        <p style="margin-bottom: 0;">이 개인정보 처리방침은 <strong>2026년 8월 1일</strong>부터 적용됩니다.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- 3. Terms of Service Modal -->
-  <div class="modal-overlay" id="terms-modal">
-    <div class="modal-container" style="max-width: 760px;">
-      <div class="modal-header">
-        <h3 class="modal-title"><i class="fas fa-file-contract" style="color: var(--primary);"></i> (주)빈스힐 서비스 이용약관</h3>
-        <button class="modal-close" onclick="closeTermsModal()"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body" style="max-height: 72vh; overflow-y: auto; padding: 28px; font-size: 0.875rem; line-height: 1.75; color: #334155;">
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제1조 (목적)</h4>
-        <p style="margin-bottom: 16px;">본 이용약관은 (주)빈스힐(이하 "회사" 또는 "사이트")이 제공하는 액상 건강기능식품 및 음료 OEM/ODM 견적 산출기, 1:1 맞춤 견적 신청 및 관련 웹 서비스의 이용조건과 운영에 관한 제반 사항 규정을 목적으로 합니다.</p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제2조 (용어의 정의)</h4>
-        <p style="margin-bottom: 16px;">
-          본 약관에서 사용되는 주요한 용어의 정의는 다음과 같습니다.<br>
-          ① <strong>이용자</strong> : 사이트의 약관에 동의하고 개인정보를 제공하여 견적 문의를 접수하거나 서비스를 이용하는 회원 및 비회원을 말합니다.<br>
-          ② <strong>이용계약</strong> : 사이트 서비스 이용과 관련하여 회사와 이용자 간에 체결하는 계약을 말합니다.<br>
-          ③ <strong>비밀번호</strong> : 이용자가 견적 문의 작성 시 비밀글 답변 열람 및 본인 확인을 위하여 설정한 문자와 숫자의 조합을 말합니다.<br>
-          ④ <strong>운영자</strong> : 서비스를 개설하여 운영 및 관리하는 (주)빈스힐 담당자를 말합니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제3조 (약관 외 준칙)</h4>
-        <p style="margin-bottom: 16px;">운영자는 필요한 경우 별도로 운영정책을 공지 안내할 수 있으며, 본 약관과 운영정책이 중첩될 경우 운영정책이 우선 적용됩니다.</p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제4조 (이용계약 체결 및 견적 문의)</h4>
-        <p style="margin-bottom: 16px;">
-          ① 이용계약은 서비스를 이용하려는 자의 본 약관 내용에 대한 동의와 견적 문의 신청에 대하여 운영자의 이용승낙으로 성립합니다.<br>
-          ② 서비스를 이용하려는 자는 견적 문의 제출 시 본 약관을 읽고 "개인정보 수집 및 이용 동의"를 체크하는 것으로 본 약관에 대한 동의 의사 표시를 합니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제5조 (서비스 이용 신청 및 견적 산출)</h4>
-        <p style="margin-bottom: 16px;">
-          ① 견적 문의를 신청하려는 이용자는 사이트에서 요청하는 제반 정보(회사명, 담당자명, 연락처, 희망 생산 사양 등)를 정확하게 제공해야 합니다.<br>
-          ② 타인의 정보를 도용하거나 허위의 정보를 등록한 이용자는 사이트 이용과 관련하여 아무런 권리를 주장할 수 없으며, 관계 법령에 따라 처벌받을 수 있습니다.<br>
-          ③ 온라인 실시간 견적 산출기를 통해 집계된 시뮬레이션 금액은 예상 가견적이며, 최종 확정 견적은 전담 연구진의 세부 원료 배합비 검토 및 상담 후 정식 견적서로 발급됩니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제6조 (개인정보처리방침)</h4>
-        <p style="margin-bottom: 16px;">
-          사이트 및 운영자는 관계 법령이 정하는 바에 따라 회원의 개인정보를 보호하기 위하여 노력합니다.<br>
-          단, 이용자의 귀책 사유로 인해 노출된 정보에 대해 운영자는 일체의 책임을 지지 않으며, 관련 기관의 적법한 요청이 있을 시 관계 법령에 따릅니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제7조 (운영자의 의무)</h4>
-        <p style="margin-bottom: 16px;">
-          ① 운영자는 이용자로부터 제기되는 견적 문의나 불만이 정당하다고 인정할 경우에는 신속하게 처리하여야 합니다.<br>
-          ② 운영자는 지속적이고 안정적인 액상 OEM/ODM 플랫폼 서비스를 제공하기 위해 노력합니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제8조 (회원의 의무)</h4>
-        <p style="margin-bottom: 16px;">
-          ① 이용자는 본 약관에서 규정하는 사항과 운영자가 정한 제반 규정 및 관계 법령을 준수하여야 합니다.<br>
-          ② 이용자는 운영자와 사이트 및 제3자의 지적 재산권(특허 원료 기술, 액상 이스케이프 포뮬러, 디자인 등)을 침해해서는 안 됩니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제9조 (서비스 이용 시간)</h4>
-        <p style="margin-bottom: 16px;">서비스 이용 시간은 업무상 또는 기술상 특별한 지장이 없는 한 연중무휴 1일 24시간을 원칙으로 합니다. 단, 시스템 점검 및 교체를 위해 사전 공지 후 일시 중단될 수 있습니다.</p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제10조 (서비스 이용 제한)</h4>
-        <p style="margin-bottom: 16px;">허위 정보 등록, 타인 정보 도용, 사이트 운영 방해 및 법령 위반 행위 발생 시 사전 통보 없이 서비스 이용을 제한하거나 문의글을 삭제 조치할 수 있습니다.</p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제11조 (게시물의 관리 및 저작권)</h4>
-        <p style="margin-bottom: 16px;">
-          ① 사이트의 게시물과 자료 관리 책임은 운영자에게 있습니다.<br>
-          ② 회사가 작성한 고유 포뮬러 기술, 디자인, 상표 및 콘텐츠에 대한 저작권은 (주)빈스힐에 귀속됩니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">제12조 (면책조항)</h4>
-        <p style="margin-bottom: 16px;">
-          ① 운영자는 천재지변, 파업, 통신 장애 등 불가항력적인 사유로 서비스를 제공할 수 없는 경우에는 책임을 면합니다.<br>
-          ② 운영자는 이용자의 귀책사유로 인한 서비스 이용 장애에 대하여 책임을 지지 않습니다.
-        </p>
-
-        <h4 style="font-size: 1rem; font-weight: 800; color: #0F172A; margin-bottom: 8px;">부칙</h4>
-        <p style="margin-bottom: 0;">본 약관은 <strong>2026년 8월 1일</strong>부터 시행됩니다.</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- GSAP Library for Smooth Fan Carousel Elastic Motion -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-
-  <!-- Main Application Entry Script -->
-  <script type="module" src="js/app.js"></script>
+  <!-- Admin JS -->
+  <script type="module" src="js/admin.js"></script>
 </body>
 </html>

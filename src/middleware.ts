@@ -22,8 +22,11 @@ export function middleware(request: NextRequest) {
   if (pathname === "/login.html") {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (pathname === "/index.html" || pathname === "/page.html" || pathname === "/page.tsx") {
+  if (pathname === "/index.html" || pathname === "/page.html" || pathname === "/page.tsx" || pathname === "/homepage.html") {
     return NextResponse.redirect(new URL("/", request.url));
+  }
+  if (pathname === "/admin.html") {
+    return NextResponse.redirect(new URL("/admin/cms", request.url));
   }
 
   // Supabase Auth 토큰 쿠키 존재 여부 확인 (기본 미들웨어 검증)
