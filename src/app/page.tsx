@@ -16,6 +16,7 @@ const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
 
 function ERPDashboard() {
+  const { user } = useAuth();
   const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
 
   // 달력 및 메모장용 State
@@ -115,12 +116,15 @@ function ERPDashboard() {
   const handleAddMemo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemo.trim()) return;
+    // 현재 시간을 구해서 원하는 포맷으로 변환합니다.
+    const now = new Date();
+    const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     const item = {
       id: Date.now(),
       text: newMemo.trim(),
-      date: "방금 전",
-      author: "관리자"
+      date: formattedDate, // "방금 전" 대신 실제 시간 적용
+      author: user?.name || "사용자" // "관리자"를 이 코드로 변경합니다.
     };
 
     const updated = [item, ...memos];
