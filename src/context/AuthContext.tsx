@@ -99,15 +99,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const jobTitle = formatJobTitle(department, position);
 
-    setUser({
+    const userProfile: UserProfile = {
       name: fullName,
       email: authUser.email || "",
       department,
       position,
       role: permissionRole,
       jobTitle,
-      provider: authUser.app_metadata?.provider || "email",
-    });
+      provider: authUser.app_metadata?.provider || "google",
+    };
+
+    setUser(userProfile);
+
+    // 구글 회원가입 및 로컬 로그인 연동을 위해 계정 정보 저장 (브라우저 비밀번호 자동저장 지원)
+    try {
+      const savedUsers = JSON.parse(localStorage.getItem("beansheal_registered_users") || "{}");
+      if (authUser.email) {
+        savedUsers[authUser.email.toLowerCase()] = userProfile;
+        localStorage.setItem("beansheal_registered_users", JSON.stringify(savedUsers));
+      }
+    } catch (e) {}
   };
 
   useEffect(() => {
@@ -120,7 +131,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         loadProfile(session.user);
       } else {
-        setUser(null);
+        // 로컬 보존 유저가 있으면 유지
+        const localUserJson = localStorage.getItem("beansheal_active_user");
+        if (localUserJson) {
+          try {
+            setUser(JSON.parse(localUserJson));
+          } catch (e) {
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
       }
     });
 
