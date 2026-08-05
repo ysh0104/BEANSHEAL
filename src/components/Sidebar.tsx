@@ -84,7 +84,10 @@ export default function Sidebar() {
           {/* 중앙 상단 가로 메뉴바 (GNB Dropdowns) */}
           <nav className="hidden md:flex items-center gap-0.5 shrink-0">
             {menuGroups.map((group) => {
-              const hasActiveChild = group.items.some(item => pathname.startsWith(item.path));
+              const hasActiveChild = group.items.some(item => {
+                const basePath = item.path.split("?")[0];
+                return pathname === basePath || pathname.startsWith(basePath + "/");
+              });
               const isOpen = activeDropdown === group.name;
 
               return (
@@ -113,7 +116,8 @@ export default function Sidebar() {
                     <div className="absolute left-0 top-full pt-1.5 w-56 z-50 animate-fadeIn">
                       <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200/90 py-1.5 backdrop-blur-xl">
                         {group.items.map((item) => {
-                          const isActive = pathname.startsWith(item.path);
+                          const basePath = item.path.split("?")[0];
+                          const isActive = pathname === basePath;
                           return (
                             <Link
                               key={item.path}
