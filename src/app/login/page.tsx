@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { loginWithEmail, signUpWithEmail } = useAuth();
+  const { loginWithEmail, loginWithGoogle, signUpWithEmail } = useAuth();
   
   const [activeTab, setActiveTab] = useState<"id" | "qr">("id");
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -73,6 +73,15 @@ export default function LoginPage() {
     window.location.href = "/workspace";
   };
 
+  const handleGoogleLogin = async () => {
+    setError("");
+    try {
+      await loginWithGoogle();
+    } catch (err: any) {
+      setError(err?.message || "Google 로그인에 실패했습니다.");
+    }
+  };
+
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -111,7 +120,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans flex items-center justify-center p-4 select-none">
       
-      {/* 중앙 메인 로그인 카드 (회사코드 제거 & 아이디/비밀번호 간결 폼) */}
+      {/* 중앙 메인 로그인 카드 */}
       <div className="w-full max-w-[420px] bg-white rounded-3xl p-8 shadow-xl border border-slate-200/90 space-y-7 relative overflow-hidden">
         
         {/* 상단 로고 헤더 (BEANSHEAL) */}
@@ -162,71 +171,96 @@ export default function LoginPage() {
 
         {/* 1. 로그인 폼 */}
         {mode === "login" ? (
-          <form onSubmit={handleLoginSubmit} className="space-y-5">
-            
-            {/* 사원 아이디 입력 (모노크롬 SVG 아이콘: 사용자) */}
-            <div className="flex items-center gap-3 border-b border-slate-200 py-3 focus-within:border-[#2c4cb0] transition-colors">
-              <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <input
-                type="text"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="사원 아이디 또는 이메일"
-                className="w-full text-sm font-semibold text-slate-800 placeholder-slate-400 bg-transparent focus:outline-none"
-                autoComplete="username"
-              />
-            </div>
-
-            {/* 비밀번호 입력 (모노크롬 SVG 아이콘: 자물쇠) */}
-            <div className="flex items-center gap-3 border-b border-slate-200 py-3 focus-within:border-[#2c4cb0] transition-colors">
-              <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="비밀번호"
-                className="w-full text-sm font-semibold text-slate-800 placeholder-slate-400 bg-transparent focus:outline-none"
-                autoComplete="current-password"
-              />
-            </div>
-
-            {/* 체크박스 옵션 행 (아이디 저장, 출근체크) */}
-            <div className="flex items-center justify-end gap-4 text-xs font-semibold text-slate-600 pt-1">
-              <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors">
+          <div className="space-y-4">
+            <form onSubmit={handleLoginSubmit} className="space-y-5">
+              
+              {/* 사원 아이디 입력 (모노크롬 SVG 아이콘: 사용자) */}
+              <div className="flex items-center gap-3 border-b border-slate-200 py-3 focus-within:border-[#2c4cb0] transition-colors">
+                <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
                 <input
-                  type="checkbox"
-                  checked={rememberId}
-                  onChange={(e) => setRememberId(e.target.checked)}
-                  className="w-4 h-4 accent-[#2c4cb0] rounded cursor-pointer"
+                  type="text"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="사원 아이디 또는 이메일"
+                  className="w-full text-sm font-semibold text-slate-800 placeholder-slate-400 bg-transparent focus:outline-none"
+                  autoComplete="username"
                 />
-                <span>아이디 저장</span>
-              </label>
+              </div>
 
-              <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors">
+              {/* 비밀번호 입력 (모노크롬 SVG 아이콘: 자물쇠) */}
+              <div className="flex items-center gap-3 border-b border-slate-200 py-3 focus-within:border-[#2c4cb0] transition-colors">
+                <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
                 <input
-                  type="checkbox"
-                  checked={clockInCheck}
-                  onChange={(e) => setClockInCheck(e.target.checked)}
-                  className="w-4 h-4 accent-[#2c4cb0] rounded cursor-pointer"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="비밀번호"
+                  className="w-full text-sm font-semibold text-slate-800 placeholder-slate-400 bg-transparent focus:outline-none"
+                  autoComplete="current-password"
                 />
-                <span>출근체크</span>
-              </label>
+              </div>
+
+              {/* 체크박스 옵션 행 (아이디 저장, 출근체크) */}
+              <div className="flex items-center justify-end gap-4 text-xs font-semibold text-slate-600 pt-1">
+                <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={rememberId}
+                    onChange={(e) => setRememberId(e.target.checked)}
+                    className="w-4 h-4 accent-[#2c4cb0] rounded cursor-pointer"
+                  />
+                  <span>아이디 저장</span>
+                </label>
+
+                <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={clockInCheck}
+                    onChange={(e) => setClockInCheck(e.target.checked)}
+                    className="w-4 h-4 accent-[#2c4cb0] rounded cursor-pointer"
+                  />
+                  <span>출근체크</span>
+                </label>
+              </div>
+
+              {/* 메인 로그인 버튼 */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-[#3352c4] hover:bg-[#2c4cb0] active:bg-[#243ea6] text-white font-bold text-base py-3.5 rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 mt-2"
+              >
+                {loading ? "사내 인증 처리 중..." : "로그인"}
+              </button>
+
+            </form>
+
+            {/* 구분선 (또는) */}
+            <div className="relative my-3 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200" />
+              </div>
+              <span className="relative bg-white px-3 text-[11px] font-bold text-slate-400">또는</span>
             </div>
 
-            {/* 메인 로그인 버튼 */}
+            {/* 구글 소셜 로그인 버튼 */}
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#3352c4] hover:bg-[#2c4cb0] active:bg-[#243ea6] text-white font-bold text-base py-3.5 rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 mt-2"
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold text-sm py-3 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              {loading ? "사내 인증 처리 중..." : "로그인"}
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              <span>Google 계정으로 사내 로그인</span>
             </button>
-
-          </form>
+          </div>
         ) : (
           /* 2. 사내 신규 회원가입 폼 */
           <form onSubmit={handleSignupSubmit} className="space-y-3">
