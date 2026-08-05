@@ -70,7 +70,7 @@ export default function Sidebar() {
           
           {/* 좌측 로고 홈 링크 */}
           <div className="flex items-center gap-4 shrink-0">
-            <Link href="/" className="flex items-center group cursor-pointer">
+            <Link href="https://beansheal.vercel.app/workspace#" className="flex items-center group cursor-pointer">
               <h1 className="text-xl md:text-2xl font-black tracking-tight text-white group-hover:text-zinc-300 transition-colors">
                 BEANSHEAL
               </h1>
