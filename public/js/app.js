@@ -352,6 +352,12 @@ function initNavigation() {
     navBackdrop.addEventListener('click', closeMobileNav);
   }
 
+  if (gnbNav) {
+    gnbNav.querySelectorAll('a[href^="/"]').forEach((link) => {
+      link.addEventListener('click', closeMobileNav);
+    });
+  }
+
   // Smooth scroll for internal links
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
