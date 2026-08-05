@@ -75,7 +75,7 @@ export default function Sidebar() {
           {/* 좌측 로고 홈 링크 */}
           <div className="flex items-center gap-4 shrink-0">
             <Link href="/workspace" className="flex items-center group cursor-pointer">
-              <h1 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 group-hover:text-indigo-600 transition-colors">
+              <h1 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 group-hover:text-slate-700 transition-colors">
                 BEANSHEAL
               </h1>
             </Link>
@@ -101,12 +101,12 @@ export default function Sidebar() {
                     onClick={() => setActiveDropdown(isOpen ? null : group.name)}
                     className={`flex items-center gap-1 px-2.5 py-1.5 text-xs md:text-sm font-bold rounded-md transition-all duration-200 cursor-pointer ${
                       hasActiveChild 
-                        ? "bg-slate-100 text-indigo-700 font-extrabold border border-slate-200" 
+                        ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-300 shadow-2xs" 
                         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                   >
                     <span>{group.name}</span>
-                    <svg className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180 text-indigo-600" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180 text-slate-700" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
@@ -125,7 +125,7 @@ export default function Sidebar() {
                               onClick={() => setActiveDropdown(null)}
                               className={`block px-4 py-2.5 text-sm font-bold transition-all duration-150 ${
                                 isActive 
-                                  ? "bg-indigo-50 text-indigo-700 font-extrabold border-l-4 border-indigo-600" 
+                                  ? "bg-slate-100 text-slate-900 font-extrabold border-l-4 border-slate-800" 
                                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                               }`}
                             >

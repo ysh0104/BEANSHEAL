@@ -445,12 +445,12 @@ function AdminCmsContent() {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs text-slate-500 font-extrabold mb-1">
-              <Link href="/workspace" className="hover:text-indigo-600 transition-colors">사내 업무 ERP</Link>
+              <Link href="/workspace" className="hover:text-slate-900 transition-colors">사내 업무 ERP</Link>
               <span>/</span>
               <span className="text-slate-800">홈페이지 브랜드 관리 (CMS)</span>
             </div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              🖥️ BEANSHEAL 공식 브랜드 홈페이지 관리자 시스템
+              BEANSHEAL 공식 브랜드 홈페이지 관리자 시스템
             </h1>
             <p className="text-xs text-slate-500 font-semibold mt-1">
               고객 문의 접수, 견적 산출기, 생산 포트폴리오, FAQ 및 브랜드 시스템 설정을 관리합니다.
@@ -464,11 +464,11 @@ function AdminCmsContent() {
               rel="noreferrer"
               className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer"
             >
-              <span>🌐 Vercel 라이브 사이트 이동</span>
+              <span>Vercel 라이브 사이트 이동</span>
             </a>
             <Link
               href="/workspace"
-              className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-extrabold text-xs px-4 py-2.5 rounded-xl border border-indigo-200 transition-all flex items-center gap-2"
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs px-4 py-2.5 rounded-xl border border-slate-300 transition-all flex items-center gap-2"
             >
               <span>← ERP 메인으로 돌아가기</span>
             </Link>
@@ -481,11 +481,11 @@ function AdminCmsContent() {
             onClick={() => handleTabChange("inquiries")}
             className={`px-4 py-3 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
               activeTab === "inquiries"
-                ? "bg-indigo-600 text-white shadow-md font-black"
+                ? "bg-slate-900 text-white shadow-md font-black border border-slate-900"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >
-            <span>📋 고객 견적 문의 관리</span>
+            <span>고객 견적 문의 관리</span>
             {pendingCount > 0 && (
               <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full text-[11px] font-black">
                 {pendingCount}
@@ -497,44 +497,44 @@ function AdminCmsContent() {
             onClick={() => handleTabChange("calculator")}
             className={`px-4 py-3 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
               activeTab === "calculator"
-                ? "bg-indigo-600 text-white shadow-md font-black"
+                ? "bg-slate-900 text-white shadow-md font-black border border-slate-900"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >
-            <span>🧮 견적 산출기 옵션 설정</span>
+            <span>견적 산출기 옵션 설정</span>
           </button>
 
           <button
             onClick={() => handleTabChange("portfolio")}
             className={`px-4 py-3 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
               activeTab === "portfolio"
-                ? "bg-indigo-600 text-white shadow-md font-black"
+                ? "bg-slate-900 text-white shadow-md font-black border border-slate-900"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >
-            <span>🖼️ 포트폴리오 관리 (30개)</span>
+            <span>포트폴리오 관리 (30개)</span>
           </button>
 
           <button
             onClick={() => handleTabChange("faq")}
             className={`px-4 py-3 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
               activeTab === "faq"
-                ? "bg-indigo-600 text-white shadow-md font-black"
+                ? "bg-slate-900 text-white shadow-md font-black border border-slate-900"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >
-            <span>❓ 자주 묻는 질문 (FAQ)</span>
+            <span>자주 묻는 질문 (FAQ)</span>
           </button>
 
           <button
             onClick={() => handleTabChange("settings")}
             className={`px-4 py-3 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
               activeTab === "settings"
-                ? "bg-indigo-600 text-white shadow-md font-black"
+                ? "bg-slate-900 text-white shadow-md font-black border border-slate-900"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >
-            <span>⚙️ 홈페이지 시스템 설정</span>
+            <span>홈페이지 시스템 설정</span>
           </button>
         </div>
 
@@ -548,8 +548,8 @@ function AdminCmsContent() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  📊 홈페이지 실시간 방문자 트래픽 현황
+                  <span className="w-2.5 h-2.5 rounded-full bg-slate-800 animate-pulse"></span>
+                  홈페이지 실시간 방문자 트래픽 현황
                 </h3>
                 <div className="flex items-center gap-2">
                   <button
@@ -558,28 +558,28 @@ function AdminCmsContent() {
                   >
                     수치 0으로 리셋
                   </button>
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
-                    ● 자동 실시간 집계중
+                  <span className="text-xs font-bold text-slate-700 bg-slate-100 border border-slate-300 px-3 py-1.5 rounded-full">
+                    자동 실시간 집계중
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-4 text-center">
-                  <div className="text-xs font-bold text-emerald-700 mb-1">오늘 방문자 수</div>
-                  <div className="text-2xl font-black text-emerald-900">{todayVisitors} 명</div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                  <div className="text-xs font-bold text-slate-600 mb-1">오늘 방문자 수</div>
+                  <div className="text-2xl font-black text-slate-900">{todayVisitors} 명</div>
                 </div>
-                <div className="bg-blue-50/60 border border-blue-200/80 rounded-xl p-4 text-center">
-                  <div className="text-xs font-bold text-blue-700 mb-1">누적 총 방문자 수</div>
-                  <div className="text-2xl font-black text-blue-900">{totalVisitors.toLocaleString()} 명</div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                  <div className="text-xs font-bold text-slate-600 mb-1">누적 총 방문자 수</div>
+                  <div className="text-2xl font-black text-slate-900">{totalVisitors.toLocaleString()} 명</div>
                 </div>
-                <div className="bg-purple-50/60 border border-purple-200/80 rounded-xl p-4 text-center">
-                  <div className="text-xs font-bold text-purple-700 mb-1">오늘 총 페이지뷰</div>
-                  <div className="text-2xl font-black text-purple-900">{todayPageviews} 회</div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                  <div className="text-xs font-bold text-slate-600 mb-1">오늘 총 페이지뷰</div>
+                  <div className="text-2xl font-black text-slate-900">{todayPageviews} 회</div>
                 </div>
-                <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-4 text-center">
-                  <div className="text-xs font-bold text-amber-700 mb-1">실시간 견적 전환율</div>
-                  <div className="text-2xl font-black text-amber-900">4.8 %</div>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                  <div className="text-xs font-bold text-slate-600 mb-1">실시간 견적 전환율</div>
+                  <div className="text-2xl font-black text-slate-900">4.8 %</div>
                 </div>
               </div>
             </div>
@@ -599,7 +599,7 @@ function AdminCmsContent() {
                   <button
                     onClick={() => setInquiryFilter("대기중")}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold cursor-pointer border transition-all ${
-                      inquiryFilter === "대기중" ? "bg-amber-500 text-white border-amber-500" : "bg-amber-50 text-amber-700 border-amber-200"
+                      inquiryFilter === "대기중" ? "bg-amber-600 text-white border-amber-600" : "bg-amber-50 text-amber-800 border-amber-200"
                     }`}
                   >
                     답변 대기중 ({pendingCount})
@@ -607,7 +607,7 @@ function AdminCmsContent() {
                   <button
                     onClick={() => setInquiryFilter("답변완료")}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold cursor-pointer border transition-all ${
-                      inquiryFilter === "답변완료" ? "bg-emerald-600 text-white border-emerald-600" : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      inquiryFilter === "답변완료" ? "bg-slate-800 text-white border-slate-800" : "bg-slate-100 text-slate-700 border-slate-300"
                     }`}
                   >
                     답변 완료 ({doneCount})
@@ -615,7 +615,7 @@ function AdminCmsContent() {
                   <button
                     onClick={() => setInquiryFilter("trash")}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold cursor-pointer border transition-all ${
-                      inquiryFilter === "trash" ? "bg-rose-600 text-white border-rose-600" : "bg-rose-50 text-rose-700 border-rose-200"
+                      inquiryFilter === "trash" ? "bg-rose-700 text-white border-rose-700" : "bg-rose-50 text-rose-800 border-rose-200"
                     }`}
                   >
                     휴지통 ({trashCount})
@@ -628,11 +628,11 @@ function AdminCmsContent() {
                     placeholder="기업명, 작성자, 제목으로 검색..."
                     value={inquirySearch}
                     onChange={(e) => setInquirySearch(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 w-full md:w-64"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-500 w-full md:w-64"
                   />
                   <button
                     onClick={() => setIsNewInquiryOpen(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
+                    className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
                   >
                     + 수동 문의 등록
                   </button>
@@ -668,10 +668,10 @@ function AdminCmsContent() {
                             <span
                               className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
                                 item.status === "답변완료"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  ? "bg-slate-100 text-slate-800 border-slate-300"
                                   : item.status === "휴지통"
                                   ? "bg-slate-100 text-slate-500 border-slate-300"
-                                  : "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-amber-50 text-amber-800 border-amber-200"
                               }`}
                             >
                               {item.status}
@@ -711,7 +711,7 @@ function AdminCmsContent() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                  🧮 실시간 견적 산출기 옵션 관리
+                  실시간 견적 산출기 옵션 관리
                 </h2>
                 <p className="text-xs font-semibold text-slate-500 mt-1">
                   홈페이지 견적 산출기 드롭다운 옵션을 엔터(줄바꿈)로 간편하게 수정하세요.
@@ -719,9 +719,9 @@ function AdminCmsContent() {
               </div>
               <button
                 onClick={handleSaveCalcOptions}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer"
               >
-                💾 설정 저장 완료
+                설정 저장 완료
               </button>
             </div>
 
@@ -732,7 +732,7 @@ function AdminCmsContent() {
                 <textarea
                   value={calcVolume}
                   onChange={(e) => setCalcVolume(e.target.value)}
-                  className="w-full h-32 bg-white border border-slate-200 rounded-lg p-3 text-slate-800 font-medium text-xs leading-relaxed focus:outline-none focus:border-indigo-500"
+                  className="w-full h-32 bg-white border border-slate-200 rounded-lg p-3 text-slate-800 font-medium text-xs leading-relaxed focus:outline-none focus:border-slate-500"
                 />
               </div>
 
@@ -742,7 +742,7 @@ function AdminCmsContent() {
                 <textarea
                   value={calcIngredient}
                   onChange={(e) => setCalcIngredient(e.target.value)}
-                  className="w-full h-32 bg-white border border-slate-200 rounded-lg p-3 text-slate-800 font-medium text-xs leading-relaxed focus:outline-none focus:border-indigo-500"
+                  className="w-full h-32 bg-white border border-slate-200 rounded-lg p-3 text-slate-800 font-medium text-xs leading-relaxed focus:outline-none focus:border-slate-500"
                 />
               </div>
 
@@ -752,7 +752,7 @@ function AdminCmsContent() {
                 <textarea
                   value={calcPackaging}
                   onChange={(e) => setCalcPackaging(e.target.value)}
-                  className="w-full h-32 bg-white border border-slate-200 rounded-lg p-3 text-slate-800 font-medium text-xs leading-relaxed focus:outline-none focus:border-indigo-500"
+                  className="w-full h-32 bg-white border border-slate-200 rounded-lg p-3 text-slate-800 font-medium text-xs leading-relaxed focus:outline-none focus:border-slate-500"
                 />
               </div>
 
@@ -762,7 +762,7 @@ function AdminCmsContent() {
                 <textarea
                   value={calcQuantity}
                   onChange={(e) => setCalcQuantity(e.target.value)}
-                  className="w-full h-32 bg-white border border-slate-200 rounded-lg p-3 text-slate-800 font-medium text-xs leading-relaxed focus:outline-none focus:border-indigo-500"
+                  className="w-full h-32 bg-white border border-slate-200 rounded-lg p-3 text-slate-800 font-medium text-xs leading-relaxed focus:outline-none focus:border-slate-500"
                 />
               </div>
             </div>
@@ -770,9 +770,9 @@ function AdminCmsContent() {
             <div className="pt-2 text-right">
               <button
                 onClick={handleSaveCalcOptions}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm px-6 py-3 rounded-xl shadow-md transition-all cursor-pointer"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm px-6 py-3 rounded-xl shadow-md transition-all cursor-pointer"
               >
-                ✔ 견적 산출기 옵션 저장 및 홈페이지 즉시 반영
+                견적 산출기 옵션 저장 및 홈페이지 즉시 반영
               </button>
             </div>
           </div>
@@ -786,7 +786,7 @@ function AdminCmsContent() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                  🖼️ 생산 포트폴리오 슬롯 관리 (총 30개)
+                  생산 포트폴리오 슬롯 관리 (총 30개)
                 </h2>
                 <p className="text-xs font-semibold text-slate-500 mt-1">
                   슬롯 카드를 클릭하여 제품명, 제형, 태그 및 이미지를 즉시 수정할 수 있습니다.
@@ -805,7 +805,7 @@ function AdminCmsContent() {
                 <button
                   onClick={() => setPortfolioFilter("filled")}
                   className={`px-3 py-1.5 rounded-lg text-xs font-extrabold cursor-pointer border ${
-                    portfolioFilter === "filled" ? "bg-blue-600 text-white border-blue-600" : "bg-blue-50 text-blue-700 border-blue-200"
+                    portfolioFilter === "filled" ? "bg-slate-800 text-white border-slate-800" : "bg-slate-50 text-slate-700 border-slate-200"
                   }`}
                 >
                   등록 완료 ({portfolioList.filter((i) => i.isFilled).length})
@@ -813,7 +813,7 @@ function AdminCmsContent() {
                 <button
                   onClick={() => setPortfolioFilter("empty")}
                   className={`px-3 py-1.5 rounded-lg text-xs font-extrabold cursor-pointer border ${
-                    portfolioFilter === "empty" ? "bg-slate-400 text-white border-slate-400" : "bg-slate-50 text-slate-600 border-slate-200"
+                    portfolioFilter === "empty" ? "bg-slate-500 text-white border-slate-500" : "bg-slate-50 text-slate-600 border-slate-200"
                   }`}
                 >
                   빈 슬롯 ({portfolioList.filter((i) => !i.isFilled).length})
@@ -829,14 +829,14 @@ function AdminCmsContent() {
                   onClick={() => setEditCard(item)}
                   className={`border rounded-xl p-3 flex flex-col justify-between transition-all cursor-pointer hover:shadow-md ${
                     item.isFilled
-                      ? "bg-white border-slate-200 hover:border-indigo-500"
+                      ? "bg-white border-slate-200 hover:border-slate-400"
                       : "bg-slate-50 border-dashed border-slate-300 hover:border-slate-400"
                   }`}
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-[11px] font-black">
                       <span className="text-slate-400">#{item.id}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] ${item.isFilled ? "bg-indigo-50 text-indigo-700" : "bg-slate-200 text-slate-600"}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] ${item.isFilled ? "bg-slate-100 text-slate-800" : "bg-slate-200 text-slate-600"}`}>
                         {item.isFilled ? "등록됨" : "빈 슬롯"}
                       </span>
                     </div>
@@ -870,7 +870,7 @@ function AdminCmsContent() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                  ❓ 자주 묻는 질문 (FAQ) 전용 관리
+                  자주 묻는 질문 (FAQ) 전용 관리
                 </h2>
                 <p className="text-xs font-semibold text-slate-500 mt-1">
                   메인 홈페이지 FAQ 섹션에 노출되는 질문과 답변을 수정, 추가, 삭제하세요.
@@ -880,15 +880,15 @@ function AdminCmsContent() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleAddFaq}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
                 >
                   + 신규 질문 추가
                 </button>
                 <button
                   onClick={handleSaveFaqs}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
+                  className="bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
                 >
-                  💾 전체 저장
+                  전체 저장
                 </button>
               </div>
             </div>
@@ -897,7 +897,7 @@ function AdminCmsContent() {
               {faqItems.map((faq, index) => (
                 <div key={faq.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                    <span className="text-xs font-black text-slate-900 bg-slate-200 px-2.5 py-1 rounded-lg">
                       Q{index + 1}. 질문 #{faq.id}
                     </span>
                     <button
@@ -917,7 +917,7 @@ function AdminCmsContent() {
                         const val = e.target.value;
                         setFaqItems(faqItems.map((item) => (item.id === faq.id ? { ...item, question: val } : item)));
                       }}
-                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-slate-500"
                     />
                   </div>
 
@@ -929,7 +929,7 @@ function AdminCmsContent() {
                         const val = e.target.value;
                         setFaqItems(faqItems.map((item) => (item.id === faq.id ? { ...item, answer: val } : item)));
                       }}
-                      className="w-full h-20 bg-white border border-slate-200 rounded-lg p-2.5 text-xs font-semibold text-slate-800 leading-relaxed focus:outline-none focus:border-indigo-500"
+                      className="w-full h-20 bg-white border border-slate-200 rounded-lg p-2.5 text-xs font-semibold text-slate-800 leading-relaxed focus:outline-none focus:border-slate-500"
                     />
                   </div>
                 </div>
@@ -939,9 +939,9 @@ function AdminCmsContent() {
             <div className="text-right">
               <button
                 onClick={handleSaveFaqs}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm px-6 py-3 rounded-xl shadow-md transition-all cursor-pointer"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm px-6 py-3 rounded-xl shadow-md transition-all cursor-pointer"
               >
-                ✔ FAQ 변경사항 저장 및 홈페이지 즉시 반영
+                FAQ 변경사항 저장 및 홈페이지 즉시 반영
               </button>
             </div>
           </div>
@@ -956,7 +956,7 @@ function AdminCmsContent() {
             {/* 1. 회사 기본 정보 및 주소 변경 Card */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-4">
               <h2 className="text-lg font-black text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-                🏢 회사 기본 정보 및 본사 주소 변경
+                회사 기본 정보 및 본사 주소 변경
               </h2>
               
               <form onSubmit={handleSaveCompanyInfo} className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-bold">
@@ -982,12 +982,12 @@ function AdminCmsContent() {
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="text-slate-600 block mb-1">📍 본사 & 공장 도로명 주소 (주소 이전 시 수정)</label>
+                  <label className="text-slate-600 block mb-1">본사 & 공장 도로명 주소 (주소 이전 시 수정)</label>
                   <input
                     type="text"
                     value={companyAddress}
                     onChange={(e) => setCompanyAddress(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 font-extrabold border-emerald-300"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-extrabold"
                     required
                   />
                 </div>
@@ -1037,9 +1037,9 @@ function AdminCmsContent() {
                 <div className="sm:col-span-2 pt-2">
                   <button
                     type="submit"
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm py-3 rounded-xl shadow-md transition-all cursor-pointer"
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm py-3 rounded-xl shadow-md transition-all cursor-pointer"
                   >
-                    💾 회사 정보 및 주소 변경 저장하기
+                    회사 정보 및 주소 변경 저장하기
                   </button>
                 </div>
               </form>
@@ -1049,7 +1049,7 @@ function AdminCmsContent() {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  📢 메인 프로모션 팝업 노출 및 문구 관리
+                  메인 프로모션 팝업 노출 및 문구 관리
                 </h2>
 
                 <label className="flex items-center gap-2 cursor-pointer bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
@@ -1058,10 +1058,10 @@ function AdminCmsContent() {
                     type="checkbox"
                     checked={popupEnabled}
                     onChange={(e) => setPopupEnabled(e.target.checked)}
-                    className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
+                    className="w-4 h-4 accent-slate-800 rounded cursor-pointer"
                   />
-                  <span className={`text-xs font-black ${popupEnabled ? "text-emerald-700" : "text-slate-400"}`}>
-                    [{popupEnabled ? "🟢 켜짐 ON" : "⚪ 꺼짐 OFF"}]
+                  <span className={`text-xs font-black ${popupEnabled ? "text-slate-900" : "text-slate-400"}`}>
+                    [{popupEnabled ? "켜짐 ON" : "꺼짐 OFF"}]
                   </span>
                 </label>
               </div>
@@ -1139,9 +1139,9 @@ function AdminCmsContent() {
                 <div className="sm:col-span-2 pt-2">
                   <button
                     type="submit"
-                    className="w-full bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-sm py-3 rounded-xl shadow-md transition-all cursor-pointer"
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm py-3 rounded-xl shadow-md transition-all cursor-pointer"
                   >
-                    💾 팝업 노출 및 문구 저장하기
+                    팝업 노출 및 문구 저장하기
                   </button>
                 </div>
               </form>
@@ -1150,20 +1150,20 @@ function AdminCmsContent() {
             {/* 3. Real-time Email Notification Setup Card */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-4">
               <h2 className="text-lg font-black text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-                📩 실시간 이메일 수신 알림 설정
+                실시간 이메일 수신 알림 설정
               </h2>
 
-              <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
-                  <div className="text-xs font-bold text-sky-700">현재 알림 수신 이메일 주소:</div>
-                  <div className="text-base font-black text-sky-950">{companyEmail}</div>
+                  <div className="text-xs font-bold text-slate-600">현재 알림 수신 이메일 주소:</div>
+                  <div className="text-base font-black text-slate-900">{companyEmail}</div>
                 </div>
                 <button
                   type="button"
                   onClick={handleTestEmail}
-                  className="bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all shrink-0 cursor-pointer"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-all shrink-0 cursor-pointer"
                 >
-                  🧪 테스트 이메일 발송해보기
+                  테스트 이메일 발송해보기
                 </button>
               </div>
             </div>
@@ -1173,7 +1173,7 @@ function AdminCmsContent() {
               {/* Password Change */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
                 <h2 className="text-base font-black text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-                  🔐 관리자 비밀번호 변경
+                  관리자 비밀번호 변경
                 </h2>
                 <form onSubmit={handleChangePassword} className="space-y-3 text-xs font-bold">
                   <div>
@@ -1222,7 +1222,7 @@ function AdminCmsContent() {
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4 flex flex-col justify-between">
                 <div>
                   <h2 className="text-base font-black text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-                    📥 견적 문의 데이터 백업 (CSV 엑셀)
+                    견적 문의 데이터 백업 (CSV 엑셀)
                   </h2>
                   <p className="text-xs font-semibold text-slate-500 leading-relaxed mt-3">
                     접수된 모든 고객 견적 문의 내역을 CSV 엑셀 파일 형태로 백업 내보내기합니다.
@@ -1230,9 +1230,9 @@ function AdminCmsContent() {
                 </div>
                 <button
                   onClick={handleExportCSV}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm py-3 rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm py-3 rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <span>📊 전체 견적 데이터 엑셀(CSV) 다운로드</span>
+                  <span>전체 견적 데이터 엑셀(CSV) 다운로드</span>
                 </button>
               </div>
             </div>
@@ -1277,7 +1277,7 @@ function AdminCmsContent() {
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     placeholder="고객에게 전달할 관리자 처리 메모 및 답변..."
-                    className="w-full h-24 bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
+                    className="w-full h-24 bg-white border border-slate-200 rounded-xl p-3 text-xs font-semibold text-slate-800 focus:outline-none focus:border-slate-500"
                   />
                 </div>
               </div>
@@ -1299,7 +1299,7 @@ function AdminCmsContent() {
                   </button>
                   <button
                     onClick={() => handleSaveReply("답변완료")}
-                    className="text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-xl shadow-xs cursor-pointer"
+                    className="text-xs font-extrabold text-white bg-slate-900 hover:bg-slate-800 px-4 py-2 rounded-xl shadow-xs cursor-pointer"
                   >
                     답변 완료 처리
                   </button>
@@ -1396,7 +1396,7 @@ function AdminCmsContent() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl shadow-xs cursor-pointer"
+                    className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold rounded-xl shadow-xs cursor-pointer"
                   >
                     등록 완료
                   </button>
@@ -1497,7 +1497,7 @@ function AdminCmsContent() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl shadow-xs cursor-pointer"
+                    className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold rounded-xl shadow-xs cursor-pointer"
                   >
                     저장 완료
                   </button>
