@@ -2,6 +2,7 @@
 import { DATA } from './data.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+  initAutoLoginRedirect();
   trackVisitorAnalytics();
   loadDynamicCompanyInfo();
   initNavigation();
@@ -19,6 +20,20 @@ document.addEventListener('DOMContentLoaded', () => {
   initScrollAnimations();
   initStatCounterAnimation();
 });
+
+function initAutoLoginRedirect() {
+  try {
+    const isAuto = localStorage.getItem('beansheal_auto_login') !== 'false';
+    const activeUser = localStorage.getItem('beansheal_active_user');
+    if (isAuto && activeUser) {
+      const loginLinks = document.querySelectorAll('a[href="/login"]');
+      loginLinks.forEach(link => {
+        link.href = '/workspace';
+        link.title = '사내 업무 ERP (자동로그인됨)';
+      });
+    }
+  } catch (e) {}
+}
 
 function loadDynamicCompanyInfo() {
   let info = {

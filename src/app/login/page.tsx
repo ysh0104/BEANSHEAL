@@ -6,8 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { loginWithEmail, loginWithGoogle, signUpWithEmail } = useAuth();
-  
+  const { user, loading: authLoading, loginWithEmail, loginWithGoogle, signUpWithEmail } = useAuth();
+
   const [activeTab, setActiveTab] = useState<"id" | "qr">("id");
   const [mode, setMode] = useState<"login" | "signup">("login");
   
@@ -29,6 +29,16 @@ export default function LoginPage() {
   const [signupPosition, setSignupPosition] = useState("사원");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
+
+  // 이미 로그인된 사용자인 경우 사내 ERP(/workspace)로 자동 이동
+  useEffect(() => {
+    if (!authLoading && user) {
+      const isAuto = localStorage.getItem("beansheal_auto_login") !== "false";
+      if (isAuto) {
+        router.replace("/workspace");
+      }
+    }
+  }, [user, authLoading, router]);
 
   // 아이디 저장 로드
   useEffect(() => {
