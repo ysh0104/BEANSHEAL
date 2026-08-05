@@ -23,16 +23,16 @@ document.addEventListener('DOMContentLoaded', () => {
 function loadDynamicCompanyInfo() {
   let info = {
     name: "(주) 빈스힐",
-    ceo: "주미정",
+    ceo: "홍길동",
     address: "경기도 고양시 일산동구 견달산로 359 (주)빈스힐",
-    phone: "031-969-2428",
-    fax: "031-969-2429",
+    phone: "031-900-0000",
+    fax: "031-900-0001",
     email: "beansheal@beansheal.com",
-    hours: "평일 09:00 ~ 18:00 (토/일/공휴일 휴무)"
+    hours: "평일 09:00 ~ 18:00 (점심시간 12:00 ~ 13:00)"
   };
 
   try {
-    const saved = localStorage.getItem('beansheal_custom_company_info');
+    const saved = localStorage.getItem('beansheal_company_info') || localStorage.getItem('beansheal_custom_company_info');
     if (saved) info = { ...info, ...JSON.parse(saved) };
   } catch (e) {}
 
@@ -228,7 +228,7 @@ function initNoticePopup() {
   };
 
   try {
-    const saved = localStorage.getItem('beansheal_custom_notice_popup');
+    const saved = localStorage.getItem('beansheal_notice_popup') || localStorage.getItem('beansheal_custom_notice_popup');
     if (saved) popupConfig = { ...popupConfig, ...JSON.parse(saved) };
   } catch (e) {}
 
@@ -600,11 +600,11 @@ function getFanHeightMultiplier(w) {
 
 function getCombinedPortfolio() {
   try {
-    const saved = localStorage.getItem('beansheal_custom_portfolio');
+    const saved = localStorage.getItem('beansheal_portfolio_items') || localStorage.getItem('beansheal_custom_portfolio');
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed.filter(item => item.isFilled);
       }
     }
   } catch (err) {}
@@ -928,19 +928,21 @@ let quoteState = {
 
 function loadDynamicCalcButtons() {
   try {
-    const saved = localStorage.getItem('beansheal_custom_calc_options');
+    const saved = localStorage.getItem('beansheal_calc_options') || localStorage.getItem('beansheal_custom_calc_options');
     if (!saved) return;
     const opts = JSON.parse(saved);
     if (!opts) return;
 
     ['volume', 'ingredient', 'packaging', 'quantity'].forEach(group => {
-      if (Array.isArray(opts[group]) && opts[group].length > 0) {
+      let rawVal = opts[group];
+      let valArray = Array.isArray(rawVal) ? rawVal : (typeof rawVal === 'string' ? rawVal.split('\n').filter(s => s.trim()) : []);
+      if (valArray.length > 0) {
         const firstBtn = document.querySelector(`.calc-opt-btn[data-group="${group}"]`);
         if (firstBtn && firstBtn.parentElement) {
-          firstBtn.parentElement.innerHTML = opts[group].map((val, idx) => `
+          firstBtn.parentElement.innerHTML = valArray.map((val, idx) => `
             <button class="opt-btn calc-opt-btn ${idx === 0 ? 'selected' : ''}" data-group="${group}" data-value="${val}">${val}</button>
           `).join('');
-          quoteState[group] = opts[group][0];
+          quoteState[group] = valArray[0];
         }
       }
     });
@@ -960,7 +962,6 @@ function initQuoteCalculator() {
     const group = btn.getAttribute('data-group');
     const value = btn.getAttribute('data-value');
 
-    // Unselect siblings
     btn.parentElement.querySelectorAll('.calc-opt-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
 
@@ -1000,7 +1001,6 @@ function updateQuoteSummary() {
     </div>
   `;
 
-  // Estimate price logic calculation
   let basePrice = 3500000;
   if (quoteState.quantity.includes('10,000')) basePrice = 3500000;
   else if (quoteState.quantity.includes('30,000')) basePrice = 8500000;
@@ -1034,11 +1034,11 @@ window.openQuoteInquiryModal = function() {
    ========================================================================== */
 function getCombinedInquiries() {
   try {
-    const saved = localStorage.getItem('beansheal_custom_inquiries');
+    const saved = localStorage.getItem('beansheal_admin_inquiries') || localStorage.getItem('beansheal_custom_inquiries');
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed.filter(item => item.status !== '휴지통');
       }
     }
   } catch (err) {}
@@ -1208,11 +1208,12 @@ function initModals() {
         content: content
       };
 
-      // Add to runtime DATA and localStorage
+      // Add to runtime DATA and localStorage (synced with Admin CMS)
       DATA.recentInquiries.unshift(newInquiry);
       try {
-        let saved = JSON.parse(localStorage.getItem('beansheal_custom_inquiries') || '[]');
+        let saved = JSON.parse(localStorage.getItem('beansheal_admin_inquiries') || localStorage.getItem('beansheal_custom_inquiries') || '[]');
         saved.unshift(newInquiry);
+        localStorage.setItem('beansheal_admin_inquiries', JSON.stringify(saved));
         localStorage.setItem('beansheal_custom_inquiries', JSON.stringify(saved));
       } catch (err) {}
 
@@ -1232,7 +1233,7 @@ function initModals() {
 function sendInquiryEmailNotification(inquiry) {
   let targetEmail = 'beansheal@beansheal.com';
   try {
-    const savedInfo = localStorage.getItem('beansheal_custom_company_info');
+    const savedInfo = localStorage.getItem('beansheal_company_info') || localStorage.getItem('beansheal_custom_company_info');
     if (savedInfo) {
       const parsed = JSON.parse(savedInfo);
       if (parsed && parsed.email) targetEmail = parsed.email;
@@ -1285,7 +1286,6 @@ window.toggleFaq = function(qEl) {
   const icon = qEl.querySelector('.faq-icon');
   const isOpen = item.classList.contains('active');
 
-  // Close all other FAQ items for clean accordion UX
   document.querySelectorAll('.faq-item').forEach(other => {
     other.classList.remove('active');
     other.style.borderColor = '#E2E8F0';
@@ -1313,33 +1313,33 @@ function getDefaultFaqListApp() {
   return [
     {
       id: 1,
-      q: "최소 생산 수량(MOQ)은 얼마나 되나요?",
-      a: "(주)빈스힐은 신규 브랜드 및 스타트업을 위해 <strong>100포 극소량 시험 생산(PILOT)</strong>부터 정식 표준 배치인 <strong>10,000포 ~ 30,000포</strong> 생산까지 맞춤 지원합니다. 부담 없이 시제품을 제작하여 시장 반응을 테스팅해 보실 수 있습니다."
+      question: "최소 생산 수량(MOQ)은 얼마나 되나요?",
+      answer: "(주)빈스힐은 신규 브랜드 및 스타트업을 위해 <strong>100포 극소량 시험 생산(PILOT)</strong>부터 정식 표준 배치인 <strong>10,000포 ~ 30,000포</strong> 생산까지 맞춤 지원합니다. 부담 없이 시제품을 제작하여 시장 반응을 테스팅해 보실 수 있습니다."
     },
     {
       id: 2,
-      q: "샘플 제작 및 맛·향 배합 컨설팅 기간은 얼마나 걸리나요?",
-      a: "원료 선정 및 맞춤 포뮬러 설계 후 <strong>약 3일 ~ 5일 이내</strong>에 시험 샘플을 발송해 드립니다. 빈스힐 전담 연구진이 액상 이스케이프 포뮬러 기술을 적용하여 쓴맛·잡미 마스킹 및 층분리 방지 무료 컨설팅을 함께 제공합니다."
+      question: "샘플 제작 및 맛·향 배합 컨설팅 기간은 얼마나 걸리나요?",
+      answer: "원료 선정 및 맞춤 포뮬러 설계 후 <strong>약 3일 ~ 5일 이내</strong>에 시험 샘플을 발송해 드립니다. 빈스힐 전담 연구진이 액상 이스케이프 포뮬러 기술을 적용하여 쓴맛·잡미 마스킹 및 층분리 방지 무료 컨설팅을 함께 제공합니다."
     },
     {
       id: 3,
-      q: "식약처 품목제조신고 및 원스톱 행정 절차도 대행해 주시나요?",
-      a: "네, 그렇습니다. 건강기능식품 및 기능성 음료 생산에 필수적인 <strong>식약처 품목제조신고(FHR), 성분 표시 검토, GMP/HACCP 안전 패키지 가이드</strong>까지 전문 행정팀이 원스톱으로 신속하게 전담 대행해 드립니다."
+      question: "식약처 품목제조신고 및 원스톱 행정 절차도 대행해 주시나요?",
+      answer: "네, 그렇습니다. 건강기능식품 및 기능성 음료 생산에 필수적인 <strong>식약처 품목제조신고(FHR), 성분 표시 검토, GMP/HACCP 안전 패키지 가이드</strong>까지 전문 행정팀이 원스톱으로 신속하게 전담 대행해 드립니다."
     },
     {
       id: 4,
-      q: "제품 포장 형태(스틱 파우치, 단상자 등)는 어떤 종류가 가능한가요?",
-      a: "15ml~35ml 액상 스틱 파우치(이지컷 무균 충진), 7포/14포/30포 단상자 패키지, 선물용 아웃박스 및 디스플레이 팝업 박스 등 고객사가 희망하는 모든 포장 사양으로 완제품 제조가 가능합니다."
+      question: "제품 포장 형태(스틱 파우치, 단상자 등)는 어떤 종류가 가능한가요?",
+      answer: "15ml~35ml 액상 스틱 파우치(이지컷 무균 충진), 7포/14포/30포 단상자 패키지, 선물용 아웃박스 및 디스플레이 팝업 박스 등 고객사가 희망하는 모든 포장 사양으로 완제품 제조가 가능합니다."
     },
     {
       id: 5,
-      q: "원료를 직접 제공(사급 원료)해도 생산이 가능한가요?",
-      a: "가능합니다. 고객사 보유 사급 원료의 지표성분 시험성적서(COA) 및 식약처 기준 적합성을 검토한 후 생산 라인에 투입할 수 있으며, 빈스힐의 특허원료 및 프리미엄 개별인정형 원료를 조합하는 것도 가능합니다."
+      question: "원료를 직접 제공(사급 원료)해도 생산이 가능한가요?",
+      answer: "가능합니다. 고객사 보유 사급 원료의 지표성분 시험성적서(COA) 및 식약처 기준 적합성을 검토한 후 생산 라인에 투입할 수 있으며, 빈스힐의 특허원료 및 프리미엄 개별인정형 원료를 조합하는 것도 가능합니다."
     },
     {
       id: 6,
-      q: "정식 생산 계약 후 완제품 출고까지 총 소요 기간은 얼마인가요?",
-      a: "원부자재(스틱 동판, 단상자) 입고 및 품목제조신고 완료 기준 <strong>약 14일 ~ 21일 이내</strong>에 완제품 출고가 가능합니다. 긴급 생산 가동 요청 시 우선 배치 생산이 지원됩니다."
+      question: "정식 생산 계약 후 완제품 출고까지 총 소요 기간은 얼마인가요?",
+      answer: "원부자재(스틱 동판, 단상자) 입고 및 품목제조신고 완료 기준 <strong>약 14일 ~ 21일 이내</strong>에 완제품 출고가 가능합니다. 긴급 생산 가동 요청 시 우선 배치 생산이 지원됩니다."
     }
   ];
 }
@@ -1350,7 +1350,7 @@ function renderFaqSection() {
 
   let faqs = getDefaultFaqListApp();
   try {
-    const saved = localStorage.getItem('beansheal_custom_faqs');
+    const saved = localStorage.getItem('beansheal_faq_items') || localStorage.getItem('beansheal_custom_faqs');
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) faqs = parsed;
@@ -1362,13 +1362,13 @@ function renderFaqSection() {
       <div class="faq-question" onclick="toggleFaq(this)" style="padding: 22px 28px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;">
         <div style="display: flex; align-items: center; gap: 14px;">
           <span style="font-weight: 900; font-size: 1.1rem; color: #2E7D32;">Q${idx + 1}.</span>
-          <strong style="font-size: 1.05rem; color: #0F172A; font-weight: 800;">${item.q}</strong>
+          <strong style="font-size: 1.05rem; color: #0F172A; font-weight: 800;">${item.question || item.q}</strong>
         </div>
         <i class="fas fa-chevron-down faq-icon" style="color: #64748B; transition: transform 0.3s ease;"></i>
       </div>
       <div class="faq-answer" style="max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; background: #FFFFFF; border-top: 1px solid transparent;">
         <div style="padding: 20px 28px 24px 58px; font-size: 0.95rem; color: #334155; line-height: 1.85;">
-          ${item.a}
+          ${item.answer || item.a}
         </div>
       </div>
     </div>
