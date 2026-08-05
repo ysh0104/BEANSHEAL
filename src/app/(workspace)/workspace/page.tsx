@@ -117,7 +117,7 @@ export default function Home() {
     e.preventDefault();
     if (!newMemo.trim()) return;
 
-    // 1. 현재 시간 구하기
+    // 현재 시간 포맷팅
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -127,12 +127,18 @@ export default function Home() {
     
     const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}`;
 
-    // 2. 새 메모 객체 생성
+    // 부서, 이름, 직급을 조합 (데이터 구조에 맞게 속성명은 조정 가능합니다)
+    const department = user?.department || "";
+    const name = user?.name || "사용자";
+    const position = user?.position || "";
+    
+    const authorString = [department, name, position].filter(Boolean).join(" ") || "사용자";
+
     const item = {
       id: Date.now(),
       text: newMemo.trim(),
-      date: formattedDate, // 실제 시간으로 변경
-      author: user?.name || "사용자" // 로그인한 이름으로 변경
+      date: formattedDate,
+      author: authorString
     };
 
     const updated = [item, ...memos];
