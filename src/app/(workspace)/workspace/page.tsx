@@ -39,6 +39,20 @@ export default function Home() {
   const [testStatusMsg, setTestStatusMsg] = useState("");
   const [isTestingConn, setIsTestingConn] = useState(false);
   const [draggedSchedule, setDraggedSchedule] = useState<any | null>(null);
+  
+  // 🌟 일정 키워드별 노션 스타일 색상 지정 함수
+  const getScheduleColor = (text) => {
+    if (!text) return "bg-slate-100 text-slate-700 border-slate-200"; // 기본 색상(회색)
+
+    if (text.includes("입고")) return "bg-green-100 text-green-800 border-green-200"; // 초록
+    if (text.includes("생산")) return "bg-blue-100 text-blue-800 border-blue-200"; // 파랑
+    if (text.includes("출고") || text.includes("납품")) return "bg-orange-100 text-orange-800 border-orange-200"; // 주황
+    if (text.includes("점검") || text.includes("검수")) return "bg-red-100 text-red-800 border-red-200"; // 빨강
+    if (text.includes("휴가") || text.includes("연차")) return "bg-pink-100 text-pink-800 border-pink-200"; // 핑크
+    if (text.includes("미팅") || text.includes("회의")) return "bg-purple-100 text-purple-800 border-purple-200"; // 보라
+
+    return "bg-slate-100 text-slate-700 border-slate-200"; // 해당되는 단어가 없으면 기본 회색
+  };
 
   // 🌟 마이 대시보드 그리드 커스텀 State
   const [isGridSnapEnabled, setIsGridSnapEnabled] = useState(true);
