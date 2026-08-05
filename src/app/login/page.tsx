@@ -117,19 +117,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-900 font-sans flex items-center justify-center p-4 select-none">
+    <div className="min-h-screen bg-white text-slate-900 font-sans flex items-center justify-center p-4 select-none">
       
-      {/* 중앙 메인 로그인 카포드 (ECOUNT ERP 디자인 스타일 100% 동일 구현) */}
-      <div className="w-full max-w-[420px] bg-white rounded-3xl p-8 shadow-2xl border border-slate-200/80 space-y-7 relative overflow-hidden">
+      {/* 중앙 메인 로그인 카포드 (이모티콘 제거 & 흰 배경 톤 100% 반영) */}
+      <div className="w-full max-w-[420px] bg-white rounded-3xl p-8 shadow-xl border border-slate-200/90 space-y-7 relative overflow-hidden">
         
-        {/* 상단 로고 헤더 */}
+        {/* 상단 로고 헤더 (BEANSHEAL) */}
         <div className="text-center space-y-1 pt-2">
           <div className="text-[11px] font-black tracking-widest text-slate-400 uppercase">
             EFFICIENT CHANGE & INTEGRATION
           </div>
-          <div className="flex items-center justify-center gap-1.5 text-2xl md:text-3xl font-black tracking-tighter text-[#2c4cb0]">
-            <span className="text-[#d92d20] border-b-2 border-[#d92d20] pb-0.5">BEANSHEAL</span>
-            <span className="text-slate-800 font-extrabold">ERP</span>
+          <div className="flex items-center justify-center text-3xl font-black tracking-tight text-[#2c4cb0]">
+            <span>BEANSHEAL</span>
           </div>
         </div>
 
@@ -165,7 +164,7 @@ export default function LoginPage() {
         {/* 에러 메시지 바 */}
         {error && (
           <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3 rounded-xl font-semibold leading-relaxed animate-fade-in">
-            ⚠️ {error}
+            {error}
           </div>
         )}
 
@@ -173,9 +172,11 @@ export default function LoginPage() {
         {mode === "login" ? (
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             
-            {/* 회사 코드 입력 (아이콘: 🏢) */}
+            {/* 회사 코드 입력 (모노크롬 SVG 아이콘: 빌딩) */}
             <div className="flex items-center gap-3 border-b border-slate-200 py-2.5 focus-within:border-[#2c4cb0] transition-colors">
-              <span className="text-slate-500 text-base font-bold select-none w-5 text-center">🏢</span>
+              <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5m0 0h4m-4 0V11m0 0V7m0 4h4m-4 0H7" />
+              </svg>
               <input
                 type="text"
                 value={companyCode}
@@ -185,9 +186,11 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* 사원 아이디 입력 (아이콘: 👤) */}
+            {/* 사원 아이디 입력 (모노크롬 SVG 아이콘: 사용자) */}
             <div className="flex items-center gap-3 border-b border-slate-200 py-2.5 focus-within:border-[#2c4cb0] transition-colors">
-              <span className="text-slate-500 text-base font-bold select-none w-5 text-center">👤</span>
+              <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
               <input
                 type="text"
                 value={email}
@@ -198,9 +201,11 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* 비밀번호 입력 (아이콘: 🔒) */}
+            {/* 비밀번호 입력 (모노크롬 SVG 아이콘: 자물쇠) */}
             <div className="flex items-center gap-3 border-b border-slate-200 py-2.5 focus-within:border-[#2c4cb0] transition-colors">
-              <span className="text-slate-500 text-base font-bold select-none w-5 text-center">🔒</span>
+              <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
               <input
                 type="password"
                 value={password}
