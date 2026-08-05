@@ -71,9 +71,11 @@ export default function Sidebar() {
           {/* 좌측 로고 홈 링크 */}
           <div className="flex items-center gap-4 shrink-0">
             <Link href="/" className="flex items-center group cursor-pointer">
-              <h1 className="text-xl md:text-2xl font-black tracking-tight text-white group-hover:text-zinc-300 transition-colors">
-                BEANSHEAL
-              </h1>
+              <img
+                src="/images/beansheal-logo-white.png"
+                alt="BEANSHEAL"
+                className="h-7 md:h-8 w-auto max-w-[180px] object-contain opacity-95 group-hover:opacity-80 transition-opacity"
+              />
             </Link>
           </div>
 

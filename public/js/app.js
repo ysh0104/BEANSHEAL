@@ -61,7 +61,7 @@ function loadDynamicCompanyInfo() {
   }
 
   if (document.getElementById('footer-company-name')) {
-    document.getElementById('footer-company-name').textContent = `${info.name} (BEANSHEAL)`;
+    document.getElementById('footer-company-name').textContent = info.name;
   }
   if (document.getElementById('footer-company-info-header')) {
     document.getElementById('footer-company-info-header').innerHTML = `<strong>${info.name}</strong> | BEANSHEAL Co., Ltd. | 대표자: ${info.ceo}`;
@@ -293,8 +293,32 @@ function initNavigation() {
   const header = document.querySelector('.site-header');
   const mobileToggle = document.querySelector('.mobile-toggle');
   const gnbNav = document.querySelector('.gnb-nav');
+  const navBackdrop = document.getElementById('nav-backdrop');
+
+  const closeMobileNav = () => {
+    if (!gnbNav) return;
+    gnbNav.classList.remove('active');
+    if (mobileToggle) mobileToggle.setAttribute('aria-expanded', 'false');
+    if (navBackdrop) {
+      navBackdrop.classList.remove('is-open');
+      navBackdrop.hidden = true;
+    }
+    document.body.classList.remove('nav-open');
+  };
+
+  const openMobileNav = () => {
+    if (!gnbNav) return;
+    gnbNav.classList.add('active');
+    if (mobileToggle) mobileToggle.setAttribute('aria-expanded', 'true');
+    if (navBackdrop) {
+      navBackdrop.hidden = false;
+      requestAnimationFrame(() => navBackdrop.classList.add('is-open'));
+    }
+    document.body.classList.add('nav-open');
+  };
 
   window.addEventListener('scroll', () => {
+    if (!header) return;
     if (window.scrollY > 30) {
       header.classList.add('scrolled');
     } else {
@@ -302,10 +326,15 @@ function initNavigation() {
     }
   });
 
-  if (mobileToggle) {
+  if (mobileToggle && gnbNav) {
     mobileToggle.addEventListener('click', () => {
-      gnbNav.classList.toggle('active');
+      if (gnbNav.classList.contains('active')) closeMobileNav();
+      else openMobileNav();
     });
+  }
+
+  if (navBackdrop) {
+    navBackdrop.addEventListener('click', closeMobileNav);
   }
 
   // Smooth scroll for internal links
@@ -313,10 +342,11 @@ function initNavigation() {
     anchor.addEventListener('click', function (e) {
       const targetId = this.getAttribute('href');
       if (targetId === '#') return;
-      
+
       const targetElement = document.querySelector(targetId);
       if (targetElement) {
         e.preventDefault();
+        closeMobileNav();
         const headerOffset = 80;
         const elementPosition = targetElement.getBoundingClientRect().top;
         const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
@@ -327,6 +357,10 @@ function initNavigation() {
         });
       }
     });
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeMobileNav();
   });
 }
 
