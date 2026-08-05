@@ -5,17 +5,259 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 
-// 기본 포트폴리오 30개 샘플 슬롯 생성
-const initialPortfolioSlots = Array.from({ length: 30 }, (_, i) => ({
-  id: i + 1,
-  title: i < 23 ? `비타민 C 레몬 액상스틱 #${i + 1}` : "",
-  category: i < 23 ? "건강기능식품 / 파우치" : "",
-  format: i < 23 ? "액상 스틱 20ml" : "",
-  tags: i < 23 ? "NFC착즙, 비타민C, HACCP" : "",
-  desc: i < 23 ? "무균 충진 공정으로 제조된 프리미엄 액상 스틱 파우치 제품입니다." : "",
-  image: i < 23 ? `images/portfolio-${(i % 5) + 1}.jpg` : "",
-  isFilled: i < 23,
-}));
+// 실제 고객 홈페이지에 등록된 공식 포트폴리오 30개 데이터 (1~24번 실제 생산 제품 + 25~30번 비어있는 준비중 슬롯)
+const officialPortfolioItems = [
+  {
+    id: 1,
+    title: "DAYSEED 리얼 원샷 다이어트 클렌즈 (모로오렌지맛)",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml X 14포)",
+    tags: "가르시니아, 난소화성말토덱스트린, 모로오렌지",
+    desc: "체지방 감소 및 식후 혈당 상승 억제에 도움을 주는 프리미엄 액상 다이어트 클렌즈",
+    image: "images/portfolio-item-1.jpg",
+    isFilled: true,
+  },
+  {
+    id: 2,
+    title: "몸슬 빼림 다이어트 카페",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml x 14포)",
+    tags: "가르시니아, 프락토올리고당, 탄수화물CUT",
+    desc: "가르시니아와 프락토 올리고당이 함유되어 탄수화물 및 체지방 컷을 돕는 마시는 다이어트 카페",
+    image: "images/portfolio-item-2.jpg",
+    isFilled: true,
+  },
+  {
+    id: 3,
+    title: "Luona 컷핏 다이어트",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml x 7포)",
+    tags: "가르시니아, 프락토올리고당, 2중기능성",
+    desc: "가르시니아캄보지아추출물과 프락토올리고당 2중 기능성 프리미엄 액상 다이어트 스틱",
+    image: "images/portfolio-item-3.jpg",
+    isFilled: true,
+  },
+  {
+    id: 4,
+    title: "SERY BOX 세리컷 프레소 V2",
+    category: "건강기능식품",
+    format: "액상 스틱 (14ml x 7포)",
+    tags: "가르시니아, 난소화성말토덱스트린, 혈당배변케어",
+    desc: "가르시니아와 난소화성말토덱스트린이 체지방, 혈당 케어 및 배변활동 원활을 돕는 액상 프레소 V2",
+    image: "images/portfolio-item-4.jpg",
+    isFilled: true,
+  },
+  {
+    id: 5,
+    title: "SERY BOX 세리컷 프레소 V2 (14포 세트)",
+    category: "건강기능식품",
+    format: "액상 스틱 (14ml x 14포)",
+    tags: "가르시니아, 난소화성말토덱스트린, 14포세트",
+    desc: "다이어트 & 혈당 케어를 돕는 세리컷 프레소 V2 14포 기획 세트",
+    image: "images/portfolio-item-5.jpg",
+    isFilled: true,
+  },
+  {
+    id: 6,
+    title: "SERYCUT PRESSO V2 RENEWAL (50sticks)",
+    category: "건강기능식품",
+    format: "액상 스틱 (14ml x 50sticks)",
+    tags: "SERYBOX, PRESSOV2, 50sticks",
+    desc: "글로벌 리뉴얼 대용량 50스틱 에디션 마시는 다이어트 & 혈당 케어 액상 스틱",
+    image: "images/portfolio-item-6.jpg",
+    isFilled: true,
+  },
+  {
+    id: 7,
+    title: "가능해 다이어트 가르시니아 카페",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml x 14포)",
+    tags: "가르시니아, HydroxycitricAcid, 가능해카페",
+    desc: "고순도 Hydroxycitric Acid 함유 블랙 모던 디자인 마시는 다이어트 가르시니아 카페",
+    image: "images/portfolio-item-7.jpg",
+    isFilled: true,
+  },
+  {
+    id: 8,
+    title: "김소형원방 다이어트카페 리얼 MUKAVE",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml x 14포)",
+    tags: "김소형원방, 가르시니아, 난소화성말토덱스트린",
+    desc: "한의학 박사 김소형원방 배합 기술로 만든 가르시니아 & 난소화성말토덱스트린 더블컷 3중 기능성 다이어트카페",
+    image: "images/portfolio-item-8.jpg",
+    isFilled: true,
+  },
+  {
+    id: 9,
+    title: "푸름웰니스 살뺄리카노",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml x 7포)",
+    tags: "푸름웰니스, 가르시니아, 난소화성말토덱스트린",
+    desc: "체지방 감소와 배변활동에 도움을 주는 가르시니아 & 난소화성말토덱스트린 2중 기능성 강화 마시는 다이어트 케어",
+    image: "images/portfolio-item-9.jpg",
+    isFilled: true,
+  },
+  {
+    id: 10,
+    title: "경남제약헬스케어 케어플러스 리셋프레소",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml x 10포)",
+    tags: "경남제약, 케어플러스, 가르시니아",
+    desc: "경남제약헬스케어의 프리미엄 커피 플레버 마시는 가르시니아 케어플러스 리셋프레소",
+    image: "images/portfolio-item-10.jpg",
+    isFilled: true,
+  },
+  {
+    id: 11,
+    title: "참밀밀 원데이 마이너스 원다이어트 (모로오렌지맛)",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml x 7포)",
+    tags: "참밀밀, 모로오렌지, 가르시니아",
+    desc: "가르시니아와 프락토올리고당이 함유된 모로오렌지맛 일일 다이어트 원데이 마이너스 원다이어트",
+    image: "images/portfolio-item-11.jpg",
+    isFilled: true,
+  },
+  {
+    id: 12,
+    title: "빼자까페 다이어트 FAT AWAY (50sticks 대용량)",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml x 50포)",
+    tags: "빼자까페, FATAWAY, 50sticks",
+    desc: "체지방 감소에 도움을 주는 프리미엄 빼자까페 FAT AWAY 대용량 50스틱 에디션",
+    image: "images/portfolio-item-12.jpg",
+    isFilled: true,
+  },
+  {
+    id: 13,
+    title: "빼자까페 다이어트 FAT AWAY (7포 세트)",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml x 7포)",
+    tags: "빼자까페, FATAWAY, 가르시니아",
+    desc: "체지방 감소 기능성 가르시니아 함유 레트로 감성 시그니처 빼자까페 7포 스틱 세트",
+    image: "images/portfolio-item-13.jpg",
+    isFilled: true,
+  },
+  {
+    id: 14,
+    title: "빼자까페 더블컷 다이어트",
+    category: "건강기능식품",
+    format: "액상 스틱 (30ml x 7포)",
+    tags: "빼자까페, 더블컷, 2중기능성",
+    desc: "프락토올리고당과 가르시니아캄보지아추출물 2중 기능성 강화 마시는 다이어트 빼자까페 더블컷",
+    image: "images/portfolio-item-14.jpg",
+    isFilled: true,
+  },
+  {
+    id: 15,
+    title: "빼자커피 핸드드립 액상커피 (콜롬비아 후일라)",
+    category: "핸드드립커피",
+    format: "액상 스틱 (30ml x 7포)",
+    tags: "콜롬비아후일라, 스페셜티원두, 액상커피",
+    desc: "콜롬비아 후일라 스페셜티급 100% 추출 원액으로 추출한 고농축 저온 액상 핸드드립 커피",
+    image: "images/portfolio-item-15.jpg",
+    isFilled: true,
+  },
+  {
+    id: 16,
+    title: "빼자까페 해장커피 (밀크씨슬 & 헛개나무)",
+    category: "기능성표시식품",
+    format: "액상 스틱 (30ml x 7포)",
+    tags: "밀크씨슬, 헛개나무, 해장커피",
+    desc: "밀크씨슬추출물 0.3%와 헛개나무열매 5%가 함유된 숙취해소 및 리프레시를 돕는 빼자까페 해장커피",
+    image: "images/portfolio-item-16.jpg",
+    isFilled: true,
+  },
+  {
+    id: 17,
+    title: "Beansheal 허니 모로 오렌지C",
+    category: "일반식품음료",
+    format: "과·채주스 (30ml x 10포)",
+    tags: "모로오렌지, 이탈리아산, HACCP",
+    desc: "이탈리아산 100% 모로 블러드 오렌지 농축액 80% 함유 상큼함과 미네랄이 가득한 과채주스",
+    image: "images/portfolio-item-17.jpg",
+    isFilled: true,
+  },
+  {
+    id: 18,
+    title: "청호담 그대로 짜낸 리얼 100 유기농 푸룬즙",
+    category: "일반식품음료",
+    format: "과·채주스 (20g x 14포)",
+    tags: "미국산푸룬, NFC착즙, 유기농푸룬",
+    desc: "미국산 100% 유기농 푸룬 착즙액으로 물 없이 그대로 짜낸 NFC 오가닉 100% 리얼 푸룬즙",
+    image: "images/portfolio-item-18.jpg",
+    isFilled: true,
+  },
+  {
+    id: 19,
+    title: "ARDIEM 오리지널 NFC 유기농 레몬자몽즙",
+    category: "일반식품음료",
+    format: "과·채주스 (20g x 14포)",
+    tags: "유기농레몬, 유기농자몽, NFC착즙",
+    desc: "유기농 레몬 착즙액 50%와 유기농 자몽 착즙액 50%의 프리미엄 100% 상큼한 과채주스",
+    image: "images/portfolio-item-19.jpg",
+    isFilled: true,
+  },
+  {
+    id: 20,
+    title: "ARDIEM 오리지널 NFC 유기농 레몬석류즙",
+    category: "일반식품음료",
+    format: "과·채주스 (20g x 14포)",
+    tags: "유기농레몬, 유기농석류, NFC착즙",
+    desc: "유기농 레몬 착즙액 50%와 유기농 석류 착즙액 50%의 새콤달콤 뷰티 밸런스 과채주스",
+    image: "images/portfolio-item-20.jpg",
+    isFilled: true,
+  },
+  {
+    id: 21,
+    title: "ARDIEM 오리지널 NFC 유기농 레몬즙",
+    category: "일반식품음료",
+    format: "과·채주스 (20g x 14포)",
+    tags: "유기농레몬, NFC착즙100%, 상큼케어",
+    desc: "물 한 방울 섞지 않은 100% 유기농 레몬 착즙액 오리지널 NFC 상쾌한 과채주스",
+    image: "images/portfolio-item-21.jpg",
+    isFilled: true,
+  },
+  {
+    id: 22,
+    title: "메리앤 발틱 베리 북유럽 유기농 씨베리 NFC 주스",
+    category: "일반식품음료",
+    format: "과·채주스 (20g x 14포)",
+    tags: "북유럽씨베리, 유기농비타민, NFC100%",
+    desc: "북유럽 청정 유기농 씨베리(비타민나무열매) 100% NFC 영양 가득 착즙 주스",
+    image: "images/portfolio-item-22.jpg",
+    isFilled: true,
+  },
+  {
+    id: 23,
+    title: "3679 BALTIC BERRY 발틱 베리",
+    category: "일반식품음료",
+    format: "과·채주스 (20g x 14포)",
+    tags: "3679, BALTICBERRY, 씨베리100%",
+    desc: "Organic Seaberry NFC 100% 유기농 비타민 씨베리원액 힙스터 캐릭터 패키지 과채주스",
+    image: "images/portfolio-item-23.jpg",
+    isFilled: true,
+  },
+  {
+    id: 24,
+    title: "하루 1레몬 유기농 레몬즙",
+    category: "일반식품음료",
+    format: "과·채주스 (25g x 14포)",
+    tags: "보딩패스, 유기농 레몬, NFC 착즙 100%",
+    desc: "레몬을 통째로 하루 1레몬 유기농 레몬 착즙액",
+    image: "images/portfolio-item-24.jpg",
+    isFilled: true,
+  },
+  ...Array.from({ length: 6 }, (_, i) => ({
+    id: i + 25,
+    title: "",
+    category: "",
+    format: "",
+    tags: "",
+    desc: "",
+    image: "",
+    isFilled: false,
+  })),
+];
 
 // 기본 FAQ 목록
 const initialFaqItems = [
@@ -129,8 +371,8 @@ function AdminCmsContent() {
     "10,000 포 (소량배치)\n30,000 포 (표준배치)\n50,000 포 (대량생산)\n100,000 포 이상\n기타 (맞춤 수량)"
   );
 
-  // 4. 포트폴리오 30개
-  const [portfolioList, setPortfolioList] = useState(initialPortfolioSlots);
+  // 4. 포트폴리오 30개 (공식 24개 사진 + 6개 하얀 빈칸)
+  const [portfolioList, setPortfolioList] = useState(officialPortfolioItems);
   const [portfolioFilter, setPortfolioFilter] = useState<"all" | "filled" | "empty">("all");
   const [editCard, setEditCard] = useState<any | null>(null);
 
@@ -180,7 +422,20 @@ function AdminCmsContent() {
       }
 
       const savedPortfolio = localStorage.getItem("beansheal_portfolio_items") || localStorage.getItem("beansheal_custom_portfolio");
-      if (savedPortfolio) setPortfolioList(JSON.parse(savedPortfolio));
+      if (savedPortfolio) {
+        const parsed = JSON.parse(savedPortfolio);
+        // 만약 이전 테스트 샘플 텍스트("비타민 C 레몬 액상스틱 #")가 포함된 경우 공식 포트폴리오로 자동 재동기화
+        if (Array.isArray(parsed) && parsed.length > 0 && !parsed[0].title.includes("비타민 C 레몬")) {
+          setPortfolioList(parsed);
+        } else {
+          setPortfolioList(officialPortfolioItems);
+          localStorage.setItem("beansheal_portfolio_items", JSON.stringify(officialPortfolioItems));
+          localStorage.setItem("beansheal_custom_portfolio", JSON.stringify(officialPortfolioItems));
+        }
+      } else {
+        localStorage.setItem("beansheal_portfolio_items", JSON.stringify(officialPortfolioItems));
+        localStorage.setItem("beansheal_custom_portfolio", JSON.stringify(officialPortfolioItems));
+      }
 
       const savedFaq = localStorage.getItem("beansheal_faq_items") || localStorage.getItem("beansheal_custom_faqs");
       if (savedFaq) setFaqItems(JSON.parse(savedFaq));
@@ -785,17 +1040,17 @@ function AdminCmsContent() {
         )}
 
         {/* =========================================================================
-            TAB 3: 포트폴리오 관리 (1~30번 슬롯)
+            TAB 3: 포트폴리오 관리 (1~30번 슬롯 - 공식 24개 사진 + 6개 하얀 빈칸)
            ========================================================================= */}
         {activeTab === "portfolio" && (
           <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 shadow-2xs space-y-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  생산 포트폴리오 슬롯 관리 (총 30개)
+                  생산 포트폴리오 슬롯 관리 (총 30개 - 고객 홈페이지 100% 동일 사진 & 타이틀)
                 </h2>
                 <p className="text-xs font-medium text-slate-500 mt-1">
-                  슬롯 카드를 클릭하여 제품명, 제형, 태그 및 이미지를 수정하면 홈페이지에 실시간 적용됩니다.
+                  슬롯 카드를 클릭하여 제품명, 제형, 태그 및 이미지를 수정하면 고객 홈페이지와 실시간 동기화됩니다.
                 </p>
               </div>
 
@@ -827,13 +1082,13 @@ function AdminCmsContent() {
               </div>
             </div>
 
-            {/* 30 Grid Slots */}
+            {/* 30 Grid Slots with Real Product Image Thumbnails */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               {filteredPortfolio.map((item) => (
                 <div
                   key={item.id}
                   onClick={() => setEditCard(item)}
-                  className={`border rounded-xl p-3 flex flex-col justify-between transition-all cursor-pointer hover:shadow-xs ${
+                  className={`border rounded-xl p-3 flex flex-col justify-between transition-all cursor-pointer hover:shadow-md ${
                     item.isFilled
                       ? "bg-white border-slate-200 hover:border-[#3352c4]"
                       : "bg-slate-50 border-dashed border-slate-300 hover:border-slate-400"
@@ -842,20 +1097,30 @@ function AdminCmsContent() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-[11px] font-bold">
                       <span className="text-slate-400">#{item.id}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] ${item.isFilled ? "bg-blue-50 text-blue-700" : "bg-slate-200 text-slate-600"}`}>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] ${item.isFilled ? "bg-blue-50 text-blue-700 font-bold" : "bg-slate-200 text-slate-600"}`}>
                         {item.isFilled ? "등록됨" : "빈 슬롯"}
                       </span>
                     </div>
 
-                    <div className="h-24 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden border border-slate-200/60">
-                      {item.image ? (
-                        <div className="text-center p-2 text-xs font-medium text-slate-600 truncate">{item.title}</div>
+                    <div className="h-32 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden border border-slate-200/80 relative">
+                      {item.image && item.isFilled ? (
+                        <img
+                          src={item.image.startsWith('http') || item.image.startsWith('/') || item.image.startsWith('data:') ? item.image : `/${item.image}`}
+                          alt={item.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
                       ) : (
-                        <span className="text-2xl text-slate-300">+</span>
+                        <div className="text-center p-2">
+                          <span className="text-2xl text-slate-300 font-bold block">+</span>
+                          <span className="text-[10px] text-slate-400 font-medium">슬롯 추가</span>
+                        </div>
                       )}
                     </div>
 
-                    <div className="text-xs font-bold text-slate-900 truncate">
+                    <div className="text-xs font-bold text-slate-900 truncate leading-snug">
                       {item.title || "미등록 슬롯 (클릭 편집)"}
                     </div>
                     <div className="text-[11px] font-medium text-slate-500 truncate">
@@ -1435,7 +1700,7 @@ function AdminCmsContent() {
                     value={editCard.title}
                     onChange={(e) => setEditCard({ ...editCard, title: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 font-bold"
-                    placeholder="예: 비타민 C 레몬 액상스틱"
+                    placeholder="예: DAYSEED 리얼 원샷 다이어트 클렌즈"
                   />
                 </div>
 
@@ -1457,7 +1722,7 @@ function AdminCmsContent() {
                       value={editCard.format}
                       onChange={(e) => setEditCard({ ...editCard, format: e.target.value })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-800"
-                      placeholder="예: 액상 스틱 20ml"
+                      placeholder="예: 액상 스틱 (30ml x 14포)"
                     />
                   </div>
                 </div>
@@ -1469,7 +1734,7 @@ function AdminCmsContent() {
                     value={editCard.tags}
                     onChange={(e) => setEditCard({ ...editCard, tags: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800"
-                    placeholder="예: NFC착즙, HACCP"
+                    placeholder="예: 가르시니아, 난소화성말토덱스트린"
                   />
                 </div>
 
@@ -1480,7 +1745,7 @@ function AdminCmsContent() {
                     value={editCard.image}
                     onChange={(e) => setEditCard({ ...editCard, image: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 font-mono"
-                    placeholder="images/portfolio-1.jpg"
+                    placeholder="images/portfolio-item-1.jpg"
                   />
                 </div>
 
