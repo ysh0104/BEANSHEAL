@@ -15,6 +15,56 @@ import {
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
 
+// 🌟 노션 고유 색상을 화면용 디자인으로 변환하는 함수
+const getNotionColorClass = (colorStr?: string) => {
+  if (!colorStr) return "";
+  switch (colorStr) {
+    case "blue":
+    case "blue_background": return "bg-blue-100 text-blue-800 border-blue-200 font-bold";
+    case "green":
+    case "green_background": return "bg-green-100 text-green-800 border-green-200 font-bold";
+    case "red":
+    case "red_background": return "bg-red-100 text-red-800 border-red-200 font-bold";
+    case "yellow":
+    case "yellow_background": return "bg-yellow-100 text-yellow-800 border-yellow-200 font-bold";
+    case "pink":
+    case "pink_background": return "bg-pink-100 text-pink-800 border-pink-200 font-bold";
+    case "purple":
+    case "purple_background": return "bg-purple-100 text-purple-800 border-purple-200 font-bold";
+    case "orange":
+    case "orange_background": return "bg-orange-100 text-orange-800 border-orange-200 font-bold";
+    case "brown":
+    case "brown_background": return "bg-amber-100 text-amber-800 border-amber-200 font-bold";
+    default: return "bg-slate-100 text-slate-900 border-slate-300 font-bold";
+  }
+};
+
+// 🌟 노션 고유 색상을 직관적인 둥근 점(Dot) 색상값(HEX)으로 변환하는 함수
+const getNotionDotColor = (colorStr?: string) => {
+  if (!colorStr) return "#2563eb";
+  switch (colorStr) {
+    case "blue":
+    case "blue_background": return "#2563eb";
+    case "green":
+    case "green_background": return "#16a34a";
+    case "red":
+    case "red_background": return "#dc2626";
+    case "yellow":
+    case "yellow_background": return "#ca8a04";
+    case "pink":
+    case "pink_background": return "#db2777";
+    case "purple":
+    case "purple_background": return "#9333ea";
+    case "orange":
+    case "orange_background": return "#ea580c";
+    case "brown":
+    case "brown_background": return "#b45309";
+    case "gray":
+    case "gray_background": return "#4b5563";
+    default: return "#2563eb";
+  }
+};
+
 function ERPDashboard() {
   const { user } = useAuth();
   const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
@@ -39,6 +89,8 @@ function ERPDashboard() {
   const [testStatusMsg, setTestStatusMsg] = useState("");
   const [isTestingConn, setIsTestingConn] = useState(false);
   const [draggedSchedule, setDraggedSchedule] = useState<any | null>(null);
+  
+  
 
   // 🌟 마이 대시보드 그리드 커스텀 State
   const [isGridSnapEnabled, setIsGridSnapEnabled] = useState(true);
@@ -48,8 +100,8 @@ function ERPDashboard() {
     widthPct: number;
     heightPx: number;
   }>>([
-    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 480 },
-    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 480 },
+    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 560 },
+    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 560 },
   ]);
 
   const [draggedWidgetId, setDraggedWidgetId] = useState<string | null>(null);
@@ -117,6 +169,7 @@ function ERPDashboard() {
     e.preventDefault();
     if (!newMemo.trim()) return;
 
+    // 1. 현재 시간 포맷팅
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -126,11 +179,23 @@ function ERPDashboard() {
     
     const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}`;
 
+    // 2. 부서명에 '팀' 자동 추가 로직
+    let department = user?.department || "";
+    if (department && !department.endsWith("팀")) {
+      department += "팀";
+    }
+
+    const name = user?.name || "사용자";
+    const position = user?.position || "";
+    
+    // 3. 부서, 이름, 직급 조합 (빈 값은 자동으로 걸러냄)
+    const authorString = [department, name, position].filter(Boolean).join(" ") || "사용자";
+
     const item = {
       id: Date.now(),
       text: newMemo.trim(),
       date: formattedDate,
-      author: user?.name || "사용자"
+      author: authorString
     };
 
     const updated = [item, ...memos];
@@ -429,8 +494,8 @@ function ERPDashboard() {
 
   const resetWidgetLayout = () => {
     const defaultConfig = [
-      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 480 },
-      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 480 },
+      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 560 },
+      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 560 },
     ];
     saveWidgetConfigs(defaultConfig);
   };
@@ -456,7 +521,7 @@ function ERPDashboard() {
       <div className="flex justify-between items-center pb-4 border-b border-gray-200">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-            <span>BEANSHEAL 대시보드 테스트</span>
+            <span>BEANSHEAL 대시보드</span>
             <span className="text-xs bg-blue-100 text-blue-800 font-extrabold px-2.5 py-0.5 rounded border border-blue-200">ERP 그리드 커스텀</span>
           </h2>
           <p className="text-sm text-gray-500 mt-1">상단 <strong>⣿ 핸들</strong>로 순서를 변경하고, 우측 하단 <strong>⤡ 코너</strong>를 끌어 가로/세로 크기를 커스텀하세요.</p>
@@ -631,7 +696,7 @@ function ERPDashboard() {
                           
                           const normalizeDateStr = (d?: string) => d ? String(d).split("T")[0].trim() : "";
                           const daySchedules = cellDateStr ? schedules.filter(s => normalizeDateStr(s.plan_date) === cellDateStr) : [];
-                          const maxVisible = 2;
+                          const maxVisible = 3;
                           const visibleSchedules = daySchedules.slice(0, maxVisible);
                           const extraCount = daySchedules.length - maxVisible;
 
@@ -650,41 +715,69 @@ function ERPDashboard() {
                                   handleDropOnCell(e, cellDateStr);
                                 }
                               }}
-                              className={`border border-slate-200 p-1 flex flex-col justify-start items-start relative h-full w-full ${
+                              className={`border border-slate-200 p-1.5 flex flex-col justify-start items-start relative h-full w-full min-h-[95px] ${
                                 day ? 'bg-white hover:bg-indigo-50/60 shadow-2xs' : 'bg-slate-50/50'
-                              } transition-colors rounded overflow-hidden`}
+                              } transition-colors rounded-lg overflow-hidden`}
                             >
                               {day && (
                                 <>
-                                  <div className="w-full flex justify-between items-center mb-0.5">
-                                    <span className={`text-[11px] font-extrabold ${isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : 'text-slate-600 ml-0.5'}`}>
+                                  <div className="w-full flex justify-between items-center mb-1 shrink-0">
+                                    <span className={`text-[11px] font-black ${isToday ? 'bg-indigo-600 text-white px-2 py-0.5 rounded shadow-xs' : 'text-slate-700 ml-0.5'}`}>
                                       {day}
                                     </span>
+                                    {daySchedules.length > 0 && (
+                                      <span className="text-[10px] font-bold text-slate-400">
+                                        {daySchedules.length}건
+                                      </span>
+                                    )}
                                   </div>
 
-                                  <div className="w-full space-y-0.5 mt-0.5 flex-1 min-h-0 overflow-y-auto">
-                                    {visibleSchedules.map(sch => (
-                                      <div 
-                                        key={sch.id} 
-                                        draggable={true}
-                                        onDragStart={(e) => {
-                                          e.stopPropagation();
-                                          handleDragStart(e, sch);
-                                        }}
-                                        className={`text-[9px] px-1 py-0.5 rounded truncate font-medium border flex items-center justify-between gap-0.5 cursor-grab active:cursor-grabbing hover:scale-102 transition-transform ${
-                                          sch.notion_page_id
-                                            ? "bg-slate-100 text-slate-900 border-slate-300 font-bold"
-                                            : "bg-blue-100 text-blue-800 border-blue-200"
-                                        }`} 
-                                        title={`${sch.product_name} (${sch.quantity}) ${sch.notion_page_id ? '[Notion 연동]' : ''}`}
-                                      >
-                                        <span className="truncate">{sch.product_name}</span>
-                                        {sch.notion_page_id && <span className="text-[8px] text-slate-500 bg-slate-200 px-0.5 rounded shrink-0 font-extrabold">N</span>}
-                                      </div>
-                                    ))}
+                                  <div className="w-full space-y-1 mt-0.5 flex-1 min-h-0 overflow-y-auto pr-0.5">
+                                    {visibleSchedules.map(sch => {
+                                      const colorClass = sch.tag_color 
+                                        ? getNotionColorClass(sch.tag_color) 
+                                        : (sch.notion_page_id ? "bg-slate-100 text-slate-900 border-slate-300" : "bg-blue-100 text-blue-900 border-blue-200");
+
+                                      return (
+                                        <div 
+                                          key={sch.id} 
+                                          draggable={true}
+                                          onDragStart={(e) => {
+                                            e.stopPropagation();
+                                            handleDragStart(e, sch);
+                                          }}
+                                          // 🌟 글씨 크기 11px Bold 상향, 내부 패딩 확충(px-2 py-1.5), Dot 색상 태그 디자인 및 상세 툴팁 적용
+                                          className={`text-[11px] font-bold px-2 py-1.5 rounded-md shadow-xs border flex items-center justify-between gap-1.5 cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all ${colorClass}`} 
+                                          title={`품목: ${sch.product_name}\n수량: ${sch.quantity}${sch.tag_name ? `\n태그: ${sch.tag_name}` : ''}${sch.note ? `\n비고: ${sch.note}` : ''}`}
+                                        >
+                                          <div className="flex items-center gap-1.5 overflow-hidden min-w-0 flex-1">
+                                            {/* 🌟 태그 텍스트 대신 색상이 들어간 선명한 둥근 점(Dot)으로 교체 및 호버 툴팁 지원 */}
+                                            {sch.tag_name && (
+                                              <span 
+                                                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs inline-block"
+                                                style={{ backgroundColor: getNotionDotColor(sch.tag_color) }}
+                                                title={`태그: ${sch.tag_name}`}
+                                              />
+                                            )}
+                                            <span className="truncate text-[11px] font-bold leading-snug">{sch.product_name}</span>
+                                          </div>
+
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <span className="text-[10px] font-extrabold opacity-80 bg-black/10 px-1 py-0.2 rounded">
+                                              {sch.quantity}
+                                            </span>
+                                            {sch.notion_page_id && (
+                                              <span className="text-[9px] opacity-70 font-black shrink-0 bg-slate-900 text-white px-1 rounded" title="노션 동기화 항목">
+                                                N
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
                                     {extraCount > 0 && (
-                                      <div className="text-[9px] text-indigo-600 font-bold text-center bg-indigo-50 rounded py-0.5">
-                                        +{extraCount}개
+                                      <div className="text-[10px] text-indigo-700 font-bold text-center bg-indigo-50 border border-indigo-100 rounded py-0.5">
+                                        +{extraCount}개 더보기
                                       </div>
                                     )}
                                   </div>

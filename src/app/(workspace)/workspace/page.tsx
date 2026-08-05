@@ -35,9 +35,33 @@ const getNotionColorClass = (colorStr?: string) => {
     case "orange_background": return "bg-orange-100 text-orange-800 border-orange-200 font-bold";
     case "brown":
     case "brown_background": return "bg-amber-100 text-amber-800 border-amber-200 font-bold";
-    case "gray":
-    case "gray_background": return "bg-gray-100 text-gray-800 border-gray-200 font-bold";
     default: return "bg-slate-100 text-slate-900 border-slate-300 font-bold";
+  }
+};
+
+// 🌟 노션 고유 색상을 직관적인 둥근 점(Dot) 색상값(HEX)으로 변환하는 함수
+const getNotionDotColor = (colorStr?: string) => {
+  if (!colorStr) return "#2563eb";
+  switch (colorStr) {
+    case "blue":
+    case "blue_background": return "#2563eb";
+    case "green":
+    case "green_background": return "#16a34a";
+    case "red":
+    case "red_background": return "#dc2626";
+    case "yellow":
+    case "yellow_background": return "#ca8a04";
+    case "pink":
+    case "pink_background": return "#db2777";
+    case "purple":
+    case "purple_background": return "#9333ea";
+    case "orange":
+    case "orange_background": return "#ea580c";
+    case "brown":
+    case "brown_background": return "#b45309";
+    case "gray":
+    case "gray_background": return "#4b5563";
+    default: return "#2563eb";
   }
 };
 
@@ -76,8 +100,8 @@ export default function Home() {
     widthPct: number;
     heightPx: number;
   }>>([
-    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 480 },
-    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 480 },
+    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 560 },
+    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 560 },
   ]);
 
   const [draggedWidgetId, setDraggedWidgetId] = useState<string | null>(null);
@@ -470,8 +494,8 @@ export default function Home() {
 
   const resetWidgetLayout = () => {
     const defaultConfig = [
-      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 480 },
-      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 480 },
+      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 560 },
+      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 560 },
     ];
     saveWidgetConfigs(defaultConfig);
   };
@@ -672,7 +696,7 @@ export default function Home() {
                           
                           const normalizeDateStr = (d?: string) => d ? String(d).split("T")[0].trim() : "";
                           const daySchedules = cellDateStr ? schedules.filter(s => normalizeDateStr(s.plan_date) === cellDateStr) : [];
-                          const maxVisible = 2;
+                          const maxVisible = 3;
                           const visibleSchedules = daySchedules.slice(0, maxVisible);
                           const extraCount = daySchedules.length - maxVisible;
 
@@ -691,24 +715,28 @@ export default function Home() {
                                   handleDropOnCell(e, cellDateStr);
                                 }
                               }}
-                              className={`border border-slate-200 p-1 flex flex-col justify-start items-start relative h-full w-full ${
+                              className={`border border-slate-200 p-1.5 flex flex-col justify-start items-start relative h-full w-full min-h-[95px] ${
                                 day ? 'bg-white hover:bg-indigo-50/60 shadow-2xs' : 'bg-slate-50/50'
-                              } transition-colors rounded overflow-hidden`}
+                              } transition-colors rounded-lg overflow-hidden`}
                             >
                               {day && (
                                 <>
-                                  <div className="w-full flex justify-between items-center mb-0.5">
-                                    <span className={`text-[11px] font-extrabold ${isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : 'text-slate-600 ml-0.5'}`}>
+                                  <div className="w-full flex justify-between items-center mb-1 shrink-0">
+                                    <span className={`text-[11px] font-black ${isToday ? 'bg-indigo-600 text-white px-2 py-0.5 rounded shadow-xs' : 'text-slate-700 ml-0.5'}`}>
                                       {day}
                                     </span>
+                                    {daySchedules.length > 0 && (
+                                      <span className="text-[10px] font-bold text-slate-400">
+                                        {daySchedules.length}건
+                                      </span>
+                                    )}
                                   </div>
 
-                                  <div className="w-full space-y-0.5 mt-0.5 flex-1 min-h-0 overflow-y-auto">
+                                  <div className="w-full space-y-1 mt-0.5 flex-1 min-h-0 overflow-y-auto pr-0.5">
                                     {visibleSchedules.map(sch => {
-                                      // 노션 색상이 있으면 그 색상을, 없으면 기본 색상을 지정
                                       const colorClass = sch.tag_color 
                                         ? getNotionColorClass(sch.tag_color) 
-                                        : (sch.notion_page_id ? "bg-slate-100 text-slate-900 border-slate-300 font-bold" : "bg-blue-100 text-blue-800 border-blue-200");
+                                        : (sch.notion_page_id ? "bg-slate-100 text-slate-900 border-slate-300" : "bg-blue-100 text-blue-900 border-blue-200");
 
                                       return (
                                         <div 
@@ -718,25 +746,38 @@ export default function Home() {
                                             e.stopPropagation();
                                             handleDragStart(e, sch);
                                           }}
-                                          className={`text-[9px] px-1 py-0.5 rounded truncate font-medium border flex items-center justify-between gap-0.5 cursor-grab active:cursor-grabbing hover:scale-102 transition-transform ${colorClass}`} 
-                                          title={`${sch.product_name} (${sch.quantity}) ${sch.tag_name ? `[${sch.tag_name}]` : ''}`}
+                                          // 🌟 글씨 크기 11px Bold 상향, 내부 패딩 확충(px-2 py-1.5), Dot 색상 태그 디자인 및 상세 툴팁 적용
+                                          className={`text-[11px] font-bold px-2 py-1.5 rounded-md shadow-xs border flex items-center justify-between gap-1.5 cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all ${colorClass}`} 
+                                          title={`품목: ${sch.product_name}\n수량: ${sch.quantity}${sch.tag_name ? `\n태그: ${sch.tag_name}` : ''}${sch.note ? `\n비고: ${sch.note}` : ''}`}
                                         >
-                                          <div className="flex items-center gap-1 overflow-hidden">
-                                            {/* 노션 태그(태그명)가 있으면 앞에 작게 표시 */}
+                                          <div className="flex items-center gap-1.5 overflow-hidden min-w-0 flex-1">
+                                            {/* 🌟 태그 텍스트 대신 색상이 들어간 선명한 둥근 점(Dot)으로 교체 및 호버 툴팁 지원 */}
                                             {sch.tag_name && (
-                                              <span className="shrink-0 bg-white/60 px-0.5 rounded text-[7px] border border-black/10">
-                                                {sch.tag_name}
+                                              <span 
+                                                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs inline-block"
+                                                style={{ backgroundColor: getNotionDotColor(sch.tag_color) }}
+                                                title={`태그: ${sch.tag_name}`}
+                                              />
+                                            )}
+                                            <span className="truncate text-[11px] font-bold leading-snug">{sch.product_name}</span>
+                                          </div>
+
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <span className="text-[10px] font-extrabold opacity-80 bg-black/10 px-1 py-0.2 rounded">
+                                              {sch.quantity}
+                                            </span>
+                                            {sch.notion_page_id && (
+                                              <span className="text-[9px] opacity-70 font-black shrink-0 bg-slate-900 text-white px-1 rounded" title="노션 동기화 항목">
+                                                N
                                               </span>
                                             )}
-                                            <span className="truncate">{sch.product_name}</span>
                                           </div>
-                                          {sch.notion_page_id && <span className="text-[8px] opacity-60 font-extrabold shrink-0">N</span>}
                                         </div>
                                       );
                                     })}
                                     {extraCount > 0 && (
-                                      <div className="text-[9px] text-indigo-600 font-bold text-center bg-indigo-50 rounded py-0.5">
-                                        +{extraCount}개
+                                      <div className="text-[10px] text-indigo-700 font-bold text-center bg-indigo-50 border border-indigo-100 rounded py-0.5">
+                                        +{extraCount}개 더보기
                                       </div>
                                     )}
                                   </div>
