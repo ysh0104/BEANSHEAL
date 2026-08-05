@@ -9,6 +9,10 @@ import LoginModal from "@/components/LoginModal";
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const handleLogout = () => {
+    logout();
+    window.location.href = "/login";
+  };
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
@@ -147,7 +151,7 @@ export default function Sidebar() {
                   )}
                 </div>
                 <button
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="text-zinc-400 hover:text-red-400 text-xs font-bold px-1.5 py-1 rounded hover:bg-zinc-800/60 transition-colors cursor-pointer shrink-0"
                   title="로그아웃"
                 >
