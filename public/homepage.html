@@ -13,6 +13,11 @@
   <meta property="og:description" content="액상 건기식 소량생산부터 대량생산까지! 빈스힐 전담 연구진의 프리미엄 액상 전용 OEM/ODM 맞춤 제조 솔루션">
   <meta property="og:image" content="https://cdn.imweb.me/upload/S20210310b04a5314853b7/f7e754898a1de.png">
 
+  <!-- Favicon -->
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="/favicon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
   <!-- Performance Optimization (Preconnect & DNS Prefetch) -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -20,6 +25,9 @@
   <link rel="dns-prefetch" href="https://images.unsplash.com">
 
   <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/css/styles.css">
@@ -30,131 +38,76 @@
        Header & Navigation
        ========================================================================== -->
   <header class="site-header">
-    <div class="container header-container">
-      <a href="#" class="brand-logo" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
-        <img src="/images/beansheal-b-logo.svg" alt="BEANSHEAL" style="width: 44px; height: 44px; border-radius: 50%; object-fit: contain; box-shadow: 0 3px 10px rgba(0,0,0,0.15);">
-        <span style="font-size: 1.35rem; font-weight: 900; color: #0F172A; letter-spacing: -0.5px; line-height: 1.1;">BEANSHEAL <span style="color: #2E7D32; font-weight: 700; font-size: 0.8rem; display: block; margin-top: 2px; letter-spacing: 0.5px;">(주)빈스힐</span></span>
+    <div class="header-container">
+      <a href="#" class="brand-logo">
+        <img src="/images/beansheal-logo.png" alt="BEANSHEAL" class="brand-logo-img" width="386" height="47">
       </a>
 
-      <nav class="gnb-nav">
+      <nav class="gnb-nav" id="gnb-nav" aria-label="주요 메뉴">
         <a href="#about" class="gnb-link">회사소개</a>
         <a href="#brand" class="gnb-link">브랜드</a>
-        <!-- <a href="#four-categories" class="gnb-link">4대 전문 라인업</a> -->
         <a href="#production-types" class="gnb-link">OEM / ODM</a>
-        <a href="#portfolio" class="gnb-link">생산 포트폴리오</a>
+        <a href="#portfolio" class="gnb-link">포트폴리오</a>
         <a href="#calculator" class="gnb-link">간편 견적</a>
         <a href="#inquiry-board" class="gnb-link">문의하기</a>
-        <a href="#faq" class="gnb-link">자주 묻는 질문</a>
+        <a href="#faq" class="gnb-link">FAQ</a>
         <a href="#location" class="gnb-link">오시는 길</a>
+        <div class="gnb-mobile-cta">
+          <a href="tel:031-969-2428" class="gnb-mobile-phone"><i class="fas fa-phone-alt"></i> 031-969-2428</a>
+          <button class="btn btn-primary btn-sm" onclick="openInquiryModal()">실시간 문의</button>
+        </div>
       </nav>
 
       <div class="header-actions">
-        <div class="quick-phone">
+        <a href="tel:031-969-2428" class="quick-phone">
           <i class="fas fa-phone-alt"></i>
           <span>031-969-2428</span>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="openInquiryModal()">
-          <i class="fas fa-paper-plane"></i> 실시간 문의
+        </a>
+        <button class="btn btn-primary btn-sm header-cta" onclick="openInquiryModal()">
+          문의하기
         </button>
-        <a href="/login" title="관리자 로그인" style="display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; text-decoration: none; transition: all 0.2s ease;" onmouseover="this.style.background='#2c4cb0'; this.style.color='#FFFFFF'; this.style.borderColor='#2c4cb0';" onmouseout="this.style.background='#F1F5F9'; this.style.color='#475569'; this.style.borderColor='#CBD5E1';">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <a href="/login" class="admin-login-btn" title="관리자 로그인" aria-label="관리자 로그인">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
             <circle cx="12" cy="7" r="4"></circle>
           </svg>
         </a>
-        <button class="mobile-toggle" aria-label="메뉴 열기">
-          <i class="fas fa-bars"></i>
+        <button class="mobile-toggle" aria-label="메뉴 열기" aria-expanded="false" aria-controls="gnb-nav">
+          <span class="mobile-toggle-bar"></span>
+          <span class="mobile-toggle-bar"></span>
+          <span class="mobile-toggle-bar"></span>
         </button>
       </div>
     </div>
+    <div class="nav-backdrop" id="nav-backdrop" hidden></div>
   </header>
 
   <!-- ==========================================================================
-       Hero Section
+       Hero Section — full-bleed brand composition
        ========================================================================== -->
   <section class="hero-section" id="about">
-    <div class="hero-bg-shapes">
-      <div class="hero-shape-1"></div>
-      <div class="hero-shape-2"></div>
+    <div class="hero-slider-wrap" aria-hidden="true">
+      <div class="hero-slide active" style="background-image: url('https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=1600&q=80');"></div>
+      <div class="hero-slide" style="background-image: url('https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=1600&q=80');"></div>
+      <div class="hero-slide" style="background-image: url('https://images.unsplash.com/photo-1622597467836-f3285f2131b8?auto=format&fit=crop&w=1600&q=80');"></div>
+      <div class="hero-slide" style="background-image: url('https://images.unsplash.com/photo-1546173159-315724a31696?auto=format&fit=crop&w=1600&q=80');"></div>
     </div>
+    <div class="hero-scrim"></div>
 
-    <div class="container hero-grid">
-      <div class="hero-content reveal-on-scroll reveal-left">
-        <div class="hero-badge-group">
-          <span class="badge-tag"><i class="fas fa-coffee"></i> 액상 핸드드립 커피</span>
-          <span class="badge-tag"><i class="fas fa-vial"></i> 건강기능식품 (GMP)</span>
-          <span class="badge-tag"><i class="fas fa-microchip"></i> 기능성표시식품</span>
-          <span class="badge-tag"><i class="fas fa-bottle-droplet"></i> 일반식품 & 음료 (HACCP)</span>
-        </div>
-
-        <h1 class="hero-title">
-          액상 핸드드립 커피 · 건기식 · 기능성표시식품 · 일반식품 <br>
-          <span class="highlight">(주)빈스힐 맞춤 제조·대량생산</span>
-        </h1>
-
+    <div class="container hero-inner">
+      <div class="hero-content">
+        <img src="/images/beansheal-logo-white.png" alt="BEANSHEAL" class="hero-brand-logo" width="386" height="47">
+        <h1 class="hero-title">액상 전문 OEM·ODM,<br>기획부터 제조까지</h1>
         <p class="hero-subtitle">
-          전문 바리스타 정통 저온 드립 커피부터 식약처 GMP 건강기능식품, 최신 트렌드 기능성표시식품, 일반음료까지!<br>
-          액상 전용 스마트 무균 자동 충진 공장에서 소량 및 대량생산을 제공합니다.
+          저온 드립 커피부터 GMP 건기식·기능성표시식품·일반음료까지.
+          무균 자동 충진 공장에서 소량 시험생산부터 대량 납품까지 한 번에.
         </p>
-
         <div class="hero-cta-group">
-          <button class="btn btn-primary btn-lg" onclick="openInquiryModal()">
-            <i class="fas fa-paper-plane"></i> 1:1  맞춤 견적 문의
-          </button>
+          <button class="btn btn-primary btn-lg" onclick="openInquiryModal()">맞춤 견적 문의</button>
+          <a href="#production-types" class="btn btn-ghost btn-lg">생산 방식 보기</a>
         </div>
-      </div>
-
-      <!-- Hero Visual Slider Showcase -->
-      <div class="hero-visual-card reveal-on-scroll reveal-right">
-        <div class="visual-card-header">
-          <div class="visual-card-title">
-            <i class="fas fa-check-double" style="color: var(--primary);"></i>
-            <span>빈스힐 4대 제조 라인업 대표 제품</span>
-          </div>
-          <span style="font-size: 0.8rem; color: var(--gray-400);">Auto Play</span>
-        </div>
-
-        <div class="hero-slider-wrap">
-          <div class="hero-slide active" style="background-image: url('https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=800&q=80');">
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content">
-              <span class="slide-category" style="background: #D97706;">1. 액상 핸드드립 커피</span>
-              <h3 class="slide-title">액상 핸드드립 커피</h3>
-              <p class="slide-desc">바리스타 저온 드립 원액을 10ml~30ml Easy-Cut 스틱</p>
-            </div>
-          </div>
-
-          <div class="hero-slide" style="background-image: url('/images/slide-fat-away.jpg');">
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content">
-              <span class="slide-category" style="background: #2E7D32;">2. 건강기능식품 (GMP)</span>
-              <h3 class="slide-title">고농축 액상 스틱 & 건기식 포뮬러</h3>
-              <p class="slide-desc">식약처 GMP 인증 공정으로 층분리 없는 고농축 액상 건기식 포 및 이중제형 샷 완벽 제조</p>
-            </div>
-          </div>
-
-          <div class="hero-slide" style="background-image: url('/images/slide-functional-food.jpg');">
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content">
-              <span class="slide-category" style="background: #059669;">3. 기능성 표시 식품</span>
-              <h3 class="slide-title">혈당·체중조절·면역 기능성 원료</h3>
-              <p class="slide-desc">일반 음료/파우치 제형에 식약처 검증 기능성 원료를 가공·표시하는 최신 히트 트렌드</p>
-            </div>
-          </div>
-
-          <div class="hero-slide" style="background-image: url('/images/slide-beverage-user.jpg');">
-            <div class="hero-slide-overlay"></div>
-            <div class="hero-slide-content">
-              <span class="slide-category" style="background: #7C3AED;">4. 일반식품 & 음료 (HACCP)</span>
-              <h3 class="slide-title">과즙 엑기스, 무설탕 프레시 액상 음료</h3>
-              <p class="slide-desc">HACCP 안전 무균 충진으로 온가족이 안심하고 상쾌하게 마시는 대중적 고품질 음료 라인</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="slider-controls">
+        <div class="slider-controls hero-slider-controls">
           <div class="slider-dots"></div>
-          <span style="font-size: 0.85rem; color: var(--gray-300);">슬라이드를 클릭하여 변경할 수 있습니다</span>
         </div>
       </div>
     </div>
@@ -163,109 +116,89 @@
   <!-- ==========================================================================
        Brand Showcase Section (브랜드)
        ========================================================================== -->
-  <section class="section" id="brand" style="background: var(--white); border-bottom: 1px solid var(--gray-200);">
+  <section class="section section-soft" id="brand">
     <div class="container">
       <div class="text-center reveal-on-scroll">
-        <span class="section-tag" style="background-color: #E8F5E9; color: #2E7D32; border-color: #C8E6C9;"><i class="fas fa-crown"></i> BEANSHEAL Brand Portfolio</span>
+        <span class="section-tag"><i class="fas fa-crown"></i> BEANSHEAL Brand Portfolio</span>
         <h2 class="section-title">(주)빈스힐 <span>시그니처 브랜드</span></h2>
         <p class="section-desc">
-          정통 액상 핸드드립 커피부터 식약처 GMP 건기식, 기능성표시식품까지 (주)빈스힐의 독자 브랜드 기술력을 소개합니다.
+          정통 액상 핸드드립 커피부터 GMP 건기식, 기능성표시식품까지 독자 브랜드 기술력을 소개합니다.
         </p>
       </div>
 
-      <div class="reveal-on-scroll stagger-item reveal-scale" id="brands-grid" style="margin: 48px auto 0 auto; max-width: 680px;"></div>
+      <div class="reveal-on-scroll stagger-item reveal-scale brands-grid-wrap" id="brands-grid"></div>
     </div>
   </section>
 
   <!-- ==========================================================================
        4-in-1 Certified Manufacturing Categories Showcase
        ========================================================================== -->
-  <section class="section" id="four-categories" style="background: #F8FAFC; border-bottom: 1px solid var(--gray-200);">
+  <section class="section" id="four-categories">
     <div class="container">
       <div class="text-center reveal-on-scroll">
-        <span class="section-tag" style="background-color: #E8F5E9; color: #2E7D32; border-color: #C8E6C9;"><i class="fas fa-cubes"></i> 4 Core Production Lines</span>
-        <h2 class="section-title">(주)빈스힐 <span>4대 핵심 전문 제조 영역</span></h2>
+        <span class="section-tag"><i class="fas fa-cubes"></i> 4 Core Production Lines</span>
+        <h2 class="section-title">(주)빈스힐 <span>4대 핵심 제조 영역</span></h2>
         <p class="section-desc">
-          원하는 식품 분류 규격과 제형에 맞춰 식약처 인증 전용 생산 라인에서 완벽하게 제조·대량 납품합니다.
+          식품 분류와 제형에 맞춰 식약처 인증 전용 라인에서 제조·납품합니다.
         </p>
       </div>
 
-      <div class="grid-4 reveal-on-scroll stagger-item reveal-scale" style="margin-top: 48px;">
-        <!-- Card 1: 액상 핸드드립 커피 -->
-        <div style="background: #FFFFFF; padding: 32px 26px; border-radius: 18px; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0,0,0,0.04); display: flex; flex-direction: column;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <div style="width: 48px; height: 48px; background: #FEF3C7; color: #D97706; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-              <i class="fas fa-mug-hot"></i>
-            </div>
-            <span style="font-size: 0.75rem; font-weight: 700; background: #FFFBEB; color: #B45309; padding: 4px 10px; border-radius: 4px; border: 1px solid #FDE68A;">일 10만포 CAPA</span>
+      <div class="lineup-grid reveal-on-scroll">
+        <article class="lineup-item stagger-item reveal-scale">
+          <div class="lineup-top">
+            <span class="lineup-icon lineup-icon--coffee" aria-hidden="true"><i class="fas fa-mug-hot"></i></span>
+            <span class="lineup-chip">일 10만포 CAPA</span>
           </div>
-          <h3 style="font-size: 1.3rem; font-weight: 800; color: #1D1D1F; margin-bottom: 8px;">1. 액상 핸드드립 커피</h3>
-          <p style="font-size: 0.95rem; color: #6E6E73; line-height: 1.6; margin-bottom: 20px; flex-grow: 1;">
-            전문 바리스타 정통 저온 드립 추출 자동화! 스페셜티 원두 아로마 보존 스틱파우치 대량생산
-          </p>
-          <ul style="font-size: 0.85rem; color: #4B5563; border-top: 1px solid #F1F5F9; padding-top: 14px; line-height: 1.8;">
-            <li><i class="fas fa-check" style="color: #D97706; margin-right: 6px;"></i> 정통 저온 드립 추출 공정</li>
-            <li><i class="fas fa-check" style="color: #D97706; margin-right: 6px;"></i> 10ml 스틱 & 20ml 원액</li>
-            <li><i class="fas fa-check" style="color: #D97706; margin-right: 6px;"></i> 레토르트 파우치 충진</li>
+          <h3 class="lineup-title">액상 핸드드립 커피</h3>
+          <p class="lineup-desc">저온 드립 추출 자동화로 스페셜티 아로마를 보존한 스틱·원액 대량생산</p>
+          <ul class="lineup-list">
+            <li>정통 저온 드립 추출 공정</li>
+            <li>10ml 스틱 &amp; 20ml 원액</li>
+            <li>레토르트 파우치 충진</li>
           </ul>
-        </div>
+        </article>
 
-        <!-- Card 2: 건강기능식품 (GMP) -->
-        <div style="background: #FFFFFF; padding: 32px 26px; border-radius: 18px; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0,0,0,0.04); display: flex; flex-direction: column;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <div style="width: 48px; height: 48px; background: #E8F5E9; color: #2E7D32; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-              <i class="fas fa-vial"></i>
-            </div>
-            <span style="font-size: 0.75rem; font-weight: 700; background: #E8F5E9; color: #1B5E20; padding: 4px 10px; border-radius: 4px; border: 1px solid #C8E6C9;">식약처 GMP 인증</span>
+        <article class="lineup-item stagger-item reveal-scale">
+          <div class="lineup-top">
+            <span class="lineup-icon lineup-icon--gmp" aria-hidden="true"><i class="fas fa-vial"></i></span>
+            <span class="lineup-chip lineup-chip--gmp">식약처 GMP</span>
           </div>
-          <h3 style="font-size: 1.3rem; font-weight: 800; color: #1D1D1F; margin-bottom: 8px;">2. 건강기능식품 (GMP)</h3>
-          <p style="font-size: 0.95rem; color: #6E6E73; line-height: 1.6; margin-bottom: 20px; flex-grow: 1;">
-            식약처 인정 기능성 원료 고농축 액상화! 침전/층분리 방지 고기술력 및 무균 살균 포장으로 고효율 건기식 제조
-          </p>
-          <ul style="font-size: 0.85rem; color: #4B5563; border-top: 1px solid #F1F5F9; padding-top: 14px; line-height: 1.8;">
-            <li><i class="fas fa-check" style="color: #2E7D32; margin-right: 6px;"></i> 식약처 품목제조신고 풀케어</li>
-            <li><i class="fas fa-check" style="color: #2E7D32; margin-right: 6px;"></i> 복합 기능성 농축 액상</li>
-            <li><i class="fas fa-check" style="color: #2E7D32; margin-right: 6px;"></i> 체내 높은 흡수율 액상 수용화</li>
+          <h3 class="lineup-title">건강기능식품 (GMP)</h3>
+          <p class="lineup-desc">기능성 원료 고농축 액상화와 무균 살균으로 층분리 없는 건기식 제조</p>
+          <ul class="lineup-list">
+            <li>품목제조신고 풀케어</li>
+            <li>복합 기능성 농축 액상</li>
+            <li>높은 흡수율 수용화</li>
           </ul>
-        </div>
+        </article>
 
-        <!-- Card 3: 기능성 표시 식품 -->
-        <div style="background: #FFFFFF; padding: 32px 26px; border-radius: 18px; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0,0,0,0.04); display: flex; flex-direction: column;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <div style="width: 48px; height: 48px; background: #D1FAE5; color: #059669; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-              <i class="fas fa-microchip"></i>
-            </div>
-            <span style="font-size: 0.75rem; font-weight: 700; background: #ECFDF5; color: #047857; padding: 4px 10px; border-radius: 4px; border: 1px solid #A7F3D0;">트렌드 히트 제형</span>
+        <article class="lineup-item stagger-item reveal-scale">
+          <div class="lineup-top">
+            <span class="lineup-icon lineup-icon--func" aria-hidden="true"><i class="fas fa-leaf"></i></span>
+            <span class="lineup-chip lineup-chip--func">기능성 표시</span>
           </div>
-          <h3 style="font-size: 1.3rem; font-weight: 800; color: #1D1D1F; margin-bottom: 8px;">3. 기능성 표시 식품</h3>
-          <p style="font-size: 0.95rem; color: #6E6E73; line-height: 1.6; margin-bottom: 20px; flex-grow: 1;">
-            일반 식품/음료 포맷에 혈당조절, 체중관리, 피로개선 등 검증된 기능성 소재를 표시 가공하여 신시장 선점
-          </p>
-          <ul style="font-size: 0.85rem; color: #4B5563; border-top: 1px solid #F1F5F9; padding-top: 14px; line-height: 1.8;">
-            <li><i class="fas fa-check" style="color: #059669; margin-right: 6px;"></i> 식약처 기능성 표시 등록 지원</li>
-            <li><i class="fas fa-check" style="color: #059669; margin-right: 6px;"></i> 마시는 혈당/체중 케어 음료</li>
-            <li><i class="fas fa-check" style="color: #059669; margin-right: 6px;"></i> 데일리 기호성 원액 포뮬러</li>
+          <h3 class="lineup-title">기능성 표시 식품</h3>
+          <p class="lineup-desc">일반 음료 포맷에 혈당·체중·피로 개선 소재를 표시·가공해 시장을 선점</p>
+          <ul class="lineup-list">
+            <li>기능성 표시 등록 지원</li>
+            <li>마시는 케어 음료</li>
+            <li>데일리 기호성 포뮬러</li>
           </ul>
-        </div>
+        </article>
 
-        <!-- Card 4: 일반식품 & 음료 (HACCP) -->
-        <div style="background: #FFFFFF; padding: 32px 26px; border-radius: 18px; border: 1px solid #E2E8F0; box-shadow: 0 4px 16px rgba(0,0,0,0.04); display: flex; flex-direction: column;">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-            <div style="width: 48px; height: 48px; background: #EDE9FE; color: #7C3AED; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
-              <i class="fas fa-bottle-droplet"></i>
-            </div>
-            <span style="font-size: 0.75rem; font-weight: 700; background: #F5F3FF; color: #6D28D9; padding: 4px 10px; border-radius: 4px; border: 1px solid #DDD6FE;">HACCP 안전 안심</span>
+        <article class="lineup-item stagger-item reveal-scale">
+          <div class="lineup-top">
+            <span class="lineup-icon lineup-icon--bev" aria-hidden="true"><i class="fas fa-bottle-droplet"></i></span>
+            <span class="lineup-chip lineup-chip--bev">HACCP</span>
           </div>
-          <h3 style="font-size: 1.3rem; font-weight: 800; color: #1D1D1F; margin-bottom: 8px;">4. 일반식품 & 음료 (HACCP)</h3>
-          <p style="font-size: 0.95rem; color: #6E6E73; line-height: 1.6; margin-bottom: 20px; flex-grow: 1;">
-            과즙 엑기스, 무설탕 액상, 레트르트 파우치등 대중적인 고품질 일반 식품을 안전 충진
-          </p>
-          <ul style="font-size: 0.85rem; color: #4B5563; border-top: 1px solid #F1F5F9; padding-top: 14px; line-height: 1.8;">
-            <li><i class="fas fa-check" style="color: #7C3AED; margin-right: 6px;"></i> 과채/한방 레토르트 엑기스</li>
-            <li><i class="fas fa-check" style="color: #7C3AED; margin-right: 6px;"></i> 유기농 파우치 음료</li>
-            <li><i class="fas fa-check" style="color: #7C3AED; margin-right: 6px;"></i> 대량생산 수율 최적화</li>
+          <h3 class="lineup-title">일반식품 &amp; 음료</h3>
+          <p class="lineup-desc">과즙 엑기스·무설탕 액상·레토르트 파우치 등 대중 제형을 안전 충진</p>
+          <ul class="lineup-list">
+            <li>과채/한방 레토르트 엑기스</li>
+            <li>유기농 파우치 음료</li>
+            <li>대량생산 수율 최적화</li>
           </ul>
-        </div>
+        </article>
       </div>
     </div>
   </section>
@@ -581,59 +514,50 @@
   <!-- ==========================================================================
        Location & Directions Section (오시는 길 + 구글맵)
        ========================================================================== -->
-  <section class="section" id="location" style="background: #F8FAFC; border-top: 1px solid var(--gray-200);">
+  <section class="section section-soft" id="location">
     <div class="container">
       <div class="text-center reveal-on-scroll">
-        <span class="section-tag" style="background-color: #E8F5E9; color: #2E7D32; border-color: #C8E6C9;"><i class="fas fa-map-marked-alt"></i> LOCATION & MAP</span>
+        <span class="section-tag"><i class="fas fa-map-marked-alt"></i> LOCATION</span>
         <h2 class="section-title">(주)빈스힐 <span>오시는 길</span></h2>
-        <p class="section-desc">
-          (주)빈스힐 본사 및 최첨단 무균 스마트 생산 공장 주소 안내입니다.
-        </p>
+        <p class="section-desc">본사 및 무균 스마트 생산 공장 안내입니다.</p>
       </div>
 
-      <div class="grid-2 reveal-on-scroll reveal-scale" style="margin-top: 48px; gap: 32px; align-items: stretch;">
-        <!-- Left: Location Info Card -->
-        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 20px; padding: 36px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between;">
-          <div>
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-              <span style="font-size: 0.8rem; font-weight: 700; background: #E8F5E9; color: #2E7D32; padding: 6px 14px; border-radius: 980px;">(주)빈스힐 본사 & 공장</span>
-            </div>
-            <h3 style="font-size: 1.6rem; font-weight: 800; color: #1D1D1F; margin-bottom: 16px;">(주)빈스힐 본사 주소</h3>
-            
-            <div style="background: #F8FAFC; border: 1px solid #F1F5F9; border-radius: 14px; padding: 20px; margin-bottom: 24px;">
-              <p style="font-size: 1.05rem; font-weight: 700; color: #1D1D1F; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-                <i class="fas fa-location-dot" style="color: #2E7D32;"></i> <span id="company-info-address">경기도 고양시 일산동구 견달산로 359 (주)빈스힐</span>
-              </p>
-              <p style="font-size: 0.9rem; color: #6E6E73;">((주)빈스힐 자동 충진 제조 공장 & 본사)</p>
-            </div>
+      <div class="location-grid reveal-on-scroll reveal-scale">
+        <div class="location-info">
+          <span class="location-badge">(주)빈스힐 본사 &amp; 공장</span>
+          <h3 class="location-heading">(주)빈스힐 본사 주소</h3>
 
-            <ul style="list-style: none; padding: 0; margin: 0 0 28px 0; font-size: 0.95rem; color: #475569; line-height: 2.2;">
-              <li><i class="fas fa-phone" style="color: #2E7D32; width: 24px;"></i> <strong>대표전화:</strong> <span id="company-info-phone">031-969-2428</span></li>
-              <li><i class="fas fa-envelope" style="color: #2E7D32; width: 24px;"></i> <strong>이메일:</strong> <span id="company-info-email">beansheal@beansheal.com</span></li>
-              <li><i class="fas fa-clock" style="color: #2E7D32; width: 24px;"></i> <strong>상담시간:</strong> <span id="company-info-hours">평일 09:00 ~ 18:00 (토/일/공휴일 휴무)</span></li>
-            </ul>
+          <div class="location-address-box">
+            <p class="location-address">
+              <i class="fas fa-location-dot" aria-hidden="true"></i>
+              <span id="company-info-address">경기도 고양시 일산동구 견달산로 359 (주)빈스힐</span>
+            </p>
+            <p class="location-address-note">자동 충진 제조 공장 &amp; 본사</p>
           </div>
 
-          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <a id="company-info-map-naver" href="https://map.naver.com/v5/search/%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B3%A4%EC%96%91%EC%8B%9C%20%EC%9D%BC%EC%82%B0%EB%8F%99%EA%B5%AC%20%EA%B2%AC%EB%8B%AC%EC%82%B0%EB%A1%9C%20359" target="_blank" class="btn btn-secondary btn-md" style="flex: 1; border-radius: 980px; justify-content: center;">
-              <i class="fas fa-map-marker-alt" style="color: #03C75A;"></i> 네이버지도 보기
+          <ul class="location-meta">
+            <li><i class="fas fa-phone" aria-hidden="true"></i> <strong>대표전화</strong> <span id="company-info-phone">031-969-2428</span></li>
+            <li><i class="fas fa-envelope" aria-hidden="true"></i> <strong>이메일</strong> <span id="company-info-email">beansheal@beansheal.com</span></li>
+            <li><i class="fas fa-clock" aria-hidden="true"></i> <strong>상담시간</strong> <span id="company-info-hours">평일 09:00 ~ 18:00 (토/일/공휴일 휴무)</span></li>
+          </ul>
+
+          <div class="location-map-btns">
+            <a id="company-info-map-naver" href="https://map.naver.com/v5/search/%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B3%A4%EC%96%91%EC%8B%9C%20%EC%9D%BC%EC%82%B0%EB%8F%99%EA%B5%AC%20%EA%B2%AC%EB%8B%AC%EC%82%B0%EB%A1%9C%20359" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-md">
+              <i class="fas fa-map-marker-alt" style="color: #03C75A;"></i> 네이버지도
             </a>
-            <a id="company-info-map-kakao" href="https://map.kakao.com/?q=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B3%A4%EC%96%91%EC%8B%9C%20%EC%9D%BC%EC%82%B0%EB%8F%99%EA%B5%AC%20%EA%B2%AC%EB%8B%AC%EC%82%B0%EB%A1%9C%20359" target="_blank" class="btn btn-secondary btn-md" style="flex: 1; border-radius: 980px; justify-content: center;">
-              <i class="fas fa-comment" style="color: #FEE500;"></i> 카카오맵 보기
+            <a id="company-info-map-kakao" href="https://map.kakao.com/?q=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B3%A4%EC%96%91%EC%8B%9C%20%EC%9D%BC%EC%82%B0%EB%8F%99%EA%B5%AC%20%EA%B2%AC%EB%8B%AC%EC%82%B0%EB%A1%9C%20359" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-md">
+              <i class="fas fa-comment" style="color: #FEE500;"></i> 카카오맵
             </a>
           </div>
         </div>
 
-        <!-- Right: Embedded Google Maps Iframe -->
-        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); min-height: 420px; display: flex;">
-          <iframe 
+        <div class="location-map">
+          <iframe
             id="company-info-iframe"
-            src="https://maps.google.com/maps?q=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B3%A4%EC%96%91%EC%8B%9C%20%EC%9D%BC%EC%82%B0%EB%8F%99%EA%B5%AC%20%EA%B2%AC%EB%8B%AC%EC%82%B0%EB%A1%9C%20359&t=&z=16&ie=UTF8&iwloc=&output=embed" 
-            width="100%" 
-            height="100%" 
-            style="border:0; min-height: 420px; width: 100%;" 
-            allowfullscreen="" 
-            loading="lazy" 
+            src="https://maps.google.com/maps?q=%EA%B2%BD%EA%B8%B0%EB%8F%84%20%EA%B3%A4%EC%96%91%EC%8B%9C%20%EC%9D%BC%EC%82%B0%EB%8F%99%EA%B5%AC%20%EA%B2%AC%EB%8B%AC%EC%82%B0%EB%A1%9C%20359&t=&z=16&ie=UTF8&iwloc=&output=embed"
+            title="빈스힐 위치 지도"
+            allowfullscreen=""
+            loading="lazy"
             referrerpolicy="no-referrer-when-downgrade">
           </iframe>
         </div>
@@ -648,9 +572,9 @@
     <div class="container">
       <div class="footer-grid">
         <div>
-          <div class="footer-brand" style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
-            <img src="/images/beansheal-b-logo.svg" alt="BEANSHEAL" style="width: 36px; height: 36px; border-radius: 50%; object-fit: contain; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
-            <span id="footer-company-name" style="font-size: 1.25rem; font-weight: 900; color: #FFFFFF;">빈스힐 (BEANSHEAL)</span>
+          <div class="footer-brand">
+            <img src="/images/beansheal-logo-white.png" alt="BEANSHEAL" class="footer-logo-img" width="386" height="47">
+            <span id="footer-company-name" class="footer-company-name">(주)빈스힐</span>
           </div>
           <div class="footer-info-text">
             <p id="footer-company-info-header"><strong>(주) 빈스힐</strong> | BEANSHEAL Co., Ltd. | 대표자: 주미정</p>

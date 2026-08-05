@@ -126,12 +126,16 @@ export default function LoginPage() {
       <div className="w-full max-w-[420px] bg-white rounded-3xl p-8 shadow-xl border border-slate-200/90 space-y-7 relative overflow-hidden">
         
         {/* 상단 로고 헤더 (BEANSHEAL) */}
-        <div className="text-center space-y-1 pt-2">
+        <div className="text-center space-y-3 pt-2">
           <div className="text-[11px] font-black tracking-widest text-slate-400 uppercase">
             EFFICIENT CHANGE & INTEGRATION
           </div>
-          <div className="flex items-center justify-center text-3xl font-black tracking-tight text-[#2c4cb0]">
-            <span>BEANSHEAL</span>
+          <div className="flex items-center justify-center">
+            <img
+              src="/images/beansheal-logo.png"
+              alt="BEANSHEAL"
+              className="h-8 w-auto max-w-[220px] object-contain"
+            />
           </div>
         </div>
 
