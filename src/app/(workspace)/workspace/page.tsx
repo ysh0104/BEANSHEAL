@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { getRecipeList } from "@/app/actions/recipe"; 
 import { 
   syncNotionWithSupabase, 
@@ -14,7 +15,58 @@ import {
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
 
+// 🌟 노션 고유 색상을 화면용 디자인으로 변환하는 함수
+const getNotionColorClass = (colorStr?: string) => {
+  if (!colorStr) return "";
+  switch (colorStr) {
+    case "blue":
+    case "blue_background": return "bg-blue-100 text-blue-800 border-blue-200 font-bold";
+    case "green":
+    case "green_background": return "bg-green-100 text-green-800 border-green-200 font-bold";
+    case "red":
+    case "red_background": return "bg-red-100 text-red-800 border-red-200 font-bold";
+    case "yellow":
+    case "yellow_background": return "bg-yellow-100 text-yellow-800 border-yellow-200 font-bold";
+    case "pink":
+    case "pink_background": return "bg-pink-100 text-pink-800 border-pink-200 font-bold";
+    case "purple":
+    case "purple_background": return "bg-purple-100 text-purple-800 border-purple-200 font-bold";
+    case "orange":
+    case "orange_background": return "bg-orange-100 text-orange-800 border-orange-200 font-bold";
+    case "brown":
+    case "brown_background": return "bg-amber-100 text-amber-800 border-amber-200 font-bold";
+    default: return "bg-slate-100 text-slate-900 border-slate-300 font-bold";
+  }
+};
+
+// 🌟 노션 고유 색상을 깔끔한 파스텔 태그 뱃지 스타일로 변환하는 함수 (태그만 색상 적용)
+const getNotionTagBadgeClass = (colorStr?: string) => {
+  if (!colorStr) return "bg-indigo-100 text-indigo-800 border border-indigo-200";
+  switch (colorStr) {
+    case "blue":
+    case "blue_background": return "bg-blue-100 text-blue-800 border border-blue-200";
+    case "green":
+    case "green_background": return "bg-emerald-100 text-emerald-800 border border-emerald-200";
+    case "red":
+    case "red_background": return "bg-red-100 text-red-800 border border-red-200";
+    case "yellow":
+    case "yellow_background": return "bg-amber-100 text-amber-800 border border-amber-200";
+    case "pink":
+    case "pink_background": return "bg-pink-100 text-pink-800 border border-pink-200";
+    case "purple":
+    case "purple_background": return "bg-purple-100 text-purple-800 border border-purple-200";
+    case "orange":
+    case "orange_background": return "bg-orange-100 text-orange-800 border border-orange-200";
+    case "brown":
+    case "brown_background": return "bg-amber-100 text-amber-900 border border-amber-300";
+    case "gray":
+    case "gray_background": return "bg-gray-200 text-gray-800 border border-gray-300";
+    default: return "bg-slate-100 text-slate-800 border border-slate-200";
+  }
+};
+
 export default function Home() {
+  const { user } = useAuth();
   const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
 
   // 달력 및 메모장용 State
@@ -37,6 +89,8 @@ export default function Home() {
   const [testStatusMsg, setTestStatusMsg] = useState("");
   const [isTestingConn, setIsTestingConn] = useState(false);
   const [draggedSchedule, setDraggedSchedule] = useState<any | null>(null);
+  
+  
 
   // 🌟 마이 대시보드 그리드 커스텀 State
   const [isGridSnapEnabled, setIsGridSnapEnabled] = useState(true);
@@ -46,8 +100,8 @@ export default function Home() {
     widthPct: number;
     heightPx: number;
   }>>([
-    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 480 },
-    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 480 },
+    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 640 },
+    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 640 },
   ]);
 
   const [draggedWidgetId, setDraggedWidgetId] = useState<string | null>(null);
@@ -56,8 +110,14 @@ export default function Home() {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // 🌟 로그인 사용자 ID(이메일)별 독립된 대시보드 그리드 커스텀 키 반환
+  const getStorageKey = () => {
+    return user?.email ? `beansheal_widget_configs_${user.email}` : "beansheal_widget_configs_guest";
+  };
+
   useEffect(() => {
-    const savedLayout = localStorage.getItem("beansheal_widget_configs_v2");
+    const key = getStorageKey();
+    const savedLayout = localStorage.getItem(key);
     if (savedLayout) {
       try {
         const parsed = JSON.parse(savedLayout);
@@ -65,11 +125,12 @@ export default function Home() {
         if (filtered.length > 0) setWidgetConfigs(filtered);
       } catch (e) {}
     }
-  }, []);
+  }, [user?.email]);
 
   const saveWidgetConfigs = (newConfigs: typeof widgetConfigs) => {
     setWidgetConfigs(newConfigs);
-    localStorage.setItem("beansheal_widget_configs_v2", JSON.stringify(newConfigs));
+    const key = getStorageKey();
+    localStorage.setItem(key, JSON.stringify(newConfigs));
   };
 
   useEffect(() => {
@@ -115,11 +176,33 @@ export default function Home() {
     e.preventDefault();
     if (!newMemo.trim()) return;
 
+    // 1. 현재 시간 포맷팅
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    
+    const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}`;
+
+    // 2. 부서명에 '팀' 자동 추가 로직
+    let department = user?.department || "";
+    if (department && !department.endsWith("팀")) {
+      department += "팀";
+    }
+
+    const name = user?.name || "사용자";
+    const position = user?.position || "";
+    
+    // 3. 부서, 이름, 직급 조합 (빈 값은 자동으로 걸러냄)
+    const authorString = [department, name, position].filter(Boolean).join(" ") || "사용자";
+
     const item = {
       id: Date.now(),
       text: newMemo.trim(),
-      date: "방금 전",
-      author: "관리자"
+      date: formattedDate,
+      author: authorString
     };
 
     const updated = [item, ...memos];
@@ -418,8 +501,8 @@ export default function Home() {
 
   const resetWidgetLayout = () => {
     const defaultConfig = [
-      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 480 },
-      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 480 },
+      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 640 },
+      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 640 },
     ];
     saveWidgetConfigs(defaultConfig);
   };
@@ -620,10 +703,6 @@ export default function Home() {
                           
                           const normalizeDateStr = (d?: string) => d ? String(d).split("T")[0].trim() : "";
                           const daySchedules = cellDateStr ? schedules.filter(s => normalizeDateStr(s.plan_date) === cellDateStr) : [];
-                          const maxVisible = 2;
-                          const visibleSchedules = daySchedules.slice(0, maxVisible);
-                          const extraCount = daySchedules.length - maxVisible;
-
                           return (
                             <div 
                               key={idx} 
@@ -651,31 +730,39 @@ export default function Home() {
                                     </span>
                                   </div>
 
-                                  <div className="w-full space-y-0.5 mt-0.5 flex-1 min-h-0 overflow-y-auto">
-                                    {visibleSchedules.map(sch => (
-                                      <div 
-                                        key={sch.id} 
-                                        draggable={true}
-                                        onDragStart={(e) => {
-                                          e.stopPropagation();
-                                          handleDragStart(e, sch);
-                                        }}
-                                        className={`text-[9px] px-1 py-0.5 rounded truncate font-medium border flex items-center justify-between gap-0.5 cursor-grab active:cursor-grabbing hover:scale-102 transition-transform ${
-                                          sch.notion_page_id
-                                            ? "bg-slate-100 text-slate-900 border-slate-300 font-bold"
-                                            : "bg-blue-100 text-blue-800 border-blue-200"
-                                        }`} 
-                                        title={`${sch.product_name} (${sch.quantity}) ${sch.notion_page_id ? '[Notion 연동]' : ''}`}
-                                      >
-                                        <span className="truncate">{sch.product_name}</span>
-                                        {sch.notion_page_id && <span className="text-[8px] text-slate-500 bg-slate-200 px-0.5 rounded shrink-0 font-extrabold">N</span>}
-                                      </div>
-                                    ))}
-                                    {extraCount > 0 && (
-                                      <div className="text-[9px] text-indigo-600 font-bold text-center bg-indigo-50 rounded py-0.5">
-                                        +{extraCount}개
-                                      </div>
-                                    )}
+                                  <div className="w-full space-y-1 mt-0.5 flex-1 min-h-0 overflow-y-auto pr-0.5 custom-scrollbar">
+                                    {daySchedules.map(sch => {
+                                      return (
+                                        <div 
+                                          key={sch.id} 
+                                          draggable={true}
+                                          onDragStart={(e) => {
+                                            e.stopPropagation();
+                                            handleDragStart(e, sch);
+                                          }}
+                                          // 🌟 원본 화사한 라이트 슬레이트 톤 카드 배경
+                                          className="bg-white border border-slate-200/90 rounded-md p-1.5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-grab active:cursor-grabbing text-left space-y-1"
+                                          title={`품목: ${sch.product_name}\n수량: ${sch.quantity}${sch.tag_name ? `\n태그: ${sch.tag_name}` : ''}${sch.note ? `\n비고: ${sch.note}` : ''}`}
+                                        >
+                                          {/* 🌟 1. 글씨 잘림 없이 전체 품목명 & 수량 출력 (줄바꿈 허용) */}
+                                          <div className="text-[11px] font-semibold text-slate-900 leading-snug break-words whitespace-normal">
+                                            {sch.product_name}
+                                            {sch.quantity && sch.quantity !== "1" && (
+                                              <span className="text-slate-500 font-semibold ml-1">({sch.quantity})</span>
+                                            )}
+                                          </div>
+
+                                          {/* 🌟 2. 태그에만 노션 파스텔 색상 적용 */}
+                                          {sch.tag_name && (
+                                            <div className="flex flex-wrap gap-1 pt-0.5">
+                                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getNotionTagBadgeClass(sch.tag_color)}`}>
+                                                {sch.tag_name}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 </>
                               )}

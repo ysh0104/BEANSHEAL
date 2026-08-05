@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
 import { AuthProvider } from "@/context/AuthContext";
+import LayoutContent from "@/components/LayoutContent";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "BEANSHEAL StockTrace",
-  description: "제조지시기록서 및 HACCP 서류 자동화 시스템",
+  title: "BEANSHEAL (주)빈스힐 공식 홈페이지 & 통합 생산 ERP",
+  description: "액상 핸드드립 커피 및 건강기능식품(GMP) 전문 제조기업 (주)빈스힐",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "32x32" },
@@ -24,15 +24,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className="dark">
-      <body className={`${inter.className} bg-[#0b0b0b] text-zinc-100 flex flex-col min-h-screen antialiased selection:bg-zinc-800 selection:text-white`}>
+    <html lang="ko">
+      <body className={`${inter.className} m-0 p-0`}>
         <AuthProvider>
-          {/* 상단 가로 메뉴바 (GNB) */}
-          <Sidebar />
-
-          <main className="flex-1 overflow-y-auto p-4 md:p-6 max-w-7xl mx-auto w-full">
-            {children}
-          </main>
+          <LayoutContent>{children}</LayoutContent>
         </AuthProvider>
       </body>
     </html>
