@@ -15,8 +15,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   
-  // 체크박스 옵션
-  const [rememberId, setRememberId] = useState(true);
+  // 자동로그인 및 출근체크 옵션
+  const [autoLogin, setAutoLogin] = useState(true);
   const [clockInCheck, setClockInCheck] = useState(false);
   
   const [error, setError] = useState("");
@@ -49,7 +49,7 @@ export default function LoginPage() {
       return;
     }
 
-    const { error: loginErr } = await loginWithEmail(email.trim(), password);
+    const { error: loginErr } = await loginWithEmail(email.trim(), password, autoLogin);
     setLoading(false);
     
     if (loginErr) {
@@ -57,11 +57,13 @@ export default function LoginPage() {
       return;
     }
 
-    // 아이디 저장 처리
-    if (rememberId) {
+    // 아이디 및 자동로그인 저장 처리
+    if (autoLogin) {
       localStorage.setItem("beansheal_saved_id", email.trim());
+      localStorage.setItem("beansheal_auto_login", "true");
     } else {
-      localStorage.removeItem("beansheal_saved_id");
+      localStorage.setItem("beansheal_saved_id", email.trim());
+      localStorage.setItem("beansheal_auto_login", "false");
     }
 
     // 출근체크 알림
@@ -210,16 +212,16 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* 체크박스 옵션 행 (아이디 저장, 출근체크) */}
+              {/* 체크박스 옵션 행 (자동로그인, 출근체크) */}
               <div className="flex items-center justify-end gap-4 text-xs font-semibold text-slate-600 pt-1">
-                <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors">
+                <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors" title="재접속 시 자동 로그인 설정">
                   <input
                     type="checkbox"
-                    checked={rememberId}
-                    onChange={(e) => setRememberId(e.target.checked)}
+                    checked={autoLogin}
+                    onChange={(e) => setAutoLogin(e.target.checked)}
                     className="w-4 h-4 accent-[#2c4cb0] rounded cursor-pointer"
                   />
-                  <span>아이디 저장</span>
+                  <span className="font-extrabold text-[#2c4cb0]">자동로그인</span>
                 </label>
 
                 <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors">
