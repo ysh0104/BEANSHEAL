@@ -117,7 +117,7 @@ export default function Home() {
     e.preventDefault();
     if (!newMemo.trim()) return;
 
-    // 현재 시간 포맷팅
+    // 1. 현재 시간 포맷팅
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -127,11 +127,16 @@ export default function Home() {
     
     const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}`;
 
-    // 부서, 이름, 직급을 조합 (데이터 구조에 맞게 속성명은 조정 가능합니다)
-    const department = user?.department || "";
+    // 2. 부서명에 '팀' 자동 추가 로직
+    let department = user?.department || "";
+    if (department && !department.endsWith("팀")) {
+      department += "팀";
+    }
+
     const name = user?.name || "사용자";
     const position = user?.position || "";
     
+    // 3. 부서, 이름, 직급 조합 (빈 값은 자동으로 걸러냄)
     const authorString = [department, name, position].filter(Boolean).join(" ") || "사용자";
 
     const item = {
