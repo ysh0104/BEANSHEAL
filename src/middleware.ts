@@ -18,6 +18,14 @@ const PROTECTED_ROUTES = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // legacy html 라우트 요청 시 표준 Next.js 라우트로 자동 리다이렉트
+  if (pathname === "/login.html") {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+  if (pathname === "/index.html" || pathname === "/page.html" || pathname === "/page.tsx") {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   // Supabase Auth 토큰 쿠키 존재 여부 확인 (기본 미들웨어 검증)
   const hasAuthToken = request.cookies.getAll().some(cookie => cookie.name.includes("auth-token"));
 

@@ -67,7 +67,7 @@ export default function LoginPage() {
       alert("출근체크가 완료되었습니다. 오늘 하루도 좋은 하루 되세요!");
     }
 
-    router.push("/");
+    window.location.href = "/";
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
