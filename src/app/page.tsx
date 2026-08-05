@@ -116,15 +116,21 @@ function ERPDashboard() {
   const handleAddMemo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemo.trim()) return;
-    // 현재 시간을 구해서 원하는 포맷으로 변환합니다.
+
     const now = new Date();
-    const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    
+    const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}`;
 
     const item = {
       id: Date.now(),
       text: newMemo.trim(),
-      date: formattedDate, // "방금 전" 대신 실제 시간 적용
-      author: user?.name || "사용자" // "관리자"를 이 코드로 변경합니다.
+      date: formattedDate,
+      author: user?.name || "사용자"
     };
 
     const updated = [item, ...memos];
