@@ -19,8 +19,16 @@ const PROTECTED_ROUTES = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 메인 홈페이지(/) 방문 시 Vercel 및 Next.js에서 100% 원본 고객용 HTML(homepage.html)로 직접 리라이트
+  // Supabase Auth 토큰 쿠키 존재 여부 확인 (기본 미들웨어 검증)
+  const hasAuthToken = request.cookies.getAll().some(cookie => cookie.name.includes("auth-token"));
+
+  // 메인 루트(/) 접속 시:
+  // - 로그인된 사원은 사내 업무 ERP 대시보드(/workspace)로 이동
+  // - 일반 방문자는 고객용 공식 HTML 웹사이트(homepage.html)로 라이브 리라이트
   if (pathname === "/") {
+    if (hasAuthToken) {
+      return NextResponse.redirect(new URL("/workspace", request.url));
+    }
     return NextResponse.rewrite(new URL("/homepage.html", request.url));
   }
 
@@ -28,15 +36,12 @@ export function middleware(request: NextRequest) {
   if (pathname === "/login.html") {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (pathname === "/index.html" || pathname === "/page.html" || pathname === "/page.tsx" || pathname === "/homepage.html") {
+  if (pathname === "/index.html" || pathname === "/page.html" || pathname === "/page.tsx") {
     return NextResponse.redirect(new URL("/", request.url));
   }
   if (pathname === "/admin.html") {
     return NextResponse.redirect(new URL("/admin/cms", request.url));
   }
-
-  // Supabase Auth 토큰 쿠키 존재 여부 확인 (기본 미들웨어 검증)
-  const hasAuthToken = request.cookies.getAll().some(cookie => cookie.name.includes("auth-token"));
 
   // 보호 대상 업무 라우트 접근 시 미인증 사용자는 로그인 페이지로 리다이렉트
   const isProtectedRoute = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
