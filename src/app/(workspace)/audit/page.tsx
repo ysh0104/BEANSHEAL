@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { getDashboardItems } from "../actions/database";
+import { getDashboardItems } from "@/app/actions/database";
 import { parseEcountExcel } from "@/utils/excelParser"; 
 import { syncExcelToSupabase } from "@/app/actions/inventoryActions"; 
-import { getRecipeList } from "../actions/recipe"; 
+import { getRecipeList } from "@/app/actions/recipe"; 
 
 const analyzeItemTemplate = (productName: string) => {
   let mainType = "완제품";

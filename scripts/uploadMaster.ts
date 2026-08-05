@@ -30,11 +30,14 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 async function uploadMasterData() {
   console.log("\n🚀 [엑셀 데이터 펌프 가동] 이카운트 기초등록 업로드를 시작합니다...");
 
-  // 2. 엑셀 파일 경로 설정 (프로젝트 맨 바깥 폴더에 'master.xlsx' 라고 저장해야 합니다)
-  const filePath = path.resolve(process.cwd(), 'master.xlsx');
+  // 2. 엑셀 파일 경로 설정 (data/master.xlsx 또는 최상단 master.xlsx)
+  let filePath = path.resolve(process.cwd(), 'data/master.xlsx');
+  if (!fs.existsSync(filePath)) {
+    filePath = path.resolve(process.cwd(), 'master.xlsx');
+  }
   
   if (!fs.existsSync(filePath)) {
-    console.error("❌ 에러: 'master.xlsx' 파일을 찾을 수 없습니다. 프로젝트 최상단 폴더에 넣어주세요.");
+    console.error("❌ 에러: 'master.xlsx' 파일을 찾을 수 없습니다. data/ 폴더 또는 최상단 폴더에 넣어주세요.");
     return;
   }
 

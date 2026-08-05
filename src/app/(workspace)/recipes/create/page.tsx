@@ -1,102 +1,52 @@
 "use client"
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-// 🌟 [수정됨] 이카운트 API 지우고, DB 조회 함수(getMasterItems) 추가
-import { getRecipeDetails, updateRecipeMaster, getMasterItems } from "../../../actions/recipe";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { saveRecipeMaster, getMasterItems } from "@/app/actions/recipe"; 
 
 const AVAILABLE_FORMS = [
   { id: 'weighing', name: '원료 칭량기록서', desc: '원료별 칭량 데이터 및 오차율 기록' },
   { id: 'mixing', name: '배합 공정일지', desc: '배합 순서, 시간 및 온도 관리 기록' },
   { id: 'extraction', name: '추출 공정점검표', desc: '추출 시간, 온도 및 수율 기록' },
-  { id: 'sterilization', name: '살균 공정일지', desc: '살균기 온도 및 유지 시간 기록' },
   { id: 'filling', name: '충진/포장 점검표', desc: '제품 충진량 및 포장 불량 검수 기록' },
   { id: 'ccp', name: 'CCP-2P 일지', desc: '중요관리점(CCP) 한계기준 모니터링' },
   { id: 'shipping', name: '완제품출하승인서', desc: '최종 출하 전 검사 및 승인 기록' }
 ];
 
-export default function RecipeEditPage() {
+export default function RecipeCreatePage() {
   const router = useRouter();
-  const params = useParams();
-  const recipeId = params.id as string;
 
-  const [loading, setLoading] = useState(true);
-  
   const [baseInfo, setBaseInfo] = useState({
     productName: "",
+    productCode: "",
     baseBatchSize: 1000,
     baseUnit: "kg",
     foodType: "건강기능식품", 
-    isCoffee: false
+    isCoffee: false          
   });
 
-  const [materials, setMaterials] = useState<any[]>([]);
-  const [packagingMaterials, setPackagingMaterials] = useState<any[]>([]);
-  const [selectedForms, setSelectedForms] = useState<string[]>([]);
+  const [materials, setMaterials] = useState([
+    { materialName: "", materialCode: "", inputQty: 0, inputUnit: "kg", tolerancePercent: 1, processType: "mixing" }
+  ]);
+
+  const [packagingMaterials, setPackagingMaterials] = useState([
+    { materialName: "", materialCode: "", inputQty: 1, inputUnit: "EA", packagingUnit: 0, processType: "packaging" }
+  ]);
+
+  const [selectedForms, setSelectedForms] = useState<string[]>(
+    AVAILABLE_FORMS.map(f => f.id)
+  );
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchTargetIndex, setSearchTargetIndex] = useState<number | null>(null);
-  const [searchTargetType, setSearchTargetType] = useState<"material" | "packaging" | null>(null);
+  const [searchTargetType, setSearchTargetType] = useState<"material" | "packaging" | "product" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   
-  // 🌟 [수정됨] DB 원본 데이터 저장 및 필터링 상태 추가
   const [allMasterItems, setAllMasterItems] = useState<any[]>([]);
   const [ecountProducts, setEcountProducts] = useState<any[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
+  
   const [isSearching, setIsSearching] = useState(false);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const result = await getRecipeDetails(recipeId);
-        if (result.success && result.baseInfo) {
-          setBaseInfo({
-            productName: result.baseInfo.product_name,
-            baseBatchSize: Number(result.baseInfo.base_batch_size),
-            baseUnit: result.baseInfo.base_unit,
-            foodType: result.baseInfo.food_type || "건강기능식품",
-            isCoffee: result.baseInfo.is_coffee || false
-          });
-          
-          const rawMats = result.materials
-            .filter((m: any) => m.material_type !== '부자재')
-            .map((m: any) => ({
-              materialName: m.material_name,
-              materialCode: m.material_code || "",
-              inputQty: Number(m.input_qty),
-              inputUnit: m.input_unit,
-              tolerancePercent: Number(m.tolerance_percent) || 0,
-              processType: m.process_type || (m.material_name?.includes("원두") ? "grinding" : "mixing")
-            }));
-
-          const packMats = result.materials
-            .filter((m: any) => m.material_type === '부자재')
-            .map((m: any) => ({
-              materialName: m.material_name,
-              materialCode: m.material_code || "",
-              inputQty: Number(m.input_qty) || 1,
-              inputUnit: m.input_unit || "EA",
-              packagingUnit: Number(m.packaging_unit) || 0,
-              processType: m.process_type || "packaging"
-            }));
-
-          setMaterials(rawMats);
-          setPackagingMaterials(packMats);
-          
-          const savedFormIds = result.routings.map((r: any) => r.form_type);
-          setSelectedForms(savedFormIds);
-        } else {
-          alert("데이터를 불러오지 못했습니다.");
-          router.push("/recipes");
-        }
-      } catch (error) {
-        console.error("데이터 로드 에러:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, [recipeId, router]);
 
   const addMaterial = () => setMaterials([...materials, { materialName: "", materialCode: "", inputQty: 0, inputUnit: "kg", tolerancePercent: 1, processType: "mixing" }]);
   const removeMaterial = (index: number) => setMaterials(materials.filter((_, i) => i !== index));
@@ -110,15 +60,14 @@ export default function RecipeEditPage() {
     );
   };
 
-  const openSearchModal = async (index: number, type: "material" | "packaging") => {
+  const openSearchModal = async (index: number | null, type: "material" | "packaging" | "product") => {
     setSearchTargetIndex(index);
     setSearchTargetType(type);
     setIsSearchOpen(true);
-    setSearchQuery(""); // 모달 열 때 이전 검색어 비우기
+    setSearchQuery(""); 
     
     let masterData = allMasterItems;
 
-    // 🌟 1. DB에서 전체 품목 호출 (최초 1회만)
     if (masterData.length === 0) {
       setIsSearching(true);
       try {
@@ -132,15 +81,19 @@ export default function RecipeEditPage() {
       }
     }
 
-    // 🌟 2. 원료/부자재 성격에 맞게 리스트 자동 필터링
     const typeFiltered = masterData.filter(item => {
       const iType = item.item_type || "";
-      if (!iType) return true; // 품목구분이 없는 항목은 노출
+      if (!iType) return true; 
       
-      if (type === "packaging") {
-        return iType.includes("부") || iType.includes("포장");
+      if (type === "product") {
+        // 🌟 [수정] 무형상품과 '반제품(반)'도 검색 목록에서 완벽하게 차단합니다!
+        return (iType.includes("제품") || iType.includes("상품") || iType.includes("완")) 
+               && !iType.includes("무형") 
+               && !iType.includes("반");
+      } else if (type === "packaging") {
+        return iType.includes("부") || iType.includes("자"); 
       } else {
-        return iType.includes("원") //|| iType.includes("반");
+        return iType.includes("원") || iType.includes("반"); 
       }
     });
 
@@ -153,7 +106,6 @@ export default function RecipeEditPage() {
     setSearchQuery(query);
     const lowerQ = query.toLowerCase();
     
-    // 🌟 3. DB 컬럼명(prod_nm, prod_cd)으로 검색 필터링
     setFilteredProducts(ecountProducts.filter(p => 
       (p.prod_nm && p.prod_nm.toLowerCase().includes(lowerQ)) || 
       (p.prod_cd && p.prod_cd.toLowerCase().includes(lowerQ))
@@ -161,36 +113,46 @@ export default function RecipeEditPage() {
   };
 
   const selectEcountProduct = (prodCd: string, prodNm: string) => {
-    if (searchTargetIndex !== null && searchTargetType !== null) {
-      if (searchTargetType === "material") {
-        const newMats = [...materials];
-        newMats[searchTargetIndex].materialCode = prodCd;
-        if (!newMats[searchTargetIndex].materialName) {
-          newMats[searchTargetIndex].materialName = prodNm;
-        }
-        const currentName = newMats[searchTargetIndex].materialName;
-        newMats[searchTargetIndex].processType = currentName.includes("원두") ? "grinding" : "mixing";
-        setMaterials(newMats);
-      } else {
-        const newPacks = [...packagingMaterials];
-        newPacks[searchTargetIndex].materialCode = prodCd;
-        if (!newPacks[searchTargetIndex].materialName) {
-          newPacks[searchTargetIndex].materialName = prodNm;
-        }
-        setPackagingMaterials(newPacks);
+    if (searchTargetType === "product") {
+      // 🌟 [수정] 단), 원), 반) 같이 앞에 붙은 기호 1글자 + ')' 조합을 깔끔하게 지워버립니다.
+      const cleanProdNm = prodNm.replace(/^.\)\s*/, '').trim();
+      setBaseInfo({ ...baseInfo, productName: cleanProdNm, productCode: prodCd });
+    } else if (searchTargetType === "material" && searchTargetIndex !== null) {
+      const newMats = [...materials];
+      newMats[searchTargetIndex].materialCode = prodCd;
+      if (!newMats[searchTargetIndex].materialName) {
+        newMats[searchTargetIndex].materialName = prodNm;
       }
+      const currentName = newMats[searchTargetIndex].materialName;
+      newMats[searchTargetIndex].processType = currentName.includes("원두") ? "grinding" : "mixing";
+      setMaterials(newMats);
+    } else if (searchTargetType === "packaging" && searchTargetIndex !== null) {
+      const newPacks = [...packagingMaterials];
+      newPacks[searchTargetIndex].materialCode = prodCd;
+      if (!newPacks[searchTargetIndex].materialName) {
+        newPacks[searchTargetIndex].materialName = prodNm;
+      }
+      setPackagingMaterials(newPacks);
     }
+    
     setIsSearchOpen(false);
     setSearchTargetIndex(null);
     setSearchTargetType(null);
     setSearchQuery("");
   };
 
-  const handleUpdate = async () => {
+  const handleSave = async () => {
     if (!baseInfo.productName) {
       alert("제품명은 필수입니다.");
       return;
     }
+
+    const routings = AVAILABLE_FORMS
+      .filter(form => selectedForms.includes(form.id))
+      .map(form => ({
+        processName: form.name,
+        formType: form.id
+      }));
 
     const materialsPayload = [
       ...materials.map(m => ({
@@ -208,38 +170,23 @@ export default function RecipeEditPage() {
         materialCode: p.materialCode,
         inputQty: Number(p.inputQty),
         inputUnit: p.inputUnit,
-        tolerancePercent: 0, 
+        tolerancePercent: 0,
         processType: p.processType,
         materialType: '부자재',
         packagingUnit: Number(p.packagingUnit) || 0
       }))
     ];
 
-    const safePayload = {
-      baseInfo: {
-        productName: baseInfo.productName,
-        baseBatchSize: Number(baseInfo.baseBatchSize),
-        baseUnit: baseInfo.baseUnit,
-        foodType: baseInfo.foodType,
-        isCoffee: baseInfo.isCoffee
-      },
-      materials: materialsPayload,
-      routings: AVAILABLE_FORMS
-        .filter(form => selectedForms.includes(form.id))
-        .map(form => ({
-          processName: form.name,
-          formType: form.id
-        }))
-    };
-
-    document.body.style.cursor = 'wait';
+    const payload = { baseInfo, materials: materialsPayload, routings };
+    document.body.style.cursor = 'wait'; 
+    
     try {
-      const result = await updateRecipeMaster(recipeId, safePayload);
+      const result = await saveRecipeMaster(payload);
       if (result.success) {
-        alert("레시피가 성공적으로 수정되었습니다.");
-        router.push("/recipes");
+        alert("마스터 데이터가 성공적으로 저장되었습니다.");
+        router.push("/recipes"); 
       } else {
-        alert(`수정 실패 (서버 메시지): ${result.error}`);
+        alert("저장 실패: " + result.error);
       }
     } catch (err: any) {
       alert(`시스템 에러 발생: ${err.message}`);
@@ -248,30 +195,26 @@ export default function RecipeEditPage() {
     }
   };
 
-  if (loading) return <div className="p-10 text-center font-bold text-gray-500">데이터를 불러오는 중...</div>;
-
   return (
     <div className="max-w-6xl mx-auto pb-24 space-y-8 bg-gray-50/50 p-8 rounded-2xl min-h-screen relative font-sans">
       
+      {/* 헤더 영역 */}
       <div className="flex justify-between items-center pb-6 border-b-2 border-gray-200">
         <div>
-          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">레시피 수정</h2>
-          <p className="text-sm text-gray-500 mt-2 font-medium">마스터 데이터를 수정합니다. 변경 시 기존 지시서의 기준값이 바뀔 수 있습니다.</p>
+          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">새 레시피 등록</h2>
+          <p className="text-sm text-gray-500 mt-2 font-medium">신제품 배합비와 공정별 제조지시서 폼을 매핑합니다.</p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => router.back()} className="px-5 py-2.5 rounded-lg font-bold text-gray-600 border border-gray-300 hover:bg-gray-100 transition-all">취소</button>
-          <button 
-            onClick={handleUpdate}
-            className="bg-gray-800 hover:bg-black text-white px-6 py-3 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2 border border-gray-900"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-            수정사항 저장
-          </button>
-        </div>
+        <button 
+          onClick={handleSave}
+          className="bg-gray-800 hover:bg-black text-white px-6 py-3 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2 border border-gray-900"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+          마스터 데이터 저장
+        </button>
       </div>
 
       {/* 1. 제품 기본 정보 */}
-      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200">
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 text-black">
         <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2 border-b border-gray-100 pb-3">
           <span className="bg-gray-100 border border-gray-300 text-gray-700 px-2.5 py-1 rounded text-xs">Step 1</span> 
           제품 기본 정보
@@ -280,8 +223,19 @@ export default function RecipeEditPage() {
         <div className="grid grid-cols-4 gap-6 mb-6">
           <div className="col-span-2">
             <label className="block text-sm font-bold text-gray-700 mb-2">완제품명</label>
-            <input type="text" className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-900 focus:ring-1 focus:ring-gray-900 focus:border-gray-900 outline-none transition-all bg-gray-50 focus:bg-white" 
-              value={baseInfo.productName} onChange={e => setBaseInfo({...baseInfo, productName: e.target.value})} />
+            <div className="relative group">
+                <input type="text" className="w-full border border-gray-300 rounded-lg p-3 pr-12 text-sm text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-gray-900 focus:border-gray-900 outline-none transition-all bg-gray-50 focus:bg-white" 
+                value={baseInfo.productName} onChange={e => setBaseInfo({...baseInfo, productName: e.target.value})} placeholder="품목을 검색하거나 입력하세요" />
+                <button 
+                    onClick={() => openSearchModal(null, "product")}
+                    className="absolute right-2 top-1.5 p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </button>
+            </div>
+            {baseInfo.productCode && (
+                <p className="text-[11px] text-blue-600 mt-1 font-mono font-bold">선택된 품목코드: {baseInfo.productCode}</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">기준 생산량</label>
@@ -292,9 +246,9 @@ export default function RecipeEditPage() {
             <label className="block text-sm font-bold text-gray-700 mb-2">기준 단위</label>
             <select className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-900 bg-gray-50 focus:bg-white"
               value={baseInfo.baseUnit} onChange={e => setBaseInfo({...baseInfo, baseUnit: e.target.value})}>
-              <option value="kg">kg</option>
-              <option value="L">L</option>
-              <option value="EA">EA</option>
+              <option value="kg">kg (킬로그램)</option>
+              <option value="L">L (리터)</option>
+              <option value="EA">EA (개/포)</option>
             </select>
           </div>
         </div>
@@ -346,8 +300,7 @@ export default function RecipeEditPage() {
               <div className="w-8 h-8 rounded bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm">
                 {idx + 1}
               </div>
-              
-              <div className="w-16 flex justify-center items-center">
+              <div className="w-16 flex justify-center items-center text-black">
                 {mat.processType === 'grinding' ? (
                   <span className="bg-gray-800 text-white text-[11px] font-bold px-2 py-1 rounded shadow-sm">원두분쇄</span>
                 ) : (
@@ -384,13 +337,13 @@ export default function RecipeEditPage() {
                   </div>
               </div>
 
-              <div className="w-28">
+              <div className="w-28 text-black">
                 <input type="number" className="w-full border border-gray-300 rounded-lg p-2 text-gray-900 text-right font-mono focus:border-gray-800 outline-none"
                   value={mat.inputQty} onChange={e => {
                     const newMats = [...materials]; newMats[idx].inputQty = Number(e.target.value); setMaterials(newMats);
                   }}/>
               </div>
-              <div className="w-24">
+              <div className="w-24 text-black">
                 <select className="w-full border border-gray-300 rounded-lg p-2 text-sm text-gray-900 bg-white focus:border-gray-800 outline-none"
                   value={mat.inputUnit} onChange={e => {
                     const newMats = [...materials]; newMats[idx].inputUnit = e.target.value; setMaterials(newMats);
@@ -399,7 +352,7 @@ export default function RecipeEditPage() {
                   <option value="g">g</option>
                 </select>
               </div>
-              <div className="w-32 flex items-center gap-2">
+              <div className="w-32 flex items-center gap-2 text-black">
                 <span className="text-xs font-bold text-gray-500">오차율±</span>
                 <input type="number" className="w-16 border border-gray-300 rounded-lg p-2 text-gray-900 text-center text-sm focus:border-gray-800 outline-none"
                   value={mat.tolerancePercent} onChange={e => {
@@ -463,7 +416,7 @@ export default function RecipeEditPage() {
                   </div>
               </div>
 
-              <div className="w-48 flex items-center gap-2 border border-gray-300 bg-white rounded-lg p-2">
+              <div className="w-48 flex items-center gap-2 border border-gray-300 bg-white rounded-lg p-2 text-black">
                 <span className="text-xs font-bold text-gray-700 whitespace-nowrap">단위 포장량</span>
                 <input type="number" className="w-full border-none text-gray-900 text-right font-mono focus:ring-0 outline-none bg-transparent p-0"
                   placeholder="예: 50"
@@ -496,7 +449,7 @@ export default function RecipeEditPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 text-black">
           {AVAILABLE_FORMS.map((form) => (
             <label key={form.id} className={`flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all ${
               selectedForms.includes(form.id) 
@@ -525,7 +478,9 @@ export default function RecipeEditPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center text-black bg-gray-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-              <h3 className="font-bold text-gray-900 text-lg">DB {searchTargetType === "packaging" ? "부자재" : "원료"} 매핑</h3>
+              <h3 className="font-bold text-gray-900 text-lg">
+                {searchTargetType === "product" ? "완제품/상품" : searchTargetType === "packaging" ? "부자재" : "원료"} 검색
+              </h3>
               <button onClick={() => setIsSearchOpen(false)} className="text-gray-400 hover:text-gray-900">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>

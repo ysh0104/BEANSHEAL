@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getRecipeList, deleteRecipe } from "../actions/recipe";
+import { getRecipeList, deleteRecipe } from "@/app/actions/recipe";
 
 export default function RecipeListPage() {
   const [recipes, setRecipes] = useState<any[]>([]);

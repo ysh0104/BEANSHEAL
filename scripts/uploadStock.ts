@@ -36,10 +36,13 @@ function normalizeName(name: string) {
 async function uploadStockData() {
   console.log("\n🚀 [마스터 재고 펌프 & 좀비 자동청소] 시스템 가동...");
 
-  const filePath = path.resolve(process.cwd(), 'stock.xlsx');
+  let filePath = path.resolve(process.cwd(), 'data/stock.xlsx');
+  if (!fs.existsSync(filePath)) {
+    filePath = path.resolve(process.cwd(), 'stock.xlsx');
+  }
   
   if (!fs.existsSync(filePath)) {
-    console.error("❌ 에러: 'stock.xlsx' 파일을 찾을 수 없습니다. 프로젝트 최상단 폴더에 넣어주세요.");
+    console.error("❌ 에러: 'stock.xlsx' 파일을 찾을 수 없습니다. data/ 폴더 또는 최상단 폴더에 넣어주세요.");
     return;
   }
 

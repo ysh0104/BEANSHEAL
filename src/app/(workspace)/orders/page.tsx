@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import SignatureCanvas from 'react-signature-canvas';
 
 import { supabase } from "@/utils/supabase"; 
-import { getRecipeList, getRecipeDetails } from "../actions/recipe";
+import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe";
 
 import CoverPage from "@/components/CoverPage";
 import ManufacturingLog from "@/components/ManufacturingLog";

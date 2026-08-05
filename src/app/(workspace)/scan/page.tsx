@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Html5QrcodeScanner } from "html5-qrcode";
 // ★ 수정 완료: processScan 함수 임포트 및 절대경로(@) 사용 ★
-import { processScan } from "../actions/inventory";
+import { processScan } from "@/app/actions/inventory";
 
 export default function ScanPage() {
   const [scanResult, setScanResult] = useState<string | null>(null);
