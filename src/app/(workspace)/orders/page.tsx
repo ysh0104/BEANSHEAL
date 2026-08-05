@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import SignatureCanvas from 'react-signature-canvas';
 
-import { supabase } from "@/utils/supabase"; 
+import { supabase } from "@/lib/supabase"; 
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe";
 
 import CoverPage from "@/components/CoverPage";
