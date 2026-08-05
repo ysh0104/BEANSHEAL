@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { getRecipeList } from "@/app/actions/recipe"; 
 import { 
   syncNotionWithSupabase, 
@@ -15,6 +16,7 @@ const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
 
 export default function Home() {
+  const { user } = useAuth();
   const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
 
   // 달력 및 메모장용 State
@@ -115,11 +117,22 @@ export default function Home() {
     e.preventDefault();
     if (!newMemo.trim()) return;
 
+    // 1. 현재 시간 구하기
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    
+    const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}`;
+
+    // 2. 새 메모 객체 생성
     const item = {
       id: Date.now(),
       text: newMemo.trim(),
-      date: "방금 전",
-      author: "관리자"
+      date: formattedDate, // 실제 시간으로 변경
+      author: user?.name || "사용자" // 로그인한 이름으로 변경
     };
 
     const updated = [item, ...memos];

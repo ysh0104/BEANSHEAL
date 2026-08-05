@@ -456,7 +456,7 @@ function ERPDashboard() {
       <div className="flex justify-between items-center pb-4 border-b border-gray-200">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-            <span>BEANSHEAL 대시보드</span>
+            <span>BEANSHEAL 대시보드 테스트</span>
             <span className="text-xs bg-blue-100 text-blue-800 font-extrabold px-2.5 py-0.5 rounded border border-blue-200">ERP 그리드 커스텀</span>
           </h2>
           <p className="text-sm text-gray-500 mt-1">상단 <strong>⣿ 핸들</strong>로 순서를 변경하고, 우측 하단 <strong>⤡ 코너</strong>를 끌어 가로/세로 크기를 커스텀하세요.</p>
