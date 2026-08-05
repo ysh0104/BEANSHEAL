@@ -100,8 +100,8 @@ export default function Home() {
     widthPct: number;
     heightPx: number;
   }>>([
-    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 480 },
-    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 480 },
+    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 640 },
+    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 640 },
   ]);
 
   const [draggedWidgetId, setDraggedWidgetId] = useState<string | null>(null);
@@ -494,8 +494,8 @@ export default function Home() {
 
   const resetWidgetLayout = () => {
     const defaultConfig = [
-      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 480 },
-      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 480 },
+      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 640 },
+      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 640 },
     ];
     saveWidgetConfigs(defaultConfig);
   };
