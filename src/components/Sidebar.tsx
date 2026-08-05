@@ -69,13 +69,13 @@ export default function Sidebar() {
 
   return (
     <>
-      <header className="bg-[#0b0b0b]/90 backdrop-blur-md text-zinc-100 sticky top-0 z-50 border-b border-zinc-800/80 font-sans">
+      <header className="bg-white/95 backdrop-blur-md text-slate-900 sticky top-0 z-50 border-b border-slate-200 shadow-2xs font-sans">
         <div className="max-w-7xl mx-auto px-4 md:px-6 flex items-center justify-between h-14 gap-3 whitespace-nowrap">
           
           {/* 좌측 로고 홈 링크 */}
           <div className="flex items-center gap-4 shrink-0">
-            <Link href="https://beansheal.vercel.app/workspace#" className="flex items-center group cursor-pointer">
-              <h1 className="text-xl md:text-2xl font-black tracking-tight text-white group-hover:text-zinc-300 transition-colors">
+            <Link href="/workspace" className="flex items-center group cursor-pointer">
+              <h1 className="text-xl md:text-2xl font-black tracking-tight text-slate-900 group-hover:text-indigo-600 transition-colors">
                 BEANSHEAL
               </h1>
             </Link>
@@ -98,20 +98,20 @@ export default function Sidebar() {
                     onClick={() => setActiveDropdown(isOpen ? null : group.name)}
                     className={`flex items-center gap-1 px-2.5 py-1.5 text-xs md:text-sm font-bold rounded-md transition-all duration-200 cursor-pointer ${
                       hasActiveChild 
-                        ? "bg-zinc-800 text-white font-extrabold" 
-                        : "text-zinc-400 hover:bg-zinc-800/50 hover:text-white"
+                        ? "bg-slate-100 text-indigo-700 font-extrabold border border-slate-200" 
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                   >
                     <span>{group.name}</span>
-                    <svg className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180 text-white" : "text-zinc-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180 text-indigo-600" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
 
-                  {/* Dropdown Menu - zero gap hit area for smooth hover and click navigation */}
+                  {/* Dropdown Menu - 화사한 화이트 서브 메뉴 스티키 */}
                   {isOpen && (
                     <div className="absolute left-0 top-full pt-1.5 w-56 z-50 animate-fadeIn">
-                      <div className="bg-[#121214] text-zinc-100 rounded-xl shadow-2xl border border-zinc-800 py-1.5 backdrop-blur-xl">
+                      <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200/90 py-1.5 backdrop-blur-xl">
                         {group.items.map((item) => {
                           const isActive = pathname.startsWith(item.path);
                           return (
@@ -121,8 +121,8 @@ export default function Sidebar() {
                               onClick={() => setActiveDropdown(null)}
                               className={`block px-4 py-2.5 text-sm font-bold transition-all duration-150 ${
                                 isActive 
-                                  ? "bg-zinc-800 text-white font-extrabold border-l-4 border-white" 
-                                  : "text-zinc-400 hover:bg-zinc-800/60 hover:text-white"
+                                  ? "bg-indigo-50 text-indigo-700 font-extrabold border-l-4 border-indigo-600" 
+                                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                               }`}
                             >
                               {item.name}
@@ -140,22 +140,22 @@ export default function Sidebar() {
           {/* 우측 사용자 프로필 및 로그인/로그아웃 */}
           <div className="flex items-center gap-2 text-xs shrink-0">
             {user ? (
-              <div className="flex items-center gap-1.5">
-                <div className="bg-zinc-900/90 text-zinc-200 border border-zinc-800 px-2.5 py-1 rounded-full font-bold flex items-center gap-1.5 shadow-2xs whitespace-nowrap shrink-0">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-                  <span className="text-xs font-extrabold text-white">{user.name}</span>
-                  <span className="text-[10px] text-zinc-400 font-medium">
+              <div className="flex items-center gap-2">
+                <div className="bg-slate-100 text-slate-800 border border-slate-200 px-3 py-1 rounded-full font-bold flex items-center gap-1.5 shadow-2xs whitespace-nowrap shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                  <span className="text-xs font-extrabold text-slate-900">{user.name}</span>
+                  <span className="text-[10px] text-slate-500 font-medium">
                     ({user.jobTitle ? user.jobTitle : `${user.department || '생산'} ${user.position || '사원'}`})
                   </span>
                   {user.provider === "google" && (
-                    <span className="text-[9px] bg-blue-950 text-blue-300 border border-blue-800 px-1.5 py-0.2 rounded font-extrabold shrink-0">
+                    <span className="text-[9px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.2 rounded font-extrabold shrink-0">
                       Google
                     </span>
                   )}
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="text-zinc-400 hover:text-red-400 text-xs font-bold px-1.5 py-1 rounded hover:bg-zinc-800/60 transition-colors cursor-pointer shrink-0"
+                  className="text-slate-500 hover:text-red-600 text-xs font-bold px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                   title="로그아웃"
                 >
                   로그아웃
@@ -164,7 +164,7 @@ export default function Sidebar() {
             ) : (
               <button
                 onClick={() => setIsLoginModalOpen(true)}
-                className="bg-white hover:bg-zinc-200 text-black font-extrabold px-3.5 py-1.5 rounded-full shadow-xs transition-colors cursor-pointer text-xs shrink-0"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3.5 py-1.5 rounded-full shadow-xs transition-colors cursor-pointer text-xs shrink-0"
               >
                 로그인
               </button>
