@@ -78,19 +78,37 @@ async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ dat
   }
 }
 
+function getEffectiveConfig(config?: NotionConfig) {
+  const apiKey = (config?.apiKey && config.apiKey.trim()) || process.env.NOTION_API_KEY || "";
+  const rawDbId = (config?.databaseId && config.databaseId.trim()) || process.env.NOTION_DATABASE_ID || "";
+  return { apiKey, rawDbId };
+}
+
+/**
+ * Vercel 서버 환경변수(NOTION_API_KEY, NOTION_DATABASE_ID) 설정 상태 확인
+ */
+export async function getNotionConfigStatus() {
+  const hasEnvKey = !!(process.env.NOTION_API_KEY && process.env.NOTION_API_KEY.trim());
+  const hasEnvDb = !!(process.env.NOTION_DATABASE_ID && process.env.NOTION_DATABASE_ID.trim());
+  return {
+    isConfigured: hasEnvKey && hasEnvDb,
+    hasEnvKey,
+    hasEnvDb,
+  };
+}
+
 /**
  * 노션 API 연결 테스트
  */
 export async function testNotionConnection(config?: NotionConfig) {
   try {
-    const apiKey = config?.apiKey || process.env.NOTION_API_KEY;
-    const rawDbId = config?.databaseId || process.env.NOTION_DATABASE_ID;
+    const { apiKey, rawDbId } = getEffectiveConfig(config);
 
     if (!apiKey) {
-      return { success: false, message: "Notion API Key가 설정되지 않았습니다." };
+      return { success: false, message: "Notion API Key가 설정되지 않았습니다 (Vercel 환경변수 또는 개별 키 입력 필요)." };
     }
     if (!rawDbId) {
-      return { success: false, message: "Notion Database ID가 설정되지 않았습니다." };
+      return { success: false, message: "Notion Database ID가 설정되지 않았습니다 (Vercel 환경변수 또는 개별 DB ID 입력 필요)." };
     }
 
     const { databaseId, dbData } = await resolveDatabaseId(rawDbId, apiKey);
@@ -109,7 +127,7 @@ export async function testNotionConnection(config?: NotionConfig) {
     let userMsg = error?.message || "연결 실패";
     if (userMsg.includes("Could not find database") || userMsg.includes("Could not find page")) {
       userMsg = "노션에서 해당 페이지/데이터베이스를 찾을 수 없습니다.\n\n" +
-        "1. 입력하신 Notion API Key가 노션 워크스페이스와 일치하는지 확인해 주세요.\n" +
+        "1. Vercel 환경변수 또는 입력하신 Notion API Key가 노션 워크스페이스와 일치하는지 확인해 주세요.\n" +
         "2. 해당 노션 페이지 우측 상단 [...] ➔ '연결 추가(Add connections)'에서 [BEANSHEAL]을 정상 선택하셨는지 확인해 주세요.";
     }
     return {
@@ -124,8 +142,7 @@ export async function testNotionConnection(config?: NotionConfig) {
  */
 export async function fetchNotionSchedules(config?: NotionConfig) {
   try {
-    const apiKey = config?.apiKey || process.env.NOTION_API_KEY;
-    const rawDbId = config?.databaseId || process.env.NOTION_DATABASE_ID;
+    const { apiKey, rawDbId } = getEffectiveConfig(config);
 
     if (!apiKey || !rawDbId) {
       return {
@@ -247,11 +264,10 @@ export async function createNotionSchedule(
   config?: NotionConfig
 ) {
   try {
-    const apiKey = config?.apiKey || process.env.NOTION_API_KEY;
-    const rawDbId = config?.databaseId || process.env.NOTION_DATABASE_ID;
+    const { apiKey, rawDbId } = getEffectiveConfig(config);
 
     if (!apiKey || !rawDbId) {
-      return { success: false, message: "Notion API 설정이 필요합니다." };
+      return { success: false, message: "Notion API 설정이 필요합니다 (Vercel 환경변수 또는 개별 설정)." };
     }
 
     const { databaseId, dbData } = await resolveDatabaseId(rawDbId, apiKey);
@@ -333,7 +349,7 @@ export async function createNotionSchedule(
  */
 export async function deleteNotionSchedule(pageId: string, config?: NotionConfig) {
   try {
-    const apiKey = config?.apiKey || process.env.NOTION_API_KEY;
+    const { apiKey } = getEffectiveConfig(config);
     if (!apiKey) return { success: false, message: "Notion API Key가 필요합니다." };
 
     await notionFetch(`/pages/${pageId}`, apiKey, {
@@ -361,7 +377,6 @@ export async function syncNotionWithSupabase(config?: NotionConfig) {
     const notionItems = notionRes.data;
     let importedCount = 0;
 
-    // Supabase DB 동기화 시도 (Supabase 연동 안된 경우 예외 안전 처리)
     try {
       const { data: sbItems, error: sbError } = await supabase
         .from("production_schedules")
@@ -420,10 +435,8 @@ export async function updateScheduleDate(
   try {
     let notionUpdated = false;
 
-    // 1. 노션 연동된 항목인 경우 노션 날짜 수정
     if (notionPageId) {
-      const apiKey = config?.apiKey || process.env.NOTION_API_KEY;
-      const rawDbId = config?.databaseId || process.env.NOTION_DATABASE_ID;
+      const { apiKey, rawDbId } = getEffectiveConfig(config);
 
       if (apiKey) {
         let datePropName = "Date";

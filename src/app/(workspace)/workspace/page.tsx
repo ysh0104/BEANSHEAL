@@ -9,7 +9,8 @@ import {
   fetchNotionSchedules,
   testNotionConnection, 
   deleteNotionSchedule,
-  updateScheduleDate
+  updateScheduleDate,
+  getNotionConfigStatus
 } from "@/app/actions/notionActions";
 
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
@@ -84,13 +85,20 @@ export default function Home() {
   const [isNotionModalOpen, setIsNotionModalOpen] = useState(false);
   const [notionApiKey, setNotionApiKey] = useState("");
   const [notionDatabaseId, setNotionDatabaseId] = useState("");
+  const [isVercelNotionConfigured, setIsVercelNotionConfigured] = useState(false);
   const [isSyncingNotion, setIsSyncingNotion] = useState(false);
   const [syncToNotionChecked, setSyncToNotionChecked] = useState(true);
   const [testStatusMsg, setTestStatusMsg] = useState("");
   const [isTestingConn, setIsTestingConn] = useState(false);
   const [draggedSchedule, setDraggedSchedule] = useState<any | null>(null);
-  
-  
+
+  // 현재 유효한 노션 설정 객체 반환 헬퍼 (개별 커스텀 키가 없으면 undefined를 넘겨 Vercel 환경변수 사용)
+  const getNotionConfig = () => {
+    if (notionApiKey.trim() && notionDatabaseId.trim()) {
+      return { apiKey: notionApiKey.trim(), databaseId: notionDatabaseId.trim() };
+    }
+    return undefined;
+  };
 
   // 🌟 마이 대시보드 그리드 커스텀 State
   const [isGridSnapEnabled, setIsGridSnapEnabled] = useState(true);
@@ -144,6 +152,12 @@ export default function Home() {
         if (savedKey) setNotionApiKey(savedKey);
         if (savedDbId) setNotionDatabaseId(savedDbId);
 
+        // Vercel 서버 환경변수 연동 상태 체크
+        try {
+          const status = await getNotionConfigStatus();
+          setIsVercelNotionConfigured(status.isConfigured);
+        } catch (e) {}
+
         const savedMemos = localStorage.getItem("beansheal_memos");
         if (savedMemos) setMemos(JSON.parse(savedMemos));
         else {
@@ -155,15 +169,15 @@ export default function Home() {
           localStorage.setItem("beansheal_memos", JSON.stringify(defaultMemos));
         }
 
-        if (savedKey && savedDbId) {
-          try {
-            const notionRes = await fetchNotionSchedules({ apiKey: savedKey, databaseId: savedDbId });
-            if (notionRes?.success && notionRes.data) {
-              setSchedules(notionRes.data);
-            }
-          } catch (err) {
-            console.error("노션 자동 갱신 오류:", err);
+        // 노션 달력 생산 일정 갱신 (Vercel 환경변수 또는 개별 설정으로 무조건 자동 로드)
+        try {
+          const notionConfig = (savedKey && savedDbId) ? { apiKey: savedKey, databaseId: savedDbId } : undefined;
+          const notionRes = await fetchNotionSchedules(notionConfig);
+          if (notionRes?.success && notionRes.data && notionRes.data.length > 0) {
+            setSchedules(notionRes.data);
           }
+        } catch (err) {
+          console.error("노션 자동 갱신 오류:", err);
         }
       } catch (e) {
         console.error(e);
@@ -247,7 +261,7 @@ export default function Home() {
 
     let notionPageId = undefined;
 
-    if (syncToNotionChecked && notionApiKey && notionDatabaseId) {
+    if (syncToNotionChecked) {
       try {
         setIsSyncingNotion(true);
         const res = await createNotionSchedule(
@@ -256,7 +270,7 @@ export default function Home() {
             product_name: planProduct,
             quantity: planQty
           },
-          { apiKey: notionApiKey, databaseId: notionDatabaseId }
+          getNotionConfig()
         );
 
         if (res.success && res.pageId) {
@@ -277,9 +291,9 @@ export default function Home() {
 
   const handleDeleteSchedule = async (id: number, notionPageId?: string) => {
     setSchedules((prev) => prev.filter((s) => s.id !== id));
-    if (notionPageId && notionApiKey) {
+    if (notionPageId) {
       try {
-        await deleteNotionSchedule(notionPageId, { apiKey: notionApiKey, databaseId: notionDatabaseId });
+        await deleteNotionSchedule(notionPageId, getNotionConfig());
       } catch (e) {
         console.error(e);
       }
@@ -287,17 +301,14 @@ export default function Home() {
   };
 
   const handleNotionSync = async () => {
-    if (!notionApiKey || !notionDatabaseId) {
-      setIsNotionModalOpen(true);
-      return;
-    }
-
     try {
       setIsSyncingNotion(true);
-      const res = await fetchNotionSchedules({ apiKey: notionApiKey, databaseId: notionDatabaseId });
+      const res = await fetchNotionSchedules(getNotionConfig());
       if (res?.success && res.data) {
         setSchedules(res.data);
         alert(`성공적으로 노션 데이터(${res.data.length}건)를 동기화했습니다!`);
+      } else if (res?.message) {
+        alert(res.message);
       }
     } catch (err) {
       alert("노션 동기화 중 오류가 발생했습니다.");
@@ -315,11 +326,10 @@ export default function Home() {
   };
 
   const handleTestNotionConnection = async () => {
-    if (!notionApiKey || !notionDatabaseId) return;
     setIsTestingConn(true);
     setTestStatusMsg("연결 테스트 중...");
 
-    const res = await testNotionConnection({ apiKey: notionApiKey.trim(), databaseId: notionDatabaseId.trim() });
+    const res = await testNotionConnection(getNotionConfig());
     setIsTestingConn(false);
     if (res.success) {
       setTestStatusMsg(`✅ ${res.message}`);
@@ -354,9 +364,9 @@ export default function Home() {
       return updated;
     });
 
-    if (movingSch.notion_page_id && notionApiKey) {
+    if (movingSch.notion_page_id) {
       try {
-        await updateScheduleDate(movingSch.id, targetDateStr, movingSch.notion_page_id, { apiKey: notionApiKey, databaseId: notionDatabaseId });
+        await updateScheduleDate(movingSch.id, targetDateStr, movingSch.notion_page_id, getNotionConfig());
       } catch (err) {
         console.error(err);
       }
@@ -847,9 +857,21 @@ export default function Home() {
             </div>
 
             <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {isVercelNotionConfigured && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-900 flex items-start gap-2">
+                  <span className="text-base leading-none text-emerald-600 font-bold">✓</span>
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-emerald-950">Vercel 서버 환경변수(NOTION_API_KEY, NOTION_DATABASE_ID) 전사 자동 연동 중</p>
+                    <p className="text-[11px] text-emerald-800 leading-relaxed">
+                      서버 환경변수가 등록되어 있어 전사 어떤 컴퓨터나 계정에서도 개별 설정 없이 노션 데이터가 자동으로 연동됩니다. (특정 커스텀 노션 키를 사용하하려는 경우에만 아래에 직접 입력해 주세요.)
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 space-y-1.5">
                 <p className="font-bold flex items-center gap-1">
-                  노션 API 연동 3단계 가이드
+                  노션 API 개별 설정 가이드 (선택 사항)
                 </p>
                 <ol className="list-decimal list-inside space-y-1 text-[11px] leading-relaxed text-blue-800">
                   <li>
@@ -866,28 +888,28 @@ export default function Home() {
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-gray-700 flex items-center justify-between">
-                  <span>Notion API Key (Internal Integration Secret)</span>
-                  <span className="text-[10px] text-gray-400 font-normal">ntn_... 또는 secret_...</span>
+                  <span>Notion API Key (선택 사항)</span>
+                  <span className="text-[10px] text-gray-400 font-normal">비워두면 Vercel 서버 환경변수 사용</span>
                 </label>
                 <input
                   type="password"
                   value={notionApiKey}
                   onChange={(e) => setNotionApiKey(e.target.value)}
-                  placeholder="ntn_..."
+                  placeholder={isVercelNotionConfigured ? "Vercel 환경변수 사용 중 (개별 입력 가능)" : "ntn_..."}
                   className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none font-mono"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-gray-700 flex items-center justify-between">
-                  <span>Notion Database ID</span>
-                  <span className="text-[10px] text-gray-400 font-normal">URL의 32자리 문구</span>
+                  <span>Notion Database ID (선택 사항)</span>
+                  <span className="text-[10px] text-gray-400 font-normal">비워두면 Vercel 서버 환경변수 사용</span>
                 </label>
                 <input
                   type="text"
                   value={notionDatabaseId}
                   onChange={(e) => setNotionDatabaseId(e.target.value)}
-                  placeholder="예: c8e9a1b2c3d4e5f6a7b8c9d0e1f2a3b4"
+                  placeholder={isVercelNotionConfigured ? "Vercel 환경변수 사용 중 (개별 입력 가능)" : "예: c8e9a1b2c3d4e5f6a7b8c9d0e1f2a3b4"}
                   className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none font-mono"
                 />
               </div>
@@ -907,7 +929,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={handleTestNotionConnection}
-                disabled={isTestingConn || !notionApiKey || !notionDatabaseId}
+                disabled={isTestingConn || (!notionApiKey && !notionDatabaseId && !isVercelNotionConfigured)}
                 className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
                 {isTestingConn ? "확인 중..." : "연결 테스트"}
