@@ -13,16 +13,16 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
 
   if (isFullWidthPage) {
     return (
-      <div className="w-full min-h-screen bg-white text-gray-900 m-0 p-0 overflow-x-hidden">
+      <div className="w-full min-h-screen bg-white text-slate-900 m-0 p-0 overflow-x-hidden">
         {children}
       </div>
     );
   }
 
   // 사내 업무 ERP 관련 페이지(/workspace, /inventory 등)인 경우:
-  // 푸른 기 없는 순수 무채색 연회색 라이트 배경(bg-gray-100 text-gray-900) 적용
+  // 원래의 화사한 라이트 슬레이트 배경(bg-slate-100 text-slate-900) 적용
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900 flex flex-col antialiased">
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col antialiased">
       <Sidebar />
       <main className="flex-1 overflow-y-auto p-4 md:p-6 max-w-7xl mx-auto w-full">
         {children}

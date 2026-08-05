@@ -718,14 +718,14 @@ export default function Home() {
                                   handleDropOnCell(e, cellDateStr);
                                 }
                               }}
-                              className={`border border-gray-200 p-1 flex flex-col justify-start items-start relative h-full w-full ${
-                                day ? 'bg-white hover:bg-indigo-50/60 shadow-2xs' : 'bg-gray-100/50'
+                              className={`border border-slate-200 p-1 flex flex-col justify-start items-start relative h-full w-full ${
+                                day ? 'bg-white hover:bg-indigo-50/60 shadow-2xs' : 'bg-slate-50/50'
                               } transition-colors rounded overflow-hidden`}
                             >
                               {day && (
                                 <>
                                   <div className="w-full flex justify-between items-center mb-0.5">
-                                    <span className={`text-[11px] font-extrabold ${isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : 'text-gray-700 ml-0.5'}`}>
+                                    <span className={`text-[11px] font-extrabold ${isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : 'text-slate-600 ml-0.5'}`}>
                                       {day}
                                     </span>
                                   </div>
@@ -740,15 +740,15 @@ export default function Home() {
                                             e.stopPropagation();
                                             handleDragStart(e, sch);
                                           }}
-                                          // 🌟 깔끔한 화이트 카드 배경 (푸른 기 없는 순수 무채색)
-                                          className="bg-white border border-gray-200 rounded-md p-1.5 shadow-2xs hover:border-gray-300 hover:shadow-xs transition-all cursor-grab active:cursor-grabbing text-left space-y-1"
+                                          // 🌟 원본 화사한 라이트 슬레이트 톤 카드 배경
+                                          className="bg-white border border-slate-200/90 rounded-md p-1.5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-grab active:cursor-grabbing text-left space-y-1"
                                           title={`품목: ${sch.product_name}\n수량: ${sch.quantity}${sch.tag_name ? `\n태그: ${sch.tag_name}` : ''}${sch.note ? `\n비고: ${sch.note}` : ''}`}
                                         >
                                           {/* 🌟 1. 글씨 잘림 없이 전체 품목명 & 수량 출력 (줄바꿈 허용) */}
-                                          <div className="text-[11px] font-semibold text-gray-900 leading-snug break-words whitespace-normal">
+                                          <div className="text-[11px] font-semibold text-slate-900 leading-snug break-words whitespace-normal">
                                             {sch.product_name}
                                             {sch.quantity && sch.quantity !== "1" && (
-                                              <span className="text-gray-500 font-semibold ml-1">({sch.quantity})</span>
+                                              <span className="text-slate-500 font-semibold ml-1">({sch.quantity})</span>
                                             )}
                                           </div>
 
