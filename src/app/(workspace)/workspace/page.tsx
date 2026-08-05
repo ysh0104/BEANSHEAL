@@ -39,29 +39,29 @@ const getNotionColorClass = (colorStr?: string) => {
   }
 };
 
-// 🌟 노션 고유 색상을 직관적인 둥근 점(Dot) 색상값(HEX)으로 변환하는 함수
-const getNotionDotColor = (colorStr?: string) => {
-  if (!colorStr) return "#2563eb";
+// 🌟 노션 고유 색상을 파스텔 톤 뱃지 스타일로 변환하는 함수
+const getNotionTagBadgeClass = (colorStr?: string) => {
+  if (!colorStr) return "bg-emerald-100 text-emerald-800 border border-emerald-200";
   switch (colorStr) {
     case "blue":
-    case "blue_background": return "#2563eb";
+    case "blue_background": return "bg-blue-100 text-blue-800 border border-blue-200";
     case "green":
-    case "green_background": return "#16a34a";
+    case "green_background": return "bg-emerald-100 text-emerald-800 border border-emerald-200";
     case "red":
-    case "red_background": return "#dc2626";
+    case "red_background": return "bg-red-100 text-red-800 border border-red-200";
     case "yellow":
-    case "yellow_background": return "#ca8a04";
+    case "yellow_background": return "bg-amber-100 text-amber-800 border border-amber-200";
     case "pink":
-    case "pink_background": return "#db2777";
+    case "pink_background": return "bg-pink-100 text-pink-800 border border-pink-200";
     case "purple":
-    case "purple_background": return "#9333ea";
+    case "purple_background": return "bg-purple-100 text-purple-800 border border-purple-200";
     case "orange":
-    case "orange_background": return "#ea580c";
+    case "orange_background": return "bg-orange-100 text-orange-800 border border-orange-200";
     case "brown":
-    case "brown_background": return "#b45309";
+    case "brown_background": return "bg-amber-100 text-amber-900 border border-amber-300";
     case "gray":
-    case "gray_background": return "#4b5563";
-    default: return "#2563eb";
+    case "gray_background": return "bg-gray-200 text-gray-800 border border-gray-300";
+    default: return "bg-slate-100 text-slate-800 border border-slate-200";
   }
 };
 
@@ -696,10 +696,6 @@ export default function Home() {
                           
                           const normalizeDateStr = (d?: string) => d ? String(d).split("T")[0].trim() : "";
                           const daySchedules = cellDateStr ? schedules.filter(s => normalizeDateStr(s.plan_date) === cellDateStr) : [];
-                          const maxVisible = 3;
-                          const visibleSchedules = daySchedules.slice(0, maxVisible);
-                          const extraCount = daySchedules.length - maxVisible;
-
                           return (
                             <div 
                               key={idx} 
@@ -715,8 +711,8 @@ export default function Home() {
                                   handleDropOnCell(e, cellDateStr);
                                 }
                               }}
-                              className={`border border-slate-200 p-1.5 flex flex-col justify-start items-start relative h-full w-full min-h-[95px] ${
-                                day ? 'bg-white hover:bg-indigo-50/60 shadow-2xs' : 'bg-slate-50/50'
+                              className={`border border-slate-200 p-1.5 flex flex-col justify-start items-start relative h-full w-full min-h-[110px] ${
+                                day ? 'bg-white hover:bg-indigo-50/40 shadow-2xs' : 'bg-slate-50/50'
                               } transition-colors rounded-lg overflow-hidden`}
                             >
                               {day && (
@@ -732,12 +728,9 @@ export default function Home() {
                                     )}
                                   </div>
 
-                                  <div className="w-full space-y-1 mt-0.5 flex-1 min-h-0 overflow-y-auto pr-0.5">
-                                    {visibleSchedules.map(sch => {
-                                      const colorClass = sch.tag_color 
-                                        ? getNotionColorClass(sch.tag_color) 
-                                        : (sch.notion_page_id ? "bg-slate-100 text-slate-900 border-slate-300" : "bg-blue-100 text-blue-900 border-blue-200");
-
+                                  {/* 🌟 노션 카드 스타일: DOT 제거, N마크 제거, 글씨 전체 노출(줄바꿈), 하단 파스텔 태그 배치, 전체 일정 자유 열람 */}
+                                  <div className="w-full space-y-1.5 mt-0.5 flex-1 min-h-0 overflow-y-auto pr-0.5 custom-scrollbar">
+                                    {daySchedules.map(sch => {
                                       return (
                                         <div 
                                           key={sch.id} 
@@ -746,40 +739,28 @@ export default function Home() {
                                             e.stopPropagation();
                                             handleDragStart(e, sch);
                                           }}
-                                          // 🌟 글씨 크기 11px Bold 상향, 내부 패딩 확충(px-2 py-1.5), Dot 색상 태그 디자인 및 상세 툴팁 적용
-                                          className={`text-[11px] font-bold px-2 py-1.5 rounded-md shadow-xs border flex items-center justify-between gap-1.5 cursor-grab active:cursor-grabbing hover:scale-[1.02] transition-all ${colorClass}`} 
+                                          className="bg-white border border-slate-200/90 rounded-lg p-2 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-grab active:cursor-grabbing text-left space-y-1"
                                           title={`품목: ${sch.product_name}\n수량: ${sch.quantity}${sch.tag_name ? `\n태그: ${sch.tag_name}` : ''}${sch.note ? `\n비고: ${sch.note}` : ''}`}
                                         >
-                                          <div className="flex items-center gap-1.5 overflow-hidden min-w-0 flex-1">
-                                            {/* 🌟 태그 텍스트 대신 색상이 들어간 선명한 둥근 점(Dot)으로 교체 및 호버 툴팁 지원 */}
-                                            {sch.tag_name && (
-                                              <span 
-                                                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-2xs inline-block"
-                                                style={{ backgroundColor: getNotionDotColor(sch.tag_color) }}
-                                                title={`태그: ${sch.tag_name}`}
-                                              />
+                                          {/* 🌟 1. 글씨 잘림 없이 전체 품목명 & 수량 출력 (DOT 및 N 마크 완전 제거) */}
+                                          <div className="text-xs font-bold text-slate-900 leading-snug break-words whitespace-normal">
+                                            {sch.product_name}
+                                            {sch.quantity && sch.quantity !== "1" && (
+                                              <span className="text-slate-500 font-semibold ml-1">({sch.quantity})</span>
                                             )}
-                                            <span className="truncate text-[11px] font-bold leading-snug">{sch.product_name}</span>
                                           </div>
 
-                                          <div className="flex items-center gap-1 shrink-0">
-                                            <span className="text-[10px] font-extrabold opacity-80 bg-black/10 px-1 py-0.2 rounded">
-                                              {sch.quantity}
-                                            </span>
-                                            {sch.notion_page_id && (
-                                              <span className="text-[9px] opacity-70 font-black shrink-0 bg-slate-900 text-white px-1 rounded" title="노션 동기화 항목">
-                                                N
+                                          {/* 🌟 2. 태그가 있는 경우 하단에 노션 스타일 파스텔 톤 뱃지로 깔끔하게 배치 */}
+                                          {sch.tag_name && (
+                                            <div className="flex flex-wrap gap-1 pt-0.5">
+                                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getNotionTagBadgeClass(sch.tag_color)}`}>
+                                                {sch.tag_name}
                                               </span>
-                                            )}
-                                          </div>
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })}
-                                    {extraCount > 0 && (
-                                      <div className="text-[10px] text-indigo-700 font-bold text-center bg-indigo-50 border border-indigo-100 rounded py-0.5">
-                                        +{extraCount}개 더보기
-                                      </div>
-                                    )}
                                   </div>
                                 </>
                               )}
