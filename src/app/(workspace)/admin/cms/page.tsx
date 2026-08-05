@@ -1082,49 +1082,53 @@ function AdminCmsContent() {
               </div>
             </div>
 
-            {/* 30 Grid Slots with Real Product Image Thumbnails */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+            {/* 30 Grid Slots with Larger Cards & Full Uncropped Product Images */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredPortfolio.map((item) => (
                 <div
                   key={item.id}
                   onClick={() => setEditCard(item)}
-                  className={`border rounded-xl p-3 flex flex-col justify-between transition-all cursor-pointer hover:shadow-md ${
+                  className={`border rounded-2xl p-4 flex flex-col justify-between transition-all cursor-pointer hover:shadow-lg hover:-translate-y-0.5 ${
                     item.isFilled
                       ? "bg-white border-slate-200 hover:border-[#3352c4]"
                       : "bg-slate-50 border-dashed border-slate-300 hover:border-slate-400"
                   }`}
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-bold">
-                      <span className="text-slate-400">#{item.id}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] ${item.isFilled ? "bg-blue-50 text-blue-700 font-bold" : "bg-slate-200 text-slate-600"}`}>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="text-slate-400 font-mono">#{item.id}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] ${item.isFilled ? "bg-blue-50 text-blue-700 font-bold border border-blue-200" : "bg-slate-200 text-slate-600"}`}>
                         {item.isFilled ? "등록됨" : "빈 슬롯"}
                       </span>
                     </div>
 
-                    <div className="h-32 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden border border-slate-200/80 relative">
+                    {/* Uncropped Image Container (Height h-64 with object-contain) */}
+                    <div className="h-64 bg-[#f8fafc] rounded-xl flex items-center justify-center overflow-hidden border border-slate-200/90 relative p-3">
                       {item.image && item.isFilled ? (
                         <img
                           src={item.image.startsWith('http') || item.image.startsWith('/') || item.image.startsWith('data:') ? item.image : `/${item.image}`}
                           alt={item.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          className="max-h-full max-w-full object-contain drop-shadow-sm transition-transform duration-300 hover:scale-105"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
                           }}
                         />
                       ) : (
-                        <div className="text-center p-2">
-                          <span className="text-2xl text-slate-300 font-bold block">+</span>
-                          <span className="text-[10px] text-slate-400 font-medium">슬롯 추가</span>
+                        <div className="text-center p-4">
+                          <span className="text-3xl text-slate-300 font-bold block mb-1">+</span>
+                          <span className="text-xs text-slate-400 font-semibold">신규 슬롯 추가</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="text-xs font-bold text-slate-900 truncate leading-snug">
-                      {item.title || "미등록 슬롯 (클릭 편집)"}
-                    </div>
-                    <div className="text-[11px] font-medium text-slate-500 truncate">
-                      {item.format || "제형 스펙 미설정"}
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-[#3352c4]">{item.category || "카테고리 미지정"}</div>
+                      <h4 className="text-sm font-bold text-slate-900 leading-snug line-clamp-2">
+                        {item.title || "미등록 슬롯 (클릭하여 편집)"}
+                      </h4>
+                      <div className="text-xs font-medium text-slate-600">
+                        {item.format || "제형 스펙 미설정"}
+                      </div>
                     </div>
                   </div>
                 </div>

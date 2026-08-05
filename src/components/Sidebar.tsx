@@ -99,10 +99,10 @@ export default function Sidebar() {
                 >
                   <button
                     onClick={() => setActiveDropdown(isOpen ? null : group.name)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 text-xs md:text-sm font-bold rounded-md transition-all duration-200 cursor-pointer ${
+                    className={`flex items-center gap-1 px-2.5 py-1.5 text-xs md:text-sm font-bold rounded-md transition-all duration-200 cursor-pointer text-slate-700 hover:bg-slate-100 hover:text-slate-900 ${
                       hasActiveChild 
-                        ? "bg-slate-100 text-slate-900 font-extrabold border border-slate-300 shadow-2xs" 
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                        ? "text-slate-900 font-extrabold" 
+                        : ""
                     }`}
                   >
                     <span>{group.name}</span>
