@@ -1,0 +1,37 @@
+---
+description: Supabase and Server Actions data layer
+globs: src/app/actions/**/*,src/lib/**/*,src/utils/supabase.ts
+alwaysApply: false
+---
+
+# Supabase & Server Actions
+
+## Client
+
+- Single browser/server client: `src/lib/supabase.ts`
+- Env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- Do not duplicate clients; extend `@/lib/supabase` if needed.
+
+## Server Actions (`src/app/actions/`)
+
+| Module | Purpose |
+|--------|---------|
+| `recipe.ts` | Recipe master, materials, routings |
+| `inventory.ts` / `inventoryActions.ts` | Stock, ecount items |
+| `ecount.ts` | Ecount API helpers |
+| `notionActions.ts` | Notion calendar CRUD |
+| `database.ts` | Generic DB utilities |
+
+## Conventions
+
+```ts
+"use server";
+// Return shape: { success: boolean, data?, error?, message? }
+```
+
+- Keep action responses consistent with existing `{ success, error }` pattern.
+- Never commit `.env`, keys, or Notion tokens — use env vars or client localStorage for user-provided Notion keys only on dashboard.
+
+## Tables (common)
+
+`recipes`, `recipe_materials`, `process_routings`, `production_orders`, `ecount_items` — verify column names in existing queries before adding inserts.

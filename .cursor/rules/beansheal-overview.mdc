@@ -1,0 +1,33 @@
+---
+description: BEANSHEAL project architecture and routing map
+alwaysApply: true
+---
+
+# BEANSHEAL StockTrace — Project Overview
+
+액상 건기식 OEM/ODM **고객 홈페이지** + 사내 **생산 ERP** 통합 앱 (Next.js 15 App Router).
+
+## Two surfaces
+
+| Surface | Entry | Stack |
+|---------|-------|-------|
+| Customer site | `/` → middleware rewrites to `public/homepage.html` | Static HTML + `public/css/styles.css` + `public/js/app.js` |
+| Internal ERP | `/login`, `/workspace`, `/orders`, `/inventory`, … | Next.js + Tailwind + Supabase + Server Actions |
+
+## Layout split (`LayoutContent.tsx`)
+
+- **Full-width** (no Sidebar): `/`, `/login`
+- **ERP shell** (Sidebar + `bg-slate-100`): all other routes under `src/app/(workspace)/`
+
+## Key integrations
+
+- **Supabase**: auth, recipes, production orders, inventory, CMS data — client `@/lib/supabase`, actions in `src/app/actions/`
+- **Notion**: production calendar sync — `notionActions.ts`
+- **Ecount**: stock scraping/API — `ecount.ts`, `scripts/ecountBot.ts`
+- **Brand assets**: wordmark `public/images/beansheal-logo.png`, favicon `public/favicon.ico`
+
+## Do not break
+
+- `/` must stay customer homepage (rewrite or iframe), not ERP dashboard.
+- ERP dashboard lives at `/workspace`, not `/`.
+- Logo link in Sidebar → `/workspace`.

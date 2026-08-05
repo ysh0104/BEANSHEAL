@@ -1,0 +1,43 @@
+---
+description: Next.js ERP app conventions (src/)
+globs: src/**/*
+alwaysApply: false
+---
+
+# Next.js / ERP Conventions
+
+## File layout
+
+- Pages: `src/app/(workspace)/**/page.tsx`
+- Server Actions: `src/app/actions/*.ts` with `"use server"`
+- API routes: `src/app/api/**/route.ts`
+- Shared UI: `src/components/`
+- Auth: `src/context/AuthContext.tsx` — roles `ADMIN | QA | WORKER`
+
+## Patterns to follow
+
+```tsx
+// Client page needing auth
+"use client";
+import { useAuth } from "@/context/AuthContext";
+
+// Server-side DB write
+"use server";
+import { supabase } from "@/lib/supabase";
+```
+
+- Prefer **Server Actions** over new API routes for CRUD already in `actions/`.
+- Use `@/` path alias, not relative `../../../`.
+- ERP UI: light theme (`bg-slate-100`, white header GNB in `Sidebar.tsx`).
+- Manufacturing forms: tabbed logs in `orders/page.tsx` (`CoverPage`, `ManufacturingLog`, …).
+
+## Auth & redirects
+
+- Login: `/login` → success → `/workspace`
+- Logout: clear session → `/login`
+- Do not gate `/` or `/homepage.html` behind auth.
+
+## Scope discipline
+
+- Minimize diff; match existing Tailwind + component style.
+- Do not refactor unrelated workspace pages when fixing one feature.

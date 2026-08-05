@@ -1,0 +1,28 @@
+---
+description: Ecount bots and inventory sync scripts
+globs: scripts/**/*
+alwaysApply: false
+---
+
+# Scripts (`scripts/`)
+
+Standalone Node/tsx scripts for Ecount automation and Supabase uploads. Run with `npx tsx scripts/<file>.ts`.
+
+| Script | Role |
+|--------|------|
+| `ecountBot.ts` | Playwright headless login, scrape stock |
+| `syncStock.ts` | Ecount OAPI → Supabase |
+| `uploadStock.ts` / `uploadMaster.ts` | Excel/CSV → Supabase |
+| `scheduler.ts` | Scheduled job entry |
+| `checkSafetyStock.ts` | Safety stock alerts |
+
+## Env (`.env.local`)
+
+`ECOUNT_COM_CODE`, `ECOUNT_ID`, `ECOUNT_PW`, `NEXT_PUBLIC_SUPABASE_URL`, Supabase service key as used in each script.
+
+## Rules
+
+- Scripts run **headless** in CI (GitHub Actions: `.github/workflows/sync-inventory.yml`).
+- Load env via `dotenv` from `.env.local` — match existing script pattern.
+- Do not hardcode credentials.
+- Prefer extending existing scrape/upload flow over new one-off bots.

@@ -1,0 +1,33 @@
+---
+description: Customer homepage static site (public/)
+globs: public/**/*
+alwaysApply: false
+---
+
+# Customer Homepage (`public/`)
+
+## Primary files
+
+- `public/homepage.html` — main marketing/OEM site
+- `public/css/styles.css` — design system (primary green `#2E7D32`, Outfit + Pretendard)
+- `public/js/app.js` — slider, inquiry board, quote calculator, CMS-driven content
+- `public/js/data.js` — static seed data (brands, portfolio, FAQ, production types)
+
+## Brand
+
+- Wordmark: `/images/beansheal-logo.png` (light bg), `/images/beansheal-logo-white.png` (dark/hero/footer)
+- Favicon: `/favicon.ico`, `/favicon-192.png`, `/apple-touch-icon.png`
+- Avoid inline `style=""` for new UI — add classes to `styles.css`
+
+## Responsive
+
+- Mobile nav: `.gnb-nav.active` drawer + `#nav-backdrop` (see `app.js` `initNavigation`)
+- Breakpoints defined in `styles.css` `@media` blocks (900px, 768px, 480px)
+
+## CMS sync
+
+Admin edits in `src/app/(workspace)/admin/cms/page.tsx` may mirror to homepage via shared keys/localStorage or Supabase — check existing sync before adding new storage keys.
+
+## Legacy
+
+- `public/legacy/` is archived; prefer editing root `public/homepage.html` unless explicitly fixing legacy.
