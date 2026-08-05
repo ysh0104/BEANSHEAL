@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 // 사원/관리자 업무 ERP 전용 보호 경로 목록
 const PROTECTED_ROUTES = [
+  "/workspace",
   "/inventory",
   "/orders",
   "/recipes",
