@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,8 +11,7 @@ export default function LoginPage() {
   const [activeTab, setActiveTab] = useState<"id" | "qr">("id");
   const [mode, setMode] = useState<"login" | "signup">("login");
   
-  // 로그인 입력 필드 (회사코드, 아이디, 비밀번호)
-  const [companyCode, setCompanyCode] = useState("669192");
+  // 로그인 입력 필드 (아이디, 비밀번호)
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   
@@ -35,12 +33,8 @@ export default function LoginPage() {
   // 아이디 저장 로드
   useEffect(() => {
     const savedId = localStorage.getItem("beansheal_saved_id");
-    const savedCode = localStorage.getItem("beansheal_saved_code");
     if (savedId) {
       setEmail(savedId);
-    }
-    if (savedCode) {
-      setCompanyCode(savedCode);
     }
   }, []);
 
@@ -63,13 +57,11 @@ export default function LoginPage() {
       return;
     }
 
-    // 아이디 및 회사코드 저장 처리
+    // 아이디 저장 처리
     if (rememberId) {
       localStorage.setItem("beansheal_saved_id", email.trim());
-      localStorage.setItem("beansheal_saved_code", companyCode.trim());
     } else {
       localStorage.removeItem("beansheal_saved_id");
-      localStorage.removeItem("beansheal_saved_code");
     }
 
     // 출근체크 알림
@@ -119,7 +111,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans flex items-center justify-center p-4 select-none">
       
-      {/* 중앙 메인 로그인 카포드 (이모티콘 제거 & 흰 배경 톤 100% 반영) */}
+      {/* 중앙 메인 로그인 카드 (회사코드 제거 & 아이디/비밀번호 간결 폼) */}
       <div className="w-full max-w-[420px] bg-white rounded-3xl p-8 shadow-xl border border-slate-200/90 space-y-7 relative overflow-hidden">
         
         {/* 상단 로고 헤더 (BEANSHEAL) */}
@@ -170,24 +162,10 @@ export default function LoginPage() {
 
         {/* 1. 로그인 폼 */}
         {mode === "login" ? (
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
+          <form onSubmit={handleLoginSubmit} className="space-y-5">
             
-            {/* 회사 코드 입력 (모노크롬 SVG 아이콘: 빌딩) */}
-            <div className="flex items-center gap-3 border-b border-slate-200 py-2.5 focus-within:border-[#2c4cb0] transition-colors">
-              <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5m0 0h4m-4 0V11m0 0V7m0 4h4m-4 0H7" />
-              </svg>
-              <input
-                type="text"
-                value={companyCode}
-                onChange={(e) => setCompanyCode(e.target.value)}
-                placeholder="회사코드"
-                className="w-full text-sm font-semibold text-slate-800 placeholder-slate-400 bg-transparent focus:outline-none"
-              />
-            </div>
-
             {/* 사원 아이디 입력 (모노크롬 SVG 아이콘: 사용자) */}
-            <div className="flex items-center gap-3 border-b border-slate-200 py-2.5 focus-within:border-[#2c4cb0] transition-colors">
+            <div className="flex items-center gap-3 border-b border-slate-200 py-3 focus-within:border-[#2c4cb0] transition-colors">
               <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
@@ -202,7 +180,7 @@ export default function LoginPage() {
             </div>
 
             {/* 비밀번호 입력 (모노크롬 SVG 아이콘: 자물쇠) */}
-            <div className="flex items-center gap-3 border-b border-slate-200 py-2.5 focus-within:border-[#2c4cb0] transition-colors">
+            <div className="flex items-center gap-3 border-b border-slate-200 py-3 focus-within:border-[#2c4cb0] transition-colors">
               <svg className="w-5 h-5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
@@ -216,7 +194,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* 체크박스 옵션 행 (저장 [Code, ID], 출근체크) */}
+            {/* 체크박스 옵션 행 (아이디 저장, 출근체크) */}
             <div className="flex items-center justify-end gap-4 text-xs font-semibold text-slate-600 pt-1">
               <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors">
                 <input
@@ -225,7 +203,7 @@ export default function LoginPage() {
                   onChange={(e) => setRememberId(e.target.checked)}
                   className="w-4 h-4 accent-[#2c4cb0] rounded cursor-pointer"
                 />
-                <span>저장 [Code, ID]</span>
+                <span>아이디 저장</span>
               </label>
 
               <label className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 transition-colors">
