@@ -12,6 +12,11 @@ export default function Sidebar() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
+  // 로그인 페이지 및 메인 고객 홈페이지에서는 상단 메뉴바 숨김 처리
+  if (pathname === "/login" || pathname === "/") {
+    return null;
+  }
+
   const menuGroups = [
     {
       name: "기준정보 관리",
