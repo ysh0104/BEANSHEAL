@@ -16,7 +16,7 @@ export const DATA = {
         id: "coffee",
         name: "액상 핸드드립 커피",
         badge: "대량생산 라인",
-        desc: "전문 바리스타 저온 드립 추출 자동화, 원두 아로마 에스테르 보존, 스틱/앰플/1L B2B 파우치 충진"
+        desc: "전문 바리스타 핸드드립 추출 자동화, 원두 아로마 에스테르 보존, 스틱/앰플/1L B2B 파우치 충진"
       },
       {
         id: "health-functional",
@@ -62,19 +62,47 @@ export const DATA = {
     ]
   },
 
-  // (주)빈스힐 대표 브랜드 라인업
+  // (주)빈스힐 대표 자체 브랜드 (4종)
   brands: [
     {
-      id: "brand-coffee",
-      name: "BEANSHEAL Hand-Drip Coffee",
-      koreanName: "빈스힐 액상 핸드드립 커피",
-      tagline: "1초 만에 피어오르는 정통 저온 드립 원액의 깊은 아로마",
-      badge: "Signature Coffee Brand",
-      icon: "fa-mug-hot",
+      id: "brand-bbajacafe",
+      koreanName: "빼자까페",
+      tagline: "가볍게 즐기는, 마시는 다이어트 커피",
+      badge: "건강기능식품 · GMP",
       color: "#2E7D32",
-      bgImage: "images/brand-signature.jpg",
-      description: "전문 바리스타의 정통 저온 드립 추출 노하우를 스마트 무균 자동 충진 시스템에 이식하여 만든 (주)빈스힐 프리미엄 액상 핸드드립 시그니처 브랜드입니다.",
-      products: ["액상 핸드드립 12ml~30ml Easy-Cut 스틱", "20ml~50ml 마시는 고농축 커피 원액 앰플 샷", "70ml~150ml 스파우트 & 레토르트 핸드드립 파우치"]
+      bgImage: "/images/portfolio-item-13.jpg",
+      description: "가르시니아 함유 건기식 커피 브랜드입니다. 핸드드립 스타일의 액상 커피로, 30ml 스틱 포장으로 간편하게 즐깁니다.",
+      products: ["핸드드립 커피", "다이어트 (가르시니아)", "30ml 스틱 · 7·50포"]
+    },
+    {
+      id: "brand-bbajacafe-doublecut",
+      koreanName: "빼자까페 더블컷 다이어트",
+      tagline: "가르시니아 + 프락토, 2중 케어",
+      badge: "건강기능식품 · GMP",
+      color: "#00695C",
+      bgImage: "/images/portfolio-item-14.jpg",
+      description: "가르시니아캄보지아추출물과 프락토올리고당을 함유한 건기식 브랜드입니다. 체지방 감소와 장 건강에 이중으로 도움을 줍니다.",
+      products: ["30ml 액상 스틱", "7포 세트", "가르시니아 · 프락토올리고당"]
+    },
+    {
+      id: "brand-bbajacafe-hangover",
+      koreanName: "빼자까페 해장커피",
+      tagline: "밀크씨슬 · 헛개나무, 리프레시 한 잔",
+      badge: "일반식품 · HACCP",
+      color: "#E65100",
+      bgImage: "/images/portfolio-item-16.jpg",
+      description: "밀크씨슬추출물과 헛개나무열매가 함유된 일반식품 해장커피입니다. HACCP 인증 하에 제조합니다.",
+      products: ["30ml 액상 스틱", "7포 세트", "밀크씨슬 · 헛개나무"]
+    },
+    {
+      id: "brand-bbajacoffee",
+      koreanName: "빼자커피",
+      tagline: "한 모금에 펼쳐지는, 핸드드립의 깊은 향",
+      badge: "일반식품 · HACCP",
+      color: "#4E342E",
+      bgImage: "/images/portfolio-item-15.jpg",
+      description: "HACCP 인증 하에 제조하는 일반 액상 핸드드립 커피 브랜드입니다. 스페셜티 원두 추출 원액의 풍부한 아로마를 담았습니다.",
+      products: ["30ml 액상 스틱", "7포 세트", "콜롬비아 후일라 등 스페셜티 원두"]
     }
   ],
 
@@ -88,7 +116,7 @@ export const DATA = {
       target: "자체 커피 원두 배합이나 액상 커피 레시피를 보유하고 대량 위탁 제조 공장이 필요한 기업에 추천합니다.",
       badge: "액상 커피 원두/레시피 보유 고객 추천",
       features: [
-        "정통 핸드드립 저온 자동 추출 및 향미 에스테르 보존",
+        "정통 핸드드립 자동 추출 및 향미 에스테르 보존",
         "액상 커피 스틱, 앰플, 파우치 무균 자동 충진",
         "HACCP/GMP 표준 무균 살균 공정에 따른 엄격한 품질 관리",
         "소량 액상 시험 생산(PILOT) 지원 및 대량생산 캐파 보유"
@@ -132,7 +160,7 @@ export const DATA = {
       english: "Liquid Hand-Drip Coffee Stick",
       icon: "fa-mug-hot",
       image: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80",
-      description: "전문 바리스타 정통 드립 방식을 대규모 저온 드립 추출하여 원두 본연의 풍부한 아로마와 깊은 맛을 10ml~30ml에 고농축한 프리미엄 커피 스틱입니다.",
+      description: "전문 바리스타 정통 드립 방식으로 추출하여 원두 본연의 풍부한 아로마와 깊은 맛을 10ml~30ml에 고농축한 프리미엄 커피 스틱입니다.",
       details: ["정통 드립 자동 추출", "물/우유에 바로 타먹는 1초 커피", "Easy-Cut 무균 스틱", "일일 대량생산 대응"]
     },
     {
@@ -169,7 +197,7 @@ export const DATA = {
       icon: "fa-box-tissue",
       image: "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=600&q=80",
       description: "50ml~100ml 전통 즙, 파우치 차, 웰니스 한방 및 과즙 추출액을 레토르트 파우치에 안전 충진합니다.",
-      details: ["3면 레토르트 파우치", "저온 가열 파우치", "전통 과즙/한방 엑기스", "대량충진 호환"]
+      details: ["3면 레토르트 파우치", "레토르트 가열 파우치", "전통 과즙/한방 엑기스", "대량충진 호환"]
     },
     {
       id: "dual-shot",
@@ -440,16 +468,16 @@ export const DATA = {
       format: "액상 스틱 (30ml x 7포)",
       tags: ["콜롬비아후일라", "스페셜티원두", "액상커피"],
       image: "images/portfolio-item-15.jpg",
-      desc: "콜롬비아 후일라 스페셜티급 100% 추출 원액으로 추출한 고농축 저온 액상 핸드드립 커피"
+      desc: "콜롬비아 후일라 스페셜티급 100% 추출 원액으로 만든 고농축 액상 핸드드립 커피"
     },
     {
       id: 16,
       title: "빼자까페 해장커피 (밀크씨슬 & 헛개나무)",
-      category: "기능성표시식품",
+      category: "일반식품음료",
       format: "액상 스틱 (30ml x 7포)",
       tags: ["밀크씨슬", "헛개나무", "해장커피"],
       image: "images/portfolio-item-16.jpg",
-      desc: "밀크씨슬추출물 0.3%와 헛개나무열매 5%가 함유된 숙취해소 및 리프레시를 돕는 빼자까페 해장커피"
+      desc: "밀크씨슬추출물과 헛개나무열매가 함유된 HACCP 일반식품 해장커피"
     },
     {
       id: 17,

@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   initHeroSlider();
   renderBrands();
+  initBrandsSlider();
   initProductionTabs();
   renderIngredients();
   renderPortfolio();
@@ -1438,23 +1439,16 @@ function renderBrands() {
   if (!container || !DATA.brands) return;
 
   container.innerHTML = DATA.brands.map(brand => `
-    <div style="background: #FFFFFF; border-radius: 22px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 8px 28px rgba(0,0,0,0.05); transition: transform 0.3s ease, box-shadow 0.3s ease; display: flex; flex-direction: column;">
-      <!-- Perfectly Balanced Image Banner Header (Height 260px) -->
-      <div style="height: 260px; background-image: linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.7) 100%), url('${brand.bgImage}'); background-size: cover; background-position: center; padding: 26px; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 0.8rem; font-weight: 700; background: rgba(255,255,255,0.95); color: ${brand.color}; padding: 5px 14px; border-radius: 980px; backdrop-filter: blur(8px); box-shadow: 0 2px 8px rgba(0,0,0,0.08);">${brand.badge}</span>
-          <div style="width: 42px; height: 42px; background: rgba(255,255,255,0.95); color: ${brand.color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; backdrop-filter: blur(8px); box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-            <i class="fas ${brand.icon}"></i>
-          </div>
-        </div>
-        <div>
-          <span style="font-size: 0.85rem; color: rgba(255,255,255,0.9); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;">${brand.name}</span>
-          <h3 style="font-size: 1.55rem; font-weight: 800; color: #FFFFFF; margin-top: 4px; text-shadow: 0 2px 6px rgba(0,0,0,0.3);">${brand.koreanName}</h3>
+    <article class="brand-card">
+      <div class="brand-card-hero">
+        <img class="brand-card-img" src="${brand.bgImage}" alt="${brand.koreanName} 제품 이미지" loading="lazy">
+        <div class="brand-card-hero-overlay">
+          <span class="brand-card-badge" style="--brand-color: ${brand.color}">${brand.badge}</span>
+          <h3 class="brand-card-title">${brand.koreanName}</h3>
         </div>
       </div>
 
-      <!-- Compact & Elegant Body Content -->
-      <div style="padding: 30px; display: flex; flex-direction: column; flex-grow: 1;">
+      <div class="brand-card-body">
         <p style="font-size: 1rem; font-weight: 700; color: ${brand.color}; margin-bottom: 10px;">
           "${brand.tagline}"
         </p>
@@ -1463,16 +1457,78 @@ function renderBrands() {
         </p>
 
         <div style="background: #F8FAFC; border: 1px solid #F1F5F9; border-radius: 14px; padding: 18px 20px; margin-bottom: 20px;">
-          <span style="font-size: 0.82rem; font-weight: 800; color: #1D1D1F; display: block; margin-bottom: 10px;">주요 브랜드 시그니처 제조 라인업:</span>
+          <span style="font-size: 0.82rem; font-weight: 800; color: #1D1D1F; display: block; margin-bottom: 10px;">대표 제품 · 포장 형태</span>
           <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.88rem; color: #334155; line-height: 1.9;">
             ${brand.products.map(p => `<li><i class="fas fa-check-circle" style="color: ${brand.color}; margin-right: 8px;"></i> ${p}</li>`).join('')}
           </ul>
         </div>
 
-        <button class="btn btn-primary btn-lg" style="width: 100%; border-radius: 980px; margin-top: auto;" onclick="openInquiryModal()">
-          <i class="fas fa-paper-plane"></i> ${brand.koreanName} 대량생산 견적 문의
+        <button class="btn btn-primary btn-lg brand-card-cta" onclick="openInquiryModal()">
+          <i class="fas fa-paper-plane"></i> 생산 · 상담 문의
         </button>
       </div>
-    </div>
+    </article>
   `).join('');
+}
+
+function initBrandsSlider() {
+  const viewport = document.getElementById('brands-slider-viewport');
+  const track = document.getElementById('brands-grid');
+  const prevBtn = document.querySelector('.brands-slider-btn--prev');
+  const nextBtn = document.querySelector('.brands-slider-btn--next');
+  const dotsContainer = document.getElementById('brands-slider-dots');
+  if (!viewport || !track || !DATA.brands?.length) return;
+
+  let activeIndex = 0;
+
+  const getCards = () => track.querySelectorAll('.brand-card');
+
+  const updateDots = () => {
+    if (!dotsContainer) return;
+    dotsContainer.querySelectorAll('.brands-slider-dot').forEach((dot, i) => {
+      dot.classList.toggle('active', i === activeIndex);
+    });
+  };
+
+  const scrollToIndex = (index) => {
+    const cards = getCards();
+    if (!cards.length) return;
+    activeIndex = Math.max(0, Math.min(index, cards.length - 1));
+    const card = cards[activeIndex];
+    const offset = card.offsetLeft - (viewport.clientWidth - card.clientWidth) / 2;
+    viewport.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' });
+    updateDots();
+  };
+
+  if (dotsContainer) {
+    dotsContainer.innerHTML = DATA.brands.map((_, i) =>
+      `<button type="button" class="brands-slider-dot${i === 0 ? ' active' : ''}" aria-label="${i + 1}번째 브랜드"></button>`
+    ).join('');
+    dotsContainer.querySelectorAll('.brands-slider-dot').forEach((dot, i) => {
+      dot.addEventListener('click', () => scrollToIndex(i));
+    });
+  }
+
+  prevBtn?.addEventListener('click', () => scrollToIndex(activeIndex - 1));
+  nextBtn?.addEventListener('click', () => scrollToIndex(activeIndex + 1));
+
+  viewport.addEventListener('scroll', () => {
+    const cards = getCards();
+    if (!cards.length) return;
+    const center = viewport.scrollLeft + viewport.clientWidth / 2;
+    let closest = 0;
+    let minDist = Infinity;
+    cards.forEach((card, i) => {
+      const cardCenter = card.offsetLeft + card.clientWidth / 2;
+      const dist = Math.abs(center - cardCenter);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = i;
+      }
+    });
+    if (closest !== activeIndex) {
+      activeIndex = closest;
+      updateDots();
+    }
+  }, { passive: true });
 }

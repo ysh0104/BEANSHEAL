@@ -552,22 +552,33 @@ button {
   max-width: 640px;
 }
 
+.hero-eyebrow {
+  display: block;
+  margin-bottom: 14px;
+  font-size: clamp(0.9rem, 1.6vw, 1rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.78);
+  animation: heroFadeUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 .hero-title {
   font-family: var(--font-heading);
-  font-size: clamp(1.45rem, 3.2vw, 2.15rem);
+  font-size: clamp(1.65rem, 3.6vw, 2.35rem);
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.36;
   margin-bottom: 18px;
-  color: rgba(255, 255, 255, 0.95);
+  color: rgba(255, 255, 255, 0.97);
   word-break: keep-all;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.028em;
   animation: heroFadeUp 0.9s 0.08s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .hero-subtitle {
-  font-size: clamp(0.95rem, 1.8vw, 1.1rem);
-  color: rgba(255, 255, 255, 0.78);
-  line-height: 1.7;
+  font-size: clamp(0.95rem, 1.8vw, 1.08rem);
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.8;
   margin-bottom: 32px;
   word-break: keep-all;
   max-width: 34em;
@@ -630,9 +641,163 @@ button {
   border-bottom: 1px solid var(--gray-200);
 }
 
-.brands-grid-wrap {
+.brands-slider {
+  position: relative;
   margin: 48px auto 0;
-  max-width: 680px;
+  max-width: 1120px;
+  padding: 0 52px;
+}
+
+.brands-slider-viewport {
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.brands-slider-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.brands-slider-track {
+  display: flex;
+  gap: 20px;
+  padding: 4px 0 8px;
+}
+
+.brand-card {
+  flex: 0 0 min(420px, calc(100vw - 120px));
+  scroll-snap-align: center;
+  background: #fff;
+  border-radius: 22px;
+  border: 1px solid #E2E8F0;
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-card-hero {
+  position: relative;
+  height: 300px;
+  background: #f5f5f7;
+  overflow: hidden;
+}
+
+.brand-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  display: block;
+}
+
+.brand-card-hero-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px 20px 20px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(0, 0, 0, 0.5) 100%
+  );
+  pointer-events: none;
+}
+
+.brand-card-badge {
+  align-self: flex-start;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--brand-color);
+  padding: 5px 14px;
+  border-radius: 980px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.brand-card-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.25;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  word-break: keep-all;
+}
+
+.brand-card-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.brand-card-cta {
+  width: 100%;
+  border-radius: 980px;
+  margin-top: auto;
+}
+
+.brands-slider-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--gray-200);
+  background: #fff;
+  color: var(--gray-700);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.brands-slider-btn:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.brands-slider-btn--prev {
+  left: 0;
+}
+
+.brands-slider-btn--next {
+  right: 0;
+}
+
+.brands-slider-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.brands-slider-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--gray-300);
+  cursor: pointer;
+  transition: width 0.25s ease, background-color 0.25s ease;
+}
+
+.brands-slider-dot.active {
+  width: 24px;
+  border-radius: 999px;
+  background: var(--primary);
 }
 
 .lineup-grid {
@@ -1866,6 +2031,14 @@ button {
   .grid-4,
   .lineup-grid {
     grid-template-columns: 1fr;
+  }
+
+  .brands-slider {
+    padding: 0 44px;
+  }
+
+  .brand-card {
+    flex-basis: min(360px, calc(100vw - 100px));
   }
 
   .feature-grid {

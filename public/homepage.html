@@ -103,14 +103,14 @@
 
     <div class="container hero-inner">
       <div class="hero-content">
-        <img src="/images/beansheal-logo-white.png" alt="BEANSHEAL" class="hero-brand-logo" width="386" height="47">
-        <h1 class="hero-title">액상 전문 OEM·ODM,<br>기획부터 제조까지</h1>
+        <p class="hero-eyebrow">브랜드의 시작부터, 함께합니다</p>
+        <h1 class="hero-title">기획부터 납품까지,<br>든든한 제조 파트너</h1>
         <p class="hero-subtitle">
-          저온 드립 커피부터 GMP 건기식·기능성표시식품·일반음료까지.
-          무균 자동 충진 공장에서 소량 시험생산부터 대량 납품까지 한 번에.
+          처음 만드는 브랜드도, 키워가는 브랜드도.
+          GMP/HACCP 품질관리 아래, 건기식·음료·커피를 소량부터 대량까지 함께합니다.
         </p>
         <div class="hero-cta-group">
-          <button class="btn btn-primary btn-lg" onclick="openInquiryModal()">맞춤 견적 문의</button>
+          <button class="btn btn-primary btn-lg" onclick="openInquiryModal()">상담 문의하기</button>
           <a href="#production-types" class="btn btn-ghost btn-lg">생산 방식 보기</a>
         </div>
         <div class="slider-controls hero-slider-controls">
@@ -126,14 +126,25 @@
   <section class="section section-soft" id="brand">
     <div class="container">
       <div class="text-center reveal-on-scroll">
-        <span class="section-tag"><i class="fas fa-crown"></i> BEANSHEAL Brand Portfolio</span>
-        <h2 class="section-title">(주)빈스힐 <span>시그니처 브랜드</span></h2>
+        <span class="section-tag"><i class="fas fa-seedling"></i> 빈스힐 자체 브랜드</span>
+        <h2 class="section-title">직접 만들고 키운 <span>시그니처 브랜드</span></h2>
         <p class="section-desc">
-          정통 액상 핸드드립 커피부터 GMP 건기식, 기능성표시식품까지 독자 브랜드 기술력을 소개합니다.
+          커피부터 건기식까지, 제조 현장에서 검증한 노하우가 담겨 있습니다.
         </p>
       </div>
 
-      <div class="reveal-on-scroll stagger-item reveal-scale brands-grid-wrap" id="brands-grid"></div>
+      <div class="brands-slider reveal-on-scroll">
+        <button type="button" class="brands-slider-btn brands-slider-btn--prev" aria-label="이전 브랜드">
+          <i class="fas fa-chevron-left" aria-hidden="true"></i>
+        </button>
+        <div class="brands-slider-viewport" id="brands-slider-viewport">
+          <div class="brands-slider-track" id="brands-grid"></div>
+        </div>
+        <button type="button" class="brands-slider-btn brands-slider-btn--next" aria-label="다음 브랜드">
+          <i class="fas fa-chevron-right" aria-hidden="true"></i>
+        </button>
+        <div class="brands-slider-dots" id="brands-slider-dots" aria-hidden="true"></div>
+      </div>
     </div>
   </section>
 
@@ -157,9 +168,9 @@
             <span class="lineup-chip">일 10만포 CAPA</span>
           </div>
           <h3 class="lineup-title">액상 핸드드립 커피</h3>
-          <p class="lineup-desc">저온 드립 추출 자동화로 스페셜티 아로마를 보존한 스틱·원액 대량생산</p>
+          <p class="lineup-desc">핸드드립 추출 자동화로 스페셜티 아로마를 보존한 스틱·원액 대량생산</p>
           <ul class="lineup-list">
-            <li>정통 저온 드립 추출 공정</li>
+            <li>정통 핸드드립 추출 공정</li>
             <li>10ml 스틱 &amp; 20ml 원액</li>
             <li>레토르트 파우치 충진</li>
           </ul>
@@ -281,7 +292,7 @@
             </div>
             <div>
               <strong style="font-size: 0.95rem; color: #FFFFFF;">기본 제형: 프리미엄 액상 스틱 파우치 (100% 충진 전용 라인)</strong>
-              <p style="font-size: 0.825rem; color: #CBD5E1; margin-top: 2px;">저온 무균 살균 엑기스 & 층분리 방지 고농축 수용화 기술 적용</p>
+              <p style="font-size: 0.825rem; color: #CBD5E1; margin-top: 2px;">무균 살균 엑기스 & 층분리 방지 고농축 수용화 기술 적용</p>
             </div>
           </div>
           <span style="font-size: 0.8rem; font-weight: 700; background: #1B5E20; color: #A5D6A7; padding: 4px 12px; border-radius: 20px; border: 1px solid #4CAF50;">HACCP & GMP 안전 안심</span>
