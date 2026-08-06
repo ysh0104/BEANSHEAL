@@ -79,9 +79,16 @@ async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ dat
 }
 
 function getEffectiveConfig(config?: NotionConfig) {
-  const apiKey = (config?.apiKey && config.apiKey.trim()) || process.env.NOTION_API_KEY || "";
-  const rawDbId = (config?.databaseId && config.databaseId.trim()) || process.env.NOTION_DATABASE_ID || "";
-  return { apiKey, rawDbId };
+  const envKey = process.env.NOTION_API_KEY ? process.env.NOTION_API_KEY.trim() : "";
+  const envDbId = process.env.NOTION_DATABASE_ID ? process.env.NOTION_DATABASE_ID.trim() : "";
+
+  const customKey = config?.apiKey ? config.apiKey.trim() : "";
+  const customDbId = config?.databaseId ? config.databaseId.trim() : "";
+
+  const apiKey = customKey || envKey;
+  const rawDbId = customDbId || envDbId;
+
+  return { apiKey, rawDbId, isUsingEnv: !customKey && !!envKey };
 }
 
 /**
