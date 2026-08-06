@@ -66,28 +66,62 @@ async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ dat
   const formattedId = formatNotionId(rawDbId);
   
   // 1차 시도: formatted UUID로 데이터베이스 직접 조회
-  try {
-    const dbData = await notionFetch(`/databases/${formattedId}`, apiKey);
-    return { databaseId: formattedId, dbData };
-  } catch (err1) {
-    // 2차 시도: unformatted ID로 데이터베이스 조회
+  if (formattedId) {
+    try {
+      const dbData = await notionFetch(`/databases/${formattedId}`, apiKey);
+      return { databaseId: formattedId, dbData };
+    } catch (err1) {}
+  }
+
+  // 2차 시도: unformatted ID로 데이터베이스 조회
+  if (id) {
     try {
       const dbData = await notionFetch(`/databases/${id}`, apiKey);
       return { databaseId: id, dbData };
-    } catch (err2: any) {
-      // 3차 시도: 만약 페이지 ID인 경우 자식 데이터베이스 블록(child_database) 탐색
-      try {
-        const blocksRes = await notionFetch(`/blocks/${id}/children`, apiKey);
-        for (const block of blocksRes.results || []) {
-          if (block.type === "child_database") {
-            const childDbData = await notionFetch(`/databases/${block.id}`, apiKey);
-            return { databaseId: block.id, dbData: childDbData };
-          }
-        }
-      } catch (err3) {}
-      throw err2;
-    }
+    } catch (err2) {}
   }
+
+  // 3차 시도: Notion /search API로 통합(Integration)에 공유된 데이터베이스 지능적 자동 탐색!
+  try {
+    const searchRes = await notionFetch("/search", apiKey, {
+      method: "POST",
+      body: {
+        filter: { value: "database", property: "object" },
+        page_size: 10,
+      },
+    });
+
+    if (searchRes.results && searchRes.results.length > 0) {
+      // rawDbId와 매칭되는 DB 우선 탐색
+      if (id) {
+        const matched = searchRes.results.find((db: any) => cleanDbId(db.id) === id || db.id === formattedId);
+        if (matched) {
+          return { databaseId: matched.id, dbData: matched };
+        }
+      }
+      // 매칭 실패 시 첫 번째로 연결 허용된 노션 DB 자동 사용!
+      const firstDb = searchRes.results[0];
+      return { databaseId: firstDb.id, dbData: firstDb };
+    }
+  } catch (searchErr) {}
+
+  // 4차 시도: 페이지 ID 내 자식 블록(child_database) 탐색
+  if (id) {
+    try {
+      const blocksRes = await notionFetch(`/blocks/${id}/children`, apiKey);
+      for (const block of blocksRes.results || []) {
+        if (block.type === "child_database") {
+          const childDbData = await notionFetch(`/databases/${block.id}`, apiKey);
+          return { databaseId: block.id, dbData: childDbData };
+        }
+      }
+    } catch (err4) {}
+  }
+
+  throw new Error(
+    `입력하신 API Key로 연결 가능한 노션 데이터베이스를 찾을 수 없습니다.\n` +
+    `노션 페이지 우측 상단 [...] ➔ '연결 추가(Add connections)'에서 생성하신 통합 앱이 정상 포함되었는지 다시 확인해 주세요.`
+  );
 }
 
 function cleanEnvVal(val?: string) {
