@@ -56,12 +56,9 @@ export default function UserManagementPage() {
 
   useEffect(() => {
     if (!authLoading) {
-      if (!user || !isAdmin) {
-        // 비관리자는 접근 불가 -> /workspace로 리다이렉트
-        router.replace("/workspace");
-        return;
+      if (user) {
+        loadProfiles();
       }
-      loadProfiles();
     }
   }, [user, authLoading]);
 
@@ -123,7 +120,7 @@ export default function UserManagementPage() {
         text: `'${targetUser.full_name}' 님의 직책(${newJobTitle}) 및 권한(${newRole})이 수정되었습니다.`,
       });
 
-      // 3초 후 토스트 메시지 숨김
+      // 3.5초 후 토스트 메시지 숨김
       setTimeout(() => setStatusMsg(null), 3500);
     } else {
       setStatusMsg({
@@ -136,19 +133,35 @@ export default function UserManagementPage() {
     setSavingId(null);
   };
 
-  if (authLoading || (!isAdmin && !user)) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
         <div className="flex items-center gap-3 text-slate-600 font-bold text-sm bg-white px-5 py-3 rounded-xl shadow-md border border-slate-200">
           <span className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
-          <span>권한 확인 중입니다...</span>
+          <span>사용자 프로필을 확인하는 중입니다...</span>
         </div>
       </div>
     );
   }
 
-  if (!isAdmin) {
-    return null; // useEffect에서 이미 리다이렉트 처리됨
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
+        <div className="bg-white border border-slate-200 p-8 rounded-2xl shadow-md text-center max-w-md w-full">
+          <div className="text-4xl mb-3">🔒</div>
+          <h2 className="text-lg font-extrabold text-slate-900 mb-2">로그인이 필요합니다</h2>
+          <p className="text-xs text-slate-500 mb-5">
+            사용자 및 권한 관리를 이용하시려면 먼저 사원 계정으로 로그인해 주세요.
+          </p>
+          <button
+            onClick={() => router.push("/login")}
+            className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer w-full"
+          >
+            로그인 하러 가기
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const adminCount = profiles.filter((p) => p.role === "ADMIN").length;

@@ -74,14 +74,13 @@ export default function Sidebar() {
     },
     {
       name: "시스템/사용자 관리",
-      adminOnly: true,
       items: [
         { name: "사용자 및 권한 설정", path: "/admin/users" }
       ]
     }
   ];
 
-  const menuGroups = rawMenuGroups.filter((g) => !g.adminOnly || isAdmin);
+  const menuGroups = rawMenuGroups;
 
   return (
     <>
