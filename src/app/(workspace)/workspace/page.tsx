@@ -934,7 +934,7 @@ export default function Home() {
                           });
 
                           const weekMaxLane = allocated.length > 0 ? Math.max(...allocated.map((s) => s.lane)) : 0;
-                          const weekRequiredMinHeight = Math.max(140, 32 + (weekMaxLane + 1) * 54);
+                          const weekRequiredMinHeight = Math.max(145, 36 + (weekMaxLane + 1) * 76);
 
                           return (
                             <div
@@ -968,8 +968,8 @@ export default function Home() {
                                 </div>
                               ))}
 
-                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (날짜 셀 테두리 내 동적 자동 연장) */}
-                              <div className="absolute inset-x-0 top-[24px] bottom-0 grid grid-cols-7 auto-rows-max gap-1 pointer-events-none px-0.5">
+                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (날짜 셀 테두리 내 넉넉한 동적 연장 지원) */}
+                              <div className="absolute inset-x-0 top-[24px] bottom-1 grid grid-cols-7 auto-rows-max gap-1 pointer-events-none px-0.5 pb-2">
                                 {allocated.map((seg, sIdx) => {
                                   const sch = seg.sch;
                                   const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
