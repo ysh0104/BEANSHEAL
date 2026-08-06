@@ -933,31 +933,53 @@ export default function Home() {
                             }
                           });
 
-                          // 🌟 각 날짜(Column)별 카드 적재 높이 정밀 추산 (줄바꿈 포함)
-                          const colHeights = [0, 0, 0, 0, 0, 0, 0];
-                          allocated.forEach((seg) => {
+                          // 🌟 주(Week)별 레인 상단 Y좌표(top) 및 픽셀 정밀 배치
+                          // 1. 각 레인-컬럼별 적재 높이 계산 (긴 줄바꿈 품목 포함)
+                          const laneColHeights: { [key: string]: number } = {};
+                          const segCardHeights: number[] = [];
+
+                          allocated.forEach((seg, sIdx) => {
                             const prodName = seg.sch.product_name || "";
                             const tagName = seg.sch.tag_name || "";
                             const nameLen = prodName.length + tagName.length;
 
-                            let cardH = 28;
+                            let cardH = 26; // 기본 1줄 카드
                             if (nameLen > 25 || (prodName.length > 15 && tagName)) {
-                              cardH = 76;
-                            } else if (nameLen > 16 || (prodName.length > 9 && tagName)) {
-                              cardH = 58;
-                            } else if (nameLen > 8 || tagName) {
-                              cardH = 42;
+                              cardH = 58; // 3~4줄 긴 품목명
+                            } else if (nameLen > 14 || (prodName.length > 8 && tagName)) {
+                              cardH = 42; // 2줄 품목명
                             }
+                            segCardHeights[sIdx] = cardH;
 
                             for (let c = seg.startCol; c <= seg.endCol; c++) {
-                              colHeights[c] += cardH + 6;
+                              const key = `${seg.lane}-${c}`;
+                              laneColHeights[key] = Math.max(laneColHeights[key] || 0, cardH);
                             }
                           });
 
-                          const maxColCardHeight = Math.max(...colHeights, 0);
-                          const weekRequiredMinHeight = maxColCardHeight > 65 
-                            ? Math.max(115, 30 + maxColCardHeight + 16) 
-                            : 115;
+                          // 2. 해당 세그먼트가 차지하는 컬럼들에서의 이전 레인 최대 높이 합 + gap(4px)으로 상단 Y좌표 결정
+                          const segTops = allocated.map((seg) => {
+                            let currentTop = 0;
+                            for (let l = 0; l < seg.lane; l++) {
+                              let maxPrevLaneH = 26; // 기본 레인 최소 높이 26px
+                              for (let c = seg.startCol; c <= seg.endCol; c++) {
+                                const key = `${l}-${c}`;
+                                if (laneColHeights[key]) {
+                                  maxPrevLaneH = Math.max(maxPrevLaneH, laneColHeights[key]);
+                                }
+                              }
+                              currentTop += maxPrevLaneH + 4; // 상하 레인 간격 4px 고정
+                            }
+                            return currentTop;
+                          });
+
+                          let maxTopWithCard = 0;
+                          allocated.forEach((seg, i) => {
+                            const topH = segTops[i] + (segCardHeights[i] || 26);
+                            if (topH > maxTopWithCard) maxTopWithCard = topH;
+                          });
+
+                          const weekRequiredMinHeight = Math.max(115, 28 + maxTopWithCard + 12);
 
                           return (
                             <div
@@ -991,27 +1013,31 @@ export default function Home() {
                                 </div>
                               ))}
 
-                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (전체 내용 줄바꿈 전체 노출) */}
-                              <div className="absolute inset-x-0 top-[24px] bottom-1 grid grid-cols-7 auto-rows-max gap-1 pointer-events-none px-0.5 pb-2">
+                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (상하 간격 4px 100% 통일 & 전체 줄바꿈) */}
+                              <div className="absolute inset-x-0 top-[24px] bottom-1 pointer-events-none px-0.5 pb-2">
                                 {allocated.map((seg, sIdx) => {
                                   const sch = seg.sch;
                                   const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
                                   const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md' : 'rounded-l-none'} ${seg.isEndOfSchedule ? 'rounded-r-md' : 'rounded-r-none'}`;
+                                  const topPos = segTops[sIdx];
+                                  const leftPct = (seg.startCol / 7) * 100;
+                                  const widthPct = (seg.colSpan / 7) * 100;
 
                                   return (
                                     <div
                                       key={`${sch.id}-${wIdx}-${sIdx}`}
                                       style={{
-                                        gridColumnStart: seg.startCol + 1,
-                                        gridColumnEnd: `span ${seg.colSpan}`,
-                                        gridRowStart: seg.lane + 1,
+                                        position: "absolute",
+                                        top: `${topPos}px`,
+                                        left: `calc(${leftPct}% + 2px)`,
+                                        width: `calc(${widthPct}% - 4px)`,
                                       }}
                                       draggable={true}
                                       onDragStart={(e) => {
                                         e.stopPropagation();
                                         handleDragStart(e, sch);
                                       }}
-                                      className={`pointer-events-auto relative h-fit min-h-[26px] my-0.5 px-2.5 py-1 text-left flex items-start justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
+                                      className={`pointer-events-auto relative h-fit min-h-[26px] py-0.5 px-2.5 text-left flex items-start justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
                                     >
                                       <div className="flex flex-wrap items-start gap-1 text-[11px] font-extrabold leading-[1.35] break-words text-slate-950 pr-1 w-full whitespace-normal">
                                         {sch.tag_name && (
