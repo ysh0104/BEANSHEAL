@@ -30,6 +30,40 @@ const DOC_NAME_MAP: Record<string, string> = {
   request: '시험의뢰서' 
 };
 
+// 헬퍼 함수: 로컬 파일시스템 3개 경로 탐색 + Vercel CDN HTTP Fetch 최후 보루 Fallback
+async function getTemplateBuffer(fileName: string, reqUrl: string): Promise<Buffer | null> {
+  const possibleDirs = [
+    path.resolve(process.cwd(), 'public', 'templates'),
+    path.resolve(process.cwd(), 'src', 'templates'),
+    path.resolve(process.cwd(), 'templates'),
+  ];
+
+  // 1. 디스크 파일시스템 우선 탐색
+  for (const dir of possibleDirs) {
+    const fullPath = path.join(dir, fileName);
+    if (fs.existsSync(fullPath)) {
+      try {
+        return fs.readFileSync(fullPath);
+      } catch (e) {}
+    }
+  }
+
+  // 2. Vercel Serverless 정적 자원 HTTP Fetch 2차 보루
+  try {
+    const origin = new URL(reqUrl).origin;
+    const fetchUrl = `${origin}/templates/${fileName}`;
+    const res = await fetch(fetchUrl);
+    if (res.ok) {
+      const arrayBuffer = await res.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    }
+  } catch (e) {
+    console.warn(`[HTTP Fetch Fallback Error] ${fileName}:`, e);
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -56,24 +90,22 @@ export async function POST(req: Request) {
     }
     if (!docType) docType = 'log';
 
-    // 템플릿 파일 디렉토리 탐색 (public/templates)
-    const templatesDir = path.resolve(process.cwd(), 'public', 'templates');
+    // 템플릿 파일 버퍼 탐색
+    let fileBuffer: Buffer | null = null;
+    let loadedFileName = "";
 
-    let templatePath = "";
-
-    // 1) templateNameParam 직접 매칭 검사
+    // 1) templateNameParam 직접 지정 파일 탐색
     if (templateNameParam) {
       const fileNameWithExt = templateNameParam.endsWith('.docx') ? templateNameParam : `${templateNameParam}.docx`;
-      const candidatePath = path.join(templatesDir, fileNameWithExt);
-      if (fs.existsSync(candidatePath)) {
-        templatePath = candidatePath;
-      }
+      fileBuffer = await getTemplateBuffer(fileNameWithExt, req.url);
+      if (fileBuffer) loadedFileName = fileNameWithExt;
     }
 
-    // 2) docType 및 prefix 기준 템플릿 탐색
-    if (!templatePath) {
+    // 2) docType & prefix 기준 탐색
+    if (!fileBuffer) {
       if (docType === 'label') {
-        templatePath = path.join(templatesDir, 'qc_label.docx');
+        fileBuffer = await getTemplateBuffer('qc_label.docx', req.url);
+        if (fileBuffer) loadedFileName = 'qc_label.docx';
       } else {
         let finalTemplateKey = body.templateKey || "";
         if (!finalTemplateKey) {
@@ -94,35 +126,31 @@ export async function POST(req: Request) {
 
         const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_product_default';
         const exactFileName = `${prefix}_${docType}.docx`;
-        const candidatePath = path.join(templatesDir, exactFileName);
+        fileBuffer = await getTemplateBuffer(exactFileName, req.url);
+        if (fileBuffer) loadedFileName = exactFileName;
 
-        if (fs.existsSync(candidatePath)) {
-          templatePath = candidatePath;
-        } else {
-          // Fallback 1: qc_product_default_${docType}.docx
+        // Fallback 1: qc_product_default_${docType}.docx
+        if (!fileBuffer) {
           const defaultFileName = `qc_product_default_${docType}.docx`;
-          const defaultPath = path.join(templatesDir, defaultFileName);
-          if (fs.existsSync(defaultPath)) {
-            templatePath = defaultPath;
-          } else {
-            // Fallback 2: qc_${docType}.docx
-            const commonFileName = `qc_${docType}.docx`;
-            const commonPath = path.join(templatesDir, commonFileName);
-            if (fs.existsSync(commonPath)) {
-              templatePath = commonPath;
-            }
-          }
+          fileBuffer = await getTemplateBuffer(defaultFileName, req.url);
+          if (fileBuffer) loadedFileName = defaultFileName;
+        }
+
+        // Fallback 2: qc_${docType}.docx
+        if (!fileBuffer) {
+          const commonFileName = `qc_${docType}.docx`;
+          fileBuffer = await getTemplateBuffer(commonFileName, req.url);
+          if (fileBuffer) loadedFileName = commonFileName;
         }
       }
     }
 
-    if (!templatePath || !fs.existsSync(templatePath)) {
-      console.error(`[오류] 템플릿 파일이 감지되지 않았습니다. templatesDir=${templatesDir}, docType=${docType}`);
-      return NextResponse.json({ error: `요청하신 템플릿 파일이 서버(public/templates)에 존재하지 않습니다.` }, { status: 404 });
+    if (!fileBuffer) {
+      console.error(`[오류] 서류 템플릿 로딩 실패 (docType=${docType}, templateName=${templateNameParam})`);
+      return NextResponse.json({ error: `서버에서 요청하신 품질서류 템플릿 파일(${docType})을 찾을 수 없습니다.` }, { status: 404 });
     }
 
-    const content = fs.readFileSync(templatePath, 'binary');
-    const zip = new PizZip(content);
+    const zip = new PizZip(fileBuffer);
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
 
     // 날짜 포맷터

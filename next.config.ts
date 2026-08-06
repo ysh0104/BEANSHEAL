@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    '/api/**/*': ['./public/templates/**/*', './src/templates/**/*', './templates/**/*'],
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },
