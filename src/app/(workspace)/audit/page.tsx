@@ -3,7 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import { getDashboardItems } from "@/app/actions/database";
 import { parseEcountExcel } from "@/utils/excelParser"; 
-import { syncExcelToSupabase } from "@/app/actions/inventoryActions"; 
+import { 
+  syncExcelToSupabase, 
+  getAuditInventoryItems, 
+  insertQuickProductionToSupabase 
+} from "@/app/actions/inventoryActions"; 
 import { getRecipeList } from "@/app/actions/recipe"; 
 
 const analyzeItemTemplate = (productName: string) => {
@@ -65,14 +69,25 @@ export default function AuditPage() {
   const [mfgDate, setMfgDate] = useState("");
   const [mfgHistory, setMfgHistory] = useState<any[]>([]);
 
-  useEffect(() => {
-    const initData = async () => {
-      try {
-        const recipeRes = await getRecipeList();
-        if (recipeRes?.success && recipeRes.data) {
-          setRecipeOptions(recipeRes.data);
-        }
-
+  // Supabase ecount_inventory 데이터 실시간 로드 함수
+  const fetchInventoryFromSupabase = async () => {
+    try {
+      const res = await getAuditInventoryItems();
+      if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+        const formatted = res.data.map((item: any) => ({
+          scrapedAt: item.created_at 
+            ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) 
+            : '미상',
+          cleanName: item.item_name || item.name || item.product_name,
+          lotNo: item.lot_no || item.ecount_prod_cd || item.lot_number || `LOT-${item.id}`,
+          expDate: item.expiry_date || item.expiration_date || '제조일로부터 24개월',
+          status: item.status || item.qc_status || '문서대기',
+          rawItem: item
+        }));
+        setScrapedItems(formatted);
+        setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
+      } else {
+        // Fallback to getDashboardItems if ecount_inventory is empty
         const dashRes = await getDashboardItems();
         if (dashRes?.success && Array.isArray(dashRes.data) && dashRes.data.length > 0) {
           const formatted = dashRes.data.map((item: any) => ({
@@ -86,6 +101,22 @@ export default function AuditPage() {
           setScrapedItems(formatted);
           setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
         }
+      }
+    } catch (e) {
+      console.error("fetchInventoryFromSupabase error:", e);
+    }
+  };
+
+  useEffect(() => {
+    const initData = async () => {
+      try {
+        const recipeRes = await getRecipeList();
+        if (recipeRes?.success && recipeRes.data) {
+          setRecipeOptions(recipeRes.data);
+        }
+
+        // Supabase ecount_inventory 데이터 실시간 동기화 불러오기
+        await fetchInventoryFromSupabase();
 
         const savedHistory = localStorage.getItem("beansheal_mfg_history");
         if (savedHistory) setMfgHistory(JSON.parse(savedHistory));
@@ -156,25 +187,17 @@ export default function AuditPage() {
         localStorage.setItem("beansheal_mfg_history", JSON.stringify(updatedHistory));
       }
 
-      const newItem = {
-        scrapedAt: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-        cleanName: selectedProduct,
-        lotNo: previewLot,
-        expDate: '제조일로부터 24개월',
-        status: '문서대기',
-        rawItem: {
-          product_name: selectedProduct,
-          lot_number: previewLot,
-          template_name: dynamicTemplateName,
-          recipe_name: cleanRecipeName,
-          production_qty: inputQty,
-          mfg_no: mfgNo || undefined,
-          mfg_date: mfgDate || undefined
-        }
-      };
+      // Supabase ecount_inventory 테이블에 즉시 실적 등록
+      await insertQuickProductionToSupabase({
+        item_name: selectedProduct,
+        lot_no: previewLot,
+        quantity: inputQty,
+        expiry_date: '제조일로부터 24개월',
+        status: '문서대기'
+      });
 
-      setScrapedItems(prev => [newItem, ...prev]);
-      alert(`[대기열 추가 완료]\n품목: ${selectedProduct}\nLOT: ${previewLot}\n수량: ${inputQty}`);
+      await fetchInventoryFromSupabase();
+      alert(`[대기열 등록 및 Supabase 동기화 완료]\n품목: ${selectedProduct}\nLOT: ${previewLot}\n수량: ${inputQty}`);
 
       setSelectedProduct("");
       setInputQty("");
@@ -199,20 +222,9 @@ export default function AuditPage() {
       const parsedItems = await parseEcountExcel(file);
       await syncExcelToSupabase(parsedItems);
 
-      const dashRes = await getDashboardItems();
-      if (dashRes?.success && Array.isArray(dashRes.data)) {
-        const formatted = dashRes.data.map((item: any) => ({
-          scrapedAt: item.created_at ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '미상',
-          cleanName: item.name || item.product_name,
-          lotNo: item.ecount_prod_cd || item.lot_number || `LOT-${item.id}`,
-          expDate: item.expiration_date || '제조일로부터 24개월',
-          status: item.qc_status || '문서대기',
-          rawItem: item
-        }));
-        setScrapedItems(formatted);
-        setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
-      }
-      alert(`성공적으로 이카운트 엑셀 데이터(${parsedItems.length}건)를 동기화했습니다!`);
+      // 엑셀 업로드 후 Supabase ecount_inventory에서 최신 데이터 즉시 재조회
+      await fetchInventoryFromSupabase();
+      alert(`성공적으로 이카운트 엑셀 데이터(${parsedItems.length}건)를 Supabase와 동기화했습니다!`);
     } catch (error: any) {
       alert(`엑셀 파싱 및 업로드 오류: ${error?.message || "알 수 없는 오류"}`);
     } finally {
@@ -351,11 +363,22 @@ export default function AuditPage() {
               <h3 className="font-bold text-lg">데이터 동기화 및 관리열 (이카운트 엑셀 / 자동 수집)</h3>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <div className="text-xs text-gray-500 flex flex-col text-right">
                 <span className="font-bold">마지막 동기화</span>
                 <span className="font-mono text-blue-600">{lastSyncTime}</span>
               </div>
+
+              <button
+                type="button"
+                onClick={fetchInventoryFromSupabase}
+                className="text-xs px-3 py-2 rounded-md font-bold border border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span>Supabase 실시간 새로고침</span>
+              </button>
               
               <input 
                 type="file" 
