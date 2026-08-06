@@ -50,43 +50,71 @@ function cleanDbId(dbId: string) {
   return trimmed.replace(/-/g, "");
 }
 
+function formatNotionId(id: string) {
+  const cleaned = cleanDbId(id);
+  if (cleaned.length === 32) {
+    return `${cleaned.slice(0, 8)}-${cleaned.slice(8, 12)}-${cleaned.slice(12, 16)}-${cleaned.slice(16, 20)}-${cleaned.slice(20)}`;
+  }
+  return cleaned;
+}
+
 /**
  * 데이터베이스 ID 또는 페이지 ID(인라인 DB를 품은 페이지)를 지능적으로 감지/해결하는 함수
  */
 async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ databaseId: string; dbData: any }> {
   const id = cleanDbId(rawDbId);
+  const formattedId = formatNotionId(rawDbId);
   
-  // 1차 시도: 데이터베이스 엔드포인트 직접 조회
+  // 1차 시도: formatted UUID로 데이터베이스 직접 조회
   try {
-    const dbData = await notionFetch(`/databases/${id}`, apiKey);
-    return { databaseId: id, dbData };
-  } catch (dbErr: any) {
-    // 2차 시도: 만약 페이지 ID인 경우, 페이지 조회 후 자식 데이터베이스 블록(child_database) 탐색
+    const dbData = await notionFetch(`/databases/${formattedId}`, apiKey);
+    return { databaseId: formattedId, dbData };
+  } catch (err1) {
+    // 2차 시도: unformatted ID로 데이터베이스 조회
     try {
-      const pageData = await notionFetch(`/pages/${id}`, apiKey);
-      const blocksRes = await notionFetch(`/blocks/${id}/children`, apiKey);
-      for (const block of blocksRes.results || []) {
-        if (block.type === "child_database") {
-          const childDbData = await notionFetch(`/databases/${block.id}`, apiKey);
-          return { databaseId: block.id, dbData: childDbData };
+      const dbData = await notionFetch(`/databases/${id}`, apiKey);
+      return { databaseId: id, dbData };
+    } catch (err2: any) {
+      // 3차 시도: 만약 페이지 ID인 경우 자식 데이터베이스 블록(child_database) 탐색
+      try {
+        const blocksRes = await notionFetch(`/blocks/${id}/children`, apiKey);
+        for (const block of blocksRes.results || []) {
+          if (block.type === "child_database") {
+            const childDbData = await notionFetch(`/databases/${block.id}`, apiKey);
+            return { databaseId: block.id, dbData: childDbData };
+          }
         }
-      }
-      throw new Error(`입력하신 페이지에서 '달력/표(데이터베이스)'를 발견하지 못했습니다. 달력 블록 자체의 링크를 복사해 주세요.`);
-    } catch (pageErr: any) {
-      // 페이지 조차 없는 경우 원본 오류 전달
-      throw dbErr;
+      } catch (err3) {}
+      throw err2;
     }
   }
 }
 
 function getEffectiveConfig(config?: NotionConfig) {
-  const envKey = process.env.NOTION_API_KEY ? process.env.NOTION_API_KEY.trim() : "";
-  const envDbId = process.env.NOTION_DATABASE_ID ? process.env.NOTION_DATABASE_ID.trim() : "";
+  const envKey = (
+    process.env.NOTION_API_KEY ||
+    process.env.NOTION_KEY ||
+    process.env.NOTION_SECRET ||
+    process.env.NOTION_TOKEN ||
+    process.env.NEXT_PUBLIC_NOTION_API_KEY ||
+    process.env.NEXT_PUBLIC_NOTION_KEY ||
+    ""
+  ).trim();
+
+  const envDbId = (
+    process.env.NOTION_DATABASE_ID ||
+    process.env.NOTION_DB_ID ||
+    process.env.NOTION_PAGE_ID ||
+    process.env.NOTION_ID ||
+    process.env.NEXT_PUBLIC_NOTION_DATABASE_ID ||
+    process.env.NEXT_PUBLIC_NOTION_DB_ID ||
+    ""
+  ).trim();
 
   const customKey = config?.apiKey ? config.apiKey.trim() : "";
   const customDbId = config?.databaseId ? config.databaseId.trim() : "";
 
-  // Vercel 서버 환경변수를 최우선으로 적용 (Vercel 환경변수 없으면 커스텀 입력 키 폴백)
+  // Vercel 서버 환경변수를 최우선 적용
   const apiKey = envKey || customKey;
   const rawDbId = envDbId || customDbId;
 

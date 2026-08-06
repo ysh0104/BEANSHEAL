@@ -92,6 +92,7 @@ export default function Home() {
   const [isSyncingNotion, setIsSyncingNotion] = useState(false);
   const [syncToNotionChecked, setSyncToNotionChecked] = useState(true);
   const [testStatusMsg, setTestStatusMsg] = useState("");
+  const [notionSyncStatusMsg, setNotionSyncStatusMsg] = useState<string | null>(null);
   const [isTestingConn, setIsTestingConn] = useState(false);
   const [draggedSchedule, setDraggedSchedule] = useState<any | null>(null);
 
@@ -150,8 +151,13 @@ export default function Home() {
         const notionRes = await fetchNotionSchedules(getNotionConfig());
         if (notionRes?.success && notionRes.data) {
           setSchedules(notionRes.data);
+          setNotionSyncStatusMsg(null);
+        } else if (notionRes && !notionRes.success) {
+          setNotionSyncStatusMsg(notionRes.message || "노션 연동 실패");
         }
-      } catch (e) {}
+      } catch (e: any) {
+        setNotionSyncStatusMsg(e?.message || "노션 데이터 불러오기 오류");
+      }
     };
 
     const initData = async () => {
@@ -189,7 +195,7 @@ export default function Home() {
     };
     initData();
 
-    // 사용자가 어떠한 버튼도 누르지 않아도 20초마다 자동으로 노션 일정 백그라운드 동기화
+    // 사용자가 어떠한 버튼도 누르지 않아도 15초마다 자동으로 노션 일정 백그라운드 동기화
     const interval = setInterval(() => {
       fetchSchedulesSilently();
     }, 20000);
@@ -758,7 +764,7 @@ export default function Home() {
           /* Widget 1: 월간 생산 계획표 (Calendar) - 노션 스타일 연장형 멀티데이 바 캘린더 */
           if (widget.id === "calendar") {
             const calendarHeaderLeft = (
-              <div className="flex items-center gap-1 text-slate-800 text-xs font-bold">
+              <div className="flex items-center gap-1.5 text-slate-800 text-xs font-bold">
                 <button onClick={handlePrevMonth} className="p-0.5 hover:bg-slate-200 rounded text-slate-600 cursor-pointer">
                   ‹
                 </button>
@@ -767,6 +773,11 @@ export default function Home() {
                   ›
                 </button>
                 <span className="ml-1 text-slate-900 font-extrabold text-xs">일정관리</span>
+                {notionSyncStatusMsg && (
+                  <span className="ml-2 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded shadow-xs" title={notionSyncStatusMsg}>
+                    ⚠️ {notionSyncStatusMsg}
+                  </span>
+                )}
               </div>
             );
 
