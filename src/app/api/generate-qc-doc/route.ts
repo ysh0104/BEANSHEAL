@@ -3,7 +3,88 @@ import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import qcTemplateConfig from '@/config/qcTemplateMap.json';
+
+// HWP 바이너리 파일 내 {제품명}, {LOT번호} 치환자 치환 헬퍼 (UTF-16LE + UTF-8 + zlib 인플레이트 파싱)
+function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>): Buffer {
+  let result = Buffer.from(buffer);
+  const encodings: Array<'utf16le' | 'utf-8'> = ['utf16le', 'utf-8'];
+
+  for (const [key, value] of Object.entries(renderData)) {
+    const valStr = String(value ?? '');
+    const patterns = [`{{${key}}}`, `{${key}}`];
+
+    for (const p of patterns) {
+      for (const enc of encodings) {
+        const pBuf = Buffer.from(p, enc);
+        const vBuf = Buffer.from(valStr, enc);
+
+        let searchIdx = 0;
+        while ((searchIdx = result.indexOf(pBuf, searchIdx)) !== -1) {
+          let replacementBuf = vBuf;
+          if (vBuf.length < pBuf.length) {
+            const diff = pBuf.length - vBuf.length;
+            const spaceChar = ' ';
+            const padBuf = Buffer.from(spaceChar.repeat(enc === 'utf16le' ? diff / 2 : diff), enc);
+            replacementBuf = Buffer.concat([vBuf, padBuf]);
+          } else if (vBuf.length > pBuf.length) {
+            replacementBuf = vBuf.subarray(0, pBuf.length);
+          }
+          replacementBuf.copy(result, searchIdx);
+          searchIdx += pBuf.length;
+        }
+      }
+    }
+  }
+
+  // HWP 5.0 zlib 인플레이트 스트림 치환
+  for (let i = 0; i < result.length - 10; i++) {
+    try {
+      const slice = result.subarray(i);
+      const inflated = zlib.inflateRawSync(slice);
+      let inflatedBuf = Buffer.from(inflated);
+      let modified = false;
+
+      for (const [key, value] of Object.entries(renderData)) {
+        const valStr = String(value ?? '');
+        const patterns = [`{{${key}}}`, `{${key}}`];
+
+        for (const p of patterns) {
+          for (const enc of encodings) {
+            const pBuf = Buffer.from(p, enc);
+            const vBuf = Buffer.from(valStr, enc);
+
+            let sIdx = 0;
+            while ((sIdx = inflatedBuf.indexOf(pBuf, sIdx)) !== -1) {
+              let rBuf = vBuf;
+              if (vBuf.length < pBuf.length) {
+                const diff = pBuf.length - vBuf.length;
+                const spaceChar = ' ';
+                const padBuf = Buffer.from(spaceChar.repeat(enc === 'utf16le' ? diff / 2 : diff), enc);
+                rBuf = Buffer.concat([vBuf, padBuf]);
+              } else if (vBuf.length > pBuf.length) {
+                rBuf = vBuf.subarray(0, pBuf.length);
+              }
+              rBuf.copy(inflatedBuf, sIdx);
+              sIdx += pBuf.length;
+              modified = true;
+            }
+          }
+        }
+      }
+
+      if (modified) {
+        const deflated = zlib.deflateRawSync(inflatedBuf);
+        if (deflated.length <= slice.length) {
+          deflated.copy(result, i);
+        }
+      }
+    } catch (e) {}
+  }
+
+  return result;
+}
 
 // 1. 독립 설정 파일(src/config/qcTemplateMap.json)에서 템플릿 매핑 사전 로드
 const ITEM_MAPPING: Record<string, string> = (qcTemplateConfig as any).itemMapping || {};
@@ -219,6 +300,25 @@ export async function POST(req: Request) {
     const isOrganic = cleanProductName.includes('유기농');
     const testNo = isOrganic ? `${lotNo}u` : lotNo;
 
+    const renderData = {
+      제품명: cleanProductName, 
+      품명: cleanProductName,       
+      LOT번호: lotNo,         
+      시험번호: testNo,       
+      시험일자: testDate || todayStr,
+      제조일자: mfgDate || "",
+      수량: qty,
+      제조수량: qty,                
+      오늘날짜: todayStr,      
+      유통기한: expiryDate || "",  
+      소비기한: expiryDate || "",    
+      규격: extractedSpec,
+      제조번호: mfgNo || "",         
+      접수일자: todayStr,
+      검체채취일자: todayStr,
+      완료예정일: dueDateStr
+    };
+
     let buf: Buffer;
 
     // docx 또는 hwpx 포맷인 경우 docxtemplater 렌더링 시도
@@ -226,31 +326,14 @@ export async function POST(req: Request) {
       try {
         const zip = new PizZip(content);
         const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-        doc.render({
-          제품명: cleanProductName, 
-          품명: cleanProductName,       
-          LOT번호: lotNo,         
-          시험번호: testNo,       
-          시험일자: testDate || todayStr,
-          제조일자: mfgDate || "",
-          수량: qty,
-          제조수량: qty,                
-          오늘날짜: todayStr,      
-          유통기한: expiryDate || "",  
-          소비기한: expiryDate || "",    
-          규격: extractedSpec,
-          제조번호: mfgNo || "",         
-          접수일자: todayStr,
-          검체채취일자: todayStr,
-          완료예정일: dueDateStr
-        });
+        doc.render(renderData);
         buf = doc.getZip().generate({ type: 'nodebuffer' });
       } catch (e) {
-        buf = content;
+        buf = replaceHwpPlaceholders(content, renderData);
       }
     } else {
-      // HWP 바이너리 양식 파일인 경우 그대로 출력
-      buf = content;
+      // HWP 바이너리 양식 파일인 경우 HWP 바이너리 스트림 렌더링 실행
+      buf = replaceHwpPlaceholders(content, renderData);
     }
     
     const mimeType = contentTypeMap[fileExt] || contentTypeMap['hwp'];
