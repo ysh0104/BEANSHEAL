@@ -257,3 +257,189 @@ export async function getMasterItems() {
     return [];
   }
 }
+
+export interface EcountBomImportRow {
+  parentCode: string;
+  parentName?: string;
+  materialCode: string;
+  materialName?: string;
+  qty: number;
+  unit?: string;
+  materialType?: string;
+}
+
+/**
+ * 이카운트 BOM 엑셀(또는 CSV)에서 파싱한 행을 recipes / recipe_materials 로 동기화합니다.
+ * parentCode(생산품목코드) 기준으로 레시피를 만들고/갱신합니다.
+ */
+export async function importEcountBomRows(rows: EcountBomImportRow[]) {
+  try {
+    if (!rows?.length) {
+      return { success: false, error: "가져올 BOM 행이 없습니다." };
+    }
+
+    const byParent = new Map<string, EcountBomImportRow[]>();
+    for (const row of rows) {
+      const parent = String(row.parentCode || "").trim();
+      const mat = String(row.materialCode || "").trim();
+      if (!parent || !mat) continue;
+      if (!byParent.has(parent)) byParent.set(parent, []);
+      byParent.get(parent)!.push({
+        ...row,
+        parentCode: parent,
+        materialCode: mat,
+        qty: Number(row.qty) || 0,
+      });
+    }
+
+    if (byParent.size === 0) {
+      return {
+        success: false,
+        error: "생산품목코드/소모품목코드 컬럼을 인식하지 못했습니다. 엑셀 헤더를 확인해 주세요.",
+      };
+    }
+
+    // 품목명 보강용
+    const allCodes = Array.from(
+      new Set(
+        [...byParent.keys()].concat(
+          ...Array.from(byParent.values()).map((list) => list.map((r) => r.materialCode))
+        )
+      )
+    );
+    const { data: itemRows } = await supabase
+      .from("ecount_items")
+      .select("prod_cd, prod_nm, item_type")
+      .in("prod_cd", allCodes);
+    const nameMap = new Map<string, { name: string; type: string }>();
+    (itemRows || []).forEach((i: any) => {
+      nameMap.set(i.prod_cd, { name: i.prod_nm || i.prod_cd, type: i.item_type || "" });
+    });
+
+    let created = 0;
+    let updated = 0;
+    let materialCount = 0;
+
+    for (const [parentCode, mats] of byParent.entries()) {
+      const parentName =
+        mats[0]?.parentName ||
+        nameMap.get(parentCode)?.name ||
+        parentCode;
+
+      // product_code 로 기존 레시피 검색
+      let existing: any = null;
+      {
+        const { data } = await supabase
+          .from("recipes")
+          .select("id, product_name")
+          .eq("product_code", parentCode)
+          .maybeSingle();
+        existing = data;
+      }
+
+      // product_code 컬럼 없거나 미매칭이면 이름 매칭 (약하게)
+      if (!existing) {
+        const { data } = await supabase
+          .from("recipes")
+          .select("id, product_name")
+          .eq("product_name", parentName)
+          .maybeSingle();
+        existing = data;
+      }
+
+      let recipeId: string;
+
+      if (existing?.id) {
+        recipeId = existing.id;
+        const updatePayload: any = {
+          product_name: parentName,
+          product_code: parentCode,
+        };
+        let { error: upErr } = await supabase.from("recipes").update(updatePayload).eq("id", recipeId);
+        if (upErr && String(upErr.message || "").includes("product_code")) {
+          delete updatePayload.product_code;
+          ({ error: upErr } = await supabase.from("recipes").update(updatePayload).eq("id", recipeId));
+        }
+        if (upErr) throw upErr;
+        updated++;
+      } else {
+        const insertPayload: any = {
+          product_name: parentName,
+          product_code: parentCode,
+          base_batch_size: 1000,
+          base_unit: "kg",
+          food_type: "건강기능식품",
+          is_coffee: false,
+        };
+        let { data: inserted, error: insErr } = await supabase
+          .from("recipes")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+        if (insErr && String(insErr.message || "").includes("product_code")) {
+          delete insertPayload.product_code;
+          ({ data: inserted, error: insErr } = await supabase
+            .from("recipes")
+            .insert(insertPayload)
+            .select("id")
+            .single());
+        }
+        if (insErr) throw insErr;
+        if (!inserted?.id) throw new Error("레시피 생성 후 ID를 받지 못했습니다.");
+        recipeId = inserted.id;
+        created++;
+      }
+
+      await supabase.from("recipe_materials").delete().eq("recipe_id", recipeId);
+
+      const materialsToInsert = mats.map((m) => {
+        const meta = nameMap.get(m.materialCode);
+        const iType = meta?.type || "";
+        const matName = m.materialName || meta?.name || m.materialCode;
+        const hint = String(m.materialType || "");
+        const isSemi =
+          hint.includes("반") ||
+          matName.startsWith("반)") ||
+          matName.startsWith("반）") ||
+          iType.includes("반");
+        const isPack =
+          !isSemi &&
+          (hint.includes("부") ||
+            matName.startsWith("부)") ||
+            matName.startsWith("부）") ||
+            iType.includes("부") ||
+            iType.includes("자"));
+        const materialType = isSemi ? "반제품" : isPack ? "부자재" : "원재료";
+        return {
+          recipe_id: recipeId,
+          material_name: matName,
+          material_code: m.materialCode,
+          input_qty: m.qty,
+          input_unit: m.unit || (isPack || isSemi ? "EA" : "kg"),
+          tolerance_percent: isPack || isSemi ? 0 : 1,
+          process_type: isPack ? "packaging" : isSemi ? "filling" : "mixing",
+          material_type: materialType,
+          packaging_unit: isPack ? 1 : 0,
+        };
+      });
+
+      if (materialsToInsert.length > 0) {
+        const { error: matErr } = await supabase.from("recipe_materials").insert(materialsToInsert);
+        if (matErr) throw matErr;
+        materialCount += materialsToInsert.length;
+      }
+    }
+
+    return {
+      success: true,
+      message: `이카운트 BOM 동기화 완료 — 신규 ${created}건, 갱신 ${updated}건, 자재 ${materialCount}행`,
+      created,
+      updated,
+      materialCount,
+      parentCount: byParent.size,
+    };
+  } catch (error: any) {
+    console.error("BOM 가져오기 실패:", error);
+    return { success: false, error: error.message || "BOM 가져오기 실패" };
+  }
+}
