@@ -124,3 +124,35 @@ export async function deleteMemoFromSupabase(id: string | number) {
     return { success: false, message: error?.message || "메모 삭제 오류" };
   }
 }
+
+/**
+ * Supabase에서 메모 내용 수정
+ */
+export async function updateMemoInSupabase(id: string | number, text: string) {
+  try {
+    const { data, error } = await supabase
+      .from('memos')
+      .update({ text: text })
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      const { data: data2, error: error2 } = await supabase
+        .from('workspace_memos')
+        .update({ text: text })
+        .eq('id', id)
+        .select();
+
+      if (error2) {
+        console.error("updateMemoInSupabase error:", error.message, error2.message);
+        return { success: false, message: error.message };
+      }
+      return { success: true, data: data2 };
+    }
+
+    return { success: true, data };
+  } catch (error: any) {
+    console.error("[updateMemoInSupabase error]", error);
+    return { success: false, message: error?.message || "메모 수정 오류" };
+  }
+}
