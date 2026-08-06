@@ -933,9 +933,31 @@ export default function Home() {
                             }
                           });
 
-                          const weekMaxLane = allocated.length > 0 ? Math.max(...allocated.map((s) => s.lane)) : 0;
-                          // 각 레인당 28px 높이 + 4px 간격을 균일 적용하여 막대 간 상하 간격을 100% 통일
-                          const weekRequiredMinHeight = Math.max(115, 30 + (weekMaxLane + 1) * 32 + 8);
+                          // 🌟 각 날짜(Column)별 카드 적재 높이 정밀 추산 (줄바꿈 포함)
+                          const colHeights = [0, 0, 0, 0, 0, 0, 0];
+                          allocated.forEach((seg) => {
+                            const prodName = seg.sch.product_name || "";
+                            const tagName = seg.sch.tag_name || "";
+                            const nameLen = prodName.length + tagName.length;
+
+                            let cardH = 28;
+                            if (nameLen > 25 || (prodName.length > 15 && tagName)) {
+                              cardH = 76;
+                            } else if (nameLen > 16 || (prodName.length > 9 && tagName)) {
+                              cardH = 58;
+                            } else if (nameLen > 8 || tagName) {
+                              cardH = 42;
+                            }
+
+                            for (let c = seg.startCol; c <= seg.endCol; c++) {
+                              colHeights[c] += cardH + 6;
+                            }
+                          });
+
+                          const maxColCardHeight = Math.max(...colHeights, 0);
+                          const weekRequiredMinHeight = maxColCardHeight > 65 
+                            ? Math.max(115, 30 + maxColCardHeight + 16) 
+                            : 115;
 
                           return (
                             <div
@@ -969,8 +991,8 @@ export default function Home() {
                                 </div>
                               ))}
 
-                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (모든 레인 균일 28px 높이 & 4px 상하 간격 보장) */}
-                              <div className="absolute inset-x-0 top-[24px] bottom-1 grid grid-cols-7 auto-rows-[28px] gap-1 pointer-events-none px-0.5 pb-2">
+                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (전체 내용 줄바꿈 전체 노출) */}
+                              <div className="absolute inset-x-0 top-[24px] bottom-1 grid grid-cols-7 auto-rows-max gap-1 pointer-events-none px-0.5 pb-2">
                                 {allocated.map((seg, sIdx) => {
                                   const sch = seg.sch;
                                   const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
@@ -989,19 +1011,19 @@ export default function Home() {
                                         e.stopPropagation();
                                         handleDragStart(e, sch);
                                       }}
-                                      className={`pointer-events-auto relative h-[28px] px-2.5 text-left flex items-center justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
+                                      className={`pointer-events-auto relative h-fit min-h-[26px] my-0.5 px-2.5 py-1 text-left flex items-start justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
                                     >
-                                      <div className="flex items-center gap-1.5 text-[11px] font-extrabold leading-none pr-1 w-full overflow-hidden">
+                                      <div className="flex flex-wrap items-start gap-1 text-[11px] font-extrabold leading-[1.35] break-words text-slate-950 pr-1 w-full whitespace-normal">
                                         {sch.tag_name && (
-                                          <span className="text-[9.5px] font-black px-1.5 py-0.5 rounded bg-black/15 text-slate-900 inline-block shrink-0 leading-none">
+                                          <span className="text-[9.5px] font-black px-1.5 py-0.2 rounded bg-black/15 text-slate-900 inline-block shrink-0 mt-0.5">
                                             {sch.tag_name}
                                           </span>
                                         )}
-                                        <span className="truncate leading-none font-extrabold text-slate-950 flex-1" title={sch.product_name}>
+                                        <span className="break-words leading-[1.35] font-extrabold text-slate-950 flex-1 whitespace-normal">
                                           {sch.product_name}
                                         </span>
                                         {sch.quantity && sch.quantity !== "1" && (
-                                          <span className="text-[10px] opacity-90 font-black shrink-0 font-mono inline-block leading-none">({sch.quantity})</span>
+                                          <span className="text-[10px] opacity-90 font-black shrink-0 font-mono inline-block mt-0.5">({sch.quantity})</span>
                                         )}
                                       </div>
 
@@ -1013,7 +1035,7 @@ export default function Home() {
                                             handleDeleteSchedule(sch.id, sch.notion_page_id);
                                           }
                                         }}
-                                        className="opacity-0 group-hover/bar:opacity-100 text-slate-500 hover:text-red-600 font-black text-xs transition-opacity ml-1 cursor-pointer shrink-0 leading-none"
+                                        className="opacity-0 group-hover/bar:opacity-100 text-slate-500 hover:text-red-600 font-black text-xs transition-opacity ml-1 cursor-pointer shrink-0 mt-0.5"
                                         title="일정 삭제"
                                       >
                                         ×
