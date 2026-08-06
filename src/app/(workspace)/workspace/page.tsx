@@ -40,29 +40,58 @@ const getNotionColorClass = (colorStr?: string) => {
   }
 };
 
-// 🌟 노션 고유 색상을 깔끔한 파스텔 태그 뱃지 스타일로 변환하는 함수 (태그만 색상 적용)
-const getNotionTagBadgeClass = (colorStr?: string) => {
-  if (!colorStr) return "bg-indigo-100 text-indigo-800 border border-indigo-200";
-  switch (colorStr) {
+// 🌟 생산, 입고, 출고, 휴가 등 일정 성격별 명확한 시각적 구분을 제공하는 색상 분류 함수
+const getNotionScheduleColorClass = (tagName?: string, tagColor?: string, productName?: string) => {
+  const textToSearch = `${tagName || ""} ${productName || ""}`.toLowerCase();
+
+  // 1. 카테고리 키워드 우선 식별 (생산, 입고, 출고, 휴가, 점검/감사)
+  if (textToSearch.includes("생산") || textToSearch.includes("제조") || textToSearch.includes("라인")) {
+    return "bg-emerald-100 text-emerald-950 border-2 border-emerald-400 font-extrabold shadow-2xs"; // 🟢 생산: 에메랄드 그린
+  }
+  if (textToSearch.includes("입고") || textToSearch.includes("자재") || textToSearch.includes("원료") || textToSearch.includes("발주")) {
+    return "bg-sky-100 text-sky-950 border-2 border-sky-400 font-extrabold shadow-2xs"; // 🔵 입고/자재: 맑은 블루
+  }
+  if (textToSearch.includes("출고") || textToSearch.includes("배송") || textToSearch.includes("납품") || textToSearch.includes("택배")) {
+    return "bg-purple-100 text-purple-950 border-2 border-purple-400 font-extrabold shadow-2xs"; // 🟣 출고/배송: 보라
+  }
+  if (textToSearch.includes("휴가") || textToSearch.includes("연차") || textToSearch.includes("휴무") || textToSearch.includes("반차")) {
+    return "bg-amber-100 text-amber-950 border-2 border-amber-400 font-extrabold shadow-2xs"; // 🟡 휴가/연차: 따뜻한 앰버/노랑
+  }
+  if (textToSearch.includes("점검") || textToSearch.includes("수리") || textToSearch.includes("감사") || textToSearch.includes("점검표")) {
+    return "bg-rose-100 text-rose-950 border-2 border-rose-400 font-extrabold shadow-2xs"; // 🔴 점검/감사: 장미빛 레드
+  }
+
+  // 2. 노션 고유 태그 색상 매핑
+  switch (tagColor) {
     case "blue":
-    case "blue_background": return "bg-blue-100 text-blue-800 border border-blue-200";
+    case "blue_background":
+      return "bg-sky-100 text-sky-950 border-2 border-sky-400 font-extrabold shadow-2xs";
     case "green":
-    case "green_background": return "bg-emerald-100 text-emerald-800 border border-emerald-200";
+    case "green_background":
+      return "bg-emerald-100 text-emerald-950 border-2 border-emerald-400 font-extrabold shadow-2xs";
     case "red":
-    case "red_background": return "bg-red-100 text-red-800 border border-red-200";
+    case "red_background":
+      return "bg-rose-100 text-rose-950 border-2 border-rose-400 font-extrabold shadow-2xs";
     case "yellow":
-    case "yellow_background": return "bg-amber-100 text-amber-800 border border-amber-200";
-    case "pink":
-    case "pink_background": return "bg-pink-100 text-pink-800 border border-pink-200";
+    case "yellow_background":
+      return "bg-amber-100 text-amber-950 border-2 border-amber-400 font-extrabold shadow-2xs";
     case "purple":
-    case "purple_background": return "bg-purple-100 text-purple-800 border border-purple-200";
+    case "purple_background":
+      return "bg-purple-100 text-purple-950 border-2 border-purple-400 font-extrabold shadow-2xs";
     case "orange":
-    case "orange_background": return "bg-orange-100 text-orange-800 border border-orange-200";
+    case "orange_background":
+      return "bg-orange-100 text-orange-950 border-2 border-orange-400 font-extrabold shadow-2xs";
+    case "pink":
+    case "pink_background":
+      return "bg-pink-100 text-pink-950 border-2 border-pink-400 font-extrabold shadow-2xs";
     case "brown":
-    case "brown_background": return "bg-amber-100 text-amber-900 border border-amber-300";
+    case "brown_background":
+      return "bg-amber-100 text-amber-950 border-2 border-amber-500 font-extrabold shadow-2xs";
     case "gray":
-    case "gray_background": return "bg-gray-200 text-gray-800 border border-gray-300";
-    default: return "bg-slate-100 text-slate-800 border border-slate-200";
+    case "gray_background":
+      return "bg-slate-200 text-slate-900 border-2 border-slate-400 font-extrabold shadow-2xs";
+    default:
+      return "bg-indigo-100 text-indigo-950 border-2 border-indigo-300 font-extrabold shadow-2xs";
   }
 };
 
@@ -781,7 +810,25 @@ export default function Home() {
               </div>
             );
 
-            const calendarHeaderRight = null;
+            const calendarHeaderRight = (
+              <div className="hidden sm:flex items-center gap-1.5 text-[10.5px] font-bold shrink-0">
+                <span className="flex items-center gap-1 bg-emerald-50 text-emerald-950 border border-emerald-300 px-1.5 py-0.5 rounded font-extrabold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span> 생산
+                </span>
+                <span className="flex items-center gap-1 bg-sky-50 text-sky-950 border border-sky-300 px-1.5 py-0.5 rounded font-extrabold">
+                  <span className="w-2 h-2 rounded-full bg-sky-500"></span> 입고
+                </span>
+                <span className="flex items-center gap-1 bg-purple-50 text-purple-950 border border-purple-300 px-1.5 py-0.5 rounded font-extrabold">
+                  <span className="w-2 h-2 rounded-full bg-purple-500"></span> 출고
+                </span>
+                <span className="flex items-center gap-1 bg-amber-50 text-amber-950 border border-amber-300 px-1.5 py-0.5 rounded font-extrabold">
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span> 휴가
+                </span>
+                <span className="flex items-center gap-1 bg-rose-50 text-rose-950 border border-rose-300 px-1.5 py-0.5 rounded font-extrabold">
+                  <span className="w-2 h-2 rounded-full bg-rose-500"></span> 점검
+                </span>
+              </div>
+            );
 
             const weeks = getCalendarWeeks(year, month);
 
@@ -863,7 +910,7 @@ export default function Home() {
                             return String(a.sch.id).localeCompare(String(b.sch.id));
                           });
 
-                          // 레인(Lane) 중복 방지 할당
+                          // 레인(Lane) 충돌 방지 배치
                           const occupied: boolean[][] = [];
                           const allocated = weekSegments.map((seg) => {
                             let lane = 0;
@@ -889,7 +936,7 @@ export default function Home() {
                           const maxVisibleLane = 3;
 
                           return (
-                            <div key={wIdx} className="flex-1 grid grid-cols-7 gap-1 relative min-h-[115px] border-b border-slate-100 last:border-0 pb-1">
+                            <div key={wIdx} className="flex-1 grid grid-cols-7 gap-1 relative min-h-[125px] border-b border-slate-100 last:border-0 pb-1">
                               {/* 1. 배경 날짜 셀 Layer */}
                               {week.map((cell, cIdx) => (
                                 <div
@@ -916,14 +963,14 @@ export default function Home() {
                                 </div>
                               ))}
 
-                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (2~3줄 자동 줄바꿈 지원) */}
-                              <div className="absolute inset-x-0 top-[24px] bottom-0 grid grid-cols-7 gap-1 pointer-events-none px-0.5">
+                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (자동 높이 늘어남 & 카테고리 색상 구별 지원) */}
+                              <div className="absolute inset-x-0 top-[24px] bottom-0 grid grid-cols-7 auto-rows-max gap-1 pointer-events-none px-0.5">
                                 {allocated.map((seg, sIdx) => {
                                   if (seg.lane >= maxVisibleLane) return null;
 
                                   const sch = seg.sch;
-                                  const tagStyle = getNotionTagBadgeClass(sch.tag_color);
-                                  const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md border-l' : 'rounded-l-none border-l-0'} ${seg.isEndOfSchedule ? 'rounded-r-md border-r' : 'rounded-r-none border-r-0'}`;
+                                  const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
+                                  const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md border-l-2' : 'rounded-l-none border-l-0'} ${seg.isEndOfSchedule ? 'rounded-r-md border-r-2' : 'rounded-r-none border-r-0'}`;
 
                                   return (
                                     <div
@@ -938,19 +985,19 @@ export default function Home() {
                                         e.stopPropagation();
                                         handleDragStart(e, sch);
                                       }}
-                                      className={`pointer-events-auto relative min-h-[28px] h-auto my-0.5 px-2.5 py-1.5 text-left flex items-start justify-between shadow-2xs border-y border-slate-300/80 cursor-grab active:cursor-grabbing text-slate-900 transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
+                                      className={`pointer-events-auto relative h-fit min-h-[28px] my-0.5 px-2 py-1.5 text-left flex items-start justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
                                     >
-                                      <div className="flex flex-wrap items-start gap-1.5 text-[11px] font-extrabold leading-[1.35] break-words text-slate-900 pr-1 w-full">
+                                      <div className="flex flex-wrap items-start gap-1 text-[11px] font-extrabold leading-[1.35] break-words text-slate-950 pr-1 w-full whitespace-normal">
                                         {sch.tag_name && (
                                           <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-black/15 text-slate-900 inline-block shrink-0 mt-0.5">
                                             {sch.tag_name}
                                           </span>
                                         )}
-                                        <span className="break-words leading-[1.35] font-extrabold text-slate-900 flex-1">
+                                        <span className="break-words leading-[1.35] font-extrabold text-slate-950 flex-1 whitespace-normal">
                                           {sch.product_name}
                                         </span>
                                         {sch.quantity && sch.quantity !== "1" && (
-                                          <span className="text-[10px] opacity-85 font-black shrink-0 font-mono inline-block mt-0.5">({sch.quantity})</span>
+                                          <span className="text-[10px] opacity-90 font-black shrink-0 font-mono inline-block mt-0.5">({sch.quantity})</span>
                                         )}
                                       </div>
 
