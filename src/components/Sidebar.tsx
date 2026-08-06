@@ -145,11 +145,6 @@ export default function Sidebar() {
                   <span className="text-[10px] text-slate-500 font-medium">
                     ({user.jobTitle ? user.jobTitle : `${user.department || '생산'} ${user.position || '사원'}`})
                   </span>
-                  {user.provider === "google" && (
-                    <span className="text-[9px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.2 rounded font-extrabold shrink-0">
-                      Google
-                    </span>
-                  )}
                 </div>
                 <button
                   onClick={handleLogout}
