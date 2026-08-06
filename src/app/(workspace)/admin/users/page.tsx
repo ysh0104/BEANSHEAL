@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { getAllUserProfiles, updateUserProfile, ProfileItem } from "@/app/actions/userActions";
 import { formatJobTitle } from "@/context/AuthContext";
 
@@ -64,15 +65,81 @@ export default function UserManagementPage() {
 
   const loadProfiles = async () => {
     setLoading(true);
-    const res = await getAllUserProfiles();
-    if (res.success && res.data) {
-      setProfiles(res.data);
-      const initialEdits: { [id: string]: { department: string; position: string } } = {};
-      res.data.forEach((p) => {
-        initialEdits[p.id] = { department: p.department, position: p.position };
-      });
-      setEditStates(initialEdits);
+    let loadedData: ProfileItem[] = [];
+
+    // 1. Supabase Client DB 세션 쿼리 (가장 정확하고 권한 에러 없음)
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("updated_at", { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        loadedData = data.map((p: any) => ({
+          id: p.id,
+          email: p.email || "",
+          full_name: p.full_name || p.name || "사원",
+          department: p.department || "생산",
+          position: p.position || "사원",
+          role: p.role || computeRoleLocal(p.department || "생산", p.position || "사원"),
+          job_title: formatJobTitle(p.department || "생산", p.position || "사원"),
+          updated_at: p.updated_at || p.created_at || new Date().toISOString(),
+        }));
+      }
+    } catch (e) {
+      console.warn("Supabase profiles client fetch error:", e);
     }
+
+    // 2. 만약 Client DB 조회가 빈 경우 Server Action 호출
+    if (loadedData.length === 0) {
+      const res = await getAllUserProfiles();
+      if (res.success && res.data && res.data.length > 0) {
+        loadedData = res.data;
+      }
+    }
+
+    // 3. 현재 접속 유저가 DB 목록에 누락되어 있는 경우 자동으로 Supabase profiles DB에 보정 Upsert
+    if (user && user.email) {
+      const userExistsInDb = loadedData.some((p) => p.email.toLowerCase() === user.email.toLowerCase());
+      if (!userExistsInDb) {
+        const selfProfile: ProfileItem = {
+          id: user.email,
+          email: user.email,
+          full_name: user.name,
+          department: user.department || "생산관리",
+          position: user.position || "팀장",
+          role: user.role || "ADMIN",
+          job_title: user.jobTitle || formatJobTitle(user.department, user.position),
+          updated_at: new Date().toISOString(),
+        };
+        loadedData.unshift(selfProfile);
+
+        // Supabase DB에도 자동으로 유저 데이터 세이프티 등록
+        try {
+          const { data: authUserData } = await supabase.auth.getUser();
+          if (authUserData?.user) {
+            await supabase.from("profiles").upsert({
+              id: authUserData.user.id,
+              email: user.email,
+              full_name: user.name,
+              department: user.department || "생산관리",
+              position: user.position || "팀장",
+              role: user.role || "ADMIN",
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "id" });
+          }
+        } catch (e) {}
+      }
+    }
+
+    setProfiles(loadedData);
+
+    const initialEdits: { [id: string]: { department: string; position: string } } = {};
+    loadedData.forEach((p) => {
+      initialEdits[p.id] = { department: p.department, position: p.position };
+    });
+    setEditStates(initialEdits);
+
     setLoading(false);
   };
 
@@ -93,12 +160,31 @@ export default function UserManagementPage() {
     setSavingId(targetUser.id);
     setStatusMsg(null);
 
+    const newRole = computeRoleLocal(edit.department, edit.position);
+    const newJobTitle = formatJobTitle(edit.department, edit.position);
+
+    // 1. Supabase DB 직접 Upsert
+    let dbSuccess = false;
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .upsert({
+          id: targetUser.id,
+          email: targetUser.email,
+          full_name: targetUser.full_name,
+          department: edit.department,
+          position: edit.position,
+          role: newRole,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" });
+
+      if (!error) dbSuccess = true;
+    } catch (e) {}
+
+    // 2. Server Action도 동시 실행하여 이중 보장
     const res = await updateUserProfile(targetUser.id, edit.department, edit.position);
 
-    if (res.success && res.updated) {
-      const newRole = res.updated.role;
-      const newJobTitle = formatJobTitle(edit.department, edit.position);
-
+    if (dbSuccess || res.success) {
       setProfiles((prev) =>
         prev.map((p) =>
           p.id === targetUser.id
@@ -108,7 +194,7 @@ export default function UserManagementPage() {
                 position: edit.position,
                 role: newRole,
                 job_title: newJobTitle,
-                updated_at: res.updated.updatedAt,
+                updated_at: new Date().toISOString(),
               }
             : p
         )
@@ -117,16 +203,27 @@ export default function UserManagementPage() {
       setStatusMsg({
         id: targetUser.id,
         type: "success",
-        text: `'${targetUser.full_name}' 님의 직책(${newJobTitle}) 및 권한(${newRole})이 수정되었습니다.`,
+        text: `'${targetUser.full_name}' 님의 직책(${newJobTitle}) 및 권한(${newRole})이 성공적으로 저장되었습니다.`,
       });
 
-      // 3.5초 후 토스트 메시지 숨김
+      // 본인 프로필 수정 시 로컬 세션도 동기화
+      if (user && targetUser.email.toLowerCase() === user.email.toLowerCase()) {
+        const updatedSelf = {
+          ...user,
+          department: edit.department,
+          position: edit.position,
+          role: newRole,
+          jobTitle: newJobTitle,
+        };
+        localStorage.setItem("beansheal_active_user", JSON.stringify(updatedSelf));
+      }
+
       setTimeout(() => setStatusMsg(null), 3500);
     } else {
       setStatusMsg({
         id: targetUser.id,
         type: "error",
-        text: res.message || "수정 실패",
+        text: res.message || "수정 처리 중 오류가 발생했습니다.",
       });
     }
 
