@@ -1039,17 +1039,19 @@ export default function Home() {
                                       }}
                                       className={`pointer-events-auto relative h-fit min-h-[26px] py-0.5 px-2.5 text-left flex items-start justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
                                     >
-                                      <div className="flex flex-wrap items-start gap-1 text-[11px] font-extrabold leading-[1.35] break-words text-slate-950 pr-1 w-full whitespace-normal">
+                                      <div className="text-[11px] font-extrabold leading-[1.35] text-slate-950 pr-1 w-full break-normal">
                                         {sch.tag_name && (
-                                          <span className="text-[9.5px] font-black px-1.5 py-0.2 rounded bg-black/15 text-slate-900 inline-block shrink-0 mt-0.5">
+                                          <span className="inline-block text-[9.5px] font-black px-1.5 py-0.5 rounded bg-black/15 text-slate-900 mr-1 align-middle shrink-0 leading-none">
                                             {sch.tag_name}
                                           </span>
                                         )}
-                                        <span className="break-words leading-[1.35] font-extrabold text-slate-950 flex-1 whitespace-normal">
+                                        <span className="inline leading-[1.35] font-extrabold text-slate-950 align-middle">
                                           {sch.product_name}
                                         </span>
                                         {sch.quantity && sch.quantity !== "1" && (
-                                          <span className="text-[10px] opacity-90 font-black shrink-0 font-mono inline-block mt-0.5">({sch.quantity})</span>
+                                          <span className="inline-block text-[10px] opacity-90 font-black shrink-0 font-mono ml-1 align-middle leading-none">
+                                            ({sch.quantity})
+                                          </span>
                                         )}
                                       </div>
 
