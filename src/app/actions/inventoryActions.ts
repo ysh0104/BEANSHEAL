@@ -116,3 +116,62 @@ export async function syncExcelToSupabase(parsedData: ParsedInventoryData[]) {
     return { success: false, message: error.message || '서버 통신 중 알 수 없는 오류가 발생했습니다.' };
   }
 }
+
+/**
+ * Supabase ecount_inventory 테이블 전체 목록 조회
+ */
+export async function getAuditInventoryItems() {
+  try {
+    const { data, error } = await supabase
+      .from('ecount_inventory')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1000);
+
+    if (error) {
+      console.error("ecount_inventory fetch error:", error);
+      return { success: false, message: error.message, data: [] };
+    }
+
+    return { success: true, data: data || [] };
+  } catch (error: any) {
+    console.error("getAuditInventoryItems error:", error);
+    return { success: false, message: error?.message || "데이터 불러오기 오류", data: [] };
+  }
+}
+
+/**
+ * 즉시 생산 실적 등록 시 Supabase ecount_inventory에 직접 저장
+ */
+export async function insertQuickProductionToSupabase(item: {
+  item_name: string;
+  lot_no: string;
+  quantity: string | number;
+  expiry_date?: string;
+  status?: string;
+}) {
+  try {
+    const qtyVal = typeof item.quantity === 'number' 
+      ? item.quantity 
+      : parseFloat(String(item.quantity).replace(/[^0-9.]/g, '')) || 0;
+
+    const { data, error } = await supabase
+      .from('ecount_inventory')
+      .insert([
+        {
+          item_name: item.item_name,
+          lot_no: item.lot_no,
+          quantity: qtyVal,
+          expiry_date: item.expiry_date || '제조일로부터 24개월',
+          status: item.status || '문서대기'
+        }
+      ])
+      .select();
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error: any) {
+    console.error("insertQuickProductionToSupabase error:", error);
+    return { success: false, message: error?.message || "DB 저장 오류" };
+  }
+}

@@ -142,14 +142,9 @@ export default function Sidebar() {
                 <div className="bg-slate-100 text-slate-800 border border-slate-200 px-3 py-1 rounded-full font-bold flex items-center gap-1.5 shadow-2xs whitespace-nowrap shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
                   <span className="text-xs font-extrabold text-slate-900">{user.name}</span>
-                  <span className="text-[10px] text-slate-500 font-medium">
+                  <span className="text-xs text-slate-700 font-bold">
                     ({user.jobTitle ? user.jobTitle : `${user.department || '생산'} ${user.position || '사원'}`})
                   </span>
-                  {user.provider === "google" && (
-                    <span className="text-[9px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.2 rounded font-extrabold shrink-0">
-                      Google
-                    </span>
-                  )}
                 </div>
                 <button
                   onClick={handleLogout}

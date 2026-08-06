@@ -78,8 +78,11 @@ export default function Home() {
   // 계획(Schedule) 데이터 관리 State
   const [schedules, setSchedules] = useState<any[]>([]);
   const [selectedDateForPlan, setSelectedDateForPlan] = useState<string | null>(null);
+  const [planEndDate, setPlanEndDate] = useState<string>("");
   const [planProduct, setPlanProduct] = useState("");
   const [planQty, setPlanQty] = useState("");
+  const [planNote, setPlanNote] = useState("");
+  const [isAddScheduleModalOpen, setIsAddScheduleModalOpen] = useState(false);
 
   // 노션 연동 State
   const [isNotionModalOpen, setIsNotionModalOpen] = useState(false);
@@ -142,6 +145,15 @@ export default function Home() {
   };
 
   useEffect(() => {
+    const fetchSchedulesSilently = async () => {
+      try {
+        const notionRes = await fetchNotionSchedules(getNotionConfig());
+        if (notionRes?.success && notionRes.data) {
+          setSchedules(notionRes.data);
+        }
+      } catch (e) {}
+    };
+
     const initData = async () => {
       try {
         const recipeRes = await getRecipeList();
@@ -169,21 +181,20 @@ export default function Home() {
           localStorage.setItem("beansheal_memos", JSON.stringify(defaultMemos));
         }
 
-        // 노션 달력 생산 일정 갱신 (Vercel 환경변수 또는 개별 설정으로 무조건 자동 로드)
-        try {
-          const notionConfig = (savedKey && savedDbId) ? { apiKey: savedKey, databaseId: savedDbId } : undefined;
-          const notionRes = await fetchNotionSchedules(notionConfig);
-          if (notionRes?.success && notionRes.data && notionRes.data.length > 0) {
-            setSchedules(notionRes.data);
-          }
-        } catch (err) {
-          console.error("노션 자동 갱신 오류:", err);
-        }
+        // 노션 달력 생산 일정 갱신 (Vercel 서버 환경변수로 100% 무조건 백그라운드 자동 로드)
+        await fetchSchedulesSilently();
       } catch (e) {
         console.error(e);
       }
     };
     initData();
+
+    // 사용자가 어떠한 버튼도 누르지 않아도 20초마다 자동으로 노션 일정 백그라운드 동기화
+    const interval = setInterval(() => {
+      fetchSchedulesSilently();
+    }, 20000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleAddMemo = (e: React.FormEvent) => {
@@ -248,15 +259,20 @@ export default function Home() {
   const handleAddSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDateForPlan || !planProduct || !planQty) {
-      alert("품목과 목표 수량을 모두 입력해주세요.");
+      alert("시작일, 품목명, 목표 수량을 모두 입력해 주세요.");
       return;
     }
 
+    const startDate = selectedDateForPlan;
+    const endDate = (planEndDate && planEndDate.trim()) ? planEndDate.trim() : startDate;
+
     const localItem = {
       id: Date.now(),
-      plan_date: selectedDateForPlan,
+      plan_date: startDate,
+      end_date: endDate,
       product_name: planProduct,
-      quantity: planQty
+      quantity: planQty,
+      note: planNote
     };
 
     let notionPageId = undefined;
@@ -266,9 +282,11 @@ export default function Home() {
         setIsSyncingNotion(true);
         const res = await createNotionSchedule(
           {
-            plan_date: selectedDateForPlan,
+            plan_date: startDate,
+            end_date: endDate,
             product_name: planProduct,
-            quantity: planQty
+            quantity: planQty,
+            note: planNote
           },
           getNotionConfig()
         );
@@ -287,9 +305,12 @@ export default function Home() {
     setSchedules((prev) => [...prev, newItem]);
     setPlanProduct("");
     setPlanQty("");
+    setPlanNote("");
+    setPlanEndDate("");
+    setIsAddScheduleModalOpen(false);
   };
 
-  const handleDeleteSchedule = async (id: number, notionPageId?: string) => {
+  const handleDeleteSchedule = async (id: number | string, notionPageId?: string) => {
     setSchedules((prev) => prev.filter((s) => s.id !== id));
     if (notionPageId) {
       try {
@@ -350,26 +371,39 @@ export default function Home() {
 
     e.preventDefault();
     e.stopPropagation();
-    if (draggedSchedule.plan_date === targetDateStr) return;
 
     const movingSch = draggedSchedule;
     setDraggedSchedule(null);
 
+    const origStart = movingSch.plan_date ? String(movingSch.plan_date).split("T")[0].trim() : targetDateStr;
+    const origEnd = movingSch.end_date ? String(movingSch.end_date).split("T")[0].trim() : origStart;
+
+    if (origStart === targetDateStr) return;
+
+    // 일수 차이(Duration) 계산
+    const origStartObj = new Date(origStart);
+    const origEndObj = new Date(origEnd);
+    const durationMs = Math.max(0, origEndObj.getTime() - origStartObj.getTime());
+
+    const newStartObj = new Date(targetDateStr);
+    const newEndObj = new Date(newStartObj.getTime() + durationMs);
+
+    const newStartStr = formatDateString(newStartObj.getFullYear(), newStartObj.getMonth(), newStartObj.getDate());
+    const newEndStr = formatDateString(newEndObj.getFullYear(), newEndObj.getMonth(), newEndObj.getDate());
+
     setSchedules((prev) => {
       const updated = prev.map((item) =>
         item.id === movingSch.id || (movingSch.notion_page_id && item.notion_page_id === movingSch.notion_page_id)
-          ? { ...item, plan_date: targetDateStr }
+          ? { ...item, plan_date: newStartStr, end_date: newEndStr }
           : item
       );
       return updated;
     });
 
-    if (movingSch.notion_page_id) {
-      try {
-        await updateScheduleDate(movingSch.id, targetDateStr, movingSch.notion_page_id, getNotionConfig());
-      } catch (err) {
-        console.error(err);
-      }
+    try {
+      await updateScheduleDate(movingSch.id, newStartStr, newEndStr, movingSch.notion_page_id, getNotionConfig());
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -517,6 +551,75 @@ export default function Home() {
     saveWidgetConfigs(defaultConfig);
   };
 
+  const getCalendarWeeks = (y: number, m: number) => {
+    const firstDayIndex = new Date(y, m, 1).getDay();
+    const totalDays = new Date(y, m + 1, 0).getDate();
+
+    const weeks: {
+      day: number;
+      dateStr: string;
+      isToday: boolean;
+      isOtherMonth: boolean;
+      dayOfWeek: number;
+    }[][] = [];
+
+    let currentWeek: any[] = [];
+    const today = new Date();
+
+    for (let i = 0; i < firstDayIndex; i++) {
+      const prevDate = new Date(y, m, 1 - (firstDayIndex - i));
+      const pY = prevDate.getFullYear();
+      const pM = prevDate.getMonth();
+      const pD = prevDate.getDate();
+      currentWeek.push({
+        day: pD,
+        dateStr: formatDateString(pY, pM, pD),
+        isToday: false,
+        isOtherMonth: true,
+        dayOfWeek: i,
+      });
+    }
+
+    for (let d = 1; d <= totalDays; d++) {
+      const dateStr = formatDateString(y, m, d);
+      const isToday = d === today.getDate() && m === today.getMonth() && y === today.getFullYear();
+      const dayOfWeek = currentWeek.length % 7;
+      currentWeek.push({
+        day: d,
+        dateStr,
+        isToday,
+        isOtherMonth: false,
+        dayOfWeek,
+      });
+
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    }
+
+    if (currentWeek.length > 0) {
+      let nextD = 1;
+      while (currentWeek.length < 7) {
+        const nextDate = new Date(y, m + 1, nextD);
+        const nY = nextDate.getFullYear();
+        const nM = nextDate.getMonth();
+        const nD = nextDate.getDate();
+        currentWeek.push({
+          day: nD,
+          dateStr: formatDateString(nY, nM, nD),
+          isToday: false,
+          isOtherMonth: true,
+          dayOfWeek: currentWeek.length,
+        });
+        nextD++;
+      }
+      weeks.push(currentWeek);
+    }
+
+    return weeks;
+  };
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
@@ -652,7 +755,7 @@ export default function Home() {
             </>
           );
 
-          /* Widget 1: 월간 생산 계획표 (Calendar) - 이카운트 ERP 룩앤필 */
+          /* Widget 1: 월간 생산 계획표 (Calendar) - 노션 스타일 연장형 멀티데이 바 캘린더 */
           if (widget.id === "calendar") {
             const calendarHeaderLeft = (
               <div className="flex items-center gap-1 text-slate-800 text-xs font-bold">
@@ -669,13 +772,21 @@ export default function Home() {
 
             const calendarHeaderRight = (
               <button
-                onClick={() => setIsNotionModalOpen(true)}
-                className="text-slate-400 hover:text-slate-700 p-0.5 rounded transition-colors cursor-pointer"
-                title="Notion API Key & Database ID 설정"
+                type="button"
+                onClick={() => {
+                  const todayStr = formatDateString(year, month, new Date().getDate());
+                  setSelectedDateForPlan(todayStr);
+                  setPlanEndDate(todayStr);
+                  setIsAddScheduleModalOpen(true);
+                }}
+                className="text-xs px-2.5 py-1 rounded-md font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                <span>+ 일정 등록</span>
               </button>
             );
+
+            const weeks = getCalendarWeeks(year, month);
 
             return (
               <div 
@@ -691,6 +802,7 @@ export default function Home() {
                   {renderWidgetHeader(calendarHeaderLeft, calendarHeaderRight)}
                   <div className="p-3 flex flex-col flex-1 overflow-hidden">
                     <div className="flex-1 flex flex-col h-full min-h-0">
+                      {/* 요일 헤더 */}
                       <div className="grid grid-cols-7 gap-1 text-center mb-1 bg-slate-50 py-1.5 border-b border-slate-200 rounded-t shrink-0">
                         {['일', '월', '화', '수', '목', '금', '토'].map(day => (
                           <div key={day} className={`text-[11px] font-extrabold ${day === '일' ? 'text-red-500' : day === '토' ? 'text-blue-500' : 'text-slate-600'}`}>
@@ -698,84 +810,179 @@ export default function Home() {
                           </div>
                         ))}
                       </div>
-                      <div 
-                        className="flex-1 min-h-0"
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                          gridTemplateRows: `repeat(${Math.ceil(daysArray.length / 7)}, minmax(0, 1fr))`,
-                          gap: '4px'
-                        }}
-                      >
-                        {daysArray.map((day, idx) => {
-                          const isToday = day === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear();
-                          const cellDateStr = day ? formatDateString(year, month, day) : null;
-                          
-                          const normalizeDateStr = (d?: string) => d ? String(d).split("T")[0].trim() : "";
-                          const daySchedules = cellDateStr ? schedules.filter(s => normalizeDateStr(s.plan_date) === cellDateStr) : [];
+
+                      {/* 🌟 노션 스타일 주(Week) 단위 멀티데이 오버레이 그리드 */}
+                      <div className="flex-1 flex flex-col h-full min-h-0 overflow-y-auto space-y-1 custom-scrollbar">
+                        {weeks.map((week, wIdx) => {
+                          const weekStartStr = week[0].dateStr;
+                          const weekEndStr = week[6].dateStr;
+
+                          // 해당 주(Week)에 걸쳐 있는 일정 세그먼트 추출
+                          const weekSegments: any[] = [];
+                          schedules.forEach((sch) => {
+                            const schStart = sch.plan_date ? String(sch.plan_date).split("T")[0].trim() : "";
+                            const schEnd = (sch.end_date && String(sch.end_date).trim()) ? String(sch.end_date).split("T")[0].trim() : schStart;
+                            if (!schStart) return;
+
+                            if (schStart <= weekEndStr && schEnd >= weekStartStr) {
+                              let startCol = 0;
+                              let isStartOfSchedule = false;
+                              if (schStart <= weekStartStr) {
+                                startCol = 0;
+                                isStartOfSchedule = (schStart === weekStartStr);
+                              } else {
+                                const idx = week.findIndex((d) => d.dateStr === schStart);
+                                startCol = idx >= 0 ? idx : 0;
+                                isStartOfSchedule = true;
+                              }
+
+                              let endCol = 6;
+                              let isEndOfSchedule = false;
+                              if (schEnd >= weekEndStr) {
+                                endCol = 6;
+                                isEndOfSchedule = (schEnd === weekEndStr);
+                              } else {
+                                const idx = week.findIndex((d) => d.dateStr === schEnd);
+                                endCol = idx >= 0 ? idx : 6;
+                                isEndOfSchedule = true;
+                              }
+
+                              const colSpan = Math.max(1, endCol - startCol + 1);
+                              weekSegments.push({
+                                sch,
+                                startCol,
+                                endCol,
+                                colSpan,
+                                isStartOfSchedule,
+                                isEndOfSchedule,
+                              });
+                            }
+                          });
+
+                          // 정렬: 시작 컬럼 ➔ 기간(span) ➔ ID
+                          weekSegments.sort((a, b) => {
+                            if (a.startCol !== b.startCol) return a.startCol - b.startCol;
+                            if (a.colSpan !== b.colSpan) return b.colSpan - a.colSpan;
+                            return String(a.sch.id).localeCompare(String(b.sch.id));
+                          });
+
+                          // 레인(Lane) 중복 방지 할당
+                          const occupied: boolean[][] = [];
+                          const allocated = weekSegments.map((seg) => {
+                            let lane = 0;
+                            while (true) {
+                              if (!occupied[lane]) occupied[lane] = Array(7).fill(false);
+                              let canFit = true;
+                              for (let c = seg.startCol; c <= seg.endCol; c++) {
+                                if (occupied[lane][c]) {
+                                  canFit = false;
+                                  break;
+                                }
+                              }
+                              if (canFit) {
+                                for (let c = seg.startCol; c <= seg.endCol; c++) {
+                                  occupied[lane][c] = true;
+                                }
+                                return { ...seg, lane };
+                              }
+                              lane++;
+                            }
+                          });
+
+                          const maxVisibleLane = 3;
+
                           return (
-                            <div 
-                              key={idx} 
-                              onDragOver={(e) => {
-                                if (draggedSchedule) {
-                                  e.preventDefault();
-                                }
-                              }}
-                              onDrop={(e) => {
-                                if (draggedSchedule && cellDateStr) {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleDropOnCell(e, cellDateStr);
-                                }
-                              }}
-                              className={`border border-slate-200 p-1 flex flex-col justify-start items-start relative h-full w-full ${
-                                day ? 'bg-white hover:bg-indigo-50/60 shadow-2xs' : 'bg-slate-50/50'
-                              } transition-colors rounded overflow-hidden`}
-                            >
-                              {day && (
-                                <>
-                                  <div className="w-full flex justify-between items-center mb-0.5">
-                                    <span className={`text-[11px] font-extrabold ${isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : 'text-slate-600 ml-0.5'}`}>
-                                      {day}
+                            <div key={wIdx} className="flex-1 grid grid-cols-7 gap-1 relative min-h-[90px] border-b border-slate-100 last:border-0 pb-1">
+                              {/* 1. 배경 날짜 셀 Layer */}
+                              {week.map((cell, cIdx) => (
+                                <div
+                                  key={cIdx}
+                                  onDragOver={(e) => {
+                                    if (draggedSchedule) e.preventDefault();
+                                  }}
+                                  onDrop={(e) => {
+                                    if (draggedSchedule && cell.dateStr) {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleDropOnCell(e, cell.dateStr);
+                                    }
+                                  }}
+                                  onClick={() => {
+                                    if (cell.dateStr) {
+                                      setSelectedDateForPlan(cell.dateStr);
+                                      setPlanEndDate(cell.dateStr);
+                                      setIsAddScheduleModalOpen(true);
+                                    }
+                                  }}
+                                  className={`border border-slate-200/90 p-1 flex flex-col justify-start items-start relative h-full w-full ${
+                                    cell.isOtherMonth ? 'bg-slate-50/40 text-slate-300' : cell.isToday ? 'bg-indigo-50/50' : 'bg-white hover:bg-slate-50/80'
+                                  } transition-colors rounded cursor-pointer group`}
+                                >
+                                  <div className="w-full flex justify-between items-center">
+                                    <span className={`text-[11px] font-extrabold ${cell.isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : cell.isOtherMonth ? 'text-slate-300' : 'text-slate-700 ml-0.5'}`}>
+                                      {cell.day}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 group-hover:text-indigo-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                      +일정
                                     </span>
                                   </div>
+                                </div>
+                              ))}
 
-                                  <div className="w-full space-y-1 mt-0.5 flex-1 min-h-0 overflow-y-auto pr-0.5 custom-scrollbar">
-                                    {daySchedules.map(sch => {
-                                      return (
-                                        <div 
-                                          key={sch.id} 
-                                          draggable={true}
-                                          onDragStart={(e) => {
-                                            e.stopPropagation();
-                                            handleDragStart(e, sch);
-                                          }}
-                                          // 🌟 원본 화사한 라이트 슬레이트 톤 카드 배경
-                                          className="bg-white border border-slate-200/90 rounded-md p-1.5 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all cursor-grab active:cursor-grabbing text-left space-y-1"
-                                          title={`품목: ${sch.product_name}\n수량: ${sch.quantity}${sch.tag_name ? `\n태그: ${sch.tag_name}` : ''}${sch.note ? `\n비고: ${sch.note}` : ''}`}
-                                        >
-                                          {/* 🌟 1. 글씨 잘림 없이 전체 품목명 & 수량 출력 (줄바꿈 허용) */}
-                                          <div className="text-[11px] font-semibold text-slate-900 leading-snug break-words whitespace-normal">
-                                            {sch.product_name}
-                                            {sch.quantity && sch.quantity !== "1" && (
-                                              <span className="text-slate-500 font-semibold ml-1">({sch.quantity})</span>
-                                            )}
-                                          </div>
+                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer */}
+                              <div className="absolute inset-x-0 top-[24px] bottom-0 grid grid-cols-7 gap-1 pointer-events-none px-0.5">
+                                {allocated.map((seg, sIdx) => {
+                                  if (seg.lane >= maxVisibleLane) return null;
 
-                                          {/* 🌟 2. 태그에만 노션 파스텔 색상 적용 */}
-                                          {sch.tag_name && (
-                                            <div className="flex flex-wrap gap-1 pt-0.5">
-                                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${getNotionTagBadgeClass(sch.tag_color)}`}>
-                                                {sch.tag_name}
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </>
-                              )}
+                                  const sch = seg.sch;
+                                  const tagStyle = getNotionTagBadgeClass(sch.tag_color);
+                                  const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md border-l' : 'rounded-l-none border-l-0'} ${seg.isEndOfSchedule ? 'rounded-r-md border-r' : 'rounded-r-none border-r-0'}`;
+
+                                  return (
+                                    <div
+                                      key={`${sch.id}-${wIdx}-${sIdx}`}
+                                      style={{
+                                        gridColumnStart: seg.startCol + 1,
+                                        gridColumnEnd: `span ${seg.colSpan}`,
+                                        gridRowStart: seg.lane + 1,
+                                      }}
+                                      draggable={true}
+                                      onDragStart={(e) => {
+                                        e.stopPropagation();
+                                        handleDragStart(e, sch);
+                                      }}
+                                      className={`pointer-events-auto h-[22px] my-0.5 px-2 text-left flex items-center justify-between shadow-2xs border-y border-slate-300/80 cursor-grab active:cursor-grabbing text-slate-900 transition-all hover:shadow-xs group/bar overflow-hidden ${tagStyle} ${roundedClass}`}
+                                      title={`품목: ${sch.product_name}\n일정: ${sch.plan_date} ~ ${sch.end_date || sch.plan_date}\n수량: ${sch.quantity}${sch.tag_name ? `\n태그: ${sch.tag_name}` : ''}${sch.note ? `\n비고: ${sch.note}` : ''}`}
+                                    >
+                                      <div className="flex items-center gap-1.5 truncate text-[11px] font-bold">
+                                        {sch.tag_name && (
+                                          <span className="text-[9px] font-extrabold px-1 py-0.2 rounded bg-black/10 text-slate-800 shrink-0">
+                                            {sch.tag_name}
+                                          </span>
+                                        )}
+                                        <span className="truncate">{sch.product_name}</span>
+                                        {sch.quantity && sch.quantity !== "1" && (
+                                          <span className="text-[10px] opacity-80 font-semibold shrink-0">({sch.quantity})</span>
+                                        )}
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (confirm(`'${sch.product_name}' 일정을 삭제하시겠습니까?`)) {
+                                            handleDeleteSchedule(sch.id, sch.notion_page_id);
+                                          }
+                                        }}
+                                        className="opacity-0 group-hover/bar:opacity-100 text-slate-500 hover:text-red-600 font-black text-xs transition-opacity ml-1 cursor-pointer shrink-0"
+                                        title="일정 삭제"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
                           );
                         })}
@@ -952,6 +1159,128 @@ export default function Home() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 새 생산 일정 등록 모달 (시작일 & 종료일 연장 지원) */}
+      {isAddScheduleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden flex flex-col">
+            <div className="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+              <h3 className="font-bold text-base flex items-center gap-2">
+                <span>📅 새 생산 일정 등록</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddScheduleModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSchedule} className="p-5 space-y-4">
+              {/* 시작일 & 종료일 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">시작일 *</label>
+                  <input
+                    type="date"
+                    required
+                    value={selectedDateForPlan || ""}
+                    onChange={(e) => setSelectedDateForPlan(e.target.value)}
+                    className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">종료일 (연장 일정)</label>
+                  <input
+                    type="date"
+                    value={planEndDate || ""}
+                    onChange={(e) => setPlanEndDate(e.target.value)}
+                    placeholder="시작일과 동일"
+                    className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* 품목 선택 */}
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">생산 품목명 *</label>
+                <input
+                  type="text"
+                  required
+                  list="product-suggestions"
+                  value={planProduct}
+                  onChange={(e) => setPlanProduct(e.target.value)}
+                  placeholder="품목명 선택 또는 직접 입력"
+                  className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                />
+                <datalist id="product-suggestions">
+                  {recipeOptions.map((r: any, idx: number) => (
+                    <option key={idx} value={r.product_name || r.title || r.name} />
+                  ))}
+                </datalist>
+              </div>
+
+              {/* 목표 수량 & 메모 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">목표 수량 *</label>
+                  <input
+                    type="text"
+                    required
+                    value={planQty}
+                    onChange={(e) => setPlanQty(e.target.value)}
+                    placeholder="예: 1,000"
+                    className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">비고 (메모)</label>
+                  <input
+                    type="text"
+                    value={planNote}
+                    onChange={(e) => setPlanNote(e.target.value)}
+                    placeholder="특이사항 입력"
+                    className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* 노션 연동 체크박스 */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="syncNotionCheck"
+                  checked={syncToNotionChecked}
+                  onChange={(e) => setSyncToNotionChecked(e.target.checked)}
+                  className="rounded border-gray-300 text-slate-900 focus:ring-slate-900 cursor-pointer"
+                />
+                <label htmlFor="syncNotionCheck" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  노션(Notion) DB에도 동기화 생성
+                </label>
+              </div>
+
+              {/* 모달 버튼 */}
+              <div className="pt-3 flex justify-end gap-2 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setIsAddScheduleModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSyncingNotion}
+                  className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  {isSyncingNotion ? "노션 생성 중..." : "일정 등록"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
