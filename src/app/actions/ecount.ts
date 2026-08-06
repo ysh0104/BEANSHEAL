@@ -4,18 +4,21 @@ import { supabase } from "@/lib/supabase";
 
 // 1. 이카운트 로그인 및 세션 발급
 export async function getSessionId() {
-  const COM_CODE = process.env.ECOUNT_COM_CODE;
-  const USER_ID = process.env.ECOUNT_USER_ID;
-  const API_KEY = process.env.ECOUNT_API_KEY;
+  const COM_CODE = process.env.ECOUNT_COM_CODE || process.env.ECOUNT_COMPANY_CODE || process.env.ECOUNT_COM_CD;
+  const USER_ID = process.env.ECOUNT_USER_ID || process.env.ECOUNT_USER || process.env.ECOUNT_ID;
+  const API_KEY = process.env.ECOUNT_API_KEY || process.env.ECOUNT_CERT_KEY || process.env.ECOUNT_API_CERT_KEY || process.env.ECOUNT_KEY;
 
   console.log("=== [DEBUG] getSessionId 환경변수 검증 ===");
   console.log("ECOUNT_COM_CODE:", COM_CODE ? `${COM_CODE.substring(0, 2)}*** (길이: ${COM_CODE.length})` : "undefined / 누락");
   console.log("ECOUNT_USER_ID:", USER_ID ? `${USER_ID.substring(0, 2)}*** (길이: ${USER_ID.length})` : "undefined / 누락");
   console.log("ECOUNT_API_KEY:", API_KEY ? `${API_KEY.substring(0, Math.min(4, API_KEY.length))}*** (길이: ${API_KEY.length})` : "undefined / 누락");
-  console.log("ECOUNT_ID:", process.env.ECOUNT_ID ? "존재함" : "누락");
-  console.log("ECOUNT_PW:", process.env.ECOUNT_PW ? "존재함" : "누락");
-  console.log("ECOUNT_SER_ID:", process.env.ECOUNT_SER_ID ? "존재함" : "누락");
   console.log("=========================================");
+
+  if (!COM_CODE || !USER_ID || !API_KEY) {
+    return { 
+      error: `Vercel 환경변수가 부족합니다. (COM_CODE: ${!!COM_CODE}, USER_ID: ${!!USER_ID}, API_KEY: ${!!API_KEY}). Vercel Settings -> Environment Variables에서 ECOUNT_COM_CODE, ECOUNT_USER_ID, ECOUNT_API_KEY 환경변수를 확인해주세요.` 
+    };
+  }
 
   try {
     const zoneResponse = await fetch("https://sboapi.ecount.com/OAPI/V2/Zone", {
@@ -30,7 +33,9 @@ export async function getSessionId() {
     
     const ZONE = zoneData.Data?.ZONE;
     
-    if (!ZONE) throw new Error("ZONE 정보를 찾을 수 없습니다.");
+    if (!ZONE) {
+      return { error: `ZONE 정보 수신 실패: ${zoneData.Message || zoneData.Data?.Message || '회사코드(COM_CODE)를 확인해주세요.'}` };
+    }
 
     const loginUrl = `https://oapi${ZONE.toLowerCase()}.ecount.com/OAPI/V2/OAPILogin`;
 
