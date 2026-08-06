@@ -90,29 +90,32 @@ async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ dat
   }
 }
 
+function cleanEnvVal(val?: string) {
+  if (!val) return "";
+  return val.trim().replace(/^['"]|['"]$/g, "");
+}
+
 function getEffectiveConfig(config?: NotionConfig) {
-  const envKey = (
+  const envKey = cleanEnvVal(
     process.env.NOTION_API_KEY ||
     process.env.NOTION_KEY ||
     process.env.NOTION_SECRET ||
     process.env.NOTION_TOKEN ||
     process.env.NEXT_PUBLIC_NOTION_API_KEY ||
-    process.env.NEXT_PUBLIC_NOTION_KEY ||
-    ""
-  ).trim();
+    process.env.NEXT_PUBLIC_NOTION_KEY
+  );
 
-  const envDbId = (
+  const envDbId = cleanEnvVal(
     process.env.NOTION_DATABASE_ID ||
     process.env.NOTION_DB_ID ||
     process.env.NOTION_PAGE_ID ||
     process.env.NOTION_ID ||
     process.env.NEXT_PUBLIC_NOTION_DATABASE_ID ||
-    process.env.NEXT_PUBLIC_NOTION_DB_ID ||
-    ""
-  ).trim();
+    process.env.NEXT_PUBLIC_NOTION_DB_ID
+  );
 
-  const customKey = config?.apiKey ? config.apiKey.trim() : "";
-  const customDbId = config?.databaseId ? config.databaseId.trim() : "";
+  const customKey = cleanEnvVal(config?.apiKey);
+  const customDbId = cleanEnvVal(config?.databaseId);
 
   // Vercel 서버 환경변수를 최우선 적용
   const apiKey = envKey || customKey;
