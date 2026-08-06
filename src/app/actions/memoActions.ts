@@ -12,6 +12,7 @@ export interface WorkspaceMemoItem {
   author: string;
   date?: string;
   created_at?: string;
+  likes?: string[];
 }
 
 /**
@@ -44,7 +45,8 @@ export async function getMemosFromSupabase() {
           text: m.text || m.content || "",
           author: m.author || m.user_name || "사용자",
           date: m.date || (m.created_at ? new Date(m.created_at).toLocaleString('ko-KR') : ""),
-          created_at: m.created_at
+          created_at: m.created_at,
+          likes: Array.isArray(m.likes) ? m.likes : (m.likes ? JSON.parse(m.likes) : [])
         })) 
       };
     }
@@ -56,7 +58,8 @@ export async function getMemosFromSupabase() {
         text: m.text || m.content || "",
         author: m.author || m.user_name || "사용자",
         date: m.date || (m.created_at ? new Date(m.created_at).toLocaleString('ko-KR') : ""),
-        created_at: m.created_at
+        created_at: m.created_at,
+        likes: Array.isArray(m.likes) ? m.likes : (m.likes ? JSON.parse(m.likes) : [])
       })) 
     };
 
@@ -75,6 +78,7 @@ export async function insertMemoToSupabase(memo: WorkspaceMemoItem) {
       text: memo.text,
       author: memo.author,
       date: memo.date || new Date().toLocaleString('ko-KR'),
+      likes: memo.likes || [],
       created_at: new Date().toISOString()
     };
 
@@ -154,5 +158,40 @@ export async function updateMemoInSupabase(id: string | number, text: string) {
   } catch (error: any) {
     console.error("[updateMemoInSupabase error]", error);
     return { success: false, message: error?.message || "메모 수정 오류" };
+  }
+}
+
+/**
+ * Supabase에서 메모 하트 반응(더블클릭 확인 표기) 토글 연동
+ */
+export async function toggleMemoLikeInSupabase(id: string | number, userIdentifier: string) {
+  try {
+    const { data: memoData } = await supabase
+      .from('memos')
+      .select('likes')
+      .eq('id', id)
+      .single();
+
+    let currentLikes: string[] = Array.isArray(memoData?.likes) ? memoData.likes : [];
+    if (currentLikes.includes(userIdentifier)) {
+      currentLikes = currentLikes.filter(u => u !== userIdentifier);
+    } else {
+      currentLikes.push(userIdentifier);
+    }
+
+    const { data, error } = await supabase
+      .from('memos')
+      .update({ likes: currentLikes })
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      await supabase.from('workspace_memos').update({ likes: currentLikes }).eq('id', id);
+    }
+
+    return { success: true, likes: currentLikes, data };
+  } catch (error: any) {
+    console.error("[toggleMemoLikeInSupabase error]", error);
+    return { success: false, message: error?.message || "하트 반응 동기화 오류" };
   }
 }

@@ -16,7 +16,8 @@ import {
   getMemosFromSupabase, 
   insertMemoToSupabase, 
   deleteMemoFromSupabase,
-  updateMemoInSupabase 
+  updateMemoInSupabase,
+  toggleMemoLikeInSupabase 
 } from "@/app/actions/memoActions";
 
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
@@ -111,6 +112,7 @@ export default function Home() {
   const [newMemo, setNewMemo] = useState("");
   const [editingMemoId, setEditingMemoId] = useState<number | string | null>(null);
   const [editingMemoText, setEditingMemoText] = useState<string>("");
+  const [heartAnim, setHeartAnim] = useState<{ id: number | string; x: number; y: number } | null>(null);
 
   // 계획(Schedule) 데이터 관리 State
   const [schedules, setSchedules] = useState<any[]>([]);
@@ -334,6 +336,35 @@ export default function Home() {
 
     // 🌟 Supabase 메모 수정 연동
     await updateMemoInSupabase(id, trimmed);
+  };
+
+  const handleToggleLike = async (memoId: number | string, e?: React.MouseEvent) => {
+    let department = user?.department || "";
+    if (department && !department.endsWith("팀")) {
+      department += "팀";
+    }
+    const name = user?.name || "사용자";
+    const position = user?.position || "";
+    const currentUserIdentifier = [department, name, position].filter(Boolean).join(" ") || "사용자";
+
+    if (e) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setHeartAnim({ id: memoId, x: e.clientX - rect.left, y: e.clientY - rect.top });
+      setTimeout(() => setHeartAnim(null), 800);
+    }
+
+    setMemos(prev => prev.map(m => {
+      if (m.id === memoId) {
+        const likes = Array.isArray(m.likes) ? [...m.likes] : [];
+        const idx = likes.indexOf(currentUserIdentifier);
+        if (idx > -1) likes.splice(idx, 1);
+        else likes.push(currentUserIdentifier);
+        return { ...m, likes };
+      }
+      return m;
+    }));
+
+    await toggleMemoLikeInSupabase(memoId, currentUserIdentifier);
   };
 
   const handlePrevMonth = () => {
@@ -1165,65 +1196,108 @@ export default function Home() {
                   {renderWidgetHeader(memoHeaderLeft, memoHeaderRight)}
                   <div className="p-4 flex flex-col flex-1 overflow-hidden">
                     <div className="flex-1 overflow-y-auto space-y-2 pr-1 mb-3">
-                      {memos.map((memo) => (
-                        <div key={memo.id} className="p-2.5 border border-gray-100 rounded-lg bg-gray-50 shadow-xs relative group">
-                          {editingMemoId === memo.id ? (
-                            <div className="space-y-1.5">
-                              <textarea
-                                value={editingMemoText}
-                                onChange={(e) => setEditingMemoText(e.target.value)}
-                                className="w-full text-xs border border-indigo-300 rounded p-1.5 bg-white text-gray-800 font-medium focus:ring-1 focus:ring-indigo-500 outline-none"
-                                rows={2}
-                                autoFocus
-                              />
-                              <div className="flex justify-end gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveEditMemo(memo.id)}
-                                  className="px-2 py-0.5 bg-indigo-600 text-white text-[11px] font-bold rounded shadow-xs hover:bg-indigo-700 transition-colors cursor-pointer"
-                                >
-                                  저장
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleCancelEditMemo}
-                                  className="px-2 py-0.5 bg-gray-200 text-gray-700 text-[11px] font-bold rounded shadow-xs hover:bg-gray-300 transition-colors cursor-pointer"
-                                >
-                                  취소
-                                </button>
+                      {memos.map((memo) => {
+                        let dept = user?.department || "";
+                        if (dept && !dept.endsWith("팀")) dept += "팀";
+                        const currentUserIdent = [dept, user?.name || "사용자", user?.position || ""].filter(Boolean).join(" ") || "사용자";
+                        const likedByList: string[] = Array.isArray(memo.likes) ? memo.likes : [];
+                        const isLikedByMe = likedByList.includes(currentUserIdent);
+
+                        return (
+                          <div 
+                            key={memo.id} 
+                            onDoubleClick={(e) => handleToggleLike(memo.id, e)}
+                            className="p-3 border border-gray-100 rounded-lg bg-gray-50 hover:bg-white hover:border-indigo-100 shadow-xs relative group transition-all select-none cursor-pointer"
+                            title="더블클릭하여 카카오톡처럼 확인 하트(❤️) 표시"
+                          >
+                            {/* 팝업 하트 애니메이션 */}
+                            {heartAnim && heartAnim.id === memo.id && (
+                              <div 
+                                style={{ left: heartAnim.x, top: heartAnim.y }}
+                                className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none z-30 text-2xl animate-bounce"
+                              >
+                                ❤️
                               </div>
-                            </div>
-                          ) : (
-                            <>
-                              <p className="text-xs font-bold text-gray-800 break-keep pr-12">{memo.text}</p>
-                              <div className="flex justify-between items-center mt-1.5">
-                                <span className="text-[10px] text-gray-400 font-bold">{memo.date}</span>
-                                <span className="text-[10px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">{memo.author}</span>
+                            )}
+
+                            {editingMemoId === memo.id ? (
+                              <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                                <textarea
+                                  value={editingMemoText}
+                                  onChange={(e) => setEditingMemoText(e.target.value)}
+                                  className="w-full text-xs border border-indigo-300 rounded p-1.5 bg-white text-gray-800 font-medium focus:ring-1 focus:ring-indigo-500 outline-none"
+                                  rows={2}
+                                  autoFocus
+                                />
+                                <div className="flex justify-end gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveEditMemo(memo.id)}
+                                    className="px-2 py-0.5 bg-indigo-600 text-white text-[11px] font-bold rounded shadow-xs hover:bg-indigo-700 transition-colors cursor-pointer"
+                                  >
+                                    저장
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleCancelEditMemo}
+                                    className="px-2 py-0.5 bg-gray-200 text-gray-700 text-[11px] font-bold rounded shadow-xs hover:bg-gray-300 transition-colors cursor-pointer"
+                                  >
+                                    취소
+                                  </button>
+                                </div>
                               </div>
-                              <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button 
-                                  onClick={() => handleStartEditMemo(memo)} 
-                                  className="text-gray-400 hover:text-indigo-600 transition-colors cursor-pointer p-0.5" 
-                                  title="메모 수정"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                                  </svg>
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteMemo(memo.id)} 
-                                  className="text-gray-400 hover:text-red-600 transition-colors cursor-pointer p-0.5" 
-                                  title="메모 삭제"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                                  </svg>
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ))}
+                            ) : (
+                              <>
+                                <p className="text-xs font-bold text-gray-800 break-keep pr-14">{memo.text}</p>
+                                <div className="flex justify-between items-center mt-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-gray-400 font-bold">{memo.date}</span>
+                                    {/* 카카오톡 스타일 확인 하트 배지 */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleLike(memo.id);
+                                      }}
+                                      className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full transition-all cursor-pointer ${
+                                        isLikedByMe
+                                          ? "bg-rose-50 text-rose-600 border border-rose-200 shadow-2xs"
+                                          : "bg-gray-200/80 text-gray-500 hover:bg-rose-50 hover:text-rose-600"
+                                      }`}
+                                      title={likedByList.length > 0 ? `확인한 사람 (${likedByList.length}명): ${likedByList.join(", ")}` : "더블클릭 또는 클릭하여 확인 하트 남기기"}
+                                    >
+                                      <span>{isLikedByMe ? "❤️" : "🤍"}</span>
+                                      {likedByList.length > 0 && <span>{likedByList.length}</span>}
+                                    </button>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">{memo.author}</span>
+                                </div>
+
+                                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                  <button 
+                                    onClick={() => handleStartEditMemo(memo)} 
+                                    className="text-gray-400 hover:text-indigo-600 transition-colors cursor-pointer p-0.5" 
+                                    title="메모 수정"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                    </svg>
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteMemo(memo.id)} 
+                                    className="text-gray-400 hover:text-red-600 transition-colors cursor-pointer p-0.5" 
+                                    title="메모 삭제"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
                       {memos.length === 0 && <div className="text-center py-12 text-gray-400 text-xs font-medium">등록된 특이사항이 없습니다.</div>}
                     </div>
 
