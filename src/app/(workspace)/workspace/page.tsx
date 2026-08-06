@@ -770,21 +770,7 @@ export default function Home() {
               </div>
             );
 
-            const calendarHeaderRight = (
-              <button
-                type="button"
-                onClick={() => {
-                  const todayStr = formatDateString(year, month, new Date().getDate());
-                  setSelectedDateForPlan(todayStr);
-                  setPlanEndDate(todayStr);
-                  setIsAddScheduleModalOpen(true);
-                }}
-                className="text-xs px-2.5 py-1 rounded-md font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-                <span>+ 일정 등록</span>
-              </button>
-            );
+            const calendarHeaderRight = null;
 
             const weeks = getCalendarWeeks(year, month);
 
@@ -907,23 +893,13 @@ export default function Home() {
                                       handleDropOnCell(e, cell.dateStr);
                                     }
                                   }}
-                                  onClick={() => {
-                                    if (cell.dateStr) {
-                                      setSelectedDateForPlan(cell.dateStr);
-                                      setPlanEndDate(cell.dateStr);
-                                      setIsAddScheduleModalOpen(true);
-                                    }
-                                  }}
                                   className={`border border-slate-200/90 p-1 flex flex-col justify-start items-start relative h-full w-full ${
                                     cell.isOtherMonth ? 'bg-slate-50/40 text-slate-300' : cell.isToday ? 'bg-indigo-50/50' : 'bg-white hover:bg-slate-50/80'
-                                  } transition-colors rounded cursor-pointer group`}
+                                  } transition-colors rounded`}
                                 >
                                   <div className="w-full flex justify-between items-center">
                                     <span className={`text-[11px] font-extrabold ${cell.isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : cell.isOtherMonth ? 'text-slate-300' : 'text-slate-700 ml-0.5'}`}>
                                       {cell.day}
-                                    </span>
-                                    <span className="text-[10px] text-slate-400 group-hover:text-indigo-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                                      +일정
                                     </span>
                                   </div>
                                 </div>
@@ -1159,128 +1135,6 @@ export default function Home() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 🌟 새 생산 일정 등록 모달 (시작일 & 종료일 연장 지원) */}
-      {isAddScheduleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-md overflow-hidden flex flex-col">
-            <div className="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
-              <h3 className="font-bold text-base flex items-center gap-2">
-                <span>📅 새 생산 일정 등록</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsAddScheduleModalOpen(false)}
-                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleAddSchedule} className="p-5 space-y-4">
-              {/* 시작일 & 종료일 */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">시작일 *</label>
-                  <input
-                    type="date"
-                    required
-                    value={selectedDateForPlan || ""}
-                    onChange={(e) => setSelectedDateForPlan(e.target.value)}
-                    className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">종료일 (연장 일정)</label>
-                  <input
-                    type="date"
-                    value={planEndDate || ""}
-                    onChange={(e) => setPlanEndDate(e.target.value)}
-                    placeholder="시작일과 동일"
-                    className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none font-medium"
-                  />
-                </div>
-              </div>
-
-              {/* 품목 선택 */}
-              <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">생산 품목명 *</label>
-                <input
-                  type="text"
-                  required
-                  list="product-suggestions"
-                  value={planProduct}
-                  onChange={(e) => setPlanProduct(e.target.value)}
-                  placeholder="품목명 선택 또는 직접 입력"
-                  className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none"
-                />
-                <datalist id="product-suggestions">
-                  {recipeOptions.map((r: any, idx: number) => (
-                    <option key={idx} value={r.product_name || r.title || r.name} />
-                  ))}
-                </datalist>
-              </div>
-
-              {/* 목표 수량 & 메모 */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">목표 수량 *</label>
-                  <input
-                    type="text"
-                    required
-                    value={planQty}
-                    onChange={(e) => setPlanQty(e.target.value)}
-                    placeholder="예: 1,000"
-                    className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">비고 (메모)</label>
-                  <input
-                    type="text"
-                    value={planNote}
-                    onChange={(e) => setPlanNote(e.target.value)}
-                    placeholder="특이사항 입력"
-                    className="w-full text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-slate-900 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* 노션 연동 체크박스 */}
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="syncNotionCheck"
-                  checked={syncToNotionChecked}
-                  onChange={(e) => setSyncToNotionChecked(e.target.checked)}
-                  className="rounded border-gray-300 text-slate-900 focus:ring-slate-900 cursor-pointer"
-                />
-                <label htmlFor="syncNotionCheck" className="text-xs font-bold text-slate-700 cursor-pointer">
-                  노션(Notion) DB에도 동기화 생성
-                </label>
-              </div>
-
-              {/* 모달 버튼 */}
-              <div className="pt-3 flex justify-end gap-2 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setIsAddScheduleModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSyncingNotion}
-                  className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors shadow-xs cursor-pointer disabled:opacity-50"
-                >
-                  {isSyncingNotion ? "노션 생성 중..." : "일정 등록"}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
