@@ -890,7 +890,7 @@ export default function Home() {
                           const maxVisibleLane = 3;
 
                           return (
-                            <div key={wIdx} className="flex-1 grid grid-cols-7 gap-1 relative min-h-[90px] border-b border-slate-100 last:border-0 pb-1">
+                            <div key={wIdx} className="flex-1 grid grid-cols-7 gap-1 relative min-h-[115px] border-b border-slate-100 last:border-0 pb-1">
                               {/* 1. 배경 날짜 셀 Layer */}
                               {week.map((cell, cIdx) => (
                                 <div
@@ -917,7 +917,7 @@ export default function Home() {
                                 </div>
                               ))}
 
-                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer */}
+                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (2~3줄 자동 줄바꿈 지원) */}
                               <div className="absolute inset-x-0 top-[24px] bottom-0 grid grid-cols-7 gap-1 pointer-events-none px-0.5">
                                 {allocated.map((seg, sIdx) => {
                                   if (seg.lane >= maxVisibleLane) return null;
@@ -943,15 +943,17 @@ export default function Home() {
                                         e.stopPropagation();
                                         setSelectedScheduleDetail(sch);
                                       }}
-                                      className={`pointer-events-auto relative h-[25px] my-0.5 px-2 text-left flex items-center justify-between shadow-2xs border-y border-slate-300/80 cursor-grab active:cursor-grabbing text-slate-900 transition-all hover:shadow-md hover:scale-[1.01] group/bar ${tagStyle} ${roundedClass}`}
+                                      className={`pointer-events-auto relative min-h-[28px] h-auto my-0.5 px-2 py-1 text-left flex items-start justify-between shadow-2xs border-y border-slate-300/80 cursor-grab active:cursor-grabbing text-slate-900 transition-all hover:shadow-md hover:scale-[1.005] group/bar ${tagStyle} ${roundedClass}`}
                                     >
-                                      <div className="flex items-center gap-1.5 truncate text-[11.5px] font-extrabold">
+                                      <div className="flex flex-wrap items-center gap-1 text-[11px] font-extrabold leading-[1.35] break-words text-slate-900 pr-1">
                                         {sch.tag_name && (
-                                          <span className="text-[9.5px] font-extrabold px-1.5 py-0.2 rounded bg-black/10 text-slate-900 shrink-0">
+                                          <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-black/15 text-slate-900 inline-block shrink-0">
                                             {sch.tag_name}
                                           </span>
                                         )}
-                                        <span className="truncate">{sch.product_name}</span>
+                                        <span className="break-words line-clamp-3 leading-[1.3] font-extrabold text-slate-900">
+                                          {sch.product_name}
+                                        </span>
                                         {sch.quantity && sch.quantity !== "1" && (
                                           <span className="text-[10px] opacity-80 font-semibold shrink-0">({sch.quantity})</span>
                                         )}
