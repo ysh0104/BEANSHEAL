@@ -86,10 +86,11 @@ function getEffectiveConfig(config?: NotionConfig) {
   const customKey = config?.apiKey ? config.apiKey.trim() : "";
   const customDbId = config?.databaseId ? config.databaseId.trim() : "";
 
-  const apiKey = customKey || envKey;
-  const rawDbId = customDbId || envDbId;
+  // Vercel 서버 환경변수를 최우선으로 적용 (Vercel 환경변수 없으면 커스텀 입력 키 폴백)
+  const apiKey = envKey || customKey;
+  const rawDbId = envDbId || customDbId;
 
-  return { apiKey, rawDbId, isUsingEnv: !customKey && !!envKey };
+  return { apiKey, rawDbId, isUsingEnv: !!envKey };
 }
 
 /**
@@ -155,7 +156,7 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
     if (!apiKey || !rawDbId) {
       return {
         success: false,
-        message: "Notion API Key 또는 Database ID가 설정되지 않았습니다.",
+        message: "Notion API Key 또는 Database ID가 설정되지 않았습니다 (Vercel 환경변수 NOTION_API_KEY, NOTION_DATABASE_ID 확인 필요).",
         data: [],
       };
     }
@@ -174,30 +175,102 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
       let endDate = "";
       let quantity = "";
       let note = "";
-      let tagName = "";   // 🌟 추가됨
-      let tagColor = "";  // 🌟 추가됨
+      let tagName = "";
+      let tagColor = "";
 
-      // 1. 품목명/제목 파싱
+      // 1. 품목명/제목 파싱 (Title ➔ Rich Text ➔ 기본값)
       for (const key of Object.keys(props)) {
         const prop = props[key];
         if (prop.type === "title" && prop.title?.length > 0) {
-          productName = prop.title.map((t: any) => t.plain_text).join("");
+          productName = prop.title.map((t: any) => t.plain_text).join("").trim();
           break;
         }
       }
+      if (!productName) {
+        for (const key of Object.keys(props)) {
+          const prop = props[key];
+          if (prop.type === "rich_text" && prop.rich_text?.length > 0) {
+            const txt = prop.rich_text.map((t: any) => t.plain_text).join("").trim();
+            if (txt) {
+              productName = txt;
+              break;
+            }
+          }
+        }
+      }
+      if (!productName) productName = "생산 일정";
 
-      // 2. 날짜 파싱 (시작일 및 종료일 정규화)
+      // 2. 날짜 파싱 (Date ➔ 키이름 검색 ➔ Formula Date ➔ Created Time ➔ Page Created Time)
+      // 2-1. Date 타입 직접 파싱
       for (const key of Object.keys(props)) {
         const prop = props[key];
         if (prop.type === "date" && prop.date?.start) {
           planDate = prop.date.start.split("T")[0].trim();
-          if (prop.date?.end) {
-            endDate = prop.date.end.split("T")[0].trim();
-          } else {
-            endDate = planDate;
-          }
+          endDate = prop.date.end ? prop.date.end.split("T")[0].trim() : planDate;
           break;
         }
+      }
+
+      // 2-2. 키 이름("날짜", "일자", "date", "plan") 기반 파싱
+      if (!planDate) {
+        for (const key of Object.keys(props)) {
+          const prop = props[key];
+          const keyLower = key.toLowerCase();
+          if (keyLower.includes("날짜") || keyLower.includes("일자") || keyLower.includes("date") || keyLower.includes("plan")) {
+            if (prop.type === "date" && prop.date?.start) {
+              planDate = prop.date.start.split("T")[0].trim();
+              endDate = prop.date.end ? prop.date.end.split("T")[0].trim() : planDate;
+              break;
+            } else if (prop.type === "rich_text" && prop.rich_text?.length > 0) {
+              const textVal = prop.rich_text.map((t: any) => t.plain_text).join("").trim();
+              const dateMatch = textVal.match(/\d{4}-\d{2}-\d{2}/);
+              if (dateMatch) {
+                planDate = dateMatch[0];
+                endDate = planDate;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // 2-3. Formula Date 파싱
+      if (!planDate) {
+        for (const key of Object.keys(props)) {
+          const prop = props[key];
+          if (prop.type === "formula") {
+            if (prop.formula?.type === "date" && prop.formula?.date?.start) {
+              planDate = prop.formula.date.start.split("T")[0].trim();
+              endDate = prop.formula.date?.end ? prop.formula.date.end.split("T")[0].trim() : planDate;
+              break;
+            } else if (prop.formula?.type === "string" && prop.formula?.string) {
+              const dateMatch = prop.formula.string.match(/\d{4}-\d{2}-\d{2}/);
+              if (dateMatch) {
+                planDate = dateMatch[0];
+                endDate = planDate;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // 2-4. Created Time 파싱
+      if (!planDate) {
+        for (const key of Object.keys(props)) {
+          const prop = props[key];
+          if (prop.type === "created_time" && prop.created_time) {
+            planDate = prop.created_time.split("T")[0].trim();
+            endDate = planDate;
+            break;
+          }
+        }
+      }
+
+      // 2-5. 노션 페이지 생성 일시 폴백
+      if (!planDate && page.created_time) {
+        planDate = page.created_time.split("T")[0].trim();
+        endDate = planDate;
       }
 
       // 3. 수량 파싱
@@ -230,12 +303,12 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
         }
       }
 
-      // 5. 🌟 태그(Select / Multi-select) 및 색상 파싱
+      // 5. 태그(Select / Multi-select) 파싱
       for (const key of Object.keys(props)) {
         const prop = props[key];
         if (prop.type === "select" && prop.select) {
           tagName = prop.select.name;
-          tagColor = prop.select.color; // 노션이 주는 고유 색상값 (blue, green 등)
+          tagColor = prop.select.color;
           break;
         } else if (prop.type === "multi_select" && prop.multi_select?.length > 0) {
           tagName = prop.multi_select[0].name;
@@ -244,7 +317,7 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
         }
       }
 
-      if (productName && planDate) {
+      if (planDate) {
         schedules.push({
           id: page.id,
           notion_page_id: page.id,
@@ -254,8 +327,8 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
           quantity: quantity || "1",
           note: note || "",
           source: "notion",
-          tag_name: tagName,   // 🌟 추가됨
-          tag_color: tagColor, // 🌟 추가됨
+          tag_name: tagName,
+          tag_color: tagColor,
         });
       }
     }
