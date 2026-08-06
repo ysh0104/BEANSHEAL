@@ -132,6 +132,7 @@ function cleanEnvVal(val?: string) {
 function getEffectiveConfig(config?: NotionConfig) {
   const envKey = cleanEnvVal(
     process.env.NOTION_API_KEY ||
+    process.env.NOTION_API ||
     process.env.NOTION_KEY ||
     process.env.NOTION_SECRET ||
     process.env.NOTION_TOKEN ||

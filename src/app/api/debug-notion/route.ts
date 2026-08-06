@@ -6,6 +6,7 @@ import { testNotionConnection, fetchNotionSchedules } from "@/app/actions/notion
 export async function GET() {
   const envApiKey = (
     process.env.NOTION_API_KEY ||
+    process.env.NOTION_API ||
     process.env.NOTION_KEY ||
     process.env.NOTION_SECRET ||
     process.env.NOTION_TOKEN ||
