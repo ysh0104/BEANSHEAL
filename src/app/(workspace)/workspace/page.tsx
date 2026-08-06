@@ -12,6 +12,11 @@ import {
   updateScheduleDate,
   getNotionConfigStatus
 } from "@/app/actions/notionActions";
+import { 
+  getMemosFromSupabase, 
+  insertMemoToSupabase, 
+  deleteMemoFromSupabase 
+} from "@/app/actions/memoActions";
 
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
@@ -189,6 +194,16 @@ export default function Home() {
       }
     };
 
+    const fetchMemosSilently = async () => {
+      try {
+        const memoRes = await getMemosFromSupabase();
+        if (memoRes?.success && memoRes.data && memoRes.data.length > 0) {
+          setMemos(memoRes.data);
+          localStorage.setItem("beansheal_memos", JSON.stringify(memoRes.data));
+        }
+      } catch (e) {}
+    };
+
     const initData = async () => {
       try {
         const recipeRes = await getRecipeList();
@@ -205,15 +220,22 @@ export default function Home() {
           setIsVercelNotionConfigured(status.isConfigured);
         } catch (e) {}
 
-        const savedMemos = localStorage.getItem("beansheal_memos");
-        if (savedMemos) setMemos(JSON.parse(savedMemos));
-        else {
-          const defaultMemos = [
-            { id: 1, text: "A라인 포장기 점검 예정 (14:00~15:00)", date: "오늘 10:30", author: "생산팀" },
-            { id: 2, text: "유기농 야채원료 입고 검수 완료", date: "오늘 09:15", author: "품질팀" }
-          ];
-          setMemos(defaultMemos);
-          localStorage.setItem("beansheal_memos", JSON.stringify(defaultMemos));
+        // 🌟 Supabase 메모 데이터 100% 우선 연동 (없으면 로컬스토리지/기본값)
+        const memoRes = await getMemosFromSupabase();
+        if (memoRes?.success && memoRes.data && memoRes.data.length > 0) {
+          setMemos(memoRes.data);
+          localStorage.setItem("beansheal_memos", JSON.stringify(memoRes.data));
+        } else {
+          const savedMemos = localStorage.getItem("beansheal_memos");
+          if (savedMemos) setMemos(JSON.parse(savedMemos));
+          else {
+            const defaultMemos = [
+              { id: 1, text: "A라인 포장기 점검 예정 (14:00~15:00)", date: "오늘 10:30", author: "생산팀" },
+              { id: 2, text: "유기농 야채원료 입고 검수 완료", date: "오늘 09:15", author: "품질팀" }
+            ];
+            setMemos(defaultMemos);
+            localStorage.setItem("beansheal_memos", JSON.stringify(defaultMemos));
+          }
         }
 
         // 노션 달력 생산 일정 갱신 (Vercel 서버 환경변수로 100% 무조건 백그라운드 자동 로드)
@@ -224,15 +246,16 @@ export default function Home() {
     };
     initData();
 
-    // 사용자가 어떠한 버튼도 누르지 않아도 15초마다 자동으로 노션 일정 백그라운드 동기화
+    // 🌟 사용자가 버튼을 누르지 않아도 15초마다 노션 일정 & Supabase 메모 백그라운드 실시간 동기화
     const interval = setInterval(() => {
       fetchSchedulesSilently();
-    }, 20000);
+      fetchMemosSilently();
+    }, 15000);
 
     return () => clearInterval(interval);
   }, []);
 
-  const handleAddMemo = (e: React.FormEvent) => {
+  const handleAddMemo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemo.trim()) return;
 
@@ -255,7 +278,7 @@ export default function Home() {
     const name = user?.name || "사용자";
     const position = user?.position || "";
     
-    // 3. 부서, 이름, 직급 조합 (빈 값은 자동으로 걸러냄)
+    // 3. 부서, 이름, 직급 조합
     const authorString = [department, name, position].filter(Boolean).join(" ") || "사용자";
 
     const item = {
@@ -269,12 +292,22 @@ export default function Home() {
     setMemos(updated);
     localStorage.setItem("beansheal_memos", JSON.stringify(updated));
     setNewMemo("");
+
+    // 🌟 Supabase에 메모 저장 및 동기화
+    const res = await insertMemoToSupabase(item);
+    if (res?.success && res.data && res.data[0]) {
+      const realId = res.data[0].id;
+      setMemos(prev => prev.map(m => m.id === item.id ? { ...m, id: realId } : m));
+    }
   };
 
-  const handleDeleteMemo = (id: number) => {
+  const handleDeleteMemo = async (id: number | string) => {
     const updated = memos.filter(m => m.id !== id);
     setMemos(updated);
     localStorage.setItem("beansheal_memos", JSON.stringify(updated));
+
+    // 🌟 Supabase에서도 실시간 삭제 연동
+    await deleteMemoFromSupabase(id);
   };
 
   const handlePrevMonth = () => {
