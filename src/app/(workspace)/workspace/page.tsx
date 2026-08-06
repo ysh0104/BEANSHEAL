@@ -142,6 +142,15 @@ export default function Home() {
   };
 
   useEffect(() => {
+    const fetchSchedulesSilently = async () => {
+      try {
+        const notionRes = await fetchNotionSchedules(getNotionConfig());
+        if (notionRes?.success && notionRes.data) {
+          setSchedules(notionRes.data);
+        }
+      } catch (e) {}
+    };
+
     const initData = async () => {
       try {
         const recipeRes = await getRecipeList();
@@ -169,20 +178,20 @@ export default function Home() {
           localStorage.setItem("beansheal_memos", JSON.stringify(defaultMemos));
         }
 
-        // 노션 달력 생산 일정 갱신 (Vercel 환경변수로 무조건 자동 로드)
-        try {
-          const notionRes = await fetchNotionSchedules(getNotionConfig());
-          if (notionRes?.success && notionRes.data) {
-            setSchedules(notionRes.data);
-          }
-        } catch (err) {
-          console.error("노션 자동 갱신 오류:", err);
-        }
+        // 노션 달력 생산 일정 갱신 (Vercel 서버 환경변수로 100% 무조건 백그라운드 자동 로드)
+        await fetchSchedulesSilently();
       } catch (e) {
         console.error(e);
       }
     };
     initData();
+
+    // 사용자가 어떠한 버튼도 누르지 않아도 20초마다 자동으로 노션 일정 백그라운드 동기화
+    const interval = setInterval(() => {
+      fetchSchedulesSilently();
+    }, 20000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleAddMemo = (e: React.FormEvent) => {
@@ -666,20 +675,7 @@ export default function Home() {
               </div>
             );
 
-            const calendarHeaderRight = (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleNotionSync}
-                  disabled={isSyncingNotion}
-                  className="text-[11px] px-2 py-0.5 rounded-full font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
-                  title="Vercel 노션 API 키 및 데이터베이스 ID 자동 연동 (클릭 시 수동 갱신)"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>{isSyncingNotion ? "동기화 중..." : "Vercel 노션 자동연동"}</span>
-                </button>
-              </div>
-            );
+            const calendarHeaderRight = null;
 
             return (
               <div 
