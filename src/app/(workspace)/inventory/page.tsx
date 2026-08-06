@@ -5,6 +5,16 @@ import { supabase } from "@/lib/supabase";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { saveProductionInboundToEcount, syncEcountMasterToDb } from "@/app/actions/ecount";
 
+/** 재고수량: 소수점 셋째 자리까지 표시 */
+function formatQty(value: number | string) {
+  const n = Number(String(value).replace(/,/g, ""));
+  if (!Number.isFinite(n)) return "0";
+  return n.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  });
+}
+
 export default function InventoryPage() {
   const { canEdit } = useCanEdit("inventory");
   const [inventory, setInventory] = useState<any[]>([]);
@@ -314,7 +324,7 @@ export default function InventoryPage() {
                     {item.prodNm}
                   </td>
                   <td className="border border-gray-300 px-2 py-1.5 text-right font-medium text-[13px] text-gray-900">
-                    {breakdown.totalQty.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                    {formatQty(breakdown.totalQty)}
                   </td>
                 </tr>
               );
@@ -330,7 +340,7 @@ export default function InventoryPage() {
                       <span className="text-gray-400">/ 소비기한: {lot.expDate}</span>
                     </td>
                     <td className="border border-gray-300 px-2 py-1 text-right text-gray-500 text-xs font-mono border-t-dashed">
-                      {Number(lot.qty).toLocaleString()}
+                      {formatQty(lot.qty)}
                     </td>
                   </tr>
                 );
@@ -345,7 +355,7 @@ export default function InventoryPage() {
                       <span className="text-red-400">[미지정 재고]</span>
                     </td>
                     <td className="border border-gray-300 px-2 py-1 text-right text-red-400 text-xs font-mono border-t-dashed">
-                      {breakdown.unassignedQty.toLocaleString()}
+                      {formatQty(breakdown.unassignedQty)}
                     </td>
                   </tr>
                 );

@@ -318,7 +318,10 @@ export async function getInventoryStatus(sessionObj: any) {
           prodCd: item.PROD_CD,
           prodNm: matchedInfo.prodNm || item.PROD_DES || item.PROD_CD, 
           size: matchedInfo.size || item.SIZE_DES || '-',
-          qty: Number(item.BAL_QTY).toLocaleString(),
+          qty: Number(item.BAL_QTY).toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 3,
+          }),
           unit: matchedInfo.unit || item.QTY_UNIT || 'EA'
         };
       })
