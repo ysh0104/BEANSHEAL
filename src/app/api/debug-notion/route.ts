@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { testNotionConnection, fetchNotionSchedules } from "@/app/actions/notionActions";
 
@@ -19,10 +21,21 @@ export async function GET() {
     ""
   ).trim();
 
+  // Vercel 서버 환경에 존재하는 관련 환경변수 이름(Key) 목록 수집
+  const matchingEnvKeys = Object.keys(process.env).filter(
+    (k) =>
+      k.toLowerCase().includes("notion") ||
+      k.toLowerCase().includes("secret") ||
+      k.toLowerCase().includes("key") ||
+      k.toLowerCase().includes("db") ||
+      k.toLowerCase().includes("database")
+  );
+
   const testConn = await testNotionConnection();
   const testFetch = await fetchNotionSchedules();
 
   return NextResponse.json({
+    matchingEnvKeysFoundOnVercel: matchingEnvKeys,
     envCheck: {
       hasApiKey: !!envApiKey,
       apiKeyPrefix: envApiKey ? envApiKey.slice(0, 7) + "..." : "미설정",
