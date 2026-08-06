@@ -40,58 +40,58 @@ const getNotionColorClass = (colorStr?: string) => {
   }
 };
 
-// 🌟 눈이 편안한 파스텔 톤의 노션 스타일 일정 색상 분류 함수 (은은한 백그라운드 & 파스텔 테두리)
+// 🌟 테두리 없이 카드 내부 색상만 은은하게 채워지는 노션 파스텔 스타일 함수
 const getNotionScheduleColorClass = (tagName?: string, tagColor?: string, productName?: string) => {
   const textToSearch = `${tagName || ""} ${productName || ""}`.toLowerCase();
 
-  // 1. 주요 일정 카테고리별 편안한 파스텔 톤 매핑 (생산, 입고, 출고, 휴가, 점검)
+  // 1. 카테고리별 은은한 내부 색상만 채움 (테두리 없음, 깔끔한 텍스트)
   if (textToSearch.includes("생산") || textToSearch.includes("제조") || textToSearch.includes("라인")) {
-    return "bg-emerald-50/90 text-emerald-900 border border-emerald-200/90 shadow-2xs font-extrabold"; // 🟢 생산: 은은한 파스텔 그린
+    return "bg-emerald-100/90 text-emerald-950 font-extrabold shadow-2xs"; // 🟢 생산: 내부 에메랄드 채움 (테두리 없음)
   }
   if (textToSearch.includes("입고") || textToSearch.includes("자재") || textToSearch.includes("원료") || textToSearch.includes("발주")) {
-    return "bg-sky-50/90 text-sky-900 border border-sky-200/90 shadow-2xs font-extrabold"; // 🔵 입고/자재: 파스텔 블루
+    return "bg-sky-100/90 text-sky-950 font-extrabold shadow-2xs"; // 🔵 입고: 내부 스카이 블루 채움
   }
   if (textToSearch.includes("출고") || textToSearch.includes("배송") || textToSearch.includes("납품") || textToSearch.includes("택배")) {
-    return "bg-purple-50/90 text-purple-900 border border-purple-200/90 shadow-2xs font-extrabold"; // 🟣 출고/배송: 파스텔 보라
+    return "bg-purple-100/90 text-purple-950 font-extrabold shadow-2xs"; // 🟣 출고: 내부 보라 채움
   }
   if (textToSearch.includes("휴가") || textToSearch.includes("연차") || textToSearch.includes("휴무") || textToSearch.includes("반차")) {
-    return "bg-amber-50/90 text-amber-900 border border-amber-200/90 shadow-2xs font-extrabold"; // 🟡 휴가/연차: 파스텔 앰버/노랑
+    return "bg-amber-100/90 text-amber-950 font-extrabold shadow-2xs"; // 🟡 휴가: 내부 앰버 노랑 채움
   }
   if (textToSearch.includes("점검") || textToSearch.includes("수리") || textToSearch.includes("감사") || textToSearch.includes("점검표")) {
-    return "bg-rose-50/90 text-rose-900 border border-rose-200/90 shadow-2xs font-extrabold"; // 🔴 점검/감사: 파스텔 로즈/핑크
+    return "bg-rose-100/90 text-rose-950 font-extrabold shadow-2xs"; // 🔴 점검: 내부 로즈 핑크 채움
   }
 
-  // 2. 노션 고유 태그 색상 매핑 (은은한 파스텔 톤)
+  // 2. 노션 고유 태그 색상 (내부 채움 전용)
   switch (tagColor) {
     case "blue":
     case "blue_background":
-      return "bg-sky-50/90 text-sky-900 border border-sky-200/90 shadow-2xs font-extrabold";
+      return "bg-sky-100/90 text-sky-950 font-extrabold shadow-2xs";
     case "green":
     case "green_background":
-      return "bg-emerald-50/90 text-emerald-900 border border-emerald-200/90 shadow-2xs font-extrabold";
+      return "bg-emerald-100/90 text-emerald-950 font-extrabold shadow-2xs";
     case "red":
     case "red_background":
-      return "bg-rose-50/90 text-rose-900 border border-rose-200/90 shadow-2xs font-extrabold";
+      return "bg-rose-100/90 text-rose-950 font-extrabold shadow-2xs";
     case "yellow":
     case "yellow_background":
-      return "bg-amber-50/90 text-amber-900 border border-amber-200/90 shadow-2xs font-extrabold";
+      return "bg-amber-100/90 text-amber-950 font-extrabold shadow-2xs";
     case "purple":
     case "purple_background":
-      return "bg-purple-50/90 text-purple-900 border border-purple-200/90 shadow-2xs font-extrabold";
+      return "bg-purple-100/90 text-purple-950 font-extrabold shadow-2xs";
     case "orange":
     case "orange_background":
-      return "bg-orange-50/90 text-orange-900 border border-orange-200/90 shadow-2xs font-extrabold";
+      return "bg-orange-100/90 text-orange-950 font-extrabold shadow-2xs";
     case "pink":
     case "pink_background":
-      return "bg-pink-50/90 text-pink-900 border border-pink-200/90 shadow-2xs font-extrabold";
+      return "bg-pink-100/90 text-pink-950 font-extrabold shadow-2xs";
     case "brown":
     case "brown_background":
-      return "bg-amber-50/90 text-amber-900 border border-amber-200/90 shadow-2xs font-extrabold";
+      return "bg-amber-100/90 text-amber-950 font-extrabold shadow-2xs";
     case "gray":
     case "gray_background":
-      return "bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs font-extrabold";
+      return "bg-slate-200 text-slate-900 font-extrabold shadow-2xs";
     default:
-      return "bg-indigo-50/90 text-indigo-900 border border-indigo-200/90 shadow-2xs font-extrabold";
+      return "bg-indigo-100/90 text-indigo-950 font-extrabold shadow-2xs";
   }
 };
 
@@ -933,10 +933,8 @@ export default function Home() {
                             }
                           });
 
-                          const maxVisibleLane = 3;
-
                           return (
-                            <div key={wIdx} className="flex-1 grid grid-cols-7 gap-1 relative min-h-[125px] border-b border-slate-100 last:border-0 pb-1">
+                            <div key={wIdx} className="flex-1 grid grid-cols-7 gap-1 relative min-h-[135px] border-b border-slate-100 last:border-0 pb-1">
                               {/* 1. 배경 날짜 셀 Layer */}
                               {week.map((cell, cIdx) => (
                                 <div
@@ -963,14 +961,12 @@ export default function Home() {
                                 </div>
                               ))}
 
-                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (자동 높이 늘어남 & 카테고리 색상 구별 지원) */}
-                              <div className="absolute inset-x-0 top-[24px] bottom-0 grid grid-cols-7 auto-rows-max gap-1 pointer-events-none px-0.5">
+                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (한 날짜 다수 일정 드래그/스크롤 확인 지원) */}
+                              <div className="absolute inset-x-0 top-[24px] bottom-0 grid grid-cols-7 auto-rows-max gap-1 overflow-y-auto custom-scrollbar pointer-events-none px-0.5 pr-1">
                                 {allocated.map((seg, sIdx) => {
-                                  if (seg.lane >= maxVisibleLane) return null;
-
                                   const sch = seg.sch;
                                   const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
-                                  const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md border-l' : 'rounded-l-none border-l-0'} ${seg.isEndOfSchedule ? 'rounded-r-md border-r' : 'rounded-r-none border-r-0'}`;
+                                  const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md' : 'rounded-l-none'} ${seg.isEndOfSchedule ? 'rounded-r-md' : 'rounded-r-none'}`;
 
                                   return (
                                     <div
@@ -985,7 +981,7 @@ export default function Home() {
                                         e.stopPropagation();
                                         handleDragStart(e, sch);
                                       }}
-                                      className={`pointer-events-auto relative h-fit min-h-[28px] my-0.5 px-2 py-1.5 text-left flex items-start justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
+                                      className={`pointer-events-auto relative h-fit min-h-[26px] my-0.5 px-2.5 py-1 text-left flex items-start justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
                                     >
                                       <div className="flex flex-wrap items-start gap-1 text-[11px] font-extrabold leading-[1.35] break-words text-slate-950 pr-1 w-full whitespace-normal">
                                         {sch.tag_name && (
