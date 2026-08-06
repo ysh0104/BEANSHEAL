@@ -32,13 +32,13 @@ export default function Sidebar() {
     {
       name: "기준정보 관리",
       items: [
-        { name: "제품 및 레시피 목록", path: "/recipes" }
+        { name: "제품 BOM (레시피)", path: "/recipes" }
       ]
     },
     {
       name: "생산/발주 계획",
       items: [
-        { name: "발주 자동 계산서", path: "/simulator" },
+        { name: "발주 계산 · 구매전송", path: "/simulator" },
         { name: "작업지시서", path: "/work-order" }
       ]
     },
@@ -52,7 +52,7 @@ export default function Sidebar() {
     {
       name: "자재/물류 관리",
       items: [
-        { name: "이카운트 재고현황", path: "/inventory" },
+        { name: "재고 · 생산입고", path: "/inventory" },
         { name: "바코드 / QR 스캔", path: "/scan" }
       ]
     },

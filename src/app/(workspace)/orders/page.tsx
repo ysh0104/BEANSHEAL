@@ -5,6 +5,7 @@ import { useCanEdit } from "@/hooks/useCanEdit";
 
 import { supabase } from "@/lib/supabase"; 
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe";
+import { saveProductionInboundToEcount } from "@/app/actions/ecount";
 
 import CoverPage from "@/components/CoverPage";
 import ManufacturingLog from "@/components/ManufacturingLog";
@@ -216,7 +217,56 @@ export default function OrdersPage() {
 
       if (error) throw error;
 
-      alert("작업이 완료 처리되었습니다.");
+      // 완료 후 이카운트 생산입고 전송 여부 확인
+      let prodCd = "";
+      if (selectedOrder.recipeId) {
+        const details = await getRecipeDetails(selectedOrder.recipeId);
+        prodCd = details.baseInfo?.product_code || "";
+      }
+      if (!prodCd && selectedOrder.itemName) {
+        const { data: matched } = await supabase
+          .from("ecount_items")
+          .select("prod_cd, prod_nm")
+          .ilike("prod_nm", `%${selectedOrder.itemName}%`)
+          .limit(5);
+        if (matched?.length === 1) {
+          prodCd = matched[0].prod_cd;
+        } else if (matched && matched.length > 1) {
+          const exact = matched.find((m) =>
+            m.prod_nm?.replace(/^[원부자반]\)\s*/, "").includes(selectedOrder.itemName)
+          );
+          prodCd = exact?.prod_cd || matched[0].prod_cd;
+        }
+      }
+
+      if (prodCd) {
+        const qty = Number(selectedOrder.qty || selectedOrder.targetQty || selectedOrder.target_qty || 0);
+        if (
+          qty > 0 &&
+          window.confirm(
+            `완료되었습니다.\n이카운트 생산입고 전표도 전송할까요?\n품목: ${prodCd} / 수량: ${qty}`
+          )
+        ) {
+          const inbound = await saveProductionInboundToEcount({
+            PROD_CD: prodCd,
+            QTY: qty,
+            WH_CD_F: "100",
+            WH_CD_T: "100",
+          });
+          if (inbound.success) {
+            alert(`생산입고 성공\n전표번호: ${inbound.slipNo}`);
+          } else {
+            alert(`생산입고 실패: ${inbound.error}\n(완료 처리는 유지됩니다)`);
+          }
+        } else {
+          alert("작업이 완료 처리되었습니다.");
+        }
+      } else {
+        alert(
+          "작업이 완료 처리되었습니다.\n(레시피에 이카운트 품목코드가 없어 생산입고는 건너뜁니다. 재고 화면에서 수동 입고 가능)"
+        );
+      }
+
       closeModal();
       fetchOrders();
     } catch (err: any) {

@@ -9,17 +9,35 @@ export async function saveRecipeMaster(payload: any) {
   try {
     const { baseInfo, materials, routings } = payload;
 
-    const { data: recipeData, error: recipeError } = await supabase
+    const insertPayload: Record<string, any> = {
+      product_name: baseInfo.productName,
+      base_batch_size: baseInfo.baseBatchSize,
+      base_unit: baseInfo.baseUnit,
+      food_type: baseInfo.foodType,
+      is_coffee: baseInfo.isCoffee,
+    };
+    if (baseInfo.productCode) {
+      insertPayload.product_code = baseInfo.productCode;
+    }
+
+    let recipeData: any = null;
+    let recipeError: any = null;
+
+    ({ data: recipeData, error: recipeError } = await supabase
       .from('recipes')
-      .insert({
-        product_name: baseInfo.productName,
-        base_batch_size: baseInfo.baseBatchSize,
-        base_unit: baseInfo.baseUnit,
-        food_type: baseInfo.foodType, 
-        is_coffee: baseInfo.isCoffee  
-      })
+      .insert(insertPayload)
       .select('id')
-      .single();
+      .single());
+
+    // product_code 컬럼이 아직 없으면 컬럼 없이 재시도
+    if (recipeError && String(recipeError.message || "").includes("product_code")) {
+      delete insertPayload.product_code;
+      ({ data: recipeData, error: recipeError } = await supabase
+        .from('recipes')
+        .insert(insertPayload)
+        .select('id')
+        .single());
+    }
 
     if (recipeError) throw recipeError;
     const recipeId = recipeData.id;
@@ -65,10 +83,18 @@ export async function getRecipeList() {
   try {
     const { data, error } = await supabase
       .from('recipes')
-      .select('id, product_name, base_batch_size, base_unit, food_type, is_coffee') 
+      .select('id, product_name, product_code, base_batch_size, base_unit, food_type, is_coffee, created_at') 
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      // product_code 미존재 환경 호환
+      const fallback = await supabase
+        .from('recipes')
+        .select('id, product_name, base_batch_size, base_unit, food_type, is_coffee, created_at')
+        .order('created_at', { ascending: false });
+      if (fallback.error) throw fallback.error;
+      return { success: true, data: fallback.data || [] };
+    }
     return { success: true, data: data || [] };
   } catch (error) {
     console.error("레시피 목록 불러오기 실패:", error);
@@ -122,16 +148,29 @@ export async function updateRecipeMaster(recipeId: string, payload: any) {
   try {
     const { baseInfo, materials, routings } = payload;
 
-    const { error: recipeError } = await supabase
+    const updatePayload: Record<string, any> = {
+      product_name: baseInfo.productName,
+      base_batch_size: baseInfo.baseBatchSize,
+      base_unit: baseInfo.baseUnit,
+      food_type: baseInfo.foodType,
+      is_coffee: baseInfo.isCoffee,
+    };
+    if (baseInfo.productCode !== undefined) {
+      updatePayload.product_code = baseInfo.productCode || null;
+    }
+
+    let { error: recipeError } = await supabase
       .from('recipes')
-      .update({
-        product_name: baseInfo.productName,
-        base_batch_size: baseInfo.baseBatchSize,
-        base_unit: baseInfo.baseUnit,
-        food_type: baseInfo.foodType, 
-        is_coffee: baseInfo.isCoffee  
-      })
+      .update(updatePayload)
       .eq('id', recipeId);
+
+    if (recipeError && String(recipeError.message || "").includes("product_code")) {
+      delete updatePayload.product_code;
+      ({ error: recipeError } = await supabase
+        .from('recipes')
+        .update(updatePayload)
+        .eq('id', recipeId));
+    }
 
     if (recipeError) throw recipeError;
 

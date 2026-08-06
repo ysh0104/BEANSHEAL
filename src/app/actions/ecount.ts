@@ -8,6 +8,15 @@ export async function getSessionId() {
   const USER_ID = process.env.ECOUNT_USER_ID;
   const API_KEY = process.env.ECOUNT_API_KEY;
 
+  console.log("=== [DEBUG] getSessionId 환경변수 검증 ===");
+  console.log("ECOUNT_COM_CODE:", COM_CODE ? `${COM_CODE.substring(0, 2)}*** (길이: ${COM_CODE.length})` : "undefined / 누락");
+  console.log("ECOUNT_USER_ID:", USER_ID ? `${USER_ID.substring(0, 2)}*** (길이: ${USER_ID.length})` : "undefined / 누락");
+  console.log("ECOUNT_API_KEY:", API_KEY ? `${API_KEY.substring(0, Math.min(4, API_KEY.length))}*** (길이: ${API_KEY.length})` : "undefined / 누락");
+  console.log("ECOUNT_ID:", process.env.ECOUNT_ID ? "존재함" : "누락");
+  console.log("ECOUNT_PW:", process.env.ECOUNT_PW ? "존재함" : "누락");
+  console.log("ECOUNT_SER_ID:", process.env.ECOUNT_SER_ID ? "존재함" : "누락");
+  console.log("=========================================");
+
   try {
     const zoneResponse = await fetch("https://sboapi.ecount.com/OAPI/V2/Zone", {
       method: "POST",
@@ -16,11 +25,14 @@ export async function getSessionId() {
     });
     
     const zoneData = await zoneResponse.json();
+    console.log("=== [DEBUG] ZONE API Response ===");
+    console.log(JSON.stringify(zoneData, null, 2));
+    
     const ZONE = zoneData.Data?.ZONE;
     
     if (!ZONE) throw new Error("ZONE 정보를 찾을 수 없습니다.");
 
-    const loginUrl = `https://sboapi${ZONE.toLowerCase()}.ecount.com/OAPI/V2/OAPILogin`;
+    const loginUrl = `https://oapi${ZONE.toLowerCase()}.ecount.com/OAPI/V2/OAPILogin`;
 
     const response = await fetch(loginUrl, {
       method: "POST",
@@ -30,12 +42,25 @@ export async function getSessionId() {
         USER_ID: USER_ID,
         API_CERT_KEY: API_KEY,
         LAN_TYPE: "ko-KR",
-        ZONE: ZONE 
+        ZONE: ZONE
       }),
     });
 
     const data = await response.json();
-    return data; 
+    console.log("=== [DEBUG] OAPILogin API Response ===");
+    console.log(JSON.stringify(data, null, 2));
+
+    // 실서버용 API 키의 경우 응답 상태 코드(Status)가 "200" 또는 200 이고, 
+    // 내부 반환 코드가 "00", "200", "204" 일 때 모두 로그인 성공으로 판단합니다.
+    const successData = data.Data?.Datas || data.Data;
+    const isLoginSuccess = (data.Status === "200" || data.Status === 200) && 
+                           (data.Data?.Code === "00" || data.Data?.Code === "200" || data.Data?.Code === "204" || successData?.SESSION_ID);
+
+    if (!isLoginSuccess) {
+      return { error: data.Result?.Message || data.Errors?.[0]?.Message || data.Data?.Message || "이카운트 로그인 거절" };
+    }
+    
+    return { Data: successData }; 
   } catch (error) {
     console.error("eCount 로그인 에러:", error);
     return { error: "통신 실패" };
@@ -188,8 +213,8 @@ export async function syncInboundWithEcount() {
 export async function getListProduct(sessionObj: any) {
   const COM_CODE = process.env.ECOUNT_COM_CODE;
   try {
-    const actualSessionId = sessionObj?.Datas?.SESSION_ID;
-    const hostUrl = sessionObj?.Datas?.HOST_URL || "sboapiac.ecount.com";
+    const actualSessionId = sessionObj?.Datas?.SESSION_ID || sessionObj?.SESSION_ID;
+    const hostUrl = sessionObj?.Datas?.HOST_URL || sessionObj?.HOST_URL || "oapiac.ecount.com";
 
     const requestUrl = `https://${hostUrl}/OAPI/V2/InventoryBasic/GetBasicProductsList?SESSION_ID=${actualSessionId}`;
 
@@ -225,8 +250,8 @@ export async function getListProduct(sessionObj: any) {
 export async function getInventoryStatus(sessionObj: any) {
   const COM_CODE = process.env.ECOUNT_COM_CODE;
   try {
-    const actualSessionId = sessionObj?.Datas?.SESSION_ID;
-    const hostUrl = sessionObj?.Datas?.HOST_URL || "sboapiac.ecount.com";
+    const actualSessionId = sessionObj?.Datas?.SESSION_ID || sessionObj?.SESSION_ID;
+    const hostUrl = sessionObj?.Datas?.HOST_URL || sessionObj?.HOST_URL || "oapiac.ecount.com";
 
     const today = new Date();
     const kstTime = new Date(today.getTime() + (9 * 60 * 60 * 1000));
@@ -339,5 +364,242 @@ export async function debugEcountAPI() {
     return await response.text();
   } catch (e: any) {
     return "통신 중 에러 발생: " + e.message;
+  }
+}
+
+export interface EcountProductionInboundDetail {
+  PROD_CD: string;       // 품목 코드 (완제품)
+  QTY: number;           // 생산 수량
+  WH_CD_F?: string;      // 생산된 공장 코드 (기본값: '100')
+  WH_CD_T?: string;      // 받는 창고 코드 (기본값: '100')
+}
+
+// 6. 이카운트 재고I 생산입고 전표 입력 API 연동
+export async function saveProductionInboundToEcount(productionData: EcountProductionInboundDetail) {
+  const COM_CODE = process.env.ECOUNT_COM_CODE;
+  try {
+    const sessionRes: any = await getSessionId();
+    const actualSessionId = sessionRes?.Data?.Datas?.SESSION_ID || sessionRes?.Data?.SESSION_ID || sessionRes?.SESSION_ID;
+    const hostUrl = sessionRes?.Data?.Datas?.HOST_URL || sessionRes?.Data?.HOST_URL || sessionRes?.HOST_URL || "oapiac.ecount.com";
+
+    console.log("=== [DEBUG] saveProductionInboundToEcount 세션 디버그 ===");
+    console.log("sessionRes 원본:", JSON.stringify(sessionRes));
+    console.log("actualSessionId 추출값:", actualSessionId);
+    console.log("hostUrl 추출값:", hostUrl);
+    console.log("======================================================");
+
+    if (!actualSessionId) {
+      return { success: false, error: "세션 ID 획득 실패. 로그인 정보나 API 상태를 확인해주세요." };
+    }
+
+    const today = new Date();
+    const kstTime = new Date(today.getTime() + (9 * 60 * 60 * 1000));
+    const y = kstTime.getUTCFullYear();
+    const m = String(kstTime.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(kstTime.getUTCDate()).padStart(2, '0');
+    const slipDate = `${y}${m}${d}`; // YYYYMMDD 포맷
+
+    const requestUrl = `https://${hostUrl}/OAPI/V2/GoodsReceipt/SaveGoodsReceipt?SESSION_ID=${actualSessionId}`;
+
+    const payload = {
+      SESSION_ID: actualSessionId,
+      COM_CODE: COM_CODE,
+      GoodsReceiptList: [
+        {
+          Line: "0",
+          BulkDatas: {
+            IO_DATE: slipDate,                           // 전표일자
+            PROD_CD: productionData.PROD_CD,             // 생산완제품 품목코드
+            QTY: productionData.QTY,                     // 생산수량
+            WH_CD_F: productionData.WH_CD_F || "100",    // 생산된 공장 (필수)
+            WH_CD_T: productionData.WH_CD_T || "100",    // 받는 창고 (필수)
+          }
+        }
+      ]
+    };
+
+    console.log("=== 이카운트 생산입고 전송 요청 데이터 ===");
+    console.log(JSON.stringify(payload, null, 2));
+
+    const response = await fetch(requestUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const textData = await response.text();
+    console.log("=== 이카운트 생산입고 응답 데이터 ===");
+    console.log(textData);
+
+    let result;
+    try {
+      result = JSON.parse(textData);
+    } catch (parseError) {
+      return { success: false, error: "이카운트 응답 분석 실패: " + textData.substring(0, 200) };
+    }
+
+    if (result.Status !== "200" || result.Error || result.Errors || result.Data?.FailCnt > 0) {
+      const detailErr = result.Data?.ResultDetails?.[0]?.TotalError || result.Data?.ResultDetails?.[0]?.Errors?.[0]?.Message;
+      const errMsg = detailErr || result.Result?.Message || result.Errors?.[0]?.Message || result.Data?.Result?.Message || result.Error?.Message || "이카운트 API가 전송을 거절했습니다.";
+      return { success: false, error: errMsg, details: result };
+    }
+
+    return { 
+      success: true, 
+      message: "이카운트 재고I 생산입고 전표 입력 성공!", 
+      slipNo: result.Data?.SlipNos?.[0] || result.Data?.SlipNo || result.Data?.Result?.SlipNo || "전표 생성 성공"
+    };
+  } catch (error: any) {
+    console.error("생산입고 전표 전송 중 통신 실패:", error);
+    return { success: false, error: error.message || "통신 실패" };
+  }
+}
+
+export interface EcountPurchaseLine {
+  PROD_CD: string;
+  PROD_DES?: string;
+  QTY: number;
+  WH_CD?: string;
+}
+
+// 7. 이카운트 구매(입고) 전표 입력 — 발주/결품 보충용
+export async function savePurchasesToEcount(lines: EcountPurchaseLine[], whCd = "100") {
+  const COM_CODE = process.env.ECOUNT_COM_CODE;
+  try {
+    if (!lines?.length) {
+      return { success: false, error: "전송할 구매 품목이 없습니다." };
+    }
+
+    const sessionRes: any = await getSessionId();
+    const actualSessionId = sessionRes?.Data?.Datas?.SESSION_ID || sessionRes?.Data?.SESSION_ID || sessionRes?.SESSION_ID;
+    const hostUrl = sessionRes?.Data?.Datas?.HOST_URL || sessionRes?.Data?.HOST_URL || sessionRes?.HOST_URL || "oapiac.ecount.com";
+
+    if (!actualSessionId) {
+      return { success: false, error: "세션 ID 획득 실패. 로그인 정보나 API 상태를 확인해주세요." };
+    }
+
+    const today = new Date();
+    const kstTime = new Date(today.getTime() + (9 * 60 * 60 * 1000));
+    const slipDate = `${kstTime.getUTCFullYear()}${String(kstTime.getUTCMonth() + 1).padStart(2, "0")}${String(kstTime.getUTCDate()).padStart(2, "0")}`;
+
+    const requestUrl = `https://${hostUrl}/OAPI/V2/Purchases/SavePurchases?SESSION_ID=${actualSessionId}`;
+
+    const PurchasesList = lines.map((line, index) => ({
+      Line: String(index),
+      BulkDatas: {
+        IO_DATE: slipDate,
+        WH_CD: line.WH_CD || whCd,
+        PROD_CD: line.PROD_CD,
+        PROD_DES: line.PROD_DES || "",
+        QTY: line.QTY,
+      },
+    }));
+
+    const payload = {
+      SESSION_ID: actualSessionId,
+      COM_CODE,
+      PurchasesList,
+    };
+
+    console.log("=== 이카운트 구매입고 전송 ===");
+    console.log(JSON.stringify(payload, null, 2));
+
+    const response = await fetch(requestUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const textData = await response.text();
+    console.log("=== 이카운트 구매입고 응답 ===");
+    console.log(textData);
+
+    let result;
+    try {
+      result = JSON.parse(textData);
+    } catch {
+      return { success: false, error: "이카운트 응답 분석 실패: " + textData.substring(0, 200) };
+    }
+
+    if (result.Status !== "200" || result.Error || result.Errors || result.Data?.FailCnt > 0) {
+      const detailErr =
+        result.Data?.ResultDetails?.[0]?.TotalError ||
+        result.Data?.ResultDetails?.[0]?.Errors?.[0]?.Message;
+      const errMsg =
+        detailErr ||
+        result.Errors?.[0]?.Message ||
+        result.Error?.Message ||
+        "이카운트 구매 전송이 거절되었습니다.";
+      return { success: false, error: errMsg, details: result };
+    }
+
+    return {
+      success: true,
+      message: `구매입고 ${result.Data?.SuccessCnt || lines.length}건 전송 성공`,
+      slipNos: result.Data?.SlipNos || [],
+      details: result,
+    };
+  } catch (error: any) {
+    console.error("구매입고 전송 실패:", error);
+    return { success: false, error: error.message || "통신 실패" };
+  }
+}
+
+// 8. 이카운트 품목+재고 → Supabase ecount_items 동기화
+export async function syncEcountMasterToDb() {
+  try {
+    const sessionRes: any = await getSessionId();
+    const sessionData = sessionRes?.Data;
+    if (!sessionData) {
+      return { success: false, error: sessionRes?.error || "이카운트 로그인 실패" };
+    }
+
+    // getListProduct / getInventoryStatus 는 Datas 또는 평면 SESSION_ID 모두 허용
+    const sessionObj = sessionData.Datas ? sessionData : { Datas: sessionData, ...sessionData };
+
+    const productList = await getListProduct(sessionObj);
+    const inventory = await getInventoryStatus(sessionObj);
+
+    const qtyMap = new Map<string, number>();
+    if (Array.isArray(inventory)) {
+      inventory.forEach((item: any) => {
+        qtyMap.set(item.prodCd, Number(String(item.qty).replace(/,/g, "")) || 0);
+      });
+    }
+
+    const source = Array.isArray(productList) && productList.length > 0
+      ? productList
+      : (inventory || []).map((i: any) => ({
+          PROD_CD: i.prodCd,
+          PROD_DES: i.prodNm,
+        }));
+
+    if (!source.length) {
+      return { success: false, error: "이카운트에서 품목 데이터를 가져오지 못했습니다." };
+    }
+
+    const rows = source
+      .filter((p: any) => p.PROD_CD || p.prodCd)
+      .map((p: any) => {
+        const prodCd = p.PROD_CD || p.prodCd;
+        return {
+          prod_cd: prodCd,
+          prod_nm: p.PROD_DES || p.prodNm || prodCd,
+          total_qty: qtyMap.get(prodCd) ?? 0,
+          last_synced_at: new Date().toISOString(),
+        };
+      });
+
+    const { error } = await supabase.from("ecount_items").upsert(rows, { onConflict: "prod_cd" });
+    if (error) throw error;
+
+    return {
+      success: true,
+      message: `이카운트 품목/재고 ${rows.length}건을 DB에 동기화했습니다.`,
+      count: rows.length,
+    };
+  } catch (error: any) {
+    console.error("마스터 동기화 실패:", error);
+    return { success: false, error: error.message || "동기화 실패" };
   }
 }

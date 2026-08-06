@@ -24,6 +24,7 @@ export default function RecipeEditPage() {
   
   const [baseInfo, setBaseInfo] = useState({
     productName: "",
+    productCode: "",
     baseBatchSize: 1000,
     baseUnit: "kg",
     foodType: "건강기능식품", 
@@ -36,7 +37,7 @@ export default function RecipeEditPage() {
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchTargetIndex, setSearchTargetIndex] = useState<number | null>(null);
-  const [searchTargetType, setSearchTargetType] = useState<"material" | "packaging" | null>(null);
+  const [searchTargetType, setSearchTargetType] = useState<"material" | "packaging" | "product" | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   
   // 🌟 [수정됨] DB 원본 데이터 저장 및 필터링 상태 추가
@@ -52,6 +53,7 @@ export default function RecipeEditPage() {
         if (result.success && result.baseInfo) {
           setBaseInfo({
             productName: result.baseInfo.product_name,
+            productCode: result.baseInfo.product_code || "",
             baseBatchSize: Number(result.baseInfo.base_batch_size),
             baseUnit: result.baseInfo.base_unit,
             foodType: result.baseInfo.food_type || "건강기능식품",
@@ -110,7 +112,7 @@ export default function RecipeEditPage() {
     );
   };
 
-  const openSearchModal = async (index: number, type: "material" | "packaging") => {
+  const openSearchModal = async (index: number | null, type: "material" | "packaging" | "product") => {
     setSearchTargetIndex(index);
     setSearchTargetType(type);
     setIsSearchOpen(true);
@@ -118,7 +120,6 @@ export default function RecipeEditPage() {
     
     let masterData = allMasterItems;
 
-    // 🌟 1. DB에서 전체 품목 호출 (최초 1회만)
     if (masterData.length === 0) {
       setIsSearching(true);
       try {
@@ -132,16 +133,17 @@ export default function RecipeEditPage() {
       }
     }
 
-    // 🌟 2. 원료/부자재 성격에 맞게 리스트 자동 필터링
     const typeFiltered = masterData.filter(item => {
       const iType = item.item_type || "";
-      if (!iType) return true; // 품목구분이 없는 항목은 노출
-      
-      if (type === "packaging") {
-        return iType.includes("부") || iType.includes("포장");
-      } else {
-        return iType.includes("원") //|| iType.includes("반");
+      if (!iType) return true;
+      if (type === "product") {
+        return (iType.includes("제품") || iType.includes("상품") || iType.includes("완"))
+          && !iType.includes("무형")
+          && !iType.includes("반");
+      } else if (type === "packaging") {
+        return iType.includes("부") || iType.includes("자");
       }
+      return iType.includes("원") || iType.includes("반");
     });
 
     setEcountProducts(typeFiltered);
@@ -161,6 +163,16 @@ export default function RecipeEditPage() {
   };
 
   const selectEcountProduct = (prodCd: string, prodNm: string) => {
+    if (searchTargetType === "product") {
+      const cleanProdNm = prodNm.replace(/^.\)\s*/, '').trim();
+      setBaseInfo({ ...baseInfo, productName: cleanProdNm, productCode: prodCd });
+      setIsSearchOpen(false);
+      setSearchTargetIndex(null);
+      setSearchTargetType(null);
+      setSearchQuery("");
+      return;
+    }
+
     if (searchTargetIndex !== null && searchTargetType !== null) {
       if (searchTargetType === "material") {
         const newMats = [...materials];
@@ -218,6 +230,7 @@ export default function RecipeEditPage() {
     const safePayload = {
       baseInfo: {
         productName: baseInfo.productName,
+        productCode: baseInfo.productCode || "",
         baseBatchSize: Number(baseInfo.baseBatchSize),
         baseUnit: baseInfo.baseUnit,
         foodType: baseInfo.foodType,
@@ -279,9 +292,21 @@ export default function RecipeEditPage() {
         
         <div className="grid grid-cols-4 gap-6 mb-6">
           <div className="col-span-2">
-            <label className="block text-sm font-bold text-gray-700 mb-2">완제품명</label>
-            <input type="text" className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-900 focus:ring-1 focus:ring-gray-900 focus:border-gray-900 outline-none transition-all bg-gray-50 focus:bg-white" 
-              value={baseInfo.productName} onChange={e => setBaseInfo({...baseInfo, productName: e.target.value})} />
+            <label className="block text-sm font-bold text-gray-700 mb-2">완제품명 (BOM 헤더)</label>
+            <div className="relative">
+              <input type="text" className="w-full border border-gray-300 rounded-lg p-3 pr-12 text-sm text-gray-900 focus:ring-1 focus:ring-gray-900 focus:border-gray-900 outline-none transition-all bg-gray-50 focus:bg-white" 
+                value={baseInfo.productName} onChange={e => setBaseInfo({...baseInfo, productName: e.target.value})} />
+              <button
+                type="button"
+                onClick={() => openSearchModal(null, "product")}
+                className="absolute right-2 top-1.5 p-2 text-gray-400 hover:text-blue-600"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+              </button>
+            </div>
+            {baseInfo.productCode && (
+              <p className="text-[11px] text-blue-600 mt-1 font-mono font-bold">이카운트 품목코드: {baseInfo.productCode}</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">기준 생산량</label>

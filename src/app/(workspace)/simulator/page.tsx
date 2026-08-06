@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe"; 
-import { getSessionId, getInventoryStatus } from "@/app/actions/ecount"; 
+import { savePurchasesToEcount } from "@/app/actions/ecount"; 
 import { useCanEdit } from "@/hooks/useCanEdit";
 
 // 🌟 사전에 정의된 원료별 포장 규격 (이름에 포함된 키워드 기준)
@@ -20,8 +20,9 @@ const MATERIAL_SPEC_MASTER: Record<string, number> = {
 interface SimulationResult {
   type: string;
   name: string;
+  materialCode?: string;
   requiredQty: number | string;
-  requiredPacksDesc?: string; // 🌟 원료 발주 포장 단위 개수 표시용
+  requiredPacksDesc?: string;
   currentStock: number | string;
   shortage: number | string;
   unit: string;
@@ -41,6 +42,8 @@ export default function ProductionSimulator() {
   
   const [results, setResults] = useState<SimulationResult[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isSendingPurchase, setIsSendingPurchase] = useState(false);
+  const [purchaseWhCd, setPurchaseWhCd] = useState("100");
   const [lastCalculatedInfo, setLastCalculatedInfo] = useState({ 
     name: "", 
     inputMode: "kg",
@@ -98,6 +101,7 @@ export default function ProductionSimulator() {
           const baseQty = Number(mat.input_qty);
           const obj = {
             name: mat.material_name,
+            materialCode: mat.material_code || "",
             ratio: (baseQty / baseBatchSize) * 100, 
             packaging_unit: Number(mat.packaging_unit) || 1, 
             unit: mat.input_unit || (mat.material_type?.trim() === '부자재' ? 'EA' : 'kg'),
@@ -195,8 +199,9 @@ export default function ProductionSimulator() {
         calculatedResults.push({
           type: "원료",
           name: mat.name,
+          materialCode: mat.materialCode || "",
           requiredQty: Number(requiredQty.toFixed(2)),
-          requiredPacksDesc: packsDesc, // 이제 결품 수량 기반 발주 포장 단위를 의미함
+          requiredPacksDesc: packsDesc,
           currentStock: typeof currentStock === 'number' ? Number(currentStock.toFixed(2)) : currentStock,
           shortage: shortage,
           unit: "kg"
@@ -225,6 +230,7 @@ export default function ProductionSimulator() {
         calculatedResults.push({
           type: "부자재",
           name: mat.name,
+          materialCode: mat.materialCode || "",
           requiredQty: finalReqEA,
           requiredPacksDesc: "",
           currentStock: currentStock,
@@ -251,6 +257,60 @@ export default function ProductionSimulator() {
       alert("데이터 연동 중 에러가 발생했습니다. 백엔드 상태를 확인해 주십시오.");
     } finally {
       setIsCalculating(false);
+    }
+  };
+
+  const handleSendPurchasesToEcount = async () => {
+    const shortageLines = results.filter(
+      (r) => Number(r.shortage) > 0 && r.currentStock !== "자가생산"
+    );
+
+    if (shortageLines.length === 0) {
+      alert("전송할 결품(발주 필요) 품목이 없습니다.");
+      return;
+    }
+
+    const missingCode = shortageLines.filter((r) => !r.materialCode);
+    if (missingCode.length > 0) {
+      alert(
+        `이카운트 품목코드가 없는 결품이 ${missingCode.length}건 있습니다.\n레시피 BOM에서 material_code를 매핑한 뒤 다시 계산해주세요.\n예: ${missingCode[0].name}`
+      );
+      return;
+    }
+
+    if (
+      !confirm(
+        `결품 ${shortageLines.length}건을 이카운트 구매입고 전표로 전송할까요?\n창고코드: ${purchaseWhCd}`
+      )
+    ) {
+      return;
+    }
+
+    setIsSendingPurchase(true);
+    try {
+      const res = await savePurchasesToEcount(
+        shortageLines.map((r) => ({
+          PROD_CD: r.materialCode!,
+          PROD_DES: r.name,
+          QTY: Number(r.shortage),
+          WH_CD: purchaseWhCd,
+        })),
+        purchaseWhCd
+      );
+
+      if (res.success) {
+        alert(
+          `${res.message}\n전표: ${(res.slipNos || []).join(", ") || "-"}`
+        );
+      } else {
+        alert(
+          `전송 실패: ${res.error}\n\n※ '인증되지 않은 API'라면 이카운트에서 구매 API를 테스트키로 1회 검증해야 합니다.`
+        );
+      }
+    } catch (err: any) {
+      alert(err.message || "전송 중 오류");
+    } finally {
+      setIsSendingPurchase(false);
     }
   };
 
@@ -430,7 +490,23 @@ export default function ProductionSimulator() {
               </p>
             </div>
             
-            <div className="no-print flex gap-2">
+            <div className="no-print flex items-center gap-2">
+              <label className="text-[12px] font-bold text-gray-600 flex items-center gap-1">
+                창고
+                <input
+                  type="text"
+                  value={purchaseWhCd}
+                  onChange={(e) => setPurchaseWhCd(e.target.value)}
+                  className="w-14 border border-gray-400 px-1 py-1 text-center"
+                />
+              </label>
+              <button
+                onClick={handleSendPurchasesToEcount}
+                disabled={isSendingPurchase || !canEdit}
+                className="bg-blue-700 text-white border border-blue-800 px-4 py-2 font-bold text-[13px] hover:bg-blue-800 transition-colors disabled:opacity-50"
+              >
+                {isSendingPurchase ? "전송중..." : "결품 → 이카운트 구매전송"}
+              </button>
               <button onClick={exportToCSV} className="bg-green-700 text-white border border-green-800 px-4 py-2 font-bold text-[13px] hover:bg-green-800 transition-colors">
                 엑셀 다운로드
               </button>
@@ -471,7 +547,12 @@ export default function ProductionSimulator() {
                 return (
                   <tr key={idx} className={`h-10 border-b border-gray-300 ${rowBgClass}`}>
                     <td className="border-r border-black font-bold text-gray-600">{item.type}</td>
-                    <td className="border-r border-black text-left px-4 font-bold text-gray-900">{item.name}</td>
+                    <td className="border-r border-black text-left px-4 font-bold text-gray-900">
+                      {item.name}
+                      {item.materialCode && (
+                        <span className="ml-2 text-[11px] font-mono font-semibold text-blue-700">{item.materialCode}</span>
+                      )}
+                    </td>
                     <td className="border-r border-black font-bold text-gray-900">
                       {Number(item.requiredQty).toLocaleString()}
                     </td>
@@ -496,7 +577,7 @@ export default function ProductionSimulator() {
           </table>
 
           <div className="mt-4 text-[12px] font-bold text-gray-500 text-right">
-            ※ 발주 필요 수량은 소수점 올림(Ceil) 기준이며, 붉은색으로 표시된 결품 항목은 이카운트 시스템에서 발주 기안을 진행하여 주십시오.
+            ※ 발주 필요 수량은 올림(Ceil) 기준입니다. 붉은 결품은 [결품 → 이카운트 구매전송]으로 구매입고 전표를 생성할 수 있습니다.
           </div>
         </div>
       )}

@@ -8,9 +8,8 @@ const envLocalPath = path.resolve(process.cwd(), '.env.local');
 if (fs.existsSync(envLocalPath)) dotenv.config({ path: envLocalPath, override: true });
 
 const COM_CODE = process.env.ECOUNT_COM_CODE;
-// 🌟 바로 이 부분! 사용자님의 파일에 적힌 이름(ECOUNT_SER_ID) 그대로 가져오게 수정했습니다.
-const USER_ID = process.env.ECOUNT_SER_ID; 
-const API_KEY = process.env.ECOUNT_SER_ID;
+const USER_ID = process.env.ECOUNT_USER_ID || process.env.ECOUNT_ID || "BEANSHEAL";
+const API_KEY = process.env.ECOUNT_API_KEY || process.env.ECOUNT_SER_ID;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
@@ -32,7 +31,7 @@ async function standaloneSync() {
     }).then(res => res.json());
     
     const ZONE = zoneRes.Data?.ZONE;
-    const loginRes = await fetch(`https://sboapi${ZONE.toLowerCase()}.ecount.com/OAPI/V2/OAPILogin`, {
+    const loginRes = await fetch(`https://oapi${ZONE.toLowerCase()}.ecount.com/OAPI/V2/OAPILogin`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ COM_CODE, USER_ID, API_CERT_KEY: API_KEY, LAN_TYPE: "ko-KR", ZONE })
     }).then(res => res.json());

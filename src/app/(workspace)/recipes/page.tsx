@@ -55,9 +55,9 @@ export default function RecipeListPage() {
         <div>
           <div className="flex items-center gap-3">
             <div className="w-2 h-8 bg-indigo-600 rounded-full"></div>
-            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">제품 목록 관리</h2>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">제품 BOM (레시피)</h2>
           </div>
-          <p className="text-slate-500 mt-2 font-medium ml-5">BEANSHEAL ERP | 표준 배합비 관리 시스템</p>
+          <p className="text-slate-500 mt-2 font-medium ml-5">완제품·원부자재 이카운트 코드 매핑 및 배합비 관리</p>
         </div>
         
         {canEdit ? (
@@ -95,7 +95,7 @@ export default function RecipeListPage() {
           <thead>
             <tr className="bg-slate-100 border-b border-slate-200 text-slate-700">
               <th className="px-8 py-5 text-xs font-black uppercase tracking-widest leading-none">NO.</th>
-              <th className="px-8 py-5 text-xs font-black uppercase tracking-widest leading-none">제품명</th>
+              <th className="px-8 py-5 text-xs font-black uppercase tracking-widest leading-none">제품명 / 이카운트코드</th>
               <th className="px-8 py-5 text-xs font-black uppercase tracking-widest text-right leading-none">기준 생산량</th>
               <th className="px-8 py-5 text-xs font-black uppercase tracking-widest text-center leading-none">등록일</th>
               <th className="px-8 py-5 text-xs font-black uppercase tracking-widest text-right leading-none">관리항목</th>
@@ -114,6 +114,9 @@ export default function RecipeListPage() {
                     <span className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">
                       {recipe.product_name}
                     </span>
+                    {recipe.product_code && (
+                      <div className="text-xs font-mono font-bold text-blue-600 mt-1">{recipe.product_code}</div>
+                    )}
                   </td>
                   <td className="px-8 py-5 text-right font-mono">
                     <span className="text-xl font-black text-emerald-600">{recipe.base_batch_size.toLocaleString()}</span>
