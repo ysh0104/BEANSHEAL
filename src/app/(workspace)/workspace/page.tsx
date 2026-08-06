@@ -40,58 +40,58 @@ const getNotionColorClass = (colorStr?: string) => {
   }
 };
 
-// 🌟 생산, 입고, 출고, 휴가 등 일정 성격별 명확한 시각적 구분을 제공하는 색상 분류 함수
+// 🌟 눈이 편안한 파스텔 톤의 노션 스타일 일정 색상 분류 함수 (은은한 백그라운드 & 파스텔 테두리)
 const getNotionScheduleColorClass = (tagName?: string, tagColor?: string, productName?: string) => {
   const textToSearch = `${tagName || ""} ${productName || ""}`.toLowerCase();
 
-  // 1. 카테고리 키워드 우선 식별 (생산, 입고, 출고, 휴가, 점검/감사)
+  // 1. 주요 일정 카테고리별 편안한 파스텔 톤 매핑 (생산, 입고, 출고, 휴가, 점검)
   if (textToSearch.includes("생산") || textToSearch.includes("제조") || textToSearch.includes("라인")) {
-    return "bg-emerald-100 text-emerald-950 border-2 border-emerald-400 font-extrabold shadow-2xs"; // 🟢 생산: 에메랄드 그린
+    return "bg-emerald-50/90 text-emerald-900 border border-emerald-200/90 shadow-2xs font-extrabold"; // 🟢 생산: 은은한 파스텔 그린
   }
   if (textToSearch.includes("입고") || textToSearch.includes("자재") || textToSearch.includes("원료") || textToSearch.includes("발주")) {
-    return "bg-sky-100 text-sky-950 border-2 border-sky-400 font-extrabold shadow-2xs"; // 🔵 입고/자재: 맑은 블루
+    return "bg-sky-50/90 text-sky-900 border border-sky-200/90 shadow-2xs font-extrabold"; // 🔵 입고/자재: 파스텔 블루
   }
   if (textToSearch.includes("출고") || textToSearch.includes("배송") || textToSearch.includes("납품") || textToSearch.includes("택배")) {
-    return "bg-purple-100 text-purple-950 border-2 border-purple-400 font-extrabold shadow-2xs"; // 🟣 출고/배송: 보라
+    return "bg-purple-50/90 text-purple-900 border border-purple-200/90 shadow-2xs font-extrabold"; // 🟣 출고/배송: 파스텔 보라
   }
   if (textToSearch.includes("휴가") || textToSearch.includes("연차") || textToSearch.includes("휴무") || textToSearch.includes("반차")) {
-    return "bg-amber-100 text-amber-950 border-2 border-amber-400 font-extrabold shadow-2xs"; // 🟡 휴가/연차: 따뜻한 앰버/노랑
+    return "bg-amber-50/90 text-amber-900 border border-amber-200/90 shadow-2xs font-extrabold"; // 🟡 휴가/연차: 파스텔 앰버/노랑
   }
   if (textToSearch.includes("점검") || textToSearch.includes("수리") || textToSearch.includes("감사") || textToSearch.includes("점검표")) {
-    return "bg-rose-100 text-rose-950 border-2 border-rose-400 font-extrabold shadow-2xs"; // 🔴 점검/감사: 장미빛 레드
+    return "bg-rose-50/90 text-rose-900 border border-rose-200/90 shadow-2xs font-extrabold"; // 🔴 점검/감사: 파스텔 로즈/핑크
   }
 
-  // 2. 노션 고유 태그 색상 매핑
+  // 2. 노션 고유 태그 색상 매핑 (은은한 파스텔 톤)
   switch (tagColor) {
     case "blue":
     case "blue_background":
-      return "bg-sky-100 text-sky-950 border-2 border-sky-400 font-extrabold shadow-2xs";
+      return "bg-sky-50/90 text-sky-900 border border-sky-200/90 shadow-2xs font-extrabold";
     case "green":
     case "green_background":
-      return "bg-emerald-100 text-emerald-950 border-2 border-emerald-400 font-extrabold shadow-2xs";
+      return "bg-emerald-50/90 text-emerald-900 border border-emerald-200/90 shadow-2xs font-extrabold";
     case "red":
     case "red_background":
-      return "bg-rose-100 text-rose-950 border-2 border-rose-400 font-extrabold shadow-2xs";
+      return "bg-rose-50/90 text-rose-900 border border-rose-200/90 shadow-2xs font-extrabold";
     case "yellow":
     case "yellow_background":
-      return "bg-amber-100 text-amber-950 border-2 border-amber-400 font-extrabold shadow-2xs";
+      return "bg-amber-50/90 text-amber-900 border border-amber-200/90 shadow-2xs font-extrabold";
     case "purple":
     case "purple_background":
-      return "bg-purple-100 text-purple-950 border-2 border-purple-400 font-extrabold shadow-2xs";
+      return "bg-purple-50/90 text-purple-900 border border-purple-200/90 shadow-2xs font-extrabold";
     case "orange":
     case "orange_background":
-      return "bg-orange-100 text-orange-950 border-2 border-orange-400 font-extrabold shadow-2xs";
+      return "bg-orange-50/90 text-orange-900 border border-orange-200/90 shadow-2xs font-extrabold";
     case "pink":
     case "pink_background":
-      return "bg-pink-100 text-pink-950 border-2 border-pink-400 font-extrabold shadow-2xs";
+      return "bg-pink-50/90 text-pink-900 border border-pink-200/90 shadow-2xs font-extrabold";
     case "brown":
     case "brown_background":
-      return "bg-amber-100 text-amber-950 border-2 border-amber-500 font-extrabold shadow-2xs";
+      return "bg-amber-50/90 text-amber-900 border border-amber-200/90 shadow-2xs font-extrabold";
     case "gray":
     case "gray_background":
-      return "bg-slate-200 text-slate-900 border-2 border-slate-400 font-extrabold shadow-2xs";
+      return "bg-slate-100 text-slate-800 border border-slate-200 shadow-2xs font-extrabold";
     default:
-      return "bg-indigo-100 text-indigo-950 border-2 border-indigo-300 font-extrabold shadow-2xs";
+      return "bg-indigo-50/90 text-indigo-900 border border-indigo-200/90 shadow-2xs font-extrabold";
   }
 };
 
@@ -970,7 +970,7 @@ export default function Home() {
 
                                   const sch = seg.sch;
                                   const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
-                                  const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md border-l-2' : 'rounded-l-none border-l-0'} ${seg.isEndOfSchedule ? 'rounded-r-md border-r-2' : 'rounded-r-none border-r-0'}`;
+                                  const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md border-l' : 'rounded-l-none border-l-0'} ${seg.isEndOfSchedule ? 'rounded-r-md border-r' : 'rounded-r-none border-r-0'}`;
 
                                   return (
                                     <div
