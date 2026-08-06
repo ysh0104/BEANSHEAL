@@ -14,6 +14,7 @@ function computeRoleLocal(department: string, position: string): "ADMIN" | "QA" 
 }
 
 const DEPARTMENT_OPTIONS = [
+  "-",
   "생산관리",
   "생산",
   "품질관리",
@@ -28,12 +29,19 @@ const POSITION_OPTIONS = [
   "관리자",
   "대표이사",
   "대표",
+  "이사",
   "부장",
   "차장",
   "과장",
   "팀장",
   "주임",
   "사원",
+];
+
+const ROLE_OPTIONS: { value: "ADMIN" | "QA" | "WORKER"; label: string }[] = [
+  { value: "ADMIN", label: "🛡️ ADMIN (모든 관리자 권한)" },
+  { value: "QA", label: "🔬 QA (품질/생산 권한)" },
+  { value: "WORKER", label: "👷 WORKER (사원/작업자 권한)" },
 ];
 
 export default function UserManagementPage() {
@@ -46,7 +54,7 @@ export default function UserManagementPage() {
   const [statusMsg, setStatusMsg] = useState<{ id: string; type: "success" | "error"; text: string } | null>(null);
 
   // 수정 중인 인메모리 유저별 상태
-  const [editStates, setEditStates] = useState<{ [id: string]: { department: string; position: string } }>({});
+  const [editStates, setEditStates] = useState<{ [id: string]: { department: string; position: string; role: "ADMIN" | "QA" | "WORKER" } }>({});
 
   const isAdmin =
     user?.role === "ADMIN" ||
@@ -77,16 +85,22 @@ export default function UserManagementPage() {
         console.error("Supabase profiles query error:", error);
       } else if (data && data.length > 0) {
         dbMsg = `Supabase DB 'profiles' 테이블 연동 성공 (${data.length}건 수신됨)`;
-        loadedData = data.map((p: any) => ({
-          id: p.id,
-          email: p.email || p.user_email || "",
-          full_name: p.full_name || p.name || p.username || "사원",
-          department: p.department || p.dept || "생산",
-          position: p.position || p.pos || "사원",
-          role: p.role || computeRoleLocal(p.department || "생산", p.position || "사원"),
-          job_title: formatJobTitle(p.department || "생산", p.position || "사원"),
-          updated_at: p.updated_at || p.created_at || new Date().toISOString(),
-        }));
+        loadedData = data.map((p: any) => {
+          const isTopPos = p.position === "관리자" || p.position === "대표이사" || p.position === "대표" || p.position === "이사";
+          const dept = isTopPos ? "-" : (p.department || "생산");
+          const r = isTopPos ? "ADMIN" : (p.role || computeRoleLocal(dept, p.position || "사원"));
+
+          return {
+            id: p.id,
+            email: p.email || p.user_email || "",
+            full_name: p.full_name || p.name || p.username || "사원",
+            department: dept,
+            position: p.position || "사원",
+            role: r,
+            job_title: formatJobTitle(dept, p.position || "사원"),
+            updated_at: p.updated_at || p.created_at || new Date().toISOString(),
+          };
+        });
       } else {
         dbMsg = "Supabase DB 'profiles' 테이블이 현재 비어있음 (0건)";
       }
@@ -108,14 +122,18 @@ export default function UserManagementPage() {
     if (user && user.email) {
       const userExistsInDb = loadedData.some((p) => p.email.toLowerCase() === user.email.toLowerCase());
       if (!userExistsInDb) {
+        const isTopPos = user.position === "관리자" || user.position === "대표이사" || user.position === "대표" || user.position === "이사";
+        const selfDept = isTopPos ? "-" : (user.department || "생산관리");
+        const selfRole = isTopPos ? "ADMIN" : (user.role || "ADMIN");
+
         const selfProfile: ProfileItem = {
           id: user.email,
           email: user.email,
           full_name: user.name,
-          department: user.department || "생산관리",
+          department: selfDept,
           position: user.position || "팀장",
-          role: user.role || "ADMIN",
-          job_title: user.jobTitle || formatJobTitle(user.department, user.position),
+          role: selfRole,
+          job_title: user.jobTitle || formatJobTitle(selfDept, user.position),
           updated_at: new Date().toISOString(),
         };
         loadedData.unshift(selfProfile);
@@ -128,9 +146,9 @@ export default function UserManagementPage() {
               id: authUserData.user.id,
               email: user.email,
               full_name: user.name,
-              department: user.department || "생산관리",
+              department: selfDept,
               position: user.position || "팀장",
-              role: user.role || "ADMIN",
+              role: selfRole,
               updated_at: new Date().toISOString(),
             }, { onConflict: "id" });
           }
@@ -141,23 +159,46 @@ export default function UserManagementPage() {
     setProfiles(loadedData);
     setDbStatusInfo(dbMsg);
 
-    const initialEdits: { [id: string]: { department: string; position: string } } = {};
+    const initialEdits: { [id: string]: { department: string; position: string; role: "ADMIN" | "QA" | "WORKER" } } = {};
     loadedData.forEach((p) => {
-      initialEdits[p.id] = { department: p.department, position: p.position };
+      initialEdits[p.id] = { department: p.department, position: p.position, role: p.role };
     });
     setEditStates(initialEdits);
 
     setLoading(false);
   };
 
-  const handleSelectChange = (id: string, field: "department" | "position", value: string) => {
-    setEditStates((prev) => ({
-      ...prev,
-      [id]: {
-        ...prev[id],
-        [field]: value,
-      },
-    }));
+  const handleSelectChange = (id: string, field: "department" | "position" | "role", value: string) => {
+    setEditStates((prev) => {
+      const current = prev[id] || { department: "생산", position: "사원", role: "WORKER" };
+      let newDept = current.department;
+      let newPos = current.position;
+      let newRole = current.role;
+
+      if (field === "position") {
+        newPos = value;
+        // 관리자, 대표이사, 대표, 이사는 소속 부서를 '-'로 자동 설정하고 모든 권한(ADMIN) 부여
+        if (value === "관리자" || value === "대표이사" || value === "대표" || value === "이사") {
+          newDept = "-";
+          newRole = "ADMIN";
+        } else if (newDept === "-") {
+          newDept = "생산관리";
+        }
+      } else if (field === "department") {
+        newDept = value;
+      } else if (field === "role") {
+        newRole = value as "ADMIN" | "QA" | "WORKER";
+      }
+
+      return {
+        ...prev,
+        [id]: {
+          department: newDept,
+          position: newPos,
+          role: newRole,
+        },
+      };
+    });
   };
 
   const handleSaveProfile = async (targetUser: ProfileItem) => {
@@ -167,8 +208,15 @@ export default function UserManagementPage() {
     setSavingId(targetUser.id);
     setStatusMsg(null);
 
-    const newRole = computeRoleLocal(edit.department, edit.position);
-    const newJobTitle = formatJobTitle(edit.department, edit.position);
+    // 관리자/대표/이사 직급이면 부서 '-' & ADMIN 권한 고정
+    let saveDept = edit.department;
+    let saveRole = edit.role;
+    if (edit.position === "관리자" || edit.position === "대표이사" || edit.position === "대표" || edit.position === "이사") {
+      saveDept = "-";
+      saveRole = "ADMIN";
+    }
+
+    const newJobTitle = formatJobTitle(saveDept, edit.position);
 
     // 1. Supabase DB 직접 Upsert
     let dbSuccess = false;
@@ -179,9 +227,9 @@ export default function UserManagementPage() {
           id: targetUser.id,
           email: targetUser.email,
           full_name: targetUser.full_name,
-          department: edit.department,
+          department: saveDept,
           position: edit.position,
-          role: newRole,
+          role: saveRole,
           updated_at: new Date().toISOString(),
         }, { onConflict: "id" });
 
@@ -189,7 +237,7 @@ export default function UserManagementPage() {
     } catch (e) {}
 
     // 2. Server Action도 동시 실행하여 이중 보장
-    const res = await updateUserProfile(targetUser.id, edit.department, edit.position);
+    const res = await updateUserProfile(targetUser.id, saveDept, edit.position, saveRole);
 
     if (dbSuccess || res.success) {
       setProfiles((prev) =>
@@ -197,9 +245,9 @@ export default function UserManagementPage() {
           p.id === targetUser.id
             ? {
                 ...p,
-                department: edit.department,
+                department: saveDept,
                 position: edit.position,
-                role: newRole,
+                role: saveRole,
                 job_title: newJobTitle,
                 updated_at: new Date().toISOString(),
               }
@@ -210,16 +258,16 @@ export default function UserManagementPage() {
       setStatusMsg({
         id: targetUser.id,
         type: "success",
-        text: `'${targetUser.full_name}' 님의 직책(${newJobTitle}) 및 권한(${newRole})이 성공적으로 저장되었습니다.`,
+        text: `'${targetUser.full_name}' 님의 부서(${saveDept}), 직급(${edit.position}) 및 권한(${saveRole})이 성공적으로 저장되었습니다.`,
       });
 
       // 본인 프로필 수정 시 로컬 세션도 동기화
       if (user && targetUser.email.toLowerCase() === user.email.toLowerCase()) {
         const updatedSelf = {
           ...user,
-          department: edit.department,
+          department: saveDept,
           position: edit.position,
-          role: newRole,
+          role: saveRole,
           jobTitle: newJobTitle,
         };
         localStorage.setItem("beansheal_active_user", JSON.stringify(updatedSelf));
@@ -366,9 +414,9 @@ export default function UserManagementPage() {
                 <tr className="bg-slate-100/80 border-b border-slate-200 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
                   <th className="py-3 px-4">사용자 (이름 / 이메일)</th>
                   <th className="py-3 px-4">현재 화면 표시 직책</th>
-                  <th className="py-3 px-4 min-w-[140px]">소속 부서 (Department)</th>
-                  <th className="py-3 px-4 min-w-[130px]">직급 (Position)</th>
-                  <th className="py-3 px-4">자동 계산 Role</th>
+                  <th className="py-3 px-4 min-w-[130px]">소속 부서 (Department)</th>
+                  <th className="py-3 px-4 min-w-[120px]">직급 (Position)</th>
+                  <th className="py-3 px-4 min-w-[210px]">시스템 접근 권한 (Role 지정)</th>
                   <th className="py-3 px-4">최근 수정일</th>
                   <th className="py-3 px-4 text-right">권한 부여 저장</th>
                 </tr>
@@ -391,11 +439,13 @@ export default function UserManagementPage() {
                   </tr>
                 ) : (
                   profiles.map((p) => {
-                    const currentEdit = editStates[p.id] || { department: p.department, position: p.position };
+                    const currentEdit = editStates[p.id] || { department: p.department, position: p.position, role: p.role };
+                    const isTopPos = currentEdit.position === "관리자" || currentEdit.position === "대표이사" || currentEdit.position === "대표" || currentEdit.position === "이사";
+                    const displayDept = isTopPos ? "-" : currentEdit.department;
+                    const displayRole = isTopPos ? "ADMIN" : currentEdit.role;
                     const isChanged =
-                      currentEdit.department !== p.department || currentEdit.position !== p.position;
-                    const previewRole = computeRoleLocal(currentEdit.department, currentEdit.position);
-                    const previewJobTitle = formatJobTitle(currentEdit.department, currentEdit.position);
+                      currentEdit.department !== p.department || currentEdit.position !== p.position || currentEdit.role !== p.role;
+                    const previewJobTitle = formatJobTitle(displayDept, currentEdit.position);
                     const isSelf = user?.email === p.email;
 
                     return (
@@ -418,16 +468,17 @@ export default function UserManagementPage() {
                         {/* 현재 직책 */}
                         <td className="py-3.5 px-4">
                           <span className="font-bold text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
-                            {isChanged ? previewJobTitle : p.job_title || `${p.department} ${p.position}`}
+                            {previewJobTitle}
                           </span>
                         </td>
 
                         {/* 부서 선택 */}
                         <td className="py-3.5 px-4">
                           <select
-                            value={currentEdit.department}
+                            value={displayDept}
                             onChange={(e) => handleSelectChange(p.id, "department", e.target.value)}
-                            className="w-full text-xs font-bold border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer"
+                            disabled={isTopPos}
+                            className="w-full text-xs font-bold border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
                           >
                             {DEPARTMENT_OPTIONS.map((dept) => (
                               <option key={dept} value={dept}>
@@ -452,23 +503,30 @@ export default function UserManagementPage() {
                           </select>
                         </td>
 
-                        {/* Role 배지 */}
+                        {/* 수동 권한 부여 (Role 선택 Dropdown) */}
                         <td className="py-3.5 px-4">
-                          <span
-                            className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border shadow-2xs ${
-                              previewRole === "ADMIN"
-                                ? "bg-purple-100 text-purple-900 border-purple-200"
-                                : previewRole === "QA"
-                                ? "bg-blue-100 text-blue-900 border-blue-200"
-                                : "bg-emerald-100 text-emerald-900 border-emerald-200"
+                          <select
+                            value={displayRole}
+                            onChange={(e) => handleSelectChange(p.id, "role", e.target.value)}
+                            disabled={isTopPos}
+                            className={`w-full text-xs font-extrabold border rounded-lg px-2.5 py-1.5 bg-white focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer disabled:bg-purple-50 disabled:text-purple-900 ${
+                              displayRole === "ADMIN"
+                                ? "text-purple-900 border-purple-300 bg-purple-50/50"
+                                : displayRole === "QA"
+                                ? "text-blue-900 border-blue-300 bg-blue-50/50"
+                                : "text-emerald-900 border-emerald-300 bg-emerald-50/50"
                             }`}
                           >
-                            {previewRole}
-                          </span>
+                            {ROLE_OPTIONS.map((rOpt) => (
+                              <option key={rOpt.value} value={rOpt.value}>
+                                {rOpt.label}
+                              </option>
+                            ))}
+                          </select>
                         </td>
 
-                        {/* 수정일 */}
-                        <td className="py-3.5 px-4 text-[11px] text-slate-400 font-mono">
+                        {/* 최근 수정일 */}
+                        <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
                           {p.updated_at ? p.updated_at.split("T")[0] : "-"}
                         </td>
 
@@ -477,12 +535,12 @@ export default function UserManagementPage() {
                           <button
                             type="button"
                             onClick={() => handleSaveProfile(p)}
-                            disabled={!isChanged || savingId === p.id}
-                            className={`text-xs font-extrabold px-3 py-1.5 rounded-lg transition-all shadow-xs cursor-pointer ${
+                            disabled={savingId === p.id}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer shadow-2xs ${
                               isChanged
-                                ? "bg-slate-900 hover:bg-slate-800 text-white animate-pulse"
-                                : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                            }`}
+                                ? "bg-indigo-600 hover:bg-indigo-700 text-white animate-pulse"
+                                : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                            } disabled:opacity-50`}
                           >
                             {savingId === p.id ? "저장 중..." : isChanged ? "권한 변경 저장" : "저장됨"}
                           </button>

@@ -60,15 +60,20 @@ export async function getAllUserProfiles() {
 }
 
 /**
- * 관리자가 특정 사용자의 부서 및 직급 변경/부여
+ * 관리자가 특정 사용자의 부서, 직급 및 권한(Role) 변경/부여
  */
 export async function updateUserProfile(
   userId: string,
   department: string,
-  position: string
+  position: string,
+  customRole?: "ADMIN" | "QA" | "WORKER"
 ) {
   try {
-    const role = computeRoleHelper(department, position);
+    let role = customRole || computeRoleHelper(department, position);
+    if (position === "관리자" || position === "대표이사" || position === "대표" || position === "이사") {
+      department = "-";
+      role = "ADMIN";
+    }
     const updatedAt = new Date().toISOString();
 
     const { error } = await supabase
