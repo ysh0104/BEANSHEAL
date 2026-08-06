@@ -313,26 +313,40 @@ export async function POST(req: Request) {
     const extractedSpec = specMatch ? specMatch[1] : (spec || "별도표기");
     cleanProductName = cleanProductName.replace(/\s*\[.*?\]\s*/g, '').trim();
 
+    // 날짜 형태 정제 헬퍼 (20260724 -> 2026-07-24, ISO -> 2026-07-24)
+    const cleanDateStr = (rawDate: string) => {
+      if (!rawDate) return "";
+      const cleaned = rawDate.replace(/[^0-9]/g, '');
+      if (cleaned.length === 8) {
+        return `${cleaned.slice(0, 4)}-${cleaned.slice(4, 6)}-${cleaned.slice(6, 8)}`;
+      }
+      return rawDate.split('T')[0];
+    };
+
     // [유기농 감별 및 시험번호 생성기]
     const isOrganic = cleanProductName.includes('유기농');
     const testNo = isOrganic ? `${lotNo}u` : lotNo;
+
+    const finalMfgDate = cleanDateStr(mfgDate) || cleanDateStr(testDate) || todayStr;
+    const finalTestDate = cleanDateStr(testDate) || todayStr;
+    const finalQty = qty ? (typeof qty === 'number' ? `${qty.toLocaleString()} kg` : String(qty)) : "별도표기";
 
     const renderData = {
       제품명: cleanProductName, 
       품명: cleanProductName,       
       LOT번호: lotNo,         
       시험번호: testNo,       
-      시험일자: testDate || todayStr,
-      제조일자: mfgDate || "",
-      수량: qty,
-      제조수량: qty,                
+      시험일자: finalTestDate,
+      제조일자: finalMfgDate,
+      수량: finalQty,
+      제조수량: finalQty,                
       오늘날짜: todayStr,      
-      유통기한: expiryDate || "",  
-      소비기한: expiryDate || "",    
+      유통기한: expiryDate || "제조일로부터 24개월",  
+      소비기한: expiryDate || "제조일로부터 24개월",    
       규격: extractedSpec,
-      제조번호: mfgNo || "",         
-      접수일자: todayStr,
-      검체채취일자: todayStr,
+      제조번호: mfgNo || lotNo,         
+      접수일자: finalTestDate,
+      검체채취일자: finalTestDate,
       완료예정일: dueDateStr
     };
 

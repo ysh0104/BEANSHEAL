@@ -276,8 +276,10 @@ export default function AuditPage() {
             lotNumber: lotNumber,
             docType: type,
             format: fileExt,
-            mfgNo: item.rawItem?.mfg_no || "",
-            mfgDate: item.rawItem?.mfg_date || ""
+            qty: item.rawItem?.total_qty || item.rawItem?.qty || item.rawItem?.quantity || item.rawItem?.expected_qty || item.quantity || "",
+            mfgNo: item.rawItem?.mfg_no || item.mfgNo || "",
+            mfgDate: item.rawItem?.mfg_date || item.rawItem?.make_date || item.rawItem?.created_at || "",
+            expiryDate: item.expDate || item.rawItem?.expiry_date || item.rawItem?.expiration_date || ""
           })
         });
 
