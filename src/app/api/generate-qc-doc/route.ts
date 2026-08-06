@@ -18,7 +18,7 @@ const TEMPLATE_PREFIX_MAP: Record<string, string> = {
   "부자재_유리병": "qc_sub_glass", 
   "반제품_젤리": "qc_semi_jelly",
   "반제품_액상": "qc_semi_liquid",
-  "반제품_기본": "qc_semi_default",
+  "반제품_기본": "qc_semi_liquid",
   "완제품_기본": "qc_product_default"
 };
 
@@ -32,90 +32,143 @@ const DOC_NAME_MAP: Record<string, string> = {
 
 export async function POST(req: Request) {
   try {
-    const { productName, lotNo, testDate, mfgDate, expiryDate, qty, mfgNo, docType, templateKey, spec } = await req.json();
+    const body = await req.json();
 
-    // [핵심 교정 로직] 파우더를 분말 양식으로 강제 인식
-    let finalTemplateKey = templateKey;
-    if (productName.includes('파우더') || productName.includes('분말')) {
-      finalTemplateKey = "원료_분말";
+    const productName = body.productName || body.itemName || "미지정제품";
+    const lotNo = body.lotNo || body.lotNumber || body.lot_no || "LOT-0000";
+    const testDate = body.testDate || body.makeDate || "";
+    const mfgDate = body.mfgDate || body.makeDate || "";
+    const expiryDate = body.expiryDate || "";
+    const qty = body.qty || body.quantity || "1";
+    const mfgNo = body.mfgNo || "";
+    const spec = body.spec || "";
+
+    // docType 파싱 (docType 직접 전달 or templateName에서 extraction)
+    let docType = body.docType || "";
+    const templateNameParam = body.templateName || body.templateKey || "";
+
+    if (!docType && templateNameParam) {
+      if (templateNameParam.includes('log')) docType = 'log';
+      else if (templateNameParam.includes('instruction')) docType = 'instruction';
+      else if (templateNameParam.includes('report')) docType = 'report';
+      else if (templateNameParam.includes('label')) docType = 'label';
+      else if (templateNameParam.includes('request')) docType = 'request';
     }
+    if (!docType) docType = 'log';
 
-    const outputName = DOC_NAME_MAP[docType] || '문서';
-
-    const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_common';
-    const exactFileName = `${prefix}_${docType}.docx`; 
-
+    // 템플릿 파일 디렉토리 탐색 (public/templates)
     const templatesDir = path.resolve(process.cwd(), 'public', 'templates');
-    let templatePath = path.join(templatesDir, exactFileName);
 
-    if (!fs.existsSync(templatePath)) {
-      console.warn(`[알림] 전용 양식(${exactFileName})이 없어 공통 양식으로 대체합니다.`);
-      const fallbackFileName = `qc_${docType}.docx`; 
-      templatePath = path.join(templatesDir, fallbackFileName);
+    let templatePath = "";
 
-      if (!fs.existsSync(templatePath)) {
-        return NextResponse.json({ error: `템플릿 파일이 없습니다: ${exactFileName} 및 ${fallbackFileName}` }, { status: 404 });
+    // 1) templateNameParam 직접 매칭 검사
+    if (templateNameParam) {
+      const fileNameWithExt = templateNameParam.endsWith('.docx') ? templateNameParam : `${templateNameParam}.docx`;
+      const candidatePath = path.join(templatesDir, fileNameWithExt);
+      if (fs.existsSync(candidatePath)) {
+        templatePath = candidatePath;
       }
     }
 
-    const content = fs.readFileSync(templatePath, 'binary');
+    // 2) docType 및 prefix 기준 템플릿 탐색
+    if (!templatePath) {
+      if (docType === 'label') {
+        templatePath = path.join(templatesDir, 'qc_label.docx');
+      } else {
+        let finalTemplateKey = body.templateKey || "";
+        if (!finalTemplateKey) {
+          if (productName.includes('파우더') || productName.includes('분말')) {
+            finalTemplateKey = "원료_분말";
+          } else if (productName.includes('원료')) {
+            finalTemplateKey = "원료_액상";
+          } else if (productName.includes('부자재')) {
+            if (productName.includes('카톤')) finalTemplateKey = "부자재_카톤박스";
+            else if (productName.includes('단상자')) finalTemplateKey = "부자재_단상자";
+            else finalTemplateKey = "부자재_파우치";
+          } else if (productName.includes('반제품')) {
+            finalTemplateKey = "반제품_액상";
+          } else {
+            finalTemplateKey = "완제품_기본";
+          }
+        }
 
+        const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_product_default';
+        const exactFileName = `${prefix}_${docType}.docx`;
+        const candidatePath = path.join(templatesDir, exactFileName);
+
+        if (fs.existsSync(candidatePath)) {
+          templatePath = candidatePath;
+        } else {
+          // Fallback 1: qc_product_default_${docType}.docx
+          const defaultFileName = `qc_product_default_${docType}.docx`;
+          const defaultPath = path.join(templatesDir, defaultFileName);
+          if (fs.existsSync(defaultPath)) {
+            templatePath = defaultPath;
+          } else {
+            // Fallback 2: qc_${docType}.docx
+            const commonFileName = `qc_${docType}.docx`;
+            const commonPath = path.join(templatesDir, commonFileName);
+            if (fs.existsSync(commonPath)) {
+              templatePath = commonPath;
+            }
+          }
+        }
+      }
+    }
+
+    if (!templatePath || !fs.existsSync(templatePath)) {
+      console.error(`[오류] 템플릿 파일이 감지되지 않았습니다. templatesDir=${templatesDir}, docType=${docType}`);
+      return NextResponse.json({ error: `요청하신 템플릿 파일이 서버(public/templates)에 존재하지 않습니다.` }, { status: 404 });
+    }
+
+    const content = fs.readFileSync(templatePath, 'binary');
     const zip = new PizZip(content);
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
 
-    // 💡 날짜 연산 로직 완벽 분리
+    // 날짜 포맷터
     const formatDate = (date: Date) => {
       return date.toLocaleDateString('ko-KR', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
-      }).replace(/\. /g, '-').replace('.', ''); // "YYYY-MM-DD" 형태로 세탁
+      }).replace(/\. /g, '-').replace('.', '');
     };
 
-    // 1. 진짜 '오늘' (서류를 뽑는 당일)
     const realToday = new Date();
-    const todayStr = formatDate(realToday); 
-
-    // 2. 완료예정일 (진짜 오늘로부터 정확히 3일 뒤)
+    const todayStr = formatDate(realToday);
     const futureDate = new Date(realToday);
     futureDate.setDate(realToday.getDate() + 3);
-    const dueDateStr = formatDate(futureDate); 
+    const dueDateStr = formatDate(futureDate);
 
-    // [이름 세탁 및 대괄호 규격 분리기]
     let cleanProductName = productName.replace(/^[원부자반]\)\s*/, '');
     const specMatch = cleanProductName.match(/\[(.*?)\]/);
     const extractedSpec = specMatch ? specMatch[1] : (spec || "별도표기");
     cleanProductName = cleanProductName.replace(/\s*\[.*?\]\s*/g, '').trim();
 
-    // [유기농 감별 및 시험번호 생성기]
     const isOrganic = cleanProductName.includes('유기농');
     const testNo = isOrganic ? `${lotNo}u` : lotNo;
 
-    // 데이터 주입
     doc.render({
-      제품명: cleanProductName, 
-      품명: cleanProductName,       
-      LOT번호: lotNo,         
-      시험번호: testNo,       
-      
-      // 💡 지정된 제조일자는 그대로 두고, 나머지는 '진짜 오늘' 기준으로 주입!
+      제품명: cleanProductName,
+      품명: cleanProductName,
+      LOT번호: lotNo,
+      시험번호: testNo,
       시험일자: testDate || todayStr,
-      제조일자: mfgDate || "",
+      제조일자: mfgDate || todayStr,
       수량: qty,
-      제조수량: qty,                
-      오늘날짜: todayStr,      
-      유통기한: expiryDate || "",  
-      소비기한: expiryDate || "",    
+      제조수량: qty,
+      오늘날짜: todayStr,
+      유통기한: expiryDate || "",
+      소비기한: expiryDate || "",
       규격: extractedSpec,
-      제조번호: mfgNo || "",         
-
-      접수일자: todayStr,          // 무조건 오늘
-      검체채취일자: todayStr,      // 무조건 오늘
-      완료예정일: dueDateStr       // 무조건 오늘 + 3일
+      제조번호: mfgNo || lotNo,
+      접수일자: todayStr,
+      검체채취일자: todayStr,
+      완료예정일: dueDateStr
     });
 
     const buf = doc.getZip().generate({ type: 'nodebuffer' });
-    
+    const outputName = DOC_NAME_MAP[docType] || '품질서류';
     const encodedFileName = encodeURIComponent(`${outputName}_${testNo}.docx`);
 
     return new NextResponse(new Uint8Array(buf), {
@@ -126,8 +179,8 @@ export async function POST(req: Request) {
       },
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('워드 생성 에러:', error);
-    return NextResponse.json({ error: '워드 파일 생성에 실패했습니다.' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || '워드 파일 생성에 실패했습니다.' }, { status: 500 });
   }
 }

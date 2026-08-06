@@ -1,10 +1,21 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Noto_Sans_KR, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import LayoutContent from "@/components/LayoutContent";
 
-const inter = Inter({ subsets: ["latin"] });
+const notoSansKR = Noto_Sans_KR({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  display: "swap",
+  variable: "--font-noto-sans-kr",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "BEANSHEAL (주)빈스힐 공식 홈페이지 & 통합 생산 ERP",
@@ -24,11 +35,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
-      <head>
-        <link rel="stylesheet" as="style" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
-      </head>
-      <body className="m-0 p-0 antialiased text-slate-900 bg-slate-50">
+    <html lang="ko" className={`${notoSansKR.variable} ${inter.variable}`}>
+      <body className="m-0 p-0 antialiased text-slate-900 bg-slate-50 font-sans">
         <AuthProvider>
           <LayoutContent>{children}</LayoutContent>
         </AuthProvider>
