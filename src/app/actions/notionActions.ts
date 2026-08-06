@@ -11,6 +11,7 @@ export interface ProductionScheduleItem {
   id?: number | string;
   product_name: string;
   plan_date: string;
+  end_date?: string;   // 🌟 종료일 추가 (여러 날짜 수반 일정 지원)
   quantity: string;
   note?: string;
   notion_page_id?: string;
@@ -170,6 +171,7 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
       const props = page.properties || {};
       let productName = "";
       let planDate = "";
+      let endDate = "";
       let quantity = "";
       let note = "";
       let tagName = "";   // 🌟 추가됨
@@ -184,11 +186,16 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
         }
       }
 
-      // 2. 날짜 파싱 (YYYY-MM-DD 규격 정규화)
+      // 2. 날짜 파싱 (시작일 및 종료일 정규화)
       for (const key of Object.keys(props)) {
         const prop = props[key];
         if (prop.type === "date" && prop.date?.start) {
           planDate = prop.date.start.split("T")[0].trim();
+          if (prop.date?.end) {
+            endDate = prop.date.end.split("T")[0].trim();
+          } else {
+            endDate = planDate;
+          }
           break;
         }
       }
@@ -243,6 +250,7 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
           notion_page_id: page.id,
           product_name: productName,
           plan_date: planDate,
+          end_date: endDate || planDate,
           quantity: quantity || "1",
           note: note || "",
           source: "notion",
@@ -267,7 +275,7 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
  * 대시보드에서 작성한 일정을 노션 DB에 생성
  */
 export async function createNotionSchedule(
-  plan: { product_name: string; plan_date: string; quantity: string; note?: string },
+  plan: { product_name: string; plan_date: string; end_date?: string; quantity: string; note?: string },
   config?: NotionConfig
 ) {
   try {
@@ -293,6 +301,13 @@ export async function createNotionSchedule(
       if (["메모", "비고", "note", "Note"].includes(key.toLowerCase())) notePropName = key;
     }
 
+    const startDate = plan.plan_date;
+    const endDate = (plan.end_date && plan.end_date.trim()) ? plan.end_date.trim() : startDate;
+    const dateValue: any = { start: startDate };
+    if (endDate && endDate !== startDate) {
+      dateValue.end = endDate;
+    }
+
     const properties: any = {
       [titlePropName]: {
         title: [
@@ -304,9 +319,7 @@ export async function createNotionSchedule(
         ],
       },
       [datePropName]: {
-        date: {
-          start: plan.plan_date,
-        },
+        date: dateValue,
       },
     };
 
@@ -339,14 +352,14 @@ export async function createNotionSchedule(
 
     return {
       success: true,
-      message: "노션에 성공적으로 등록되었습니다.",
+      message: "성공적으로 노션 DB에 일정이 생성되었습니다.",
       pageId: newPage.id,
     };
   } catch (error: any) {
-    console.error("Notion create error:", error);
+    console.error("Create Notion Schedule Error:", error);
     return {
       success: false,
-      message: `노션 등록 실패: ${error?.message || "알 수 없는 오류가 발생했습니다."}`,
+      message: `노션 일정 생성 실패: ${error?.message || "오류가 발생했습니다."}`,
     };
   }
 }
@@ -402,6 +415,7 @@ export async function syncNotionWithSupabase(config?: NotionConfig) {
               {
                 product_name: nItem.product_name,
                 plan_date: nItem.plan_date,
+                end_date: nItem.end_date,
                 quantity: nItem.quantity,
                 note: nItem.note || "",
                 notion_page_id: nItem.notion_page_id,
@@ -431,11 +445,12 @@ export async function syncNotionWithSupabase(config?: NotionConfig) {
 }
 
 /**
- * 노션 및 Supabase 일자의 날짜(plan_date)를 변경 (드래그 앤 드롭 이동 전용)
+ * 노션 및 Supabase 일자의 날짜(plan_date, end_date)를 변경 (드래그 앤 드롭 이동 전용)
  */
 export async function updateScheduleDate(
   id: number | string,
   newDate: string,
+  newEndDate?: string,
   notionPageId?: string,
   config?: NotionConfig
 ) {
@@ -459,12 +474,19 @@ export async function updateScheduleDate(
           } catch (e) {}
         }
 
+        const startDate = newDate;
+        const endDate = (newEndDate && newEndDate.trim()) ? newEndDate.trim() : startDate;
+        const dateValue: any = { start: startDate };
+        if (endDate && endDate !== startDate) {
+          dateValue.end = endDate;
+        }
+
         await notionFetch(`/pages/${notionPageId}`, apiKey, {
           method: "PATCH",
           body: {
             properties: {
               [datePropName]: {
-                date: { start: newDate },
+                date: dateValue,
               },
             },
           },
