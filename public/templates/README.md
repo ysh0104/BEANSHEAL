@@ -39,11 +39,18 @@ public/templates/
 
 ## 2. ⚙️ 매핑 사전 수정 방법 (`src/config/qcTemplateMap.json`)
 
-새로운 품목 유형이나 새로운 서식 파일명을 추가하려면 `src/config/qcTemplateMap.json` 파일을 열어 수정하시면 됩니다.
+새로운 품목 유형이나 특정 원료명(비타민C, 타우린 등)을 지정하려면 `src/config/qcTemplateMap.json` 파일을 열어 수정하시면 됩니다.
 
 ```json
 {
   "description": "BEANSHEAL ERP 품질 서류 템플릿 매핑 설정 파일",
+  "itemMapping": {
+    "비타민C": "원료_분말",
+    "비타민D3": "원료_액상",
+    "타우린": "원료_분말",
+    "구연산": "원료_분말",
+    "늙은호박 농축액": "원료_액상"
+  },
   "prefixMap": {
     "원료_액상": "qc_raw_liquid",
     "원료_분말": "qc_raw_powder",
@@ -62,6 +69,10 @@ public/templates/
   }
 }
 ```
+
+### 💡 특정 원료명(비타민C 등) 지정 추가 예시:
+`비타민C`처럼 이름만으로 액상/분말 구분이 어려운 원료는 `itemMapping`에 적어두시면 됩니다:
+- `"비타민C": "원료_분말"` 한 줄 추가 -> 서류 발급 시 100% 원료 분말 양식(`qc_raw_powder`)으로 연결됩니다!
 
 ### 💡 새로운 양식 추가 예시:
 예를 들어 `포장재_스티커`라는 새로운 부자재 양식을 추가하고 싶을 때:

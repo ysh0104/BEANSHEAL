@@ -6,6 +6,7 @@ import path from 'path';
 import qcTemplateConfig from '@/config/qcTemplateMap.json';
 
 // 1. 독립 설정 파일(src/config/qcTemplateMap.json)에서 템플릿 매핑 사전 로드
+const ITEM_MAPPING: Record<string, string> = (qcTemplateConfig as any).itemMapping || {};
 const TEMPLATE_PREFIX_MAP: Record<string, string> = qcTemplateConfig.prefixMap;
 const DOC_NAME_MAP: Record<string, string> = qcTemplateConfig.docNameMap;
 
@@ -49,8 +50,18 @@ function resolveTemplateKey(productName: string, templateKey?: string): string {
   }
 
   const name = productName || "";
+  const cleanName = name.replace(/^[원부자반완]\)\s*/, '').replace(/\s*\[.*?\]\s*/g, '').trim();
 
-  // 1. 원료 (원) 접두사 또는 원료 키워드)
+  // 1순위: 개별 품목명 맞춤 매핑 (itemMapping) 사전에 등록된 품목인지 검사 (최우선)
+  for (const [customItemName, categoryKey] of Object.entries(ITEM_MAPPING)) {
+    if (cleanName.includes(customItemName) || name.includes(customItemName)) {
+      if (TEMPLATE_PREFIX_MAP[categoryKey]) {
+        return categoryKey;
+      }
+    }
+  }
+
+  // 2순위: 원료 (원) 접두사 또는 원료 키워드)
   if (name.startsWith("원)") || name.includes("원료")) {
     if (name.includes("분말") || name.includes("파우더") || name.includes("고체")) {
       return "원료_분말";
