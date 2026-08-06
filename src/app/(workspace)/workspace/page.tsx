@@ -933,20 +933,32 @@ export default function Home() {
                             }
                           });
 
-                          // 🌟 각 날짜(Column)별 카드 적재 높이 개별 추산
+                          // 🌟 각 날짜(Column)별 카드 적재 높이 정밀 추산
                           const colHeights = [0, 0, 0, 0, 0, 0, 0];
                           allocated.forEach((seg) => {
-                            const nameLen = (seg.sch.product_name || "").length + (seg.sch.tag_name || "").length;
-                            const estCardHeight = nameLen > 30 ? 68 : nameLen > 18 ? 52 : nameLen > 10 ? 38 : 28;
+                            const prodName = seg.sch.product_name || "";
+                            const tagName = seg.sch.tag_name || "";
+                            const nameLen = prodName.length + tagName.length;
+
+                            // 글자 수와 태그 포함 여부에 따른 정밀 개별 카드 높이 추산
+                            let cardH = 30; // 기본 1줄 카드
+                            if (nameLen > 25 || (prodName.length > 15 && tagName)) {
+                              cardH = 78; // 4줄 긴 카톤/박스 품목명 (78px)
+                            } else if (nameLen > 16 || (prodName.length > 9 && tagName)) {
+                              cardH = 60; // 3줄 품목명 (60px)
+                            } else if (nameLen > 8 || tagName) {
+                              cardH = 44; // 2줄 품목명 (44px)
+                            }
+
                             for (let c = seg.startCol; c <= seg.endCol; c++) {
-                              colHeights[c] += estCardHeight + 4;
+                              colHeights[c] += cardH + 6;
                             }
                           });
 
                           const maxColCardHeight = Math.max(...colHeights, 0);
-                          // 기본 주 높이는 115px(컴팩트)로 원복하며, 긴 카드가 겹치는 특정 주만 그 높이에 맞춰 연장
-                          const weekRequiredMinHeight = maxColCardHeight > 75 
-                            ? Math.max(115, 30 + maxColCardHeight + 10) 
+                          // 기본 주 높이는 115px (컴팩트). 긴 카드가 적재된 주만 짤림 없이 정확히 확장
+                          const weekRequiredMinHeight = maxColCardHeight > 65 
+                            ? Math.max(115, 30 + maxColCardHeight + 16) 
                             : 115;
 
                           return (
