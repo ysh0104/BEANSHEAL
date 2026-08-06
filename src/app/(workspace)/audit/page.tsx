@@ -245,28 +245,60 @@ export default function AuditPage() {
   const handleDownloadQCBatch = async (item: any) => {
     try {
       const rawName = item.rawItem?.item_name || item.cleanName || "";
-      const response = await fetch('/api/generate-qc-doc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productName: rawName,
-          lotNumber: item.lotNo,
-          docType: 'log',
-          mfgNo: item.rawItem?.mfg_no,
-          mfgDate: item.rawItem?.mfg_date
-        })
-      });
+      const lotNumber = item.lotNo || item.rawItem?.lot_no || "LOT-0000";
 
-      if (!response.ok) throw new Error('서류 생성에 실패했습니다.');
+      // 원료/부자재/반제품/완제품 품목 성격별 필수 발급 서류 목록 (4~5종)
+      const isSemiOrProduct = rawName.startsWith("반)") || rawName.startsWith("완)") || rawName.includes("반제품") || rawName.includes("완제품");
+      const docTypes = isSemiOrProduct
+        ? ['log', 'instruction', 'report', 'request', 'label']
+        : ['log', 'instruction', 'report', 'label'];
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `[품질서류]_${item.cleanName}_${item.lotNo}.docx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const docNames: Record<string, string> = {
+        log: "시험일지",
+        instruction: "시험지시_및_기록서",
+        report: "시험결과보고서",
+        request: "시험의뢰서",
+        label: "품질관리표시서"
+      };
+
+      let successCount = 0;
+
+      for (const type of docTypes) {
+        const response = await fetch('/api/generate-qc-doc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productName: rawName,
+            lotNo: lotNumber,
+            lotNumber: lotNumber,
+            docType: type,
+            mfgNo: item.rawItem?.mfg_no || "",
+            mfgDate: item.rawItem?.mfg_date || ""
+          })
+        });
+
+        if (!response.ok) {
+          console.warn(`[${docNames[type]}] 생성 실패`);
+          continue;
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${docNames[type]}_${lotNumber}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        successCount++;
+        await new Promise((resolve) => setTimeout(resolve, 350));
+      }
+
+      if (successCount === 0) {
+        alert("품질 서류 생성에 실패했습니다.");
+      }
     } catch (err: any) {
       alert(err.message || '서류 발급 오류');
     }
