@@ -48,6 +48,61 @@ function readTemplateFile(fileName: string): Buffer | null {
   return null;
 }
 
+// 품목명 및 접두사(원), 부), 반), 완)) 기준 템플릿 키 자동 분류 함수
+function resolveTemplateKey(productName: string, templateKey?: string): string {
+  if (templateKey && TEMPLATE_PREFIX_MAP[templateKey]) {
+    return templateKey;
+  }
+
+  const name = productName || "";
+
+  // 1. 원료 (원) 접두사 또는 원료 키워드)
+  if (name.startsWith("원)") || name.includes("원료")) {
+    if (name.includes("분말") || name.includes("파우더") || name.includes("고체")) {
+      return "원료_분말";
+    }
+    if (name.includes("유기농")) {
+      return "원료_유기농";
+    }
+    return "원료_액상";
+  }
+
+  // 2. 부자재 (부) 접두사 또는 부자재 키워드)
+  if (name.startsWith("부)") || name.includes("부자재")) {
+    if (name.includes("카톤")) return "부자재_카톤박스";
+    if (name.includes("단상자") || name.includes("상자") || name.includes("박스")) return "부자재_단상자";
+    if (name.includes("병") || name.includes("유리병")) return "부자재_유리병";
+    return "부자재_파우치";
+  }
+
+  // 3. 반제품 (반) 접두사 또는 반제품 키워드)
+  if (name.startsWith("반)") || name.includes("반제품")) {
+    if (name.includes("젤리")) return "반제품_젤리";
+    return "반제품_액상";
+  }
+
+  // 4. 완제품 접두사 (완) 또는 기본)
+  if (name.startsWith("완)") || name.includes("완제품")) {
+    return "완제품_기본";
+  }
+
+  // 5. 접두사 누락 시 품목명 키워드 정밀 자동 추론
+  if (name.includes("농축액") || name.includes("추출액") || name.includes("원액") || name.includes("액상")) {
+    return "원료_액상";
+  }
+  if (name.includes("파우더") || name.includes("분말")) {
+    return "원료_분말";
+  }
+  if (name.includes("파우치") || name.includes("스틱")) {
+    return "부자재_파우치";
+  }
+  if (name.includes("단상자") || name.includes("카톤")) {
+    return "부자재_단상자";
+  }
+
+  return "완제품_기본";
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -58,7 +113,7 @@ export async function POST(req: Request) {
     const expiryDate = body.expiryDate || "";
     const qty = body.qty || body.quantity || "";
     const mfgNo = body.mfgNo || "";
-    const templateKey = body.templateKey || "";
+    const templateKeyInput = body.templateKey || "";
     const spec = body.spec || "";
 
     let docType = body.docType || "";
@@ -73,41 +128,36 @@ export async function POST(req: Request) {
     }
     if (!docType) docType = 'log';
 
-    // [핵심 교정 로직] 파우더를 분말 양식으로 강제 인식
-    let finalTemplateKey = templateKey;
-    if (productName && (productName.includes('파우더') || productName.includes('분말'))) {
-      finalTemplateKey = "원료_분말";
-    }
-
+    // 품목명 접두사 (원), 부), 반), 완)) 기반 자동 템플릿 키 추론
+    const finalTemplateKey = resolveTemplateKey(productName, templateKeyInput);
     const outputName = DOC_NAME_MAP[docType] || '문서';
 
     let content: Buffer | null = null;
 
-    // 1. templateName이 지정된 경우 해당 템플릿 직접 로딩 시도
-    if (templateName) {
+    // 1) TEMPLATE_PREFIX_MAP 기반 전용 양식 파일 탐색 (최우선)
+    const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_product_default';
+    const exactFileName = `${prefix}_${docType}.docx`; 
+    content = readTemplateFile(exactFileName);
+
+    // 2) templateName이 명시된 경우 2차 로딩 탐색
+    if (!content && templateName) {
       const fileNameWithExt = templateName.endsWith('.docx') ? templateName : `${templateName}.docx`;
       content = readTemplateFile(fileNameWithExt);
     }
 
-    // 2. TEMPLATE_PREFIX_MAP 기반 템플릿 로딩 시도
+    // 3) Fallback 공통 양식 탐색
     if (!content) {
-      const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_common';
-      const exactFileName = `${prefix}_${docType}.docx`; 
-      content = readTemplateFile(exactFileName);
+      console.warn(`[알림] 전용 양식(${exactFileName})이 없어 공통 양식으로 대체합니다.`);
+      const fallbackFileName = `qc_${docType}.docx`; 
+      content = readTemplateFile(fallbackFileName);
 
       if (!content) {
-        console.warn(`[알림] 전용 양식(${exactFileName})이 없어 공통 양식으로 대체합니다.`);
-        const fallbackFileName = `qc_${docType}.docx`; 
-        content = readTemplateFile(fallbackFileName);
+        const defaultProductFileName = `qc_product_default_${docType}.docx`;
+        content = readTemplateFile(defaultProductFileName);
+      }
 
-        if (!content) {
-          const defaultProductFileName = `qc_product_default_${docType}.docx`;
-          content = readTemplateFile(defaultProductFileName);
-        }
-
-        if (!content) {
-          return NextResponse.json({ error: `템플릿 파일이 없습니다: ${exactFileName} 및 qc_${docType}.docx` }, { status: 404 });
-        }
+      if (!content) {
+        return NextResponse.json({ error: `템플릿 파일이 없습니다: ${exactFileName} 및 qc_${docType}.docx` }, { status: 404 });
       }
     }
 

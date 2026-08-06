@@ -244,13 +244,14 @@ export default function AuditPage() {
 
   const handleDownloadQCBatch = async (item: any) => {
     try {
+      const rawName = item.rawItem?.item_name || item.cleanName || "";
       const response = await fetch('/api/generate-qc-doc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          templateName: item.rawItem?.template_name || 'qc_product_default_log',
-          productName: item.cleanName,
+          productName: rawName,
           lotNumber: item.lotNo,
+          docType: 'log',
           mfgNo: item.rawItem?.mfg_no,
           mfgDate: item.rawItem?.mfg_date
         })
