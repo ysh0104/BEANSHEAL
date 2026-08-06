@@ -55,39 +55,44 @@ export default function UserManagementPage() {
     user?.position === "대표" ||
     user?.position === "대표이사";
 
+  const [dbStatusInfo, setDbStatusInfo] = useState<string>("Supabase DB 연결 확인 중...");
+
   useEffect(() => {
-    if (!authLoading) {
-      if (user) {
-        loadProfiles();
-      }
-    }
-  }, [user, authLoading]);
+    loadProfiles();
+  }, [user]);
 
   const loadProfiles = async () => {
     setLoading(true);
     let loadedData: ProfileItem[] = [];
+    let dbMsg = "";
 
-    // 1. Supabase Client DB 세션 쿼리 (가장 정확하고 권한 에러 없음)
+    // 1. Supabase Client DB 세션 쿼리 (가장 정확하고 직관적)
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("*")
-        .order("updated_at", { ascending: false });
+        .select("*");
 
-      if (!error && data && data.length > 0) {
+      if (error) {
+        dbMsg = `Supabase DB 조회 오류: ${error.message}`;
+        console.error("Supabase profiles query error:", error);
+      } else if (data && data.length > 0) {
+        dbMsg = `Supabase DB 'profiles' 테이블 연동 성공 (${data.length}건 수신됨)`;
         loadedData = data.map((p: any) => ({
           id: p.id,
-          email: p.email || "",
-          full_name: p.full_name || p.name || "사원",
-          department: p.department || "생산",
-          position: p.position || "사원",
+          email: p.email || p.user_email || "",
+          full_name: p.full_name || p.name || p.username || "사원",
+          department: p.department || p.dept || "생산",
+          position: p.position || p.pos || "사원",
           role: p.role || computeRoleLocal(p.department || "생산", p.position || "사원"),
           job_title: formatJobTitle(p.department || "생산", p.position || "사원"),
           updated_at: p.updated_at || p.created_at || new Date().toISOString(),
         }));
+      } else {
+        dbMsg = "Supabase DB 'profiles' 테이블이 현재 비어있음 (0건)";
       }
-    } catch (e) {
+    } catch (e: any) {
       console.warn("Supabase profiles client fetch error:", e);
+      dbMsg = `DB 연동 예외: ${e?.message || "네트워크 에러"}`;
     }
 
     // 2. 만약 Client DB 조회가 빈 경우 Server Action 호출
@@ -95,6 +100,7 @@ export default function UserManagementPage() {
       const res = await getAllUserProfiles();
       if (res.success && res.data && res.data.length > 0) {
         loadedData = res.data;
+        dbMsg = `Server Action 통해 ${res.data.length}건 수신됨`;
       }
     }
 
@@ -133,6 +139,7 @@ export default function UserManagementPage() {
     }
 
     setProfiles(loadedData);
+    setDbStatusInfo(dbMsg);
 
     const initialEdits: { [id: string]: { department: string; position: string } } = {};
     loadedData.forEach((p) => {
@@ -276,7 +283,11 @@ export default function UserManagementPage() {
                 <span className="bg-indigo-100 text-indigo-800 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border border-indigo-200">
                   SYSTEM ADMINISTRATION
                 </span>
-                <span className="text-xs font-bold text-slate-400">관리자 전용</span>
+                {dbStatusInfo && (
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    ⚡ {dbStatusInfo}
+                  </span>
+                )}
               </div>
               <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                 <span>👥 사용자 관리 및 부서/직책 권한 설정</span>
