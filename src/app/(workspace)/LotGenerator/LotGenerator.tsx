@@ -76,7 +76,8 @@ export default function LotGenerator() {
             mfgDate: makeDate,
             qty: quantity,
             supplier: supplier,
-            docType: type 
+            docType: type,
+            format: 'hwp'
           })
         });
 
@@ -89,7 +90,7 @@ export default function LotGenerator() {
         const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = downloadUrl;
-        a.download = `${docNames[type]}_${lotNumber}.docx`;
+        a.download = `${docNames[type]}_${lotNumber}.hwp`;
         document.body.appendChild(a);
         a.click();
         a.remove();

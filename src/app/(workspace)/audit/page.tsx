@@ -242,7 +242,7 @@ export default function AuditPage() {
     }
   };
 
-  const [docFormat, setDocFormat] = useState<"docx" | "hwpx">("docx");
+  const [docFormat, setDocFormat] = useState<"hwp" | "hwpx" | "docx">("hwp");
 
   const handleDownloadQCBatch = async (item: any) => {
     try {
@@ -321,18 +321,18 @@ export default function AuditPage() {
           <p className="text-sm text-gray-500 mt-1">반제품 및 완제품 실적 즉시 등록, 이카운트 엑셀 로트 동기화 및 품질검사 서류 일괄 발급을 관리합니다.</p>
         </div>
 
-        {/* 워드 / 한글 문서 포맷 선택 토글 버튼 */}
-        <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 self-start sm:self-auto">
+        {/* 한글 / 워드 문서 포맷 선택 토글 버튼 */}
+        <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 self-start sm:self-auto gap-1">
           <button
             type="button"
-            onClick={() => setDocFormat("docx")}
+            onClick={() => setDocFormat("hwp")}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              docFormat === "docx"
-                ? "bg-white text-slate-900 shadow-xs border border-gray-200"
+              docFormat === "hwp"
+                ? "bg-blue-600 text-white shadow-xs"
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            📄 MS 워드 (.docx)
+            🇰🇷 한컴 한글 (.hwp)
           </button>
           <button
             type="button"
@@ -343,7 +343,18 @@ export default function AuditPage() {
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            🇰🇷 한컴 한글 (.hwpx)
+            🇰🇷 한글 (.hwpx)
+          </button>
+          <button
+            type="button"
+            onClick={() => setDocFormat("docx")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              docFormat === "docx"
+                ? "bg-white text-slate-900 shadow-xs border border-gray-200"
+                : "text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            📄 MS 워드 (.docx)
           </button>
         </div>
       </div>

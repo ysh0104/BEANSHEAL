@@ -133,37 +133,45 @@ export async function POST(req: Request) {
     }
     if (!docType) docType = 'log';
 
-    // 파일 포맷 결정 (docx / hwpx / hwp)
-    const reqFormat = (body.format || body.fileFormat || 'docx').toLowerCase();
-    const fileExt = reqFormat === 'hwp' ? 'hwp' : reqFormat === 'hwpx' ? 'hwpx' : 'docx';
+    // 파일 포맷 결정 (기본값: 'hwpx' - 한글 서식 우선)
+    const reqFormat = (body.format || body.fileFormat || 'hwpx').toLowerCase();
+    let fileExt = reqFormat === 'docx' ? 'docx' : reqFormat === 'hwp' ? 'hwp' : 'hwpx';
 
     const contentTypeMap: Record<string, string> = {
       docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       hwpx: 'application/vnd.hancom.hwpx',
       hwp: 'application/x-hwp'
     };
-    const mimeType = contentTypeMap[fileExt] || contentTypeMap['docx'];
 
     // 품목명 접두사 (원), 부), 반), 완)) 기반 자동 템플릿 키 추론
     const finalTemplateKey = resolveTemplateKey(productName, templateKeyInput);
     const outputName = DOC_NAME_MAP[docType] || '문서';
 
     let content: Buffer | null = null;
-
-    // 1) 포맷별 전용 양식 파일 우선 탐색 (예: qc_raw_liquid_log.hwpx)
     const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_product_default';
-    const exactFileNameWithFormat = `${prefix}_${docType}.${fileExt}`;
-    content = readTemplateFile(exactFileNameWithFormat);
 
-    // 2) 일반 .docx 템플릿 탐색
+    // 1) .hwp 또는 .hwpx 전용 한글 템플릿 탐색 (최우선)
+    content = readTemplateFile(`${prefix}_${docType}.${fileExt}`);
+    
+    if (!content && fileExt !== 'hwp') {
+      content = readTemplateFile(`${prefix}_${docType}.hwp`);
+      if (content) fileExt = 'hwp';
+    }
+    if (!content && fileExt !== 'hwpx') {
+      content = readTemplateFile(`${prefix}_${docType}.hwpx`);
+      if (content) fileExt = 'hwpx';
+    }
+
+    // 2) 일반 .docx 템플릿 탐색 (3차 순위)
     if (!content) {
       const exactFileName = `${prefix}_${docType}.docx`; 
       content = readTemplateFile(exactFileName);
+      if (content) fileExt = 'docx';
     }
 
     // 3) templateName이 명시된 경우 2차 로딩 탐색
     if (!content && templateName) {
-      const fileNameWithExt = templateName.endsWith(`.${fileExt}`) || templateName.endsWith('.docx') 
+      const fileNameWithExt = templateName.endsWith(`.${fileExt}`) || templateName.endsWith('.hwp') || templateName.endsWith('.docx')
         ? templateName 
         : `${templateName}.${fileExt}`;
       content = readTemplateFile(fileNameWithExt);
@@ -172,26 +180,16 @@ export async function POST(req: Request) {
     // 4) Fallback 공통 양식 탐색
     if (!content) {
       console.warn(`[알림] 전용 양식이 없어 공통 양식으로 대체합니다.`);
-      const fallbackFileName = `qc_${docType}.${fileExt}`; 
-      content = readTemplateFile(fallbackFileName);
+      content = readTemplateFile(`qc_${docType}.${fileExt}`) || readTemplateFile(`qc_${docType}.hwp`) || readTemplateFile(`qc_${docType}.docx`);
 
       if (!content) {
-        const fallbackDocxName = `qc_${docType}.docx`;
-        content = readTemplateFile(fallbackDocxName);
+        content = readTemplateFile(`qc_product_default_${docType}.${fileExt}`) || readTemplateFile(`qc_product_default_${docType}.hwp`) || readTemplateFile(`qc_product_default_${docType}.docx`);
       }
 
       if (!content) {
-        const defaultProductFileName = `qc_product_default_${docType}.docx`;
-        content = readTemplateFile(defaultProductFileName);
-      }
-
-      if (!content) {
-        return NextResponse.json({ error: `템플릿 파일이 없습니다: ${prefix}_${docType}.${fileExt}` }, { status: 404 });
+        return NextResponse.json({ error: `템플릿 파일이 없습니다: ${prefix}_${docType}` }, { status: 404 });
       }
     }
-
-    const zip = new PizZip(content);
-    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
 
     // 💡 날짜 연산 로직 완벽 분리
     const formatDate = (date: Date) => {
@@ -212,7 +210,7 @@ export async function POST(req: Request) {
     const dueDateStr = formatDate(futureDate); 
 
     // [이름 세탁 및 대괄호 규격 분리기]
-    let cleanProductName = (productName || '').replace(/^[원부자반]\)\s*/, '');
+    let cleanProductName = (productName || '').replace(/^[원부자반완]\)\s*/, '');
     const specMatch = cleanProductName.match(/\[(.*?)\]/);
     const extractedSpec = specMatch ? specMatch[1] : (spec || "별도표기");
     cleanProductName = cleanProductName.replace(/\s*\[.*?\]\s*/g, '').trim();
@@ -221,31 +219,41 @@ export async function POST(req: Request) {
     const isOrganic = cleanProductName.includes('유기농');
     const testNo = isOrganic ? `${lotNo}u` : lotNo;
 
-    // 데이터 주입
-    doc.render({
-      제품명: cleanProductName, 
-      품명: cleanProductName,       
-      LOT번호: lotNo,         
-      시험번호: testNo,       
-      
-      // 💡 지정된 제조일자는 그대로 두고, 나머지는 '진짜 오늘' 기준으로 주입!
-      시험일자: testDate || todayStr,
-      제조일자: mfgDate || "",
-      수량: qty,
-      제조수량: qty,                
-      오늘날짜: todayStr,      
-      유통기한: expiryDate || "",  
-      소비기한: expiryDate || "",    
-      규격: extractedSpec,
-      제조번호: mfgNo || "",         
+    let buf: Buffer;
 
-      접수일자: todayStr,          // 무조건 오늘
-      검체채취일자: todayStr,      // 무조건 오늘
-      완료예정일: dueDateStr       // 무조건 오늘 + 3일
-    });
-
-    const buf = doc.getZip().generate({ type: 'nodebuffer' });
+    // docx 또는 hwpx 포맷인 경우 docxtemplater 렌더링 시도
+    if (fileExt === 'docx' || fileExt === 'hwpx') {
+      try {
+        const zip = new PizZip(content);
+        const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+        doc.render({
+          제품명: cleanProductName, 
+          품명: cleanProductName,       
+          LOT번호: lotNo,         
+          시험번호: testNo,       
+          시험일자: testDate || todayStr,
+          제조일자: mfgDate || "",
+          수량: qty,
+          제조수량: qty,                
+          오늘날짜: todayStr,      
+          유통기한: expiryDate || "",  
+          소비기한: expiryDate || "",    
+          규격: extractedSpec,
+          제조번호: mfgNo || "",         
+          접수일자: todayStr,
+          검체채취일자: todayStr,
+          완료예정일: dueDateStr
+        });
+        buf = doc.getZip().generate({ type: 'nodebuffer' });
+      } catch (e) {
+        buf = content;
+      }
+    } else {
+      // HWP 바이너리 양식 파일인 경우 그대로 출력
+      buf = content;
+    }
     
+    const mimeType = contentTypeMap[fileExt] || contentTypeMap['hwp'];
     const encodedFileName = encodeURIComponent(`${outputName}_${testNo}.${fileExt}`);
 
     return new NextResponse(new Uint8Array(buf), {
