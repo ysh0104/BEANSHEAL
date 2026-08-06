@@ -15,13 +15,21 @@ const analyzeItemTemplate = (productName: string) => {
   let mainType = "완제품";
   let subType = "기본";
 
+  if (productName.includes('시녹스')) {
+    return "원료_시녹스마일드";
+  }
+
   if (productName.startsWith('원)')) {
     mainType = "원료";
-    if (productName.includes('액상') || productName.includes('농축액') || productName.includes('유기농')) subType = "액상";
+    if (productName.includes('액상') || productName.includes('농축액') || productName.includes('유기농') || productName.includes('알코올') || productName.includes('알콜') || productName.includes('주정') || productName.includes('에탄올')) subType = "액상";
     else if (productName.includes('분말') || productName.includes('덱스트린') || productName.includes('추출물') || productName.includes('비타민') || productName.includes('파우더')) subType = "분말";
     else subType = "기본";
   } 
   else if (productName.startsWith('부)') || productName.startsWith('자)')) {
+    if (productName.includes('시녹스')) return "원료_시녹스마일드";
+    if (productName.includes('알코올') || productName.includes('알콜') || productName.includes('주정') || productName.includes('에탄올') || productName.includes('소독제') || productName.includes('세척제')) {
+      return "원료_액상";
+    }
     mainType = "부자재";
     if (productName.includes('파우치') || productName.includes('비닐')) subType = "파우치";
     else if (productName.includes('단상자')) subType = "단상자";
@@ -32,9 +40,9 @@ const analyzeItemTemplate = (productName: string) => {
     mainType = "반제품";
     subType = productName.includes('액상') ? "액상" : "기본";
   }
-  else if (productName.includes('농축액') || productName.includes('추출물') || productName.includes('분말') || productName.includes('파우더') || productName.includes('원료')) {
+  else if (productName.includes('농축액') || productName.includes('추출물') || productName.includes('분말') || productName.includes('파우더') || productName.includes('원료') || productName.includes('알코올') || productName.includes('에탄올')) {
     mainType = "원료";
-    if (productName.includes('농축액') || productName.includes('액상') || productName.includes('유기농')) {
+    if (productName.includes('농축액') || productName.includes('액상') || productName.includes('유기농') || productName.includes('알코올') || productName.includes('에탄올')) {
       subType = "액상";
     } else {
       subType = "분말";
