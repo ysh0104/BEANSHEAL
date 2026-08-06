@@ -95,6 +95,7 @@ export default function Home() {
   const [notionSyncStatusMsg, setNotionSyncStatusMsg] = useState<string | null>(null);
   const [isTestingConn, setIsTestingConn] = useState(false);
   const [draggedSchedule, setDraggedSchedule] = useState<any | null>(null);
+  const [selectedScheduleDetail, setSelectedScheduleDetail] = useState<any | null>(null);
 
   // 현재 유효한 노션 설정 객체 반환 헬퍼 (개별 커스텀 키가 없으면 undefined를 넘겨 Vercel 환경변수 사용)
   const getNotionConfig = () => {
@@ -938,12 +939,15 @@ export default function Home() {
                                         e.stopPropagation();
                                         handleDragStart(e, sch);
                                       }}
-                                      className={`pointer-events-auto h-[22px] my-0.5 px-2 text-left flex items-center justify-between shadow-2xs border-y border-slate-300/80 cursor-grab active:cursor-grabbing text-slate-900 transition-all hover:shadow-xs group/bar overflow-hidden ${tagStyle} ${roundedClass}`}
-                                      title={`품목: ${sch.product_name}\n일정: ${sch.plan_date} ~ ${sch.end_date || sch.plan_date}\n수량: ${sch.quantity}${sch.tag_name ? `\n태그: ${sch.tag_name}` : ''}${sch.note ? `\n비고: ${sch.note}` : ''}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedScheduleDetail(sch);
+                                      }}
+                                      className={`pointer-events-auto relative h-[25px] my-0.5 px-2 text-left flex items-center justify-between shadow-2xs border-y border-slate-300/80 cursor-grab active:cursor-grabbing text-slate-900 transition-all hover:shadow-md hover:scale-[1.01] group/bar ${tagStyle} ${roundedClass}`}
                                     >
-                                      <div className="flex items-center gap-1.5 truncate text-[11px] font-bold">
+                                      <div className="flex items-center gap-1.5 truncate text-[11.5px] font-extrabold">
                                         {sch.tag_name && (
-                                          <span className="text-[9px] font-extrabold px-1 py-0.2 rounded bg-black/10 text-slate-800 shrink-0">
+                                          <span className="text-[9.5px] font-extrabold px-1.5 py-0.2 rounded bg-black/10 text-slate-900 shrink-0">
                                             {sch.tag_name}
                                           </span>
                                         )}
@@ -1145,6 +1149,90 @@ export default function Home() {
                   저장하기
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 일정 클릭 시 상세 보기 카드 모달 (글자 잘림 없이 전체 내용 표시) */}
+      {selectedScheduleDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fadeIn" onClick={() => setSelectedScheduleDetail(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                {selectedScheduleDetail.tag_name && (
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${getNotionTagBadgeClass(selectedScheduleDetail.tag_color)}`}>
+                    {selectedScheduleDetail.tag_name}
+                  </span>
+                )}
+                <h3 className="font-extrabold text-sm text-white">📅 생산 일정 상세</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedScheduleDetail(null)}
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-slate-800">
+              <div>
+                <span className="text-[11px] font-bold text-slate-400 block mb-1">생산 품목명</span>
+                <p className="text-base font-extrabold text-slate-900 leading-snug break-words">
+                  {selectedScheduleDetail.product_name}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 block mb-1">일정 기간</span>
+                  <p className="text-xs font-bold text-slate-800 font-mono">
+                    📅 {selectedScheduleDetail.plan_date}
+                    {selectedScheduleDetail.end_date && selectedScheduleDetail.end_date !== selectedScheduleDetail.plan_date && (
+                      <> ~ <br />📅 {selectedScheduleDetail.end_date}</>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[11px] font-bold text-slate-400 block mb-1">목표 수량</span>
+                  <p className="text-sm font-extrabold text-indigo-600 font-mono">
+                    📦 {selectedScheduleDetail.quantity || "1"} 개
+                  </p>
+                </div>
+              </div>
+
+              {selectedScheduleDetail.note && (
+                <div className="pt-2 border-t border-slate-100">
+                  <span className="text-[11px] font-bold text-slate-400 block mb-1">비고 / 메모</span>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 leading-relaxed break-words font-medium">
+                    {selectedScheduleDetail.note}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-slate-50 border-t border-slate-200 px-6 py-3 flex justify-between items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`'${selectedScheduleDetail.product_name}' 일정을 삭제하시겠습니까?`)) {
+                    handleDeleteSchedule(selectedScheduleDetail.id, selectedScheduleDetail.notion_page_id);
+                    setSelectedScheduleDetail(null);
+                  }
+                }}
+                className="text-xs font-bold text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                🗑️ 일정 삭제
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedScheduleDetail(null)}
+                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors cursor-pointer shadow-xs"
+              >
+                닫기
+              </button>
             </div>
           </div>
         </div>
