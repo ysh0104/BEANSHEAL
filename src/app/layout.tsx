@@ -25,7 +25,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body className={`${inter.className} m-0 p-0`}>
+      <head>
+        <link rel="stylesheet" as="style" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+      </head>
+      <body className="m-0 p-0 antialiased text-slate-900 bg-slate-50">
         <AuthProvider>
           <LayoutContent>{children}</LayoutContent>
         </AuthProvider>

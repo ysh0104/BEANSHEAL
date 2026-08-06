@@ -327,19 +327,19 @@ export default function UserManagementPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="bg-slate-100 text-slate-700 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border border-slate-200">
+                <span className="bg-slate-100 text-slate-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-slate-200 uppercase tracking-wider">
                   SYSTEM ADMINISTRATION
                 </span>
                 {dbStatusInfo && (
-                  <span className="text-[11px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">
+                  <span className="text-[11px] font-normal text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">
                     {dbStatusInfo}
                   </span>
                 )}
               </div>
-              <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+              <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 <span>사용자 관리 및 부서/직책 권한 설정</span>
               </h1>
-              <p className="text-xs text-slate-500 mt-1 font-medium">
+              <p className="text-xs text-slate-500 mt-1 font-normal">
                 가입된 사원의 부서와 직급을 부여하고 시스템 접근 권한(ADMIN / QA / WORKER)을 설정할 수 있습니다.
               </p>
             </div>
@@ -347,7 +347,7 @@ export default function UserManagementPage() {
             <button
               onClick={loadProfiles}
               disabled={loading}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 self-start md:self-auto"
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 self-start md:self-auto"
             >
               <svg className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -359,20 +359,20 @@ export default function UserManagementPage() {
           {/* 무채색 깔끔한 요약 카운트 카드 */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-100">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
-              <span className="text-[11px] font-bold text-slate-500">전체 사용자</span>
-              <span className="text-lg font-black text-slate-900 font-mono mt-1">{profiles.length} 명</span>
+              <span className="text-[11px] font-medium text-slate-500">전체 사용자</span>
+              <span className="text-lg font-bold text-slate-900 font-mono mt-1">{profiles.length} 명</span>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
-              <span className="text-[11px] font-bold text-slate-600">관리자 (ADMIN)</span>
-              <span className="text-lg font-black text-slate-900 font-mono mt-1">{adminCount} 명</span>
+              <span className="text-[11px] font-medium text-slate-600">관리자 (ADMIN)</span>
+              <span className="text-lg font-bold text-slate-900 font-mono mt-1">{adminCount} 명</span>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
-              <span className="text-[11px] font-bold text-slate-600">품질관리 (QA)</span>
-              <span className="text-lg font-black text-slate-900 font-mono mt-1">{qaCount} 명</span>
+              <span className="text-[11px] font-medium text-slate-600">품질관리 (QA)</span>
+              <span className="text-lg font-bold text-slate-900 font-mono mt-1">{qaCount} 명</span>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
-              <span className="text-[11px] font-bold text-slate-600">일반실무 (WORKER)</span>
-              <span className="text-lg font-black text-slate-900 font-mono mt-1">{workerCount} 명</span>
+              <span className="text-[11px] font-medium text-slate-600">일반실무 (WORKER)</span>
+              <span className="text-lg font-bold text-slate-900 font-mono mt-1">{workerCount} 명</span>
             </div>
           </div>
         </div>
@@ -382,7 +382,7 @@ export default function UserManagementPage() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 mt-6">
         {/* 무채색 깔끔한 알림 메시지 토스트 */}
         {statusMsg && (
-          <div className="mb-4 p-3.5 rounded-xl border border-slate-300 bg-slate-900 text-white text-xs font-bold flex items-center justify-between shadow-xs animate-fadeIn">
+          <div className="mb-4 p-3.5 rounded-xl border border-slate-300 bg-slate-900 text-white text-xs font-medium flex items-center justify-between shadow-xs animate-fadeIn">
             <span>{statusMsg.text}</span>
             <button onClick={() => setStatusMsg(null)} className="text-slate-400 hover:text-white cursor-pointer ml-3">
               ✕
@@ -392,16 +392,16 @@ export default function UserManagementPage() {
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
           <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-            <h2 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+            <h2 className="font-bold text-sm text-slate-800 flex items-center gap-2">
               <span>가입 사원 목록 및 직책 부여</span>
             </h2>
-            <span className="text-xs text-slate-500 font-medium">총 {profiles.length} 건</span>
+            <span className="text-xs text-slate-500 font-normal">총 {profiles.length} 건</span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
+                <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                   <th className="py-3 px-4">사용자 (이름 / 이메일)</th>
                   <th className="py-3 px-4">현재 화면 표시 직책</th>
                   <th className="py-3 px-4 min-w-[130px]">소속 부서 (Department)</th>
@@ -411,10 +411,10 @@ export default function UserManagementPage() {
                   <th className="py-3 px-4 text-right">권한 부여 저장</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs font-medium">
+              <tbody className="divide-y divide-slate-100 text-xs font-normal">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400 font-bold">
+                    <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
                       <div className="flex justify-center items-center gap-2">
                         <span className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
                         <span>사용자 프로필을 로딩하는 중입니다...</span>
@@ -423,7 +423,7 @@ export default function UserManagementPage() {
                   </tr>
                 ) : profiles.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400 font-bold">
+                    <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
                       가입된 사용자 프로필이 없습니다.
                     </td>
                   </tr>
@@ -439,25 +439,25 @@ export default function UserManagementPage() {
                     const isSelf = user?.email === p.email;
 
                     return (
-                      <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${isSelf ? "bg-slate-50/80 font-bold" : ""}`}>
-                        {/* 이름 / 이메일 */}
+                      <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${isSelf ? "bg-slate-50/90" : ""}`}>
+                        {/* 이름 / 이메일 - 강조(Bold) */}
                         <td className="py-3.5 px-4">
                           <div className="flex flex-col">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-extrabold text-slate-900 text-xs">{p.full_name}</span>
+                              <span className="font-bold text-slate-900 text-xs">{p.full_name}</span>
                               {isSelf && (
-                                <span className="text-[10px] font-extrabold bg-slate-200 text-slate-800 px-1.5 py-0.2 rounded border border-slate-300">
+                                <span className="text-[10px] font-semibold bg-slate-200 text-slate-800 px-1.5 py-0.2 rounded border border-slate-300">
                                   본인
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] text-slate-500 font-mono">{p.email}</span>
+                            <span className="text-[11px] text-slate-500 font-mono font-normal">{p.email}</span>
                           </div>
                         </td>
 
-                        {/* 현재 직책 */}
+                        {/* 현재 직책 - 강조(Bold) */}
                         <td className="py-3.5 px-4">
-                          <span className="font-bold text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+                          <span className="font-semibold text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
                             {previewJobTitle}
                           </span>
                         </td>
@@ -468,7 +468,7 @@ export default function UserManagementPage() {
                             value={displayDept}
                             onChange={(e) => handleSelectChange(p.id, "department", e.target.value)}
                             disabled={isTopPos}
-                            className="w-full text-xs font-bold border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
+                            className="w-full text-xs font-normal border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
                           >
                             {DEPARTMENT_OPTIONS.map((dept) => (
                               <option key={dept} value={dept}>
@@ -483,7 +483,7 @@ export default function UserManagementPage() {
                           <select
                             value={currentEdit.position}
                             onChange={(e) => handleSelectChange(p.id, "position", e.target.value)}
-                            className="w-full text-xs font-bold border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer"
+                            className="w-full text-xs font-normal border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer"
                           >
                             {POSITION_OPTIONS.map((pos) => (
                               <option key={pos} value={pos}>
@@ -493,13 +493,13 @@ export default function UserManagementPage() {
                           </select>
                         </td>
 
-                        {/* 무채색 깔끔한 수동 권한 부여 (Role 선택 Dropdown) */}
+                        {/* 수동 권한 부여 (Role 선택 Dropdown) */}
                         <td className="py-3.5 px-4">
                           <select
                             value={displayRole}
                             onChange={(e) => handleSelectChange(p.id, "role", e.target.value)}
                             disabled={isTopPos}
-                            className="w-full text-xs font-extrabold border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
+                            className="w-full text-xs font-medium border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
                           >
                             {ROLE_OPTIONS.map((rOpt) => (
                               <option key={rOpt.value} value={rOpt.value}>
@@ -510,17 +510,17 @@ export default function UserManagementPage() {
                         </td>
 
                         {/* 최근 수정일 */}
-                        <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
+                        <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px] font-normal">
                           {p.updated_at ? p.updated_at.split("T")[0] : "-"}
                         </td>
 
-                        {/* 저장 버튼 */}
+                        {/* 저장 버튼 - 강조(Bold) */}
                         <td className="py-3.5 px-4 text-right">
                           <button
                             type="button"
                             onClick={() => handleSaveProfile(p)}
                             disabled={savingId === p.id}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer shadow-2xs ${
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
                               isChanged
                                 ? "bg-slate-900 hover:bg-slate-800 text-white animate-pulse"
                                 : "bg-slate-100 hover:bg-slate-200 text-slate-700"
