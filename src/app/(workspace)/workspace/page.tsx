@@ -40,58 +40,58 @@ const getNotionColorClass = (colorStr?: string) => {
   }
 };
 
-// 🌟 명도를 약간 낮춰 차분하고 또렷한 내부 색상 채우기 함수 (테두리 없음, 눈 피로 최소화)
+// 🌟 옅고 어두운 차분한 딥 파스텔 톤 색상 함수 (낮은 채도, 명도 안정화)
 const getNotionScheduleColorClass = (tagName?: string, tagColor?: string, productName?: string) => {
   const textToSearch = `${tagName || ""} ${productName || ""}`.toLowerCase();
 
-  // 1. 카테고리별 차분한 톤다운 내부 색상 매핑 (생산, 입고, 출고, 휴가, 점검)
+  // 1. 카테고리별 옅고 어두운 파스텔 톤 매핑 (생산, 입고, 출고, 휴가, 점검)
   if (textToSearch.includes("생산") || textToSearch.includes("제조") || textToSearch.includes("라인")) {
-    return "bg-emerald-200/90 text-emerald-950 font-extrabold shadow-2xs"; // 🟢 생산: 차분한 에메랄드 그린
+    return "bg-[#cce3de] text-[#1b4332] font-extrabold shadow-2xs"; // 🟢 생산: 차분한 딥 세이지 그린
   }
   if (textToSearch.includes("입고") || textToSearch.includes("자재") || textToSearch.includes("원료") || textToSearch.includes("발주")) {
-    return "bg-sky-200/90 text-sky-950 font-extrabold shadow-2xs"; // 🔵 입고: 차분한 스카이 블루
+    return "bg-[#d0e1fd] text-[#1e3a8a] font-extrabold shadow-2xs"; // 🔵 입고: 옅고 차분한 스틸 블루
   }
   if (textToSearch.includes("출고") || textToSearch.includes("배송") || textToSearch.includes("납품") || textToSearch.includes("택배")) {
-    return "bg-purple-200/90 text-purple-950 font-extrabold shadow-2xs"; // 🟣 출고: 차분한 퍼플
+    return "bg-[#e2d5f8] text-[#3b0764] font-extrabold shadow-2xs"; // 🟣 출고: 은은한 딥 라벤더/플럼
   }
   if (textToSearch.includes("휴가") || textToSearch.includes("연차") || textToSearch.includes("휴무") || textToSearch.includes("반차")) {
-    return "bg-amber-200/90 text-amber-950 font-extrabold shadow-2xs"; // 🟡 휴가: 차분한 앰버 노랑
+    return "bg-[#fde68a]/85 text-[#78350f] font-extrabold shadow-2xs"; // 🟡 휴가: 차분한 샌드 앰버
   }
   if (textToSearch.includes("점검") || textToSearch.includes("수리") || textToSearch.includes("감사") || textToSearch.includes("점검표")) {
-    return "bg-rose-200/90 text-rose-950 font-extrabold shadow-2xs"; // 🔴 점검: 차분한 로즈 핑크
+    return "bg-[#fecdd3]/85 text-[#881337] font-extrabold shadow-2xs"; // 🔴 점검: 톤다운 더스티 로즈
   }
 
-  // 2. 노션 고유 태그 색상 (톤다운 내부 채움 전용)
+  // 2. 노션 고유 태그 색상 (옅고 차분한 파스텔 톤)
   switch (tagColor) {
     case "blue":
     case "blue_background":
-      return "bg-sky-200/90 text-sky-950 font-extrabold shadow-2xs";
+      return "bg-[#d0e1fd] text-[#1e3a8a] font-extrabold shadow-2xs";
     case "green":
     case "green_background":
-      return "bg-emerald-200/90 text-emerald-950 font-extrabold shadow-2xs";
+      return "bg-[#cce3de] text-[#1b4332] font-extrabold shadow-2xs";
     case "red":
     case "red_background":
-      return "bg-rose-200/90 text-rose-950 font-extrabold shadow-2xs";
+      return "bg-[#fecdd3]/85 text-[#881337] font-extrabold shadow-2xs";
     case "yellow":
     case "yellow_background":
-      return "bg-amber-200/90 text-amber-950 font-extrabold shadow-2xs";
+      return "bg-[#fde68a]/85 text-[#78350f] font-extrabold shadow-2xs";
     case "purple":
     case "purple_background":
-      return "bg-purple-200/90 text-purple-950 font-extrabold shadow-2xs";
+      return "bg-[#e2d5f8] text-[#3b0764] font-extrabold shadow-2xs";
     case "orange":
     case "orange_background":
-      return "bg-orange-200/90 text-orange-950 font-extrabold shadow-2xs";
+      return "bg-[#ffedd5] text-[#7c2d12] font-extrabold shadow-2xs";
     case "pink":
     case "pink_background":
-      return "bg-pink-200/90 text-pink-950 font-extrabold shadow-2xs";
+      return "bg-[#fbcfe8]/85 text-[#831843] font-extrabold shadow-2xs";
     case "brown":
     case "brown_background":
-      return "bg-amber-200/90 text-amber-950 font-extrabold shadow-2xs";
+      return "bg-[#e7e5e4] text-[#44403c] font-extrabold shadow-2xs";
     case "gray":
     case "gray_background":
-      return "bg-slate-300/90 text-slate-950 font-extrabold shadow-2xs";
+      return "bg-[#e2e8f0] text-[#1e293b] font-extrabold shadow-2xs";
     default:
-      return "bg-indigo-200/90 text-indigo-950 font-extrabold shadow-2xs";
+      return "bg-[#e0e7ff] text-[#312e81] font-extrabold shadow-2xs";
   }
 };
 
@@ -812,19 +812,19 @@ export default function Home() {
 
             const calendarHeaderRight = (
               <div className="hidden sm:flex items-center gap-1.5 text-[10.5px] font-bold shrink-0">
-                <span className="bg-emerald-200 text-emerald-950 px-2 py-0.5 rounded font-extrabold">
+                <span className="bg-[#cce3de] text-[#1b4332] px-2 py-0.5 rounded font-extrabold">
                   생산
                 </span>
-                <span className="bg-sky-200 text-sky-950 px-2 py-0.5 rounded font-extrabold">
+                <span className="bg-[#d0e1fd] text-[#1e3a8a] px-2 py-0.5 rounded font-extrabold">
                   입고
                 </span>
-                <span className="bg-purple-200 text-purple-950 px-2 py-0.5 rounded font-extrabold">
+                <span className="bg-[#e2d5f8] text-[#3b0764] px-2 py-0.5 rounded font-extrabold">
                   출고
                 </span>
-                <span className="bg-amber-200 text-amber-950 px-2 py-0.5 rounded font-extrabold">
+                <span className="bg-[#fde68a]/85 text-[#78350f] px-2 py-0.5 rounded font-extrabold">
                   휴가
                 </span>
-                <span className="bg-rose-200 text-rose-950 px-2 py-0.5 rounded font-extrabold">
+                <span className="bg-[#fecdd3]/85 text-[#881337] px-2 py-0.5 rounded font-extrabold">
                   점검
                 </span>
               </div>
