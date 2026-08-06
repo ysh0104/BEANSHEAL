@@ -40,58 +40,58 @@ const getNotionColorClass = (colorStr?: string) => {
   }
 };
 
-// 🌟 옅고 어두운 차분한 딥 파스텔 톤 색상 함수 (낮은 채도, 명도 안정화)
+// 🌟 매우 연하고 부드러운 노션/애플 파스텔 톤 색상 함수 (Soft Delicate Pastels)
 const getNotionScheduleColorClass = (tagName?: string, tagColor?: string, productName?: string) => {
   const textToSearch = `${tagName || ""} ${productName || ""}`.toLowerCase();
 
-  // 1. 카테고리별 옅고 어두운 파스텔 톤 매핑 (생산, 입고, 출고, 휴가, 점검)
+  // 1. 카테고리별 매우 연하고 부드러운 파스텔 톤 매핑 (생산, 입고, 출고, 휴가, 점검)
   if (textToSearch.includes("생산") || textToSearch.includes("제조") || textToSearch.includes("라인")) {
-    return "bg-[#cce3de] text-[#1b4332] font-extrabold shadow-2xs"; // 🟢 생산: 차분한 딥 세이지 그린
+    return "bg-[#e6f4ea] text-[#137333] font-bold shadow-2xs"; // 🟢 생산: 연한 소프트 민트 그린
   }
   if (textToSearch.includes("입고") || textToSearch.includes("자재") || textToSearch.includes("원료") || textToSearch.includes("발주")) {
-    return "bg-[#d0e1fd] text-[#1e3a8a] font-extrabold shadow-2xs"; // 🔵 입고: 옅고 차분한 스틸 블루
+    return "bg-[#e8f0fe] text-[#1a73e8] font-bold shadow-2xs"; // 🔵 입고: 연한 소프트 스카이 블루
   }
   if (textToSearch.includes("출고") || textToSearch.includes("배송") || textToSearch.includes("납품") || textToSearch.includes("택배")) {
-    return "bg-[#e2d5f8] text-[#3b0764] font-extrabold shadow-2xs"; // 🟣 출고: 은은한 딥 라벤더/플럼
+    return "bg-[#f3e8fd] text-[#7627bb] font-bold shadow-2xs"; // 🟣 출고: 연한 소프트 라벤더
   }
   if (textToSearch.includes("휴가") || textToSearch.includes("연차") || textToSearch.includes("휴무") || textToSearch.includes("반차")) {
-    return "bg-[#fde68a]/85 text-[#78350f] font-extrabold shadow-2xs"; // 🟡 휴가: 차분한 샌드 앰버
+    return "bg-[#fef7e0] text-[#b06000] font-bold shadow-2xs"; // 🟡 휴가: 연한 버터 크림 앰버
   }
   if (textToSearch.includes("점검") || textToSearch.includes("수리") || textToSearch.includes("감사") || textToSearch.includes("점검표")) {
-    return "bg-[#fecdd3]/85 text-[#881337] font-extrabold shadow-2xs"; // 🔴 점검: 톤다운 더스티 로즈
+    return "bg-[#fce8e6] text-[#c5221f] font-bold shadow-2xs"; // 🔴 점검: 연한 소프트 블러시 핑크
   }
 
-  // 2. 노션 고유 태그 색상 (옅고 차분한 파스텔 톤)
+  // 2. 노션 고유 태그 색상 (아주 연한 파스텔 톤)
   switch (tagColor) {
     case "blue":
     case "blue_background":
-      return "bg-[#d0e1fd] text-[#1e3a8a] font-extrabold shadow-2xs";
+      return "bg-[#e8f0fe] text-[#1a73e8] font-bold shadow-2xs";
     case "green":
     case "green_background":
-      return "bg-[#cce3de] text-[#1b4332] font-extrabold shadow-2xs";
+      return "bg-[#e6f4ea] text-[#137333] font-bold shadow-2xs";
     case "red":
     case "red_background":
-      return "bg-[#fecdd3]/85 text-[#881337] font-extrabold shadow-2xs";
+      return "bg-[#fce8e6] text-[#c5221f] font-bold shadow-2xs";
     case "yellow":
     case "yellow_background":
-      return "bg-[#fde68a]/85 text-[#78350f] font-extrabold shadow-2xs";
+      return "bg-[#fef7e0] text-[#b06000] font-bold shadow-2xs";
     case "purple":
     case "purple_background":
-      return "bg-[#e2d5f8] text-[#3b0764] font-extrabold shadow-2xs";
+      return "bg-[#f3e8fd] text-[#7627bb] font-bold shadow-2xs";
     case "orange":
     case "orange_background":
-      return "bg-[#ffedd5] text-[#7c2d12] font-extrabold shadow-2xs";
+      return "bg-[#feefe3] text-[#c74c00] font-bold shadow-2xs";
     case "pink":
     case "pink_background":
-      return "bg-[#fbcfe8]/85 text-[#831843] font-extrabold shadow-2xs";
+      return "bg-[#fde7f3] text-[#b80672] font-bold shadow-2xs";
     case "brown":
     case "brown_background":
-      return "bg-[#e7e5e4] text-[#44403c] font-extrabold shadow-2xs";
+      return "bg-[#f1f3f4] text-[#3c4043] font-bold shadow-2xs";
     case "gray":
     case "gray_background":
-      return "bg-[#e2e8f0] text-[#1e293b] font-extrabold shadow-2xs";
+      return "bg-[#f1f3f4] text-[#3c4043] font-bold shadow-2xs";
     default:
-      return "bg-[#e0e7ff] text-[#312e81] font-extrabold shadow-2xs";
+      return "bg-[#e8eaed] text-[#202124] font-bold shadow-2xs";
   }
 };
 
@@ -812,19 +812,19 @@ export default function Home() {
 
             const calendarHeaderRight = (
               <div className="hidden sm:flex items-center gap-1.5 text-[10.5px] font-bold shrink-0">
-                <span className="bg-[#cce3de] text-[#1b4332] px-2 py-0.5 rounded font-extrabold">
+                <span className="bg-[#e6f4ea] text-[#137333] px-2 py-0.5 rounded font-bold">
                   생산
                 </span>
-                <span className="bg-[#d0e1fd] text-[#1e3a8a] px-2 py-0.5 rounded font-extrabold">
+                <span className="bg-[#e8f0fe] text-[#1a73e8] px-2 py-0.5 rounded font-bold">
                   입고
                 </span>
-                <span className="bg-[#e2d5f8] text-[#3b0764] px-2 py-0.5 rounded font-extrabold">
+                <span className="bg-[#f3e8fd] text-[#7627bb] px-2 py-0.5 rounded font-bold">
                   출고
                 </span>
-                <span className="bg-[#fde68a]/85 text-[#78350f] px-2 py-0.5 rounded font-extrabold">
+                <span className="bg-[#fef7e0] text-[#b06000] px-2 py-0.5 rounded font-bold">
                   휴가
                 </span>
-                <span className="bg-[#fecdd3]/85 text-[#881337] px-2 py-0.5 rounded font-extrabold">
+                <span className="bg-[#fce8e6] text-[#c5221f] px-2 py-0.5 rounded font-bold">
                   점검
                 </span>
               </div>
@@ -933,8 +933,21 @@ export default function Home() {
                             }
                           });
 
-                          const weekMaxLane = allocated.length > 0 ? Math.max(...allocated.map((s) => s.lane)) : 0;
-                          const weekRequiredMinHeight = Math.max(145, 36 + (weekMaxLane + 1) * 76);
+                          // 🌟 각 날짜(Column)별 카드 적재 높이 개별 추산
+                          const colHeights = [0, 0, 0, 0, 0, 0, 0];
+                          allocated.forEach((seg) => {
+                            const nameLen = (seg.sch.product_name || "").length + (seg.sch.tag_name || "").length;
+                            const estCardHeight = nameLen > 30 ? 68 : nameLen > 18 ? 52 : nameLen > 10 ? 38 : 28;
+                            for (let c = seg.startCol; c <= seg.endCol; c++) {
+                              colHeights[c] += estCardHeight + 4;
+                            }
+                          });
+
+                          const maxColCardHeight = Math.max(...colHeights, 0);
+                          // 기본 주 높이는 115px(컴팩트)로 원복하며, 긴 카드가 겹치는 특정 주만 그 높이에 맞춰 연장
+                          const weekRequiredMinHeight = maxColCardHeight > 75 
+                            ? Math.max(115, 30 + maxColCardHeight + 10) 
+                            : 115;
 
                           return (
                             <div
