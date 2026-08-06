@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getRecipeList, deleteRecipe } from "@/app/actions/recipe";
+import { useCanEdit } from "@/hooks/useCanEdit";
 
 export default function RecipeListPage() {
+  const { canEdit } = useCanEdit("recipes");
   const [recipes, setRecipes] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -58,13 +60,19 @@ export default function RecipeListPage() {
           <p className="text-slate-500 mt-2 font-medium ml-5">BEANSHEAL ERP | 표준 배합비 관리 시스템</p>
         </div>
         
-        <Link 
+        {canEdit ? (
+          <Link 
             href="/recipes/create" 
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-100 transition-all flex items-center gap-2 border border-indigo-500"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"></path></svg>
-          새 레시피 등록
-        </Link>
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-100 transition-all flex items-center gap-2 border border-indigo-500 cursor-pointer"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4"></path></svg>
+            새 레시피 등록
+          </Link>
+        ) : (
+          <span className="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200 shadow-2xs">
+            🔒 생산관리 부서 사원만 수정 가능 (조회 전용)
+          </span>
+        )}
       </div>
 
       {/* 🔍 검색 바 */}
@@ -117,19 +125,25 @@ export default function RecipeListPage() {
                     </span>
                   </td>
                   <td className="px-8 py-5 text-right flex justify-end gap-3">
-                    <Link 
-                      href={`/recipes/edit/${recipe.id}`}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-800 hover:text-white hover:border-slate-800 transition-all shadow-sm"
-                    >
-                      편집
-                    </Link>
-                    <button 
-                      onClick={() => handleDelete(recipe.id, recipe.product_name)}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-100 bg-red-50 text-xs font-bold text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                      삭제
-                    </button>
+                    {canEdit ? (
+                      <>
+                        <Link 
+                          href={`/recipes/edit/${recipe.id}`}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-800 hover:text-white hover:border-slate-800 transition-all shadow-sm"
+                        >
+                          편집
+                        </Link>
+                        <button 
+                          onClick={() => handleDelete(recipe.id, recipe.product_name)}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-100 bg-red-50 text-xs font-bold text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm cursor-pointer"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                          삭제
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs font-bold text-slate-400 italic">조회 전용</span>
+                    )}
                   </td>
                 </tr>
               ))

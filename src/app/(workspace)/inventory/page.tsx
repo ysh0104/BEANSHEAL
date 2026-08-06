@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; 
+import { useCanEdit } from "@/hooks/useCanEdit";
 
 export default function InventoryPage() {
+  const { canEdit } = useCanEdit("inventory");
   const [inventory, setInventory] = useState<any[]>([]);
   const [loadingInv, setLoadingInv] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -135,7 +137,14 @@ export default function InventoryPage() {
     <div className="max-w-7xl mx-auto py-10 px-4 bg-[#f8f9fb] min-h-screen">
       
       <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-center text-gray-900 mb-6 tracking-tight">재고현황</h1>
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">재고현황</h1>
+          {!canEdit && (
+            <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded border border-amber-200 shadow-2xs">
+              🔒 자재물류 부서 사원만 수정 가능 (조회 전용)
+            </span>
+          )}
+        </div>
         
         <div className="flex justify-between items-end mb-2">
           

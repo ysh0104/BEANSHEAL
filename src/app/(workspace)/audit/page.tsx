@@ -9,6 +9,7 @@ import {
   insertQuickProductionToSupabase 
 } from "@/app/actions/inventoryActions"; 
 import { getRecipeList } from "@/app/actions/recipe"; 
+import { useCanEdit } from "@/hooks/useCanEdit";
 
 const analyzeItemTemplate = (productName: string) => {
   let mainType = "완제품";
@@ -52,6 +53,7 @@ const getCleanRecipeName = (rawName: string) => {
 };
 
 export default function AuditPage() {
+  const { canEdit } = useCanEdit("qa");
   const [scrapedItems, setScrapedItems] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -354,9 +356,15 @@ export default function AuditPage() {
 
             <button 
               type="submit"
-              className="bg-blue-600 text-white text-sm px-4 py-2 font-bold rounded shadow-xs hover:bg-blue-700 transition-colors h-[38px] cursor-pointer"
+              disabled={!canEdit}
+              className={`text-sm px-4 py-2 font-bold rounded shadow-xs transition-colors h-[38px] cursor-pointer ${
+                !canEdit
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
+              title={!canEdit ? "품질관리 부서 또는 QA 권한 사원만 실적 등록이 가능합니다 (조회 전용)" : ""}
             >
-              대기열 등록
+              {!canEdit ? "등록 권한 없음 (조회 전용)" : "대기열 등록"}
             </button>
           </form>
         </div>
@@ -368,6 +376,11 @@ export default function AuditPage() {
           <div className="bg-white text-gray-900 px-5 py-3 flex justify-between items-center border-b border-gray-200">
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-lg">데이터 동기화 및 관리열 (이카운트 엑셀 / 자동 수집)</h3>
+              {!canEdit && (
+                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
+                  🔒 품질관리 부서 사원만 수정 가능 (조회 전용)
+                </span>
+              )}
             </div>
             
             <div className="flex items-center gap-4">
@@ -385,12 +398,13 @@ export default function AuditPage() {
               />
               <button 
                 onClick={handleFileUploadClick} 
-                disabled={isUploading}
+                disabled={isUploading || !canEdit}
                 className={`text-sm px-4 py-2 rounded font-bold border shadow-xs transition-colors flex items-center gap-2 cursor-pointer ${
-                  isUploading 
+                  isUploading || !canEdit
                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
                     : 'bg-gray-800 text-white border-gray-700 hover:bg-gray-700'
                 }`}
+                title={!canEdit ? "품질관리 부서 또는 QA 권한 사원만 엑셀 업로드가 가능합니다" : ""}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                 {isUploading ? "데이터 처리 중..." : "이카운트 엑셀 업로드"}

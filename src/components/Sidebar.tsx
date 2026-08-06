@@ -21,7 +21,14 @@ export default function Sidebar() {
     return null;
   }
 
-  const menuGroups = [
+  const isAdmin =
+    user?.role === "ADMIN" ||
+    user?.department?.includes("경영") ||
+    user?.position === "관리자" ||
+    user?.position === "대표" ||
+    user?.position === "대표이사";
+
+  const rawMenuGroups = [
     {
       name: "기준정보 관리",
       items: [
@@ -64,8 +71,17 @@ export default function Sidebar() {
         { name: "FAQ 관리", path: "/admin/cms?tab=faq" },
         { name: "홈페이지 시스템 설정", path: "/admin/cms?tab=settings" }
       ]
+    },
+    {
+      name: "시스템/사용자 관리",
+      adminOnly: true,
+      items: [
+        { name: "사용자 및 권한 설정", path: "/admin/users" }
+      ]
     }
   ];
+
+  const menuGroups = rawMenuGroups.filter((g) => !g.adminOnly || isAdmin);
 
   return (
     <>

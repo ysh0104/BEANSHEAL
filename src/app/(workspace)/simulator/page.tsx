@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe"; 
 import { getSessionId, getInventoryStatus } from "@/app/actions/ecount"; 
+import { useCanEdit } from "@/hooks/useCanEdit";
 
 // 🌟 사전에 정의된 원료별 포장 규격 (이름에 포함된 키워드 기준)
 const MATERIAL_SPEC_MASTER: Record<string, number> = {
@@ -27,6 +28,7 @@ interface SimulationResult {
 }
 
 export default function ProductionSimulator() {
+  const { canEdit } = useCanEdit("production");
   const [recipeList, setRecipeList] = useState<any[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string>("");
   

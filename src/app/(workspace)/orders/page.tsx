@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useRef } from "react";
 import SignatureCanvas from 'react-signature-canvas';
+import { useCanEdit } from "@/hooks/useCanEdit";
 
 import { supabase } from "@/lib/supabase"; 
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe";
@@ -27,6 +28,7 @@ const ALL_TABS = [
 ];
 
 export default function OrdersPage() {
+  const { canEdit } = useCanEdit("production");
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
