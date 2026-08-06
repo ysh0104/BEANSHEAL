@@ -242,6 +242,8 @@ export default function AuditPage() {
     }
   };
 
+  const [docFormat, setDocFormat] = useState<"docx" | "hwpx">("docx");
+
   const handleDownloadQCBatch = async (item: any) => {
     try {
       const rawName = item.rawItem?.item_name || item.cleanName || "";
@@ -262,6 +264,7 @@ export default function AuditPage() {
       };
 
       let successCount = 0;
+      const fileExt = docFormat;
 
       for (const type of docTypes) {
         const response = await fetch('/api/generate-qc-doc', {
@@ -272,6 +275,7 @@ export default function AuditPage() {
             lotNo: lotNumber,
             lotNumber: lotNumber,
             docType: type,
+            format: fileExt,
             mfgNo: item.rawItem?.mfg_no || "",
             mfgDate: item.rawItem?.mfg_date || ""
           })
@@ -286,7 +290,7 @@ export default function AuditPage() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${docNames[type]}_${lotNumber}.docx`;
+        a.download = `${docNames[type]}_${lotNumber}.${fileExt}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -307,14 +311,40 @@ export default function AuditPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto w-full pb-20 mt-2 px-2 font-sans">
       
-      {/* 상단 헤더 */}
-      <div className="flex justify-between items-center pb-4 border-b border-gray-200">
+      {/* 상단 헤더 및 양식 포맷 선택 버튼 */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
             <span>품질 / 감사 대응 관리 (QA & Audit)</span>
             <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded border border-emerald-200">HACCP 서류 발급 시스템</span>
           </h2>
           <p className="text-sm text-gray-500 mt-1">반제품 및 완제품 실적 즉시 등록, 이카운트 엑셀 로트 동기화 및 품질검사 서류 일괄 발급을 관리합니다.</p>
+        </div>
+
+        {/* 워드 / 한글 문서 포맷 선택 토글 버튼 */}
+        <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setDocFormat("docx")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              docFormat === "docx"
+                ? "bg-white text-slate-900 shadow-xs border border-gray-200"
+                : "text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            📄 MS 워드 (.docx)
+          </button>
+          <button
+            type="button"
+            onClick={() => setDocFormat("hwpx")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              docFormat === "hwpx"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            🇰🇷 한컴 한글 (.hwpx)
+          </button>
         </div>
       </div>
 

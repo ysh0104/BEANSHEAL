@@ -128,28 +128,52 @@ export async function POST(req: Request) {
     }
     if (!docType) docType = 'log';
 
+    // 파일 포맷 결정 (docx / hwpx / hwp)
+    const reqFormat = (body.format || body.fileFormat || 'docx').toLowerCase();
+    const fileExt = reqFormat === 'hwp' ? 'hwp' : reqFormat === 'hwpx' ? 'hwpx' : 'docx';
+
+    const contentTypeMap: Record<string, string> = {
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      hwpx: 'application/vnd.hancom.hwpx',
+      hwp: 'application/x-hwp'
+    };
+    const mimeType = contentTypeMap[fileExt] || contentTypeMap['docx'];
+
     // 품목명 접두사 (원), 부), 반), 완)) 기반 자동 템플릿 키 추론
     const finalTemplateKey = resolveTemplateKey(productName, templateKeyInput);
     const outputName = DOC_NAME_MAP[docType] || '문서';
 
     let content: Buffer | null = null;
 
-    // 1) TEMPLATE_PREFIX_MAP 기반 전용 양식 파일 탐색 (최우선)
+    // 1) 포맷별 전용 양식 파일 우선 탐색 (예: qc_raw_liquid_log.hwpx)
     const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_product_default';
-    const exactFileName = `${prefix}_${docType}.docx`; 
-    content = readTemplateFile(exactFileName);
+    const exactFileNameWithFormat = `${prefix}_${docType}.${fileExt}`;
+    content = readTemplateFile(exactFileNameWithFormat);
 
-    // 2) templateName이 명시된 경우 2차 로딩 탐색
+    // 2) 일반 .docx 템플릿 탐색
+    if (!content) {
+      const exactFileName = `${prefix}_${docType}.docx`; 
+      content = readTemplateFile(exactFileName);
+    }
+
+    // 3) templateName이 명시된 경우 2차 로딩 탐색
     if (!content && templateName) {
-      const fileNameWithExt = templateName.endsWith('.docx') ? templateName : `${templateName}.docx`;
+      const fileNameWithExt = templateName.endsWith(`.${fileExt}`) || templateName.endsWith('.docx') 
+        ? templateName 
+        : `${templateName}.${fileExt}`;
       content = readTemplateFile(fileNameWithExt);
     }
 
-    // 3) Fallback 공통 양식 탐색
+    // 4) Fallback 공통 양식 탐색
     if (!content) {
-      console.warn(`[알림] 전용 양식(${exactFileName})이 없어 공통 양식으로 대체합니다.`);
-      const fallbackFileName = `qc_${docType}.docx`; 
+      console.warn(`[알림] 전용 양식이 없어 공통 양식으로 대체합니다.`);
+      const fallbackFileName = `qc_${docType}.${fileExt}`; 
       content = readTemplateFile(fallbackFileName);
+
+      if (!content) {
+        const fallbackDocxName = `qc_${docType}.docx`;
+        content = readTemplateFile(fallbackDocxName);
+      }
 
       if (!content) {
         const defaultProductFileName = `qc_product_default_${docType}.docx`;
@@ -157,7 +181,7 @@ export async function POST(req: Request) {
       }
 
       if (!content) {
-        return NextResponse.json({ error: `템플릿 파일이 없습니다: ${exactFileName} 및 qc_${docType}.docx` }, { status: 404 });
+        return NextResponse.json({ error: `템플릿 파일이 없습니다: ${prefix}_${docType}.${fileExt}` }, { status: 404 });
       }
     }
 
@@ -217,18 +241,18 @@ export async function POST(req: Request) {
 
     const buf = doc.getZip().generate({ type: 'nodebuffer' });
     
-    const encodedFileName = encodeURIComponent(`${outputName}_${testNo}.docx`);
+    const encodedFileName = encodeURIComponent(`${outputName}_${testNo}.${fileExt}`);
 
     return new NextResponse(new Uint8Array(buf), {
       status: 200,
       headers: {
         'Content-Disposition': `attachment; filename*=UTF-8''${encodedFileName}`,
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Type': mimeType,
       },
     });
 
   } catch (error) {
-    console.error('워드 생성 에러:', error);
-    return NextResponse.json({ error: '워드 파일 생성에 실패했습니다.' }, { status: 500 });
+    console.error('서류 생성 에러:', error);
+    return NextResponse.json({ error: '서류 파일 생성에 실패했습니다.' }, { status: 500 });
   }
 }
