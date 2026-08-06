@@ -3,48 +3,42 @@ import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import fs from 'fs';
 import path from 'path';
+import qcTemplateConfig from '@/config/qcTemplateMap.json';
 
-// 1. 템플릿 매핑 사전 (Dictionary)
-const TEMPLATE_PREFIX_MAP: Record<string, string> = {
-  "원료_액상": "qc_raw_liquid",
-  "원료_분말": "qc_raw_powder",
-  "원료_고체": "qc_raw_powder",  
-  "원료_기본": "qc_raw_powder",  
-  "원료_파우더": "qc_raw_powder",
-  "원료_유기농": "qc_raw_organic", 
-  "부자재_파우치": "qc_sub_pouch",
-  "부자재_단상자": "qc_sub_singlebox",
-  "부자재_카톤박스": "qc_sub_cartonbox",
-  "부자재_유리병": "qc_sub_glass", 
-  "반제품_젤리": "qc_semi_jelly",
-  "반제품_액상": "qc_semi_liquid",
-  "반제품_기본": "qc_semi_default",
-  "완제품_기본": "qc_product_default"
-};
+// 1. 독립 설정 파일(src/config/qcTemplateMap.json)에서 템플릿 매핑 사전 로드
+const TEMPLATE_PREFIX_MAP: Record<string, string> = qcTemplateConfig.prefixMap;
+const DOC_NAME_MAP: Record<string, string> = qcTemplateConfig.docNameMap;
 
-const DOC_NAME_MAP: Record<string, string> = {
-  log: '시험일지',
-  instruction: '시험지시_및_기록서',
-  report: '시험결과보고서',
-  label: '품질관리표시서',
-  request: '시험의뢰서' 
-};
+const CATEGORY_SUBDIRS = ['01_raw', '02_sub', '03_semi', '04_product', '00_common'];
 
-// 템플릿 버퍼 읽기 헬퍼 (로컬 디스크 + Vercel 정적 CDN 경로 모두 지원)
+// 템플릿 버퍼 읽기 헬퍼 (카테고리 서브 디렉토리 01_raw, 02_sub 등 재귀 탐색)
 function readTemplateFile(fileName: string): Buffer | null {
-  const possiblePaths = [
-    path.resolve(process.cwd(), 'public', 'templates', fileName),
-    path.resolve(process.cwd(), 'src', 'templates', fileName),
-    path.resolve(process.cwd(), 'templates', fileName),
+  const rootDirs = [
+    path.resolve(process.cwd(), 'public', 'templates'),
+    path.resolve(process.cwd(), 'src', 'templates'),
+    path.resolve(process.cwd(), 'templates'),
   ];
 
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
+  for (const rootDir of rootDirs) {
+    // 1) 서브 디렉토리 (01_raw, 02_sub, 03_semi, 04_product, 00_common) 탐색
+    for (const sub of CATEGORY_SUBDIRS) {
+      const subPath = path.join(rootDir, sub, fileName);
+      if (fs.existsSync(subPath)) {
+        try {
+          return fs.readFileSync(subPath);
+        } catch (e) {}
+      }
+    }
+
+    // 2) 루트 디렉토리 직하 파일 탐색
+    const directPath = path.join(rootDir, fileName);
+    if (fs.existsSync(directPath)) {
       try {
-        return fs.readFileSync(p);
+        return fs.readFileSync(directPath);
       } catch (e) {}
     }
   }
+
   return null;
 }
 
