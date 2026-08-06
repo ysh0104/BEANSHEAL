@@ -933,8 +933,15 @@ export default function Home() {
                             }
                           });
 
+                          const weekMaxLane = allocated.length > 0 ? Math.max(...allocated.map((s) => s.lane)) : 0;
+                          const weekRequiredMinHeight = Math.max(140, 32 + (weekMaxLane + 1) * 54);
+
                           return (
-                            <div key={wIdx} className="flex-1 grid grid-cols-7 gap-1 relative min-h-[135px] border-b border-slate-100 last:border-0 pb-1">
+                            <div
+                              key={wIdx}
+                              style={{ minHeight: `${weekRequiredMinHeight}px` }}
+                              className="flex-1 grid grid-cols-7 gap-1 relative border-b border-slate-100 last:border-0 pb-1"
+                            >
                               {/* 1. 배경 날짜 셀 Layer */}
                               {week.map((cell, cIdx) => (
                                 <div
@@ -961,8 +968,8 @@ export default function Home() {
                                 </div>
                               ))}
 
-                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (한 날짜 다수 일정 드래그/스크롤 확인 지원) */}
-                              <div className="absolute inset-x-0 top-[24px] bottom-0 grid grid-cols-7 auto-rows-max gap-1 overflow-y-auto custom-scrollbar pointer-events-none px-0.5 pr-1">
+                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (날짜 셀 테두리 내 동적 자동 연장) */}
+                              <div className="absolute inset-x-0 top-[24px] bottom-0 grid grid-cols-7 auto-rows-max gap-1 pointer-events-none px-0.5">
                                 {allocated.map((seg, sIdx) => {
                                   const sch = seg.sch;
                                   const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
