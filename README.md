@@ -100,3 +100,5 @@ Next.js 15 · React 19 · Tailwind CSS 4 · Supabase · Notion API · Playwright
 
 - 워드마크: `public/images/beansheal-logo.png` (밝은 배경), `beansheal-logo-white.png` (어두운 배경)
 - 파비콘: `public/favicon.ico`
+
+<!-- Trigger Vercel Build 2026-08-07 -->
