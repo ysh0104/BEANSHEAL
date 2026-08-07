@@ -44,8 +44,8 @@ export default function OrdersPage() {
   const [signatures, setSignatures] = useState<Record<string, string>>({});
   const [isPrinting, setIsPrinting] = useState(false);
   
-  // 🌟 엑셀 원본 모드 / 웹 탭 모드 전환 스위치 (기본값: excel 원본 모드)
-  const [viewMode, setViewMode] = useState<"excel" | "web">("excel");
+  // 🌟 기본값: 깔끔한 웹 탭 뷰어 모드 (틀어짐 없는 정갈한 화면)
+  const [viewMode, setViewMode] = useState<"excel" | "web">("web");
   
   // 🌟 통합 저장 신호를 자식에게 보내기 위한 스위치
   const [saveTrigger, setSaveTrigger] = useState(0);
@@ -210,6 +210,30 @@ export default function OrdersPage() {
   };
 
   const closeModal = () => { setSelectedOrder(null); setSignatures({}); };
+
+  // 🌟 원본 엑셀 자동 채움 100% 원클릭 다운로드
+  const handleDirectExcelDownload = async () => {
+    if (!selectedOrder) return;
+    try {
+      const res = await fetch("/api/export-excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: selectedOrder }),
+      });
+      if (!res.ok) throw new Error("엑셀 파일 생성 실패");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `제조지시기록서_${selectedOrder?.itemName || "세리컷프레소V2"}_${selectedOrder?.date || "20260409"}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert("엑셀 다운로드 오류: " + err.message);
+    }
+  };
   
   const handleCompleteOrder = async () => {
     if (!selectedOrder) return;
@@ -672,6 +696,12 @@ export default function OrdersPage() {
                   </div>
                   
                   <div className="flex items-center gap-3 pb-2 shrink-0">
+                    <button 
+                      onClick={handleDirectExcelDownload}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-[13px] font-bold rounded shadow-sm transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
+                    >
+                      📥 원본 엑셀 자동 채움 다운로드 (.xlsx)
+                    </button>
                     <button 
                       onClick={handleDownloadAllPDF}
                       disabled={isPrinting}
