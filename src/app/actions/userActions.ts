@@ -17,7 +17,9 @@ export interface ProfileItem {
 }
 
 function computeRoleHelper(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
-  if (position === "관리자" || department.includes("경영")) return "ADMIN";
+  if (position === "대표이사" || position === "대표" || position === "이사" || department.includes("경영")) {
+    return "ADMIN";
+  }
   if (department.includes("품질")) return "QA";
   return "WORKER";
 }
@@ -42,17 +44,34 @@ export async function getAllUserProfiles() {
       return { success: false, message: error.message, data: [] };
     }
 
-    const profiles: ProfileItem[] = (data || []).map((p: any) => ({
-      id: p.id,
-      email: p.email || "",
-      full_name: p.full_name || p.name || "사용자",
-      department: p.department || "생산팀",
-      position: p.position || "사원",
-      role: p.role || computeRoleHelper(p.department || "생산팀", p.position || "사원"),
-      job_title: formatJobTitle(p.department || "생산팀", p.position || "사원"),
-      updated_at: p.updated_at || p.created_at || new Date().toISOString(),
-      permission_group_id: p.permission_group_id || null,
-    }));
+    const profiles: ProfileItem[] = (data || []).map((p: any) => {
+      let department = p.department || "생산팀";
+      let position = p.position || "사원";
+      if (position === "관리자") position = "이사";
+      if (department === "-" || !department.trim()) {
+        department =
+          position === "대표이사" || position === "대표" || position === "이사"
+            ? "경영진"
+            : "생산팀";
+      }
+      if (position === "대표이사" || position === "대표" || position === "이사") {
+        department = "경영진";
+      }
+      const role =
+        p.role || computeRoleHelper(department, position);
+
+      return {
+        id: p.id,
+        email: p.email || "",
+        full_name: p.full_name || p.name || "사용자",
+        department,
+        position,
+        role,
+        job_title: formatJobTitle(department, position),
+        updated_at: p.updated_at || p.created_at || new Date().toISOString(),
+        permission_group_id: p.permission_group_id || null,
+      };
+    });
 
     return { success: true, data: profiles };
   } catch (err: any) {
@@ -72,9 +91,14 @@ export async function updateUserProfile(
 ) {
   try {
     let role = customRole || computeRoleHelper(department, position);
-    if (position === "관리자" || position === "대표이사" || position === "대표" || position === "이사") {
-      department = "-";
+    // 레거시 '관리자' 직급 정리
+    if (position === "관리자") position = "이사";
+    if (position === "대표이사" || position === "대표" || position === "이사") {
+      department = "경영진";
       role = "ADMIN";
+    }
+    if (department === "-" || !department) {
+      department = position === "이사" || position === "대표" || position === "대표이사" ? "경영진" : "생산팀";
     }
     const updatedAt = new Date().toISOString();
 

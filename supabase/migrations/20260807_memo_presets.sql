@@ -44,6 +44,6 @@ VALUES (
     {"id":"tpl-todo","label":"할 일","html":"<span class=\"memo-check\" contenteditable=\"false\">☐</span> 할 일 1<br/><span class=\"memo-check\" contenteditable=\"false\">☐</span> 할 일 2"}
   ]'::jsonb,
   '["#긴급","#입고","#점검","#지연","#완료","#품질"]'::jsonb,
-  '["@생산팀","@품질팀","@관리팀","@영업팀"]'::jsonb
+  '["@생산팀","@품질관리팀","@영업팀","@경영지원팀","@경영진"]'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;

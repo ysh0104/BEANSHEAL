@@ -222,6 +222,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             >
               <option value="생산팀">생산팀</option>
               <option value="품질관리팀">품질관리팀</option>
+              <option value="영업팀">영업팀</option>
               <option value="경영지원팀">경영지원팀</option>
               <option value="경영진">경영진</option>
             </select>

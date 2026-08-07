@@ -26,9 +26,9 @@ export default function Sidebar() {
   const isAdmin =
     user?.role === "ADMIN" ||
     user?.department?.includes("경영") ||
-    user?.position === "관리자" ||
     user?.position === "대표" ||
     user?.position === "대표이사" ||
+    user?.position === "이사" ||
     user?.permissionGroupName === "전체관리자" ||
     !!user?.permissions?.admin_users?.can_edit;
 

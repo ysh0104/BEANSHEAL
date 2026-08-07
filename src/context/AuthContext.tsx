@@ -44,21 +44,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // 부서 + 직급에 따른 표시용 타이틀 자동 생성
 // 예: "생산팀 사원", "품질관리팀 팀장", "경영진 이사"
 export function formatJobTitle(department: string, position: string): string {
-  const pos = position || "사원";
-
-  if (["관리자", "이사", "대표", "대표이사"].includes(pos)) {
+  const pos = position === "관리자" ? "이사" : position || "사원";
+  const dept = (department || "생산팀").trim();
+  if (!dept || dept === "-") {
     return pos;
   }
-
-  const dept = (department || "생산팀").trim();
-  if (!dept || dept === "-") return pos;
-
   return `${dept} ${pos}`;
 }
 
 // 부서 + 직급 조합으로 실제 권한을 자동 계산
 function computePermissionRole(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
-  if (position === "관리자" || position === "대표" || position === "대표이사" || position === "이사") {
+  if (position === "대표" || position === "대표이사" || position === "이사") {
     return "ADMIN";
   }
   // 경영진·경영지원팀 → ADMIN, 품질관리팀 → QA
@@ -102,6 +98,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.warn("profiles 테이블 조회 중 오류 (기본 메타데이터 사용):", err);
+    }
+
+    // 레거시 직급/부서 정규화
+    if (position === "관리자") position = "이사";
+    if (department === "-" || !department.trim()) {
+      department =
+        position === "대표이사" || position === "대표" || position === "이사"
+          ? "경영진"
+          : "생산팀";
+    }
+    if (position === "대표이사" || position === "대표" || position === "이사") {
+      department = "경영진";
+      permissionRole = "ADMIN";
     }
 
     const jobTitle = formatJobTitle(department, position);

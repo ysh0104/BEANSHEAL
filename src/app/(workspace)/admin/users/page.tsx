@@ -14,30 +14,44 @@ import {
 import type { PermissionGroupRecord } from "@/lib/permissions";
 import { canUserEdit } from "@/hooks/useCanEdit";
 
+const DEPARTMENT_OPTIONS = [
+  "생산팀",
+  "품질관리팀",
+  "영업팀",
+  "경영지원팀",
+  "경영진",
+] as const;
+
+const TOP_POSITIONS = ["대표이사", "대표", "이사"] as const;
+
+function isTopPosition(position: string): boolean {
+  return (TOP_POSITIONS as readonly string[]).includes(position);
+}
+
 function computeRoleLocal(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
-  if (position === "관리자" || department.includes("경영")) return "ADMIN";
+  if (isTopPosition(position) || department.includes("경영")) return "ADMIN";
   if (department.includes("품질")) return "QA";
   return "WORKER";
 }
 
-const DEPARTMENT_OPTIONS = [
-  "-",
-  "생산팀",
-  "품질관리팀",
-  "경영지원팀",
-  "경영진",
-];
-
 /** 기존 부서명을 새 4개 체계로 맞춤 */
 function normalizeDepartment(dept: string): string {
   const d = (dept || "").trim();
-  if (!d || d === "-") return d || "-";
-  if (DEPARTMENT_OPTIONS.includes(d)) return d;
+  if (!d || d === "-") return "경영진";
+  if ((DEPARTMENT_OPTIONS as readonly string[]).includes(d)) return d;
   if (d.includes("경영진")) return "경영진";
   if (d.includes("경영지원") || d.includes("경영관리") || d === "경영") return "경영지원팀";
   if (d.includes("품질")) return "품질관리팀";
+  if (d.includes("영업")) return "영업팀";
   if (d.includes("자재") || d.includes("물류") || d.includes("생산")) return "생산팀";
   return "생산팀";
+}
+
+/** 레거시 '관리자' 직급 → 이사 로 치환 */
+function normalizePosition(position: string): string {
+  const p = (position || "사원").trim();
+  if (p === "관리자") return "이사";
+  return p || "사원";
 }
 
 const POSITION_OPTIONS = [
@@ -53,7 +67,7 @@ const POSITION_OPTIONS = [
 ];
 
 const ROLE_OPTIONS: { value: "ADMIN" | "QA" | "WORKER"; label: string }[] = [
-  { value: "ADMIN", label: "ADMIN (모든 관리자 권한)" },
+  { value: "ADMIN", label: "ADMIN (전체 권한)" },
   { value: "QA", label: "QA (품질/생산 권한)" },
   { value: "WORKER", label: "WORKER (사원/작업자 권한)" },
 ];
@@ -117,18 +131,21 @@ export default function UserManagementPage() {
       } else if (data && data.length > 0) {
         dbMsg = `Supabase DB 'profiles' 테이블 연동 성공 (${data.length}건 수신됨)`;
         loadedData = data.map((p: any) => {
-          const isTopPos = p.position === "관리자" || p.position === "대표이사" || p.position === "대표" || p.position === "이사";
-          const dept = isTopPos ? "-" : normalizeDepartment(p.department || "생산팀");
-          const r = isTopPos ? "ADMIN" : (p.role || computeRoleLocal(dept, p.position || "사원"));
+          const pos = normalizePosition(p.position || "사원");
+          const isTopPos = isTopPosition(pos);
+          const dept = isTopPos
+            ? "경영진"
+            : normalizeDepartment(p.department || "생산팀");
+          const r = isTopPos ? "ADMIN" : (p.role || computeRoleLocal(dept, pos));
 
           return {
             id: p.id,
             email: p.email || p.user_email || "",
             full_name: p.full_name || p.name || p.username || "사원",
             department: dept,
-            position: p.position || "사원",
+            position: pos,
             role: r,
-            job_title: formatJobTitle(dept, p.position || "사원"),
+            job_title: formatJobTitle(dept, pos),
             updated_at: p.updated_at || p.created_at || new Date().toISOString(),
             permission_group_id: p.permission_group_id || null,
           };
@@ -154,8 +171,9 @@ export default function UserManagementPage() {
     if (user && user.email) {
       const userExistsInDb = loadedData.some((p) => p.email.toLowerCase() === user.email.toLowerCase());
       if (!userExistsInDb) {
-        const isTopPos = user.position === "관리자" || user.position === "대표이사" || user.position === "대표" || user.position === "이사";
-        const selfDept = isTopPos ? "-" : normalizeDepartment(user.department || "생산팀");
+        const selfPos = normalizePosition(user.position || "팀장");
+        const isTopPos = isTopPosition(selfPos);
+        const selfDept = isTopPos ? "경영진" : normalizeDepartment(user.department || "생산팀");
         const selfRole = isTopPos ? "ADMIN" : (user.role || "ADMIN");
 
         const selfProfile: ProfileItem = {
@@ -163,9 +181,9 @@ export default function UserManagementPage() {
           email: user.email,
           full_name: user.name,
           department: selfDept,
-          position: user.position || "팀장",
+          position: selfPos,
           role: selfRole,
-          job_title: user.jobTitle || formatJobTitle(selfDept, user.position),
+          job_title: user.jobTitle || formatJobTitle(selfDept, selfPos),
           updated_at: new Date().toISOString(),
         };
         loadedData.unshift(selfProfile);
@@ -179,7 +197,7 @@ export default function UserManagementPage() {
               email: user.email,
               full_name: user.name,
               department: selfDept,
-              position: user.position || "팀장",
+              position: selfPos,
               role: selfRole,
               updated_at: new Date().toISOString(),
             }, { onConflict: "id" });
@@ -230,12 +248,10 @@ export default function UserManagementPage() {
       let newGroupId = current.permission_group_id;
 
       if (field === "position") {
-        newPos = value;
-        if (value === "관리자" || value === "대표이사" || value === "대표" || value === "이사") {
-          newDept = "-";
+        newPos = normalizePosition(value);
+        if (isTopPosition(newPos)) {
+          newDept = "경영진";
           newRole = "ADMIN";
-        } else if (newDept === "-") {
-          newDept = "생산팀";
         }
       } else if (field === "department") {
         newDept = value;
@@ -264,15 +280,18 @@ export default function UserManagementPage() {
     setSavingId(targetUser.id);
     setStatusMsg(null);
 
-    // 관리자/대표/이사 직급이면 부서 '-' & ADMIN 권한 고정
+    // 대표/이사 직급이면 부서 경영진 & ADMIN 권한 고정
+    const savePos = normalizePosition(edit.position);
     let saveDept = edit.department;
     let saveRole = edit.role;
-    if (edit.position === "관리자" || edit.position === "대표이사" || edit.position === "대표" || edit.position === "이사") {
-      saveDept = "-";
+    if (isTopPosition(savePos)) {
+      saveDept = "경영진";
       saveRole = "ADMIN";
+    } else {
+      saveDept = normalizeDepartment(saveDept);
     }
 
-    const newJobTitle = formatJobTitle(saveDept, edit.position);
+    const newJobTitle = formatJobTitle(saveDept, savePos);
 
     // 1. Supabase DB 직접 Upsert
     let dbSuccess = false;
@@ -284,7 +303,7 @@ export default function UserManagementPage() {
           email: targetUser.email,
           full_name: targetUser.full_name,
           department: saveDept,
-          position: edit.position,
+          position: savePos,
           role: saveRole,
           permission_group_id: edit.permission_group_id || null,
           updated_at: new Date().toISOString(),
@@ -300,7 +319,7 @@ export default function UserManagementPage() {
             email: targetUser.email,
             full_name: targetUser.full_name,
             department: saveDept,
-            position: edit.position,
+            position: savePos,
             role: saveRole,
             updated_at: new Date().toISOString(),
           }, { onConflict: "id" });
@@ -309,7 +328,7 @@ export default function UserManagementPage() {
     } catch (e) {}
 
     // 2. Server Action도 동시 실행하여 이중 보장
-    const res = await updateUserProfile(targetUser.id, saveDept, edit.position, saveRole);
+    const res = await updateUserProfile(targetUser.id, saveDept, savePos, saveRole);
     await assignUserPermissionGroup(targetUser.id, edit.permission_group_id || null);
 
     const groupName = permGroups.find((g) => g.id === edit.permission_group_id)?.name || "미배정";
@@ -321,7 +340,7 @@ export default function UserManagementPage() {
             ? {
                 ...p,
                 department: saveDept,
-                position: edit.position,
+                position: savePos,
                 role: saveRole,
                 job_title: newJobTitle,
                 permission_group_id: edit.permission_group_id || null,
@@ -334,7 +353,7 @@ export default function UserManagementPage() {
       setStatusMsg({
         id: targetUser.id,
         type: "success",
-        text: `'${targetUser.full_name}' 저장됨 — 부서(${saveDept}) / 직급(${edit.position}) / 권한그룹(${groupName})`,
+        text: `'${targetUser.full_name}' 저장됨 — 부서(${saveDept}) / 직급(${savePos}) / 권한그룹(${groupName})`,
       });
 
       // 본인 프로필 수정 시 로컬 세션도 동기화
@@ -342,7 +361,7 @@ export default function UserManagementPage() {
         const updatedSelf = {
           ...user,
           department: saveDept,
-          position: edit.position,
+          position: savePos,
           role: saveRole,
           jobTitle: newJobTitle,
         };
@@ -372,16 +391,16 @@ export default function UserManagementPage() {
     );
   }
 
-  if (!user || !isAdmin) {
+  if (!user || !canManagePerms) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
         <div className="bg-white border border-rose-200 p-8 rounded-2xl shadow-md text-center max-w-md w-full">
           <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
             🔒
           </div>
-          <h2 className="text-lg font-extrabold text-slate-900 mb-2">관리자 전용 접근 제한</h2>
+          <h2 className="text-lg font-extrabold text-slate-900 mb-2">접근 제한</h2>
           <p className="text-xs text-slate-600 leading-relaxed mb-6">
-            시스템 사용자 및 부서/직책 권한 설정 페이지는 <strong className="text-rose-600 font-bold">관리자(ADMIN) 직급</strong> 또는 <strong className="text-slate-900 font-bold">경영관리 부서</strong> 계정으로만 접근하실 수 있습니다.
+            시스템 사용자 및 부서/직책 권한 설정 페이지는 <strong className="text-rose-600 font-bold">ADMIN 권한</strong> 또는 <strong className="text-slate-900 font-bold">경영지원팀·경영진</strong> 계정으로만 접근하실 수 있습니다.
           </p>
           <div className="flex flex-col gap-2">
             <button
@@ -395,7 +414,7 @@ export default function UserManagementPage() {
                 onClick={() => router.push("/login")}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition-colors cursor-pointer w-full border border-slate-200"
               >
-                관리자 계정으로 로그인
+                로그인
               </button>
             )}
           </div>
@@ -452,7 +471,7 @@ export default function UserManagementPage() {
               <span className="text-lg font-bold text-slate-900 font-mono mt-1">{profiles.length} 명</span>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
-              <span className="text-[11px] font-medium text-slate-600">관리자 (ADMIN)</span>
+              <span className="text-[11px] font-medium text-slate-600">ADMIN 권한</span>
               <span className="text-lg font-bold text-slate-900 font-mono mt-1">{adminCount} 명</span>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
@@ -527,8 +546,8 @@ export default function UserManagementPage() {
                       role: p.role,
                       permission_group_id: p.permission_group_id || null,
                     };
-                    const isTopPos = currentEdit.position === "관리자" || currentEdit.position === "대표이사" || currentEdit.position === "대표" || currentEdit.position === "이사";
-                    const displayDept = isTopPos ? "-" : currentEdit.department;
+                    const isTopPos = isTopPosition(normalizePosition(currentEdit.position));
+                    const displayDept = isTopPos ? "경영진" : currentEdit.department;
                     const displayRole = isTopPos ? "ADMIN" : currentEdit.role;
                     const isChanged =
                       currentEdit.department !== p.department ||
@@ -581,13 +600,10 @@ export default function UserManagementPage() {
                         {/* 직급 선택 */}
                         <td className="py-3.5 px-4">
                           <select
-                            value={currentEdit.position}
+                            value={normalizePosition(currentEdit.position)}
                             onChange={(e) => handleSelectChange(p.id, "position", e.target.value)}
                             className="w-full text-xs font-normal border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer"
                           >
-                            {currentEdit.position === "관리자" && (
-                              <option value="관리자">관리자 (삭제예정)</option>
-                            )}
                             {POSITION_OPTIONS.map((pos) => (
                               <option key={pos} value={pos}>
                                 {pos}
