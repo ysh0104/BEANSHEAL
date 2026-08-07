@@ -187,7 +187,17 @@ export default function Home() {
   useEffect(() => {
     const fetchSchedulesSilently = async () => {
       try {
-        const notionRes = await fetchNotionSchedules(getNotionConfig());
+        const y = currentDate.getFullYear();
+        const m = currentDate.getMonth(); // 0-indexed
+        
+        // 당월 1일 ~ 다음달 말일 계산
+        const startDate = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+        const nextY = m === 11 ? y + 1 : y;
+        const nextM = m === 11 ? 1 : m + 2;
+        const lastDayNextM = new Date(nextY, nextM, 0).getDate();
+        const endDate = `${nextY}-${String(nextM).padStart(2, '0')}-${String(lastDayNextM).padStart(2, '0')}`;
+
+        const notionRes = await fetchNotionSchedules(getNotionConfig(), { startDate, endDate });
         if (notionRes?.success && notionRes.data && notionRes.data.length > 0) {
           setSchedules(notionRes.data);
           setNotionSyncStatusMsg(null);
@@ -269,7 +279,7 @@ export default function Home() {
     }, 15000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [currentDate]);
 
   const handleAddMemo = async (e: React.FormEvent) => {
     e.preventDefault();

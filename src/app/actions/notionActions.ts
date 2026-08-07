@@ -230,7 +230,10 @@ export async function testNotionConnection(config?: NotionConfig) {
 /**
  * 노션 데이터베이스에서 월간 생산 계획 데이터 불러오기 (Supabase 백업 폴백 100% 보장)
  */
-export async function fetchNotionSchedules(config?: NotionConfig) {
+export async function fetchNotionSchedules(
+  config?: NotionConfig,
+  range?: { startDate?: string; endDate?: string }
+) {
   try {
     const { apiKey, rawDbId } = getEffectiveConfig(config);
 
@@ -263,58 +266,48 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
       };
     }
 
-    const { databaseId } = await resolveDatabaseId(rawDbId, apiKey);
+    // 초고속 동기화를 위한 3개월(지난달 ~ 당월 ~ 다음달) 날짜 범위 계산
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth(); // 0 ~ 11
 
-    // 연결된 모든 데이터베이스 탐색 (2025년, 2026년 데이터베이스 통합 수집)
+    // 이전 달 1일 (예: 2026-07-01)
+    const prevMonthYear = curMonth === 0 ? curYear - 1 : curYear;
+    const prevMonthNum = curMonth === 0 ? 12 : curMonth;
+    const defaultStart = range?.startDate || `${prevMonthYear}-${String(prevMonthNum).padStart(2, '0')}-01`;
+
+    // 다음 달 말일 (예: 2026-09-30)
+    const nextMonthYear = curMonth === 11 ? curYear + 1 : curYear;
+    const nextMonthNum = curMonth === 11 ? 1 : curMonth + 2;
+    const lastDayOfNextMonth = new Date(nextMonthYear, nextMonthNum, 0).getDate();
+    const defaultEnd = range?.endDate || `${nextMonthYear}-${String(nextMonthNum).padStart(2, '0')}-${String(lastDayOfNextMonth).padStart(2, '0')}`;
+
+    const { databaseId } = await resolveDatabaseId(rawDbId, apiKey);
     const targetDbIds = new Set<string>([databaseId]);
 
-    try {
-      const searchRes = await notionFetch("/search", apiKey, {
-        method: "POST",
-        body: {
-          filter: { value: "database", property: "object" },
-          page_size: 20,
-        },
-      });
-      if (searchRes.results) {
-        for (const db of searchRes.results) {
-          if (db.id) targetDbIds.add(db.id);
-        }
-      }
-    } catch (sErr) {}
-
+    // 메인 DB 수집 (최근 편집 순 100건으로 빠른 초고속 응답)
     const allPages: any[] = [];
     const seenPageIds = new Set<string>();
 
     for (const targetId of Array.from(targetDbIds)) {
-      let hasMore = true;
-      let nextCursor: string | undefined = undefined;
+      try {
+        const queryRes = await notionFetch(`/databases/${targetId}/query`, apiKey, {
+          method: "POST",
+          body: {
+            page_size: 100,
+            sorts: [{ timestamp: "last_edited_time", direction: "descending" }]
+          },
+        });
 
-      while (hasMore && allPages.length < 1000) {
-        const bodyPayload: any = { page_size: 100 };
-        if (nextCursor) bodyPayload.start_cursor = nextCursor;
-
-        try {
-          const queryRes = await notionFetch(`/databases/${targetId}/query`, apiKey, {
-            method: "POST",
-            body: bodyPayload,
-          });
-
-          if (queryRes.results && queryRes.results.length > 0) {
-            for (const p of queryRes.results) {
-              if (p.id && !seenPageIds.has(p.id)) {
-                seenPageIds.add(p.id);
-                allPages.push(p);
-              }
+        if (queryRes.results && queryRes.results.length > 0) {
+          for (const p of queryRes.results) {
+            if (p.id && !seenPageIds.has(p.id)) {
+              seenPageIds.add(p.id);
+              allPages.push(p);
             }
           }
-
-          hasMore = !!queryRes.has_more;
-          nextCursor = queryRes.next_cursor || undefined;
-        } catch (dbErr) {
-          hasMore = false;
         }
-      }
+      } catch (dbErr) {}
     }
 
     const schedules: ProductionScheduleItem[] = [];
@@ -494,6 +487,11 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
       if (planDate) {
         // 노션 제목, 비고, 태그가 모두 비어있는 빈 행/가짜 데이터는 깔끔하게 제외
         if (!productName.trim() && !note.trim() && !tagName.trim()) {
+          continue;
+        }
+
+        // 지정된 날짜 범위(기본값: 지난달~당월~다음달) 밖의 멀리 있는 과거/미래 데이터는 수집에서 제외하여 초고속 처리
+        if (planDate < defaultStart || planDate > defaultEnd) {
           continue;
         }
 
