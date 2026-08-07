@@ -179,7 +179,6 @@ function getAvatarBadge(name: string) {
   return { initial, colorClass: avatarColors[colorIndex] };
 }
 
-// 오늘 날짜 기준 당일 주차 계산 헬퍼
 function getTodayWeekNum(year: number, month: number): number {
   const today = new Date();
   if (today.getFullYear() === year && today.getMonth() + 1 === month) {
@@ -207,14 +206,12 @@ const INITIAL_DEMO_DATA: ScheduleEmployeeRow[] = [
   { id: "15", name: "정선희", group: "경영지원팀", shifts: { "1": "BE", "2": "BE", "3": "A4", "4": "A3", "5": "A8", "6": "A4", "7": "A4", "8": "BE", "9": "BE", "10": "A3", "11": "A4", "12": "AL", "13": "A3", "14": "A8", "15": "BE", "16": "BE" } },
 ];
 
-// 🌟 요구사항: 12개 기본 도장 코드 템플릿
 const DEFAULT_TOP_STAMPS_12 = ["A4", "A8", "A3", "A1", "A9", "BE", "AL", "MO", "AO", "SL", "BT", "RW"];
 
 export default function WorkScheduleTable() {
   const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(8); // 1-12
+  const [currentMonth, setCurrentMonth] = useState(8);
   
-  // 🌟 요구사항 1: 당일 기준 주차가 기본 자동 계산되어 보여지도록 초기값 설정!
   const [viewMode, setViewMode] = useState<"주간" | "월간" | "일간">("주간");
   const [selectedWeek, setSelectedWeek] = useState<number>(() => getTodayWeekNum(2026, 8));
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>("전체");
@@ -223,14 +220,19 @@ export default function WorkScheduleTable() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showMasterGrid, setShowMasterGrid] = useState(true);
 
-  // 🌟 요구사항 2 & 3: 12개 도장 선택 코드 + 드래그 앤 드롭 순서 변경 state
+  // 🌟 요구사항 1: 시간표 설명 표 기본적으로 접어놓기 (false)
+  const [showMasterGrid, setShowMasterGrid] = useState(false);
+
+  // 12개 도장 선택 코드 + 드래그 앤 드롭 순서 변경 state
   const [customStamps, setCustomStamps] = useState<string[]>(DEFAULT_TOP_STAMPS_12);
   const [activeStampCode, setActiveStampCode] = useState<string>("A4");
   const [isStampMode, setIsStampMode] = useState<boolean>(false);
   const [isStampConfigOpen, setIsStampConfigOpen] = useState<boolean>(false);
   const [draggedStampIndex, setDraggedStampIndex] = useState<number | null>(null);
+
+  // 🌟 요구사항 2: 사원명/부서 행 순서 드래그 앤 드롭(Drag & Drop) state
+  const [draggedEmpIndex, setDraggedEmpIndex] = useState<number | null>(null);
 
   // 사원별 스케줄 복사 클립보드 state
   const [copiedScheduleRow, setCopiedScheduleRow] = useState<ScheduleEmployeeRow | null>(null);
@@ -546,7 +548,6 @@ export default function WorkScheduleTable() {
     link.click();
   };
 
-  // 🌟 요구사항 2: 12개 선택 토글
   const toggleCustomStampCode = (code: string) => {
     if (customStamps.includes(code)) {
       if (customStamps.length <= 1) return;
@@ -560,7 +561,7 @@ export default function WorkScheduleTable() {
     }
   };
 
-  // 🌟 요구사항 3: 드래그 앤 드롭 순서 변경 핸들러
+  // 도장 코드 드래그 앤 드롭
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedStampIndex(index);
     e.dataTransfer.effectAllowed = "move";
@@ -580,7 +581,27 @@ export default function WorkScheduleTable() {
     setDraggedStampIndex(null);
   };
 
-  // 🌟 요구사항 1: 주차 이전/다음 양사이드 컨트롤 핸들러
+  // 🌟 요구사항 2: 사원명 / 부서 행 드래그 앤 드롭 순서 변경 핸들러
+  const handleEmpDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedEmpIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleEmpDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleEmpDrop = (index: number) => {
+    if (draggedEmpIndex === null || draggedEmpIndex === index) return;
+    const updated = [...rows];
+    const [movedEmp] = updated.splice(draggedEmpIndex, 1);
+    updated.splice(index, 0, movedEmp);
+    setRows(updated);
+    setDraggedEmpIndex(null);
+  };
+
+  // 주차 이전/다음 양사이드 컨트롤
   const handlePrevWeek = () => {
     if (selectedWeek > 1) {
       setSelectedWeek((prev) => prev - 1);
@@ -624,7 +645,7 @@ export default function WorkScheduleTable() {
             <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
               근무 및 근무조 스케줄 대시보드
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-bold border border-blue-200">
-                당일 주차 자동감지
+                사원 순서 드래그앤드롭 지원
               </span>
             </h1>
             <p className="text-xs text-slate-400 font-medium">생산 · 품질 · 영업 · 경영 지원 인력 통합 스케줄링 시스템</p>
@@ -684,7 +705,7 @@ export default function WorkScheduleTable() {
         </div>
       </div>
 
-      {/* 🌟 2. 요구사항 2 & 3: 12개 도장 선택 코드 + 드래그 앤 드롭 순서변경 팔레트 */}
+      {/* 🌟 2. 12개 도장 선택 코드 팔레트 */}
       <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-3 rounded-2xl border border-slate-800 shadow-md flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center space-x-2">
           <button
@@ -711,7 +732,7 @@ export default function WorkScheduleTable() {
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
           <span className="text-[11px] text-slate-400 font-bold mr-1 flex items-center gap-1">
             <span>도장 12개</span>
-            <span className="text-[9px] text-slate-500">(드래그로 순서변경 가능)</span>:
+            <span className="text-[9px] text-slate-500">(드래그 순서변경)</span>:
           </span>
           {customStamps.map((cd, index) => {
             const info = getShiftInfo(cd);
@@ -739,9 +760,8 @@ export default function WorkScheduleTable() {
         </div>
       </div>
 
-      {/* 🌟 3. 요구사항 1: 년도 옆 주차 양사이드 컨트롤 바 (◀ 1주차 ▶) & 부서/뷰 토글 */}
+      {/* 🌟 3. 년월 및 주차 이동 컨트롤 바 */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        {/* 년/월 및 주차 양사이드 컨트롤 바 */}
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-1">
             <button
@@ -769,7 +789,6 @@ export default function WorkScheduleTable() {
             </button>
           </div>
 
-          {/* 🌟 년월 바로 옆 양사이드 주차 이동 컨트롤 바 */}
           {viewMode === "주간" && (
             <div className="flex items-center bg-blue-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-slate-700 shadow-2xs space-x-2">
               <button
@@ -812,7 +831,7 @@ export default function WorkScheduleTable() {
             ))}
           </div>
 
-          {/* 뷰 전환 모드 (주간 기본) */}
+          {/* 뷰 전환 모드 */}
           <div className="bg-slate-200/70 dark:bg-slate-800/70 p-1 rounded-xl flex items-center gap-1 text-xs font-bold">
             {(["주간", "월간", "일간"] as const).map((mode) => (
               <button
@@ -843,7 +862,7 @@ export default function WorkScheduleTable() {
         </div>
       )}
 
-      {/* 🌟 4. 스케줄 그리드 테이블 */}
+      {/* 🌟 4. 요구사항 2: 스케줄 그리드 테이블 (사원명 / 부서 행 드래그 앤 드롭 이동 가능) */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-sm">
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-xs text-center border-collapse">
@@ -854,7 +873,10 @@ export default function WorkScheduleTable() {
                     viewMode === "월간" ? "w-[170px] min-w-[170px]" : "w-[130px] min-w-[130px]"
                   }`}
                 >
-                  사원명 / 부서
+                  <span className="flex items-center gap-1">
+                    <span>사원명 / 부서</span>
+                    <span className="text-[9px] text-slate-400 font-normal">⋮⋮ 드래그</span>
+                  </span>
                 </th>
                 <th
                   className={`sticky z-20 bg-[#F8FAFC] dark:bg-slate-800 px-2 py-3 border-r border-slate-200 dark:border-slate-700 font-bold text-blue-600 dark:text-blue-400 ${
@@ -898,18 +920,27 @@ export default function WorkScheduleTable() {
                   return (
                     <tr
                       key={emp.id}
+                      draggable
+                      onDragStart={(e) => handleEmpDragStart(e, idx)}
+                      onDragOver={handleEmpDragOver}
+                      onDrop={() => handleEmpDrop(idx)}
                       className={`border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors ${
                         idx % 2 === 1 ? "bg-[#FAFAFA] dark:bg-slate-900/50" : ""
-                      }`}
+                      } ${draggedEmpIndex === idx ? "opacity-40 ring-2 ring-blue-500" : ""}`}
                     >
-                      {/* 사원 이름 / 부서 컴팩트 슬림 셀 */}
+                      {/* 🌟 사원 이름 / 부서 셀 (드래그앤드롭 가능 핸들 ⋮⋮ 포함) */}
                       <td
-                        className={`sticky left-0 z-10 bg-white dark:bg-slate-900 px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-left font-semibold text-slate-800 dark:text-slate-200 shadow-2xs group ${
+                        className={`sticky left-0 z-10 bg-white dark:bg-slate-900 px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-left font-semibold text-slate-800 dark:text-slate-200 shadow-2xs group cursor-grab active:cursor-grabbing ${
                           viewMode === "월간" ? "w-[170px] min-w-[170px]" : "w-[130px] min-w-[130px]"
                         }`}
+                        title="마우스로 드래그하여 사원 위치 순서를 변경할 수 있습니다."
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-1.5 truncate">
+                            {/* 드래그 앤 드롭 아이콘 핸들 */}
+                            <span className="text-slate-300 group-hover:text-slate-500 text-[11px] font-mono cursor-grab">
+                              ⋮⋮
+                            </span>
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatar.colorClass}`}>
                               {avatar.initial}
                             </div>
@@ -1042,7 +1073,101 @@ export default function WorkScheduleTable() {
         </div>
       </div>
 
-      {/* 🌟 5. 12개 도장 코드 선택 커스텀 모달 */}
+      {/* 🌟 5. 시간표 설명 표 (기본 접힘 상태, 토글 기능) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+              📋 이카운트 근무 코드 & 시간 기준표 (Shift Master Legend Grid)
+              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-bold border border-orange-200">
+                주황색 = 11시이후 야간/석근조
+              </span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">보내주신 시간 기준표 규격 100% 동일 매칭 표</p>
+          </div>
+          <button
+            onClick={() => setShowMasterGrid((prev) => !prev)}
+            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {showMasterGrid ? "표 접기 ▲" : "표 펼치기 ▼"}
+          </button>
+        </div>
+
+        {showMasterGrid && (
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full text-xs text-center border border-slate-300 dark:border-slate-700 border-collapse">
+              <thead>
+                <tr className="bg-slate-100 dark:bg-slate-800 font-bold border-b border-slate-300 dark:border-slate-700">
+                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">A계열 (9시간)</th>
+                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">B계열 (10시간)</th>
+                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">C계열 (11시간)</th>
+                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">D계열 (12시간)</th>
+                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">E계열 (13시간)</th>
+                  <th colSpan={2} className="py-2 bg-slate-200 dark:bg-slate-700">휴무/근태 구분</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => {
+                  const itemA = MASTER_LEGEND_GRID.shiftA[i];
+                  const itemB = MASTER_LEGEND_GRID.shiftB[i];
+                  const itemC = MASTER_LEGEND_GRID.shiftC[i];
+                  const itemD = MASTER_LEGEND_GRID.shiftD[i];
+                  const itemE = MASTER_LEGEND_GRID.shiftE[i];
+                  const itemLeave = MASTER_LEGEND_GRID.leaveCodes[i];
+
+                  return (
+                    <tr key={i} className="border-b border-slate-200 dark:border-slate-800 font-mono">
+                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemA?.code || ""}
+                      </td>
+                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemA?.time || ""}
+                      </td>
+
+                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemB?.code || ""}
+                      </td>
+                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemB?.time || ""}
+                      </td>
+
+                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemC?.code || ""}
+                      </td>
+                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemC?.time || ""}
+                      </td>
+
+                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemD?.code || ""}
+                      </td>
+                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemD?.time || ""}
+                      </td>
+
+                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemE?.code || ""}
+                      </td>
+                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemE?.time || ""}
+                      </td>
+
+                      <td className="px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800">
+                        {itemLeave ? <span className={`px-2 py-0.5 rounded text-[11px] ${itemLeave.badge}`}>{itemLeave.code}</span> : ""}
+                      </td>
+                      <td className="px-2 py-1.5 font-sans font-bold text-slate-800 dark:text-slate-200">
+                        {itemLeave?.name || ""}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 12개 도장 코드 선택 커스텀 모달 */}
       {isStampConfigOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4">
@@ -1272,100 +1397,6 @@ export default function WorkScheduleTable() {
           </div>
         </div>
       )}
-
-      {/* 근무 코드설명 표 100% 매칭 그리드 카드 */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-          <div>
-            <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-              📋 이카운트 근무 코드 & 시간 기준표 (Shift Master Legend Grid)
-              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-bold border border-orange-200">
-                주황색 = 11시이후 야간/석근조
-              </span>
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">보내주신 시간 기준표 규격 100% 동일 매칭 표</p>
-          </div>
-          <button
-            onClick={() => setShowMasterGrid((prev) => !prev)}
-            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            {showMasterGrid ? "표 접기 ▲" : "표 펼치기 ▼"}
-          </button>
-        </div>
-
-        {showMasterGrid && (
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-xs text-center border border-slate-300 dark:border-slate-700 border-collapse">
-              <thead>
-                <tr className="bg-slate-100 dark:bg-slate-800 font-bold border-b border-slate-300 dark:border-slate-700">
-                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">A계열 (9시간)</th>
-                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">B계열 (10시간)</th>
-                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">C계열 (11시간)</th>
-                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">D계열 (12시간)</th>
-                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">E계열 (13시간)</th>
-                  <th colSpan={2} className="py-2 bg-slate-200 dark:bg-slate-700">휴무/근태 구분</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => {
-                  const itemA = MASTER_LEGEND_GRID.shiftA[i];
-                  const itemB = MASTER_LEGEND_GRID.shiftB[i];
-                  const itemC = MASTER_LEGEND_GRID.shiftC[i];
-                  const itemD = MASTER_LEGEND_GRID.shiftD[i];
-                  const itemE = MASTER_LEGEND_GRID.shiftE[i];
-                  const itemLeave = MASTER_LEGEND_GRID.leaveCodes[i];
-
-                  return (
-                    <tr key={i} className="border-b border-slate-200 dark:border-slate-800 font-mono">
-                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
-                        {itemA?.code || ""}
-                      </td>
-                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
-                        {itemA?.time || ""}
-                      </td>
-
-                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
-                        {itemB?.code || ""}
-                      </td>
-                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
-                        {itemB?.time || ""}
-                      </td>
-
-                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
-                        {itemC?.code || ""}
-                      </td>
-                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
-                        {itemC?.time || ""}
-                      </td>
-
-                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
-                        {itemD?.code || ""}
-                      </td>
-                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
-                        {itemD?.time || ""}
-                      </td>
-
-                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
-                        {itemE?.code || ""}
-                      </td>
-                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
-                        {itemE?.time || ""}
-                      </td>
-
-                      <td className="px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800">
-                        {itemLeave ? <span className={`px-2 py-0.5 rounded text-[11px] ${itemLeave.badge}`}>{itemLeave.code}</span> : ""}
-                      </td>
-                      <td className="px-2 py-1.5 font-sans font-bold text-slate-800 dark:text-slate-200">
-                        {itemLeave?.name || ""}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
 
       {/* 셀 편집 모달 */}
       {editingCell && (
