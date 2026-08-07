@@ -36,7 +36,13 @@ async function notionFetch(endpoint: string, apiKey: string, options: { method?:
     cache: "no-store",
   });
 
-  const data = await res.json();
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Notion API 응답 분석 실패 (${res.status}): ${text.slice(0, 100)}`);
+  }
   if (!res.ok) {
     throw new Error(data?.message || `Notion API 오류 (${res.status})`);
   }

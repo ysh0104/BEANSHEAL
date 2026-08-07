@@ -51,7 +51,12 @@ async function fetchWithEgressProxy(url: string, body: any, headersExtra: Record
     body: JSON.stringify(body),
     cache: 'no-store',
   });
-  return await res.json();
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return { rawText: text, error: "이카운트 응답이 올바른 JSON 형식이 아닙니다." };
+  }
 }
 
 // Supabase Service Role Client (RLS 우회 저장용)

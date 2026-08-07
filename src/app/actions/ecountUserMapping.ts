@@ -132,7 +132,13 @@ export async function syncEcountUsersFromApi() {
           }),
           cache: "no-store",
         });
-        const json = await res.json();
+        const text = await res.text();
+        let json: any = {};
+        try {
+          json = JSON.parse(text);
+        } catch {
+          json = { Result: { Message: `응답 해석 실패: ${text.slice(0, 100)}` } };
+        }
         const list =
           json?.Data?.Result ||
           json?.Data?.Datas?.Result ||
