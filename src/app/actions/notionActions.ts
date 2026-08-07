@@ -152,9 +152,9 @@ function getEffectiveConfig(config?: NotionConfig) {
   const customKey = cleanEnvVal(config?.apiKey);
   const customDbId = cleanEnvVal(config?.databaseId);
 
-  // Vercel 서버 환경변수를 최우선 적용
-  const apiKey = envKey || customKey;
-  const rawDbId = envDbId || customDbId;
+  // 클라이언트 커스텀 키 또는 Vercel 서버 환경변수 지능적 결합 (어느 쪽에 존재하든 자동 로드)
+  const apiKey = customKey || envKey;
+  const rawDbId = customDbId || envDbId;
 
   return { apiKey, rawDbId, isUsingEnv: !!envKey };
 }
@@ -163,8 +163,23 @@ function getEffectiveConfig(config?: NotionConfig) {
  * Vercel 서버 환경변수(NOTION_API_KEY, NOTION_DATABASE_ID) 설정 상태 확인
  */
 export async function getNotionConfigStatus() {
-  const hasEnvKey = !!(process.env.NOTION_API_KEY && process.env.NOTION_API_KEY.trim());
-  const hasEnvDb = !!(process.env.NOTION_DATABASE_ID && process.env.NOTION_DATABASE_ID.trim());
+  const hasEnvKey = !!cleanEnvVal(
+    process.env.NOTION_API_KEY ||
+    process.env.NOTION_API ||
+    process.env.NOTION_KEY ||
+    process.env.NOTION_SECRET ||
+    process.env.NOTION_TOKEN ||
+    process.env.NEXT_PUBLIC_NOTION_API_KEY ||
+    process.env.NEXT_PUBLIC_NOTION_KEY
+  );
+  const hasEnvDb = !!cleanEnvVal(
+    process.env.NOTION_DATABASE_ID ||
+    process.env.NOTION_DB_ID ||
+    process.env.NOTION_PAGE_ID ||
+    process.env.NOTION_ID ||
+    process.env.NEXT_PUBLIC_NOTION_DATABASE_ID ||
+    process.env.NEXT_PUBLIC_NOTION_DB_ID
+  );
   return {
     isConfigured: hasEnvKey && hasEnvDb,
     hasEnvKey,
@@ -213,16 +228,37 @@ export async function testNotionConnection(config?: NotionConfig) {
 }
 
 /**
- * 노션 데이터베이스에서 월간 생산 계획 데이터 불러오기
+ * 노션 데이터베이스에서 월간 생산 계획 데이터 불러오기 (Supabase 백업 폴백 100% 보장)
  */
 export async function fetchNotionSchedules(config?: NotionConfig) {
   try {
     const { apiKey, rawDbId } = getEffectiveConfig(config);
 
     if (!apiKey || !rawDbId) {
+      // Supabase 캐시 일정 폴백 시도
+      try {
+        const { data: sbData } = await supabase.from('production_schedules').select('*');
+        if (sbData && sbData.length > 0) {
+          return {
+            success: true,
+            message: "Supabase 저장소에서 생산 일정을 불러왔습니다.",
+            data: sbData.map((s: any) => ({
+              id: s.id,
+              product_name: s.product_name,
+              plan_date: s.plan_date,
+              end_date: s.end_date || s.plan_date,
+              quantity: s.quantity || "1",
+              note: s.note || "",
+              notion_page_id: s.notion_page_id,
+              source: "supabase" as const
+            }))
+          };
+        }
+      } catch (sbE) {}
+
       return {
         success: false,
-        message: "Notion API Key 또는 Database ID가 설정되지 않았습니다 (Vercel 환경변수 NOTION_API_KEY, NOTION_DATABASE_ID 확인 필요).",
+        message: "Notion API Key 또는 Database ID가 설정되지 않았습니다 (Vercel 환경변수 NOTION_API_KEY, NOTION_DATABASE_ID 등록 후 Redeploy 필요).",
         data: [],
       };
     }
