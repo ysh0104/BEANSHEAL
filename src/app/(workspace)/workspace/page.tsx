@@ -18,8 +18,31 @@ import {
   insertMemoToSupabase, 
   deleteMemoFromSupabase,
   updateMemoInSupabase,
-  toggleMemoLikeInSupabase 
+  toggleMemoLikeInSupabase,
+  toggleMemoPinInSupabase,
 } from "@/app/actions/memoActions";
+import MemoRichEditor from "@/components/MemoRichEditor";
+import MemoRichContent from "@/components/MemoRichContent";
+import MemoPresetsManager from "@/components/MemoPresetsManager";
+import {
+  memoPlainText,
+  sanitizeMemoHtml,
+  wrapMemoMeta,
+  parseMemoMeta,
+  stripMemoMeta,
+  extractMemoTags,
+} from "@/lib/memoHtml";
+import {
+  DEFAULT_MEMO_PRESETS,
+  loadMemoPresetsFromStorage,
+  saveMemoPresetsToStorage,
+  sanitizePresets,
+  type MemoPresets,
+} from "@/lib/memoPresets";
+import {
+  getMemoPresetsFromSupabase,
+  saveMemoPresetsToSupabase,
+} from "@/app/actions/memoPresetsActions";
 
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
@@ -111,6 +134,12 @@ export default function Home() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [memos, setMemos] = useState<any[]>([]);
   const [newMemo, setNewMemo] = useState("");
+  const [memoEditorKey, setMemoEditorKey] = useState(0);
+  const [newMemoPinned, setNewMemoPinned] = useState(false);
+  const [newMemoReminder, setNewMemoReminder] = useState("");
+  const [memoTagFilter, setMemoTagFilter] = useState<string | null>(null);
+  const [memoPresets, setMemoPresets] = useState<MemoPresets>(DEFAULT_MEMO_PRESETS);
+  const [isMemoPresetsOpen, setIsMemoPresetsOpen] = useState(false);
   const [editingMemoId, setEditingMemoId] = useState<number | string | null>(null);
   const [editingMemoText, setEditingMemoText] = useState<string>("");
   const [heartAnim, setHeartAnim] = useState<{ id: number | string; x: number; y: number } | null>(null);
@@ -179,6 +208,31 @@ export default function Home() {
     }
   }, [user?.email]);
 
+  useEffect(() => {
+    const local = loadMemoPresetsFromStorage();
+    setMemoPresets(local);
+
+    (async () => {
+      const res = await getMemoPresetsFromSupabase();
+      if (res.success && res.data) {
+        const merged = sanitizePresets(res.data);
+        setMemoPresets(merged);
+        saveMemoPresetsToStorage(merged);
+      }
+    })();
+  }, []);
+
+  const handleSaveMemoPresets = async (next: MemoPresets) => {
+    const clean = sanitizePresets(next);
+    setMemoPresets(clean);
+    saveMemoPresetsToStorage(clean);
+    const res = await saveMemoPresetsToSupabase(clean);
+    if (!res.success) {
+      // 로컬은 저장됨. 테이블 미생성 시에도 사용 가능
+      console.warn("[memo presets] supabase save skipped:", res.message);
+    }
+  };
+
   const saveWidgetConfigs = (newConfigs: typeof widgetConfigs) => {
     setWidgetConfigs(newConfigs);
     const key = getStorageKey();
@@ -244,8 +298,23 @@ export default function Home() {
           localStorage.setItem("beansheal_memos", JSON.stringify(memoRes.data));
         } else {
           const savedMemos = localStorage.getItem("beansheal_memos");
-          if (savedMemos) setMemos(JSON.parse(savedMemos));
-          else {
+          if (savedMemos) {
+            try {
+              const parsed = JSON.parse(savedMemos);
+              setMemos(
+                (parsed || []).map((m: any) => {
+                  const meta = parseMemoMeta(m.text || "");
+                  return {
+                    ...m,
+                    pinned: m.pinned ?? meta.pinned ?? false,
+                    reminder_at: m.reminder_at ?? meta.reminder_at ?? null,
+                  };
+                })
+              );
+            } catch {
+              setMemos(JSON.parse(savedMemos));
+            }
+          } else {
             const defaultMemos = [
               { id: 1, text: "A라인 포장기 점검 예정 (14:00~15:00)", date: "오늘 10:30", author: "생산팀" },
               { id: 2, text: "유기농 야채원료 입고 검수 완료", date: "오늘 09:15", author: "품질팀" }
@@ -272,10 +341,13 @@ export default function Home() {
     const refreshMemos = async () => {
       try {
         const memoRes = await getMemosFromSupabase();
-        if (memoRes?.success && Array.isArray(memoRes.data)) {
-          setMemos(memoRes.data);
+        if (!memoRes?.success || !Array.isArray(memoRes.data)) return;
+        setMemos((prev) => {
+          // 서버가 비어 있는데 로컬만 있는 경우(저장 지연/실패) 목록을 지우지 않음
+          if (memoRes.data.length === 0 && prev.length > 0) return prev;
           localStorage.setItem("beansheal_memos", JSON.stringify(memoRes.data));
-        }
+          return memoRes.data;
+        });
       } catch {
         /* ignore */
       }
@@ -305,9 +377,14 @@ export default function Home() {
     };
   }, [currentDate]);
 
-  const handleAddMemo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMemo.trim()) return;
+  const handleAddMemo = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const plain = memoPlainText(newMemo);
+    if (!plain && !newMemo.includes("<img")) return;
+    const safeHtml = wrapMemoMeta(sanitizeMemoHtml(newMemo), {
+      pinned: newMemoPinned,
+      reminder_at: newMemoReminder || null,
+    });
 
     // 1. 현재 시간 포맷팅
     const now = new Date();
@@ -333,15 +410,21 @@ export default function Home() {
 
     const item = {
       id: Date.now(),
-      text: newMemo.trim(),
+      text: safeHtml,
       date: formattedDate,
-      author: authorString
+      author: authorString,
+      pinned: newMemoPinned,
+      reminder_at: newMemoReminder || null,
+      likes: [] as string[],
     };
 
     const updated = [item, ...memos];
     setMemos(updated);
     localStorage.setItem("beansheal_memos", JSON.stringify(updated));
     setNewMemo("");
+    setNewMemoPinned(false);
+    setNewMemoReminder("");
+    setMemoEditorKey((k) => k + 1);
 
     // 🌟 Supabase에 메모 저장 및 동기화
     const res = await insertMemoToSupabase(item);
@@ -362,7 +445,7 @@ export default function Home() {
 
   const handleStartEditMemo = (memo: any) => {
     setEditingMemoId(memo.id);
-    setEditingMemoText(memo.text);
+    setEditingMemoText(stripMemoMeta(memo.text || "") || memo.text || "");
   };
 
   const handleCancelEditMemo = () => {
@@ -371,16 +454,33 @@ export default function Home() {
   };
 
   const handleSaveEditMemo = async (id: number | string) => {
-    if (!editingMemoText.trim()) return;
-    const trimmed = editingMemoText.trim();
-    const updated = memos.map(m => m.id === id ? { ...m, text: trimmed } : m);
+    if (!memoPlainText(editingMemoText) && !editingMemoText.includes("<img")) return;
+    const existing = memos.find((m) => m.id === id);
+    const meta = parseMemoMeta(existing?.text || "");
+    const pinned = existing?.pinned ?? meta.pinned ?? false;
+    const reminder_at = existing?.reminder_at ?? meta.reminder_at ?? null;
+    const safeHtml = wrapMemoMeta(sanitizeMemoHtml(editingMemoText), { pinned, reminder_at });
+    const updated = memos.map(m => m.id === id ? { ...m, text: safeHtml, pinned, reminder_at } : m);
     setMemos(updated);
     localStorage.setItem("beansheal_memos", JSON.stringify(updated));
     setEditingMemoId(null);
     setEditingMemoText("");
 
-    // 🌟 Supabase 메모 수정 연동
-    await updateMemoInSupabase(id, trimmed);
+    await updateMemoInSupabase(id, safeHtml, { pinned, reminder_at });
+  };
+
+  const handleTogglePin = async (memo: any) => {
+    const nextPinned = !memo.pinned;
+    const safeHtml = wrapMemoMeta(sanitizeMemoHtml(memo.text), {
+      pinned: nextPinned,
+      reminder_at: memo.reminder_at || null,
+    });
+    const updated = memos.map((m) =>
+      m.id === memo.id ? { ...m, pinned: nextPinned, text: safeHtml } : m
+    );
+    setMemos(updated);
+    localStorage.setItem("beansheal_memos", JSON.stringify(updated));
+    await toggleMemoPinInSupabase(memo.id, nextPinned, safeHtml);
   };
 
   const handleToggleLike = async (memoId: number | string, e?: React.MouseEvent) => {
@@ -1249,11 +1349,36 @@ export default function Home() {
 
           /* Widget 2: 실시간 특이사항 및 메모 (Memo) - 이카운트 ERP 룩앤필 */
           if (widget.id === "memo") {
+            const allTags = [...new Set(memos.flatMap((m) => extractMemoTags(m.text || "")))];
+            const visibleMemos = memos
+              .filter((m) => {
+                if (!memoTagFilter) return true;
+                return extractMemoTags(m.text || "").includes(memoTagFilter);
+              })
+              .slice()
+              .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
+
+            const mentionList = [
+              ...new Set([
+                ...memoPresets.mentions,
+                ...(user?.name ? [`@${user.name}`] : []),
+              ]),
+            ];
+
             const memoHeaderLeft = (
               <span className="text-xs font-bold text-slate-900">Memo</span>
             );
 
-            const memoHeaderRight = null;
+            const memoHeaderRight = (
+              <button
+                type="button"
+                onClick={() => setIsMemoPresetsOpen(true)}
+                className="text-[10px] font-bold text-slate-600 hover:text-indigo-600 cursor-pointer px-1.5 py-0.5 rounded hover:bg-indigo-50"
+                title="템플릿/태그/멘션 관리"
+              >
+                빠른입력 관리
+              </button>
+            );
 
             return (
               <div 
@@ -1268,21 +1393,67 @@ export default function Home() {
                 <div className="bg-white border border-gray-200 rounded-lg shadow-xs flex flex-col h-full overflow-hidden relative">
                   {renderWidgetHeader(memoHeaderLeft, memoHeaderRight)}
                   <div className="p-4 flex flex-col flex-1 overflow-hidden">
-                    <div className="flex-1 overflow-y-auto space-y-2 pr-1 mb-3">
-                      {memos.map((memo) => {
+                    {(allTags.length > 0 || memoTagFilter) && (
+                      <div className="flex flex-wrap items-center gap-1 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => setMemoTagFilter(null)}
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-bold cursor-pointer ${
+                            !memoTagFilter ? "bg-slate-800 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
+                        >
+                          전체
+                        </button>
+                        {[...new Set([...memoPresets.tags.map((t) => t.toLowerCase()), ...allTags])].map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => setMemoTagFilter(memoTagFilter === tag ? null : tag)}
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-bold cursor-pointer ${
+                              memoTagFilter === tag
+                                ? "bg-amber-500 text-white"
+                                : "bg-amber-50 text-amber-800 hover:bg-amber-100"
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-h-[140px] overflow-y-auto space-y-2 pr-1 mb-3">
+                      {visibleMemos.map((memo) => {
                         let dept = user?.department || "";
                         if (dept && !dept.endsWith("팀")) dept += "팀";
                         const currentUserIdent = [dept, user?.name || "사용자", user?.position || ""].filter(Boolean).join(" ") || "사용자";
                         const likedByList: string[] = Array.isArray(memo.likes) ? memo.likes : [];
                         const isLikedByMe = likedByList.includes(currentUserIdent);
+                        const reminderLabel = memo.reminder_at
+                          ? new Date(memo.reminder_at).toLocaleString("ko-KR", {
+                              month: "numeric",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : null;
+                        const reminderDue =
+                          memo.reminder_at && new Date(memo.reminder_at).getTime() <= Date.now();
 
                         return (
                           <div 
                             key={memo.id} 
                             onDoubleClick={(e) => handleToggleLike(memo.id, e)}
-                            className="p-3 border border-gray-100 rounded-lg bg-gray-50 hover:bg-white hover:border-indigo-100 shadow-xs relative group transition-all select-none cursor-pointer"
+                            className={`p-3 border rounded-lg shadow-xs relative group transition-all select-none cursor-pointer ${
+                              memo.pinned
+                                ? "border-amber-300 bg-amber-50/60 hover:bg-amber-50"
+                                : "border-gray-100 bg-gray-50 hover:bg-white hover:border-indigo-100"
+                            }`}
                             title="더블클릭하여 카카오톡처럼 확인 하트(❤️) 표시"
                           >
+                            {memo.pinned && (
+                              <span className="absolute top-2 left-2 text-[10px] font-extrabold text-amber-700">📌</span>
+                            )}
+
                             {/* 팝업 하트 애니메이션 */}
                             {heartAnim && heartAnim.id === memo.id && (
                               <div 
@@ -1293,14 +1464,21 @@ export default function Home() {
                               </div>
                             )}
 
-                            {editingMemoId === memo.id ? (
-                              <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
-                                <textarea
+                            {editingMemoId != null && String(editingMemoId) === String(memo.id) ? (
+                              <div className="space-y-1.5" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                                <MemoRichEditor
+                                  key={`edit-${memo.id}`}
                                   value={editingMemoText}
-                                  onChange={(e) => setEditingMemoText(e.target.value)}
-                                  className="w-full text-xs border border-indigo-300 rounded p-1.5 bg-white text-gray-800 font-medium focus:ring-1 focus:ring-indigo-500 outline-none"
-                                  rows={2}
+                                  onChange={setEditingMemoText}
+                                  onSubmit={() => handleSaveEditMemo(memo.id)}
+                                  onManagePresets={() => setIsMemoPresetsOpen(true)}
+                                  placeholder="메모를 수정하세요"
+                                  minHeight={72}
                                   autoFocus
+                                  className="border-indigo-300"
+                                  templates={memoPresets.templates}
+                                  tags={memoPresets.tags}
+                                  mentions={mentionList}
                                 />
                                 <div className="flex justify-end gap-1">
                                   <button
@@ -1321,11 +1499,24 @@ export default function Home() {
                               </div>
                             ) : (
                               <>
-                                <p className="text-xs font-bold text-gray-800 break-keep pr-14">{memo.text}</p>
+                                <div className={`pr-14 ${memo.pinned ? "pl-4" : ""}`}>
+                                  <MemoRichContent html={memo.text} className="font-medium" />
+                                  {reminderLabel && (
+                                    <div
+                                      className={`mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                        reminderDue
+                                          ? "bg-rose-100 text-rose-700"
+                                          : "bg-sky-50 text-sky-700"
+                                      }`}
+                                    >
+                                      ⏰ {reminderLabel}
+                                      {reminderDue ? " (지남)" : ""}
+                                    </div>
+                                  )}
+                                </div>
                                 <div className="flex justify-between items-center mt-2">
                                   <div className="flex items-center gap-2">
                                     <span className="text-[10px] text-gray-400 font-bold">{memo.date}</span>
-                                    {/* 카카오톡 스타일 확인 하트 배지 */}
                                     <button
                                       type="button"
                                       onClick={(e) => {
@@ -1347,6 +1538,13 @@ export default function Home() {
                                 </div>
 
                                 <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                  <button 
+                                    onClick={() => handleTogglePin(memo)} 
+                                    className={`transition-colors cursor-pointer p-0.5 ${memo.pinned ? "text-amber-500 opacity-100" : "text-gray-400 hover:text-amber-500"}`}
+                                    title={memo.pinned ? "핀 해제" : "상단 고정"}
+                                  >
+                                    <span className="text-xs">📌</span>
+                                  </button>
                                   <button 
                                     onClick={() => handleStartEditMemo(memo)} 
                                     className="text-gray-400 hover:text-indigo-600 transition-colors cursor-pointer p-0.5" 
@@ -1371,12 +1569,53 @@ export default function Home() {
                           </div>
                         );
                       })}
-                      {memos.length === 0 && <div className="text-center py-12 text-gray-400 text-xs font-medium">등록된 특이사항이 없습니다.</div>}
+                      {visibleMemos.length === 0 && (
+                        <div className="text-center py-12 text-gray-400 text-xs font-medium">
+                          {memoTagFilter
+                            ? `선택한 태그(${memoTagFilter})에 해당하는 메모가 없습니다.`
+                            : memos.length > 0
+                              ? "표시할 메모가 없습니다."
+                              : "등록된 특이사항이 없습니다."}
+                        </div>
+                      )}
                     </div>
 
-                    <form onSubmit={handleAddMemo} className="pt-2 border-t border-gray-200 flex gap-2">
-                      <input type="text" value={newMemo} onChange={(e) => setNewMemo(e.target.value)} placeholder="공유할 메모를 입력하십시오" className="flex-1 text-xs border border-gray-300 rounded px-2.5 py-1.5 bg-white text-gray-800 shadow-xs focus:ring-1 focus:ring-indigo-500" />
-                      <button type="submit" className="bg-slate-800 text-white px-3 py-1.5 text-xs font-bold rounded shadow-xs hover:bg-slate-700 transition-colors cursor-pointer">등록</button>
+                    <form onSubmit={handleAddMemo} className="pt-2 border-t border-gray-200 flex flex-col gap-2">
+                      <MemoRichEditor
+                        key={memoEditorKey}
+                        value={newMemo}
+                        onChange={setNewMemo}
+                        onSubmit={() => handleAddMemo()}
+                        onManagePresets={() => setIsMemoPresetsOpen(true)}
+                        placeholder="공유할 메모 (서식·태그·멘션·이미지·Ctrl+Enter)"
+                        minHeight={72}
+                        templates={memoPresets.templates}
+                        tags={memoPresets.tags}
+                        mentions={mentionList}
+                      />
+                      <div className="flex flex-wrap items-center gap-2 justify-between">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={newMemoPinned}
+                              onChange={(e) => setNewMemoPinned(e.target.checked)}
+                              className="rounded border-gray-300"
+                            />
+                            📌 상단 고정
+                          </label>
+                          <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-600">
+                            ⏰
+                            <input
+                              type="datetime-local"
+                              value={newMemoReminder}
+                              onChange={(e) => setNewMemoReminder(e.target.value)}
+                              className="text-[10px] border border-gray-300 rounded px-1 py-0.5 bg-white"
+                            />
+                          </label>
+                        </div>
+                        <button type="submit" className="bg-slate-800 text-white px-3 py-1.5 text-xs font-bold rounded shadow-xs hover:bg-slate-700 transition-colors cursor-pointer">등록</button>
+                      </div>
                     </form>
                   </div>
                   {renderCornerResizeHandles()}
@@ -1388,6 +1627,13 @@ export default function Home() {
           return null;
         })}
       </div>
+
+      <MemoPresetsManager
+        open={isMemoPresetsOpen}
+        presets={memoPresets}
+        onClose={() => setIsMemoPresetsOpen(false)}
+        onSave={handleSaveMemoPresets}
+      />
 
       {/* 노션 API 연동 설정 모달 */}
       {isNotionModalOpen && (
