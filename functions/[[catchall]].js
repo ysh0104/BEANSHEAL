@@ -8,17 +8,21 @@ export async function onRequest(context) {
   const { request } = context;
   const url = new URL(request.url);
 
-  // 1. IP 확인 엔드포인트 (/ip 또는 /my-ip)
-  // 이카운트 API 설정 페이지(IP Whitelist)에 등록할 Cloudflare Pages의 고정 IPv4 주소를 반환합니다.
-  if (url.pathname === "/ip" || url.pathname === "/my-ip") {
+  // 1. 루트 (/) 또는 /ip 접속 시 즉시 Cloudflare Outbound IPv4 주소 반환!
+  if (url.pathname === "/" || url.pathname === "/ip" || url.pathname === "/my-ip") {
     try {
-      const ipRes = await fetch("https://api4.ipify.org?format=json");
+      const ipRes = await fetch("https://api4.ipify.org?format=json", { cache: "no-store" });
       const ipData = await ipRes.json();
       return new Response(
         JSON.stringify({
-          ipv4: ipData.ip,
-          cf_connecting_ip: request.headers.get("cf-connecting-ip") || "Unknown",
-          message: "이카운트 ERP OAPI [허용 IP 관리] 메뉴에 위 ipv4 주소를 등록하십시오."
+          status: "200 OK",
+          worker_outbound_ipv4: ipData.ip,
+          client_ip: request.headers.get("cf-connecting-ip") || "Unknown",
+          ecount_whitelist_guide: `이카운트 ERP [셀프커스터마이징 ➔ 정보관리 ➔ API인증서 관리 ➔ 허용 IP 관리] 메뉴에 [ ${ipData.ip} ] IPv4 주소를 등록하세요.`,
+          usage: {
+            ip_check: request.url,
+            oapi_proxy: "이 주소를 Vercel 환경변수 ECOUNT_API_BASE_URL 에 등록하십시오."
+          }
         }, null, 2),
         {
           status: 200,
@@ -33,8 +37,8 @@ export async function onRequest(context) {
         JSON.stringify({
           cf_connecting_ip: request.headers.get("cf-connecting-ip"),
           error: e.message
-        }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        }, null, 2),
+        { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
       );
     }
   }
