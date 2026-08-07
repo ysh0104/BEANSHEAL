@@ -24,7 +24,6 @@ import {
 import MemoRichEditor from "@/components/MemoRichEditor";
 import MemoRichContent from "@/components/MemoRichContent";
 import MemoPresetsManager from "@/components/MemoPresetsManager";
-import WeeklyPlanView from "@/components/WeeklyPlanView";
 import {
   memoPlainText,
   sanitizeMemoHtml,
@@ -166,10 +165,6 @@ export default function Home() {
   const [notionSyncStatusMsg, setNotionSyncStatusMsg] = useState<string | null>(null);
   const [isTestingConn, setIsTestingConn] = useState(false);
   const [draggedSchedule, setDraggedSchedule] = useState<any | null>(null);
-  /** 주간계획표 모달: 선택된 주(일~토 7칸) */
-  const [weeklyPlanWeek, setWeeklyPlanWeek] = useState<
-    { day: number; dateStr: string; isToday: boolean; isOtherMonth: boolean; dayOfWeek: number }[] | null
-  >(null);
 
   // 현재 유효한 노션 설정 객체 반환 헬퍼 (개별 커스텀 키가 없으면 undefined를 넘겨 Vercel 환경변수 사용)
   const getNotionConfig = () => {
@@ -1115,21 +1110,13 @@ export default function Home() {
                   {renderWidgetHeader(calendarHeaderLeft, calendarHeaderRight)}
                   <div className="p-3 flex flex-col flex-1 overflow-hidden">
                     <div className="flex-1 flex flex-col h-full min-h-0">
-                      {/* 요일 헤더 (+ 주간계획표 화살표 열) */}
-                      <div className="flex gap-0.5 mb-1 bg-slate-50 py-1.5 border-b border-slate-200 rounded-t shrink-0">
-                        <div
-                          className="w-6 shrink-0 flex items-center justify-center"
-                          title="각 주 화살표 → 주간계획표"
-                        >
-                          <span className="text-[9px] font-black text-slate-400">주</span>
-                        </div>
-                        <div className="flex-1 grid grid-cols-7 gap-1 text-center">
-                          {['일', '월', '화', '수', '목', '금', '토'].map(day => (
-                            <div key={day} className={`text-[11px] font-extrabold ${day === '일' ? 'text-red-500' : day === '토' ? 'text-blue-500' : 'text-slate-600'}`}>
-                              {day}
-                            </div>
-                          ))}
-                        </div>
+                      {/* 요일 헤더 */}
+                      <div className="grid grid-cols-7 gap-1 text-center mb-1 bg-slate-50 py-1.5 border-b border-slate-200 rounded-t shrink-0">
+                        {['일', '월', '화', '수', '목', '금', '토'].map(day => (
+                          <div key={day} className={`text-[11px] font-extrabold ${day === '일' ? 'text-red-500' : day === '토' ? 'text-blue-500' : 'text-slate-600'}`}>
+                            {day}
+                          </div>
+                        ))}
                       </div>
 
                       {/* 🌟 노션 스타일 주(Week) 단위 멀티데이 오버레이 그리드 */}
@@ -1262,115 +1249,92 @@ export default function Home() {
                             <div
                               key={wIdx}
                               style={{ minHeight: `${weekRequiredMinHeight}px` }}
-                              className="flex gap-0.5 relative border-b border-slate-100 last:border-0 pb-1"
+                              className="flex-1 grid grid-cols-7 gap-1 relative border-b border-slate-100 last:border-0 pb-1"
                             >
-                              {/* 주간계획표 진입 화살표 */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setWeeklyPlanWeek(week);
-                                }}
-                                className="w-6 shrink-0 flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 hover:bg-[#1e3a5f] hover:border-[#1e3a5f] hover:text-white text-slate-500 transition-colors cursor-pointer group/week-arrow"
-                                title={`${week[1]?.dateStr || week[0].dateStr} 주 주간계획표 보기`}
-                              >
-                                <svg
-                                  className="w-3.5 h-3.5 group-hover/week-arrow:translate-x-0.5 transition-transform"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth={2.5}
+                              {/* 1. 배경 날짜 셀 Layer */}
+                              {week.map((cell, cIdx) => (
+                                <div
+                                  key={cIdx}
+                                  onDragOver={(e) => {
+                                    if (draggedSchedule) e.preventDefault();
+                                  }}
+                                  onDrop={(e) => {
+                                    if (draggedSchedule && cell.dateStr) {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleDropOnCell(e, cell.dateStr);
+                                    }
+                                  }}
+                                  className={`border border-slate-200/90 p-1 flex flex-col justify-start items-start relative h-full w-full ${
+                                    cell.isOtherMonth ? 'bg-slate-50/40 text-slate-300' : cell.isToday ? 'bg-indigo-50/50' : 'bg-white hover:bg-slate-50/80'
+                                  } transition-colors rounded`}
                                 >
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                </svg>
-                              </button>
-
-                              <div className="flex-1 grid grid-cols-7 gap-1 relative min-w-0">
-                                {/* 1. 배경 날짜 셀 Layer */}
-                                {week.map((cell, cIdx) => (
-                                  <div
-                                    key={cIdx}
-                                    onDragOver={(e) => {
-                                      if (draggedSchedule) e.preventDefault();
-                                    }}
-                                    onDrop={(e) => {
-                                      if (draggedSchedule && cell.dateStr) {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleDropOnCell(e, cell.dateStr);
-                                      }
-                                    }}
-                                    className={`border border-slate-200/90 p-1 flex flex-col justify-start items-start relative h-full w-full ${
-                                      cell.isOtherMonth ? 'bg-slate-50/40 text-slate-300' : cell.isToday ? 'bg-indigo-50/50' : 'bg-white hover:bg-slate-50/80'
-                                    } transition-colors rounded`}
-                                  >
-                                    <div className="w-full flex justify-between items-center">
-                                      <span className={`text-[11px] font-extrabold ${cell.isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : cell.isOtherMonth ? 'text-slate-300' : 'text-slate-700 ml-0.5'}`}>
-                                        {cell.day}
-                                      </span>
-                                    </div>
+                                  <div className="w-full flex justify-between items-center">
+                                    <span className={`text-[11px] font-extrabold ${cell.isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : cell.isOtherMonth ? 'text-slate-300' : 'text-slate-700 ml-0.5'}`}>
+                                      {cell.day}
+                                    </span>
                                   </div>
-                                ))}
-
-                                {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer */}
-                                <div className="absolute inset-x-0 top-[24px] bottom-1 pointer-events-none px-0.5 pb-2">
-                                  {allocated.map((seg, sIdx) => {
-                                    const sch = seg.sch;
-                                    const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
-                                    const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md' : 'rounded-l-none'} ${seg.isEndOfSchedule ? 'rounded-r-md' : 'rounded-r-none'}`;
-                                    const topPos = segTops[sIdx];
-                                    const leftPct = (seg.startCol / 7) * 100;
-                                    const widthPct = (seg.colSpan / 7) * 100;
-
-                                    return (
-                                      <div
-                                        key={`${sch.id}-${wIdx}-${sIdx}`}
-                                        style={{
-                                          position: "absolute",
-                                          top: `${topPos}px`,
-                                          left: `calc(${leftPct}% + 2px)`,
-                                          width: `calc(${widthPct}% - 4px)`,
-                                        }}
-                                        draggable={true}
-                                        onDragStart={(e) => {
-                                          e.stopPropagation();
-                                          handleDragStart(e, sch);
-                                        }}
-                                        className={`pointer-events-auto relative h-fit min-h-[26px] py-0.5 px-2.5 text-left flex items-start justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
-                                      >
-                                        <div className="text-[11px] font-extrabold leading-[1.35] text-slate-950 pr-1 w-full break-normal">
-                                          {sch.tag_name && (
-                                            <span className="inline-block text-[9.5px] font-black px-1.5 py-0.5 rounded bg-black/15 text-slate-900 mr-1 align-middle shrink-0 leading-none">
-                                              {sch.tag_name}
-                                            </span>
-                                          )}
-                                          <span className="inline leading-[1.35] font-extrabold text-slate-950 align-middle">
-                                            {sch.product_name}
-                                          </span>
-                                          {sch.quantity && sch.quantity !== "1" && (
-                                            <span className="inline-block text-[10px] opacity-90 font-black shrink-0 font-mono ml-1 align-middle leading-none">
-                                              ({sch.quantity})
-                                            </span>
-                                          )}
-                                        </div>
-
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (confirm(`'${sch.product_name}' 일정을 삭제하시겠습니까?`)) {
-                                              handleDeleteSchedule(sch.id, sch.notion_page_id);
-                                            }
-                                          }}
-                                          className="opacity-0 group-hover/bar:opacity-100 text-slate-500 hover:text-red-600 font-black text-xs transition-opacity ml-1 cursor-pointer shrink-0 mt-0.5"
-                                          title="일정 삭제"
-                                        >
-                                          ×
-                                        </button>
-                                      </div>
-                                    );
-                                  })}
                                 </div>
+                              ))}
+
+                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer (상하 간격 4px 100% 통일 & 전체 줄바꿈) */}
+                              <div className="absolute inset-x-0 top-[24px] bottom-1 pointer-events-none px-0.5 pb-2">
+                                {allocated.map((seg, sIdx) => {
+                                  const sch = seg.sch;
+                                  const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
+                                  const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md' : 'rounded-l-none'} ${seg.isEndOfSchedule ? 'rounded-r-md' : 'rounded-r-none'}`;
+                                  const topPos = segTops[sIdx];
+                                  const leftPct = (seg.startCol / 7) * 100;
+                                  const widthPct = (seg.colSpan / 7) * 100;
+
+                                  return (
+                                    <div
+                                      key={`${sch.id}-${wIdx}-${sIdx}`}
+                                      style={{
+                                        position: "absolute",
+                                        top: `${topPos}px`,
+                                        left: `calc(${leftPct}% + 2px)`,
+                                        width: `calc(${widthPct}% - 4px)`,
+                                      }}
+                                      draggable={true}
+                                      onDragStart={(e) => {
+                                        e.stopPropagation();
+                                        handleDragStart(e, sch);
+                                      }}
+                                      className={`pointer-events-auto relative h-fit min-h-[26px] py-0.5 px-2.5 text-left flex items-start justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
+                                    >
+                                      <div className="text-[11px] font-extrabold leading-[1.35] text-slate-950 pr-1 w-full break-normal">
+                                        {sch.tag_name && (
+                                          <span className="inline-block text-[9.5px] font-black px-1.5 py-0.5 rounded bg-black/15 text-slate-900 mr-1 align-middle shrink-0 leading-none">
+                                            {sch.tag_name}
+                                          </span>
+                                        )}
+                                        <span className="inline leading-[1.35] font-extrabold text-slate-950 align-middle">
+                                          {sch.product_name}
+                                        </span>
+                                        {sch.quantity && sch.quantity !== "1" && (
+                                          <span className="inline-block text-[10px] opacity-90 font-black shrink-0 font-mono ml-1 align-middle leading-none">
+                                            ({sch.quantity})
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (confirm(`'${sch.product_name}' 일정을 삭제하시겠습니까?`)) {
+                                            handleDeleteSchedule(sch.id, sch.notion_page_id);
+                                          }
+                                        }}
+                                        className="opacity-0 group-hover/bar:opacity-100 text-slate-500 hover:text-red-600 font-black text-xs transition-opacity ml-1 cursor-pointer shrink-0 mt-0.5"
+                                        title="일정 삭제"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           );
@@ -1789,26 +1753,6 @@ export default function Home() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 주간계획표 모달 */}
-      {weeklyPlanWeek && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-xs p-3 md:p-6 overflow-y-auto animate-fadeIn print:bg-white print:p-0"
-          onClick={() => setWeeklyPlanWeek(null)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-6xl my-4 p-4 md:p-6 print:shadow-none print:border-0 print:rounded-none print:my-0 relative z-10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <WeeklyPlanView
-              weekCells={weeklyPlanWeek}
-              schedules={schedules}
-              department={user?.department || "생산팀"}
-              onClose={() => setWeeklyPlanWeek(null)}
-            />
           </div>
         </div>
       )}
