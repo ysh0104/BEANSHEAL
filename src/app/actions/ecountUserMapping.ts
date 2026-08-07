@@ -136,9 +136,10 @@ export async function syncEcountUsersFromApi() {
         const text = await res.text();
         let json: any = {};
         try {
-          json = JSON.parse(text);
+          const cleanText = text.replace(/^\uFEFF/, "").trim();
+          json = JSON.parse(cleanText);
         } catch {
-          json = { Result: { Message: `응답 해석 실패: ${text.slice(0, 100)}` } };
+          json = { Result: { Message: text.slice(0, 100) } };
         }
         const list =
           json?.Data?.Result ||
@@ -151,9 +152,14 @@ export async function syncEcountUsersFromApi() {
           rows = list;
           break;
         }
+        
+        const errCode = json?.Errors?.[0]?.Code;
         const errMsg = json?.Errors?.[0]?.Message || json?.Result?.Message || json?.Data?.Message;
-        if (errMsg) {
-          lastError = `이카운트 API: ${errMsg}`;
+        
+        if (errCode === "EXP00001" || errMsg === "Not Found" || json?.Status === "500") {
+          lastError = "이카운트 OpenAPI V2 규격에서는 사원 목록 자동 조회를 지원하지 않습니다. (EXP00001 Not Found) 아래 수동 등록/매칭 기능을 사용해 주세요.";
+        } else if (errMsg) {
+          lastError = `이카운트 API 응답: ${errMsg}`;
         }
       } catch (e: any) {
         lastError = e?.message || "통신 실패";
