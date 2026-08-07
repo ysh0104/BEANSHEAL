@@ -11,6 +11,7 @@ function getSupabaseClient() {
 /**
  * 이카운트 ERP ➔ Supabase ecount_inventory 자동 동기화 API
  * Path: /api/ecount/sync
+ * Vercel 자동 재배포 트리거 (최신 환경변수 동기화 반영)
  */
 export async function POST() {
   try {
