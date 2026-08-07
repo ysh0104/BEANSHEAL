@@ -268,11 +268,10 @@ export async function syncInboundWithEcount() {
 }
 
 // 4. 이카운트 품목 마스터(전체 품목 리스트) 가져오기
-export async function getListProduct(sessionObj: any) {
+export async function getListProductDetailed(sessionObj: any): Promise<{ data: any[]; error?: string }> {
   const COM_CODE = process.env.ECOUNT_COM_CODE;
   try {
     const actualSessionId = sessionObj?.Datas?.SESSION_ID || sessionObj?.SESSION_ID;
-    const hostUrl = sessionObj?.Datas?.HOST_URL || sessionObj?.HOST_URL || "oapiac.ecount.com";
 
     const requestUrl = await ecountApiUrl(`/OAPI/V2/InventoryBasic/GetBasicProductsList?SESSION_ID=${actualSessionId}`);
     const headers = await ecountFetchHeaders();
@@ -283,7 +282,9 @@ export async function getListProduct(sessionObj: any) {
       body: JSON.stringify({
         SESSION_ID: actualSessionId,
         COM_CODE: COM_CODE,
-        DATA: {} 
+        DATA: {
+          PROD_CD: "",
+        } 
       })
     });
 
@@ -291,26 +292,39 @@ export async function getListProduct(sessionObj: any) {
 
     let result;
     try {
-      result = JSON.parse(textData);
+      const cleanText = textData.replace(/^\uFEFF/, "").trim();
+      result = JSON.parse(cleanText);
     } catch (e) {
       console.error("JSON 파싱 에러:", textData.substring(0, 200));
-      return [];
+      return { data: [], error: `응답 파싱 실패: ${textData.substring(0, 100)}` };
+    }
+
+    if (result?.Status && result.Status !== "200") {
+      const errDetail = result.Errors?.[0]?.Message || result.Result?.Message || `Status ${result.Status}`;
+      return { data: [], error: `이카운트 응답 에러 (${result.Status}): ${errDetail}` };
     }
 
     const dataList = result.Data?.Result || result.Data?.List || result.Data || [];
-    return dataList;
-  } catch (error) {
+    if (!Array.isArray(dataList)) {
+      return { data: [], error: result?.Errors?.[0]?.Message || "결과 데이터가 배열 형태가 아닙니다." };
+    }
+    return { data: dataList };
+  } catch (error: any) {
     console.error("품목 마스터 조회 에러:", error);
-    return [];
+    return { data: [], error: error?.message || "통신 오류" };
   }
 }
 
+export async function getListProduct(sessionObj: any) {
+  const res = await getListProductDetailed(sessionObj);
+  return res.data;
+}
+
 // 5. 전체 품목의 현재고 현황 가져오기
-export async function getInventoryStatus(sessionObj: any) {
+export async function getInventoryStatusDetailed(sessionObj: any): Promise<{ data: any[]; error?: string }> {
   const COM_CODE = process.env.ECOUNT_COM_CODE;
   try {
     const actualSessionId = sessionObj?.Datas?.SESSION_ID || sessionObj?.SESSION_ID;
-    const hostUrl = sessionObj?.Datas?.HOST_URL || sessionObj?.HOST_URL || "oapiac.ecount.com";
 
     const today = new Date();
     const kstTime = new Date(today.getTime() + (9 * 60 * 60 * 1000));
@@ -340,19 +354,26 @@ export async function getInventoryStatus(sessionObj: any) {
     const textData = await response.text(); 
     let result;
     try {
-      result = JSON.parse(textData);
+      const cleanText = textData.replace(/^\uFEFF/, "").trim();
+      result = JSON.parse(cleanText);
     } catch (e) {
       console.error("이카운트 응답 파싱 에러:", textData.substring(0, 500));
-      return [];
+      return { data: [], error: `재고응답 파싱 실패: ${textData.substring(0, 100)}` };
+    }
+
+    if (result?.Status && result.Status !== "200") {
+      const errDetail = result.Errors?.[0]?.Message || result.Result?.Message || `Status ${result.Status}`;
+      return { data: [], error: `재고 현황 에러 (${result.Status}): ${errDetail}` };
     }
 
     const dataList = result.Data?.Result || result.Data?.List || result.Data;
 
     if (!Array.isArray(dataList)) {
-      return [];
+      return { data: [], error: result?.Errors?.[0]?.Message || "재고 데이터가 배열 형식이 아닙니다." };
     }
 
-    const productList = await getListProduct(sessionObj);
+    const productListRes = await getListProductDetailed(sessionObj);
+    const productList = productListRes.data;
     const productMap: Record<string, any> = {};
     
     if (Array.isArray(productList)) {
@@ -365,7 +386,7 @@ export async function getInventoryStatus(sessionObj: any) {
       });
     }
 
-    return dataList
+    const mapped = dataList
       .filter((item: any) => Number(item.BAL_QTY) !== 0) 
       .map((item: any) => {
         const matchedInfo = productMap[item.PROD_CD] || {};
@@ -382,10 +403,16 @@ export async function getInventoryStatus(sessionObj: any) {
       })
       .sort((a: any, b: any) => Number(b.qty.replace(/,/g, '')) - Number(a.qty.replace(/,/g, '')));
       
-  } catch (error) {
+    return { data: mapped };
+  } catch (error: any) {
     console.error("재고 현황 조회 통신 실패:", error);
-    return [];
+    return { data: [], error: error?.message || "통신 오류" };
   }
+}
+
+export async function getInventoryStatus(sessionObj: any) {
+  const res = await getInventoryStatusDetailed(sessionObj);
+  return res.data;
 }
 
 // --- 재고 현황을 강제로 찔러서 로트 번호 유무를 확인하는 디버그 함수 ---
@@ -623,8 +650,11 @@ export async function syncEcountMasterToDb() {
     // getListProduct / getInventoryStatus 는 Datas 또는 평면 SESSION_ID 모두 허용
     const sessionObj = sessionData.Datas ? sessionData : { Datas: sessionData, ...sessionData };
 
-    const productList = await getListProduct(sessionObj);
-    const inventory = await getInventoryStatus(sessionObj);
+    const productListRes = await getListProductDetailed(sessionObj);
+    const inventoryRes = await getInventoryStatusDetailed(sessionObj);
+
+    const productList = productListRes.data;
+    const inventory = inventoryRes.data;
 
     const qtyMap = new Map<string, number>();
     if (Array.isArray(inventory)) {
@@ -641,7 +671,12 @@ export async function syncEcountMasterToDb() {
         }));
 
     if (!source.length) {
-      return { success: false, error: "이카운트에서 품목 데이터를 가져오지 못했습니다." };
+      const prodErr = productListRes.error || "응답 0건";
+      const invErr = inventoryRes.error || "응답 0건";
+      return {
+        success: false,
+        error: `이카운트 품목/재고 데이터 가져오기 실패 [품목API: ${prodErr} | 재고API: ${invErr}] — 이카운트 허용 IP 등록 및 사무실 프록시 PC 상태를 확인해 주세요.`
+      };
     }
 
     const rows = source
