@@ -156,10 +156,30 @@ export default function ExcelViewer({
     return updated;
   }
 
-  // 3. 엑셀 파일 다운로드 (.xlsx)
-  const handleDownloadXLSX = () => {
-    if (!workbook) return;
-    XLSX.writeFile(workbook, `제조지시기록서_${selectedOrder?.orderNumber || "Export"}.xlsx`);
+  // 3. 엑셀 원본 파일 자동 채움 다운로드 (.xlsx)
+  const handleDownloadXLSX = async () => {
+    try {
+      const res = await fetch("/api/export-excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: selectedOrder }),
+      });
+
+      if (!res.ok) throw new Error("엑셀 파일 생성 실패");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `제조지시기록서_${selectedOrder?.itemName || "세리컷프레소V2"}_${selectedOrder?.date || "20260409"}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      console.error("Download Excel Error:", err);
+      alert("엑셀 다운로드 중 오류 발생: " + err.message);
+    }
   };
 
   // 4. A4 1:1 맞춤 인쇄 / PDF 다운로드
