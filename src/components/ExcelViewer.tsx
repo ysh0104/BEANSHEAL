@@ -74,7 +74,7 @@ export default function ExcelViewer({
     let html = XLSX.utils.sheet_to_html(sheet, { editable: true });
 
     // 전자 서명 이미지 바인딩 및 엑셀 스타일 보정
-    html = injectSignaturesAndStyles(html, activeSheet, signatures);
+    html = injectSignaturesAndStyles(sheet, html, activeSheet, signatures);
 
     setSheetHtml(html);
   }, [workbook, activeSheet, selectedOrder, signatures]);
@@ -112,10 +112,25 @@ export default function ExcelViewer({
     }
   }
 
-  // 전자서명 및 엑셀 CSS 내장 보정
-  function injectSignaturesAndStyles(htmlStr: string, sheetName: string, sigs: Record<string, string>) {
-    // 엑셀 테이블에 클래스 부여
-    let updated = htmlStr.replace("<table>", '<table class="excel-live-table">');
+  // 전자서명 및 엑셀 CSS 컬럼 너비/스타일 보정
+  function injectSignaturesAndStyles(sheet: XLSX.WorkSheet, htmlStr: string, sheetName: string, sigs: Record<string, string>) {
+    const cols = sheet["!cols"] || [];
+    let colGroupHtml = "<colgroup>";
+    let totalWidth = 0;
+    
+    if (cols.length > 0) {
+      cols.forEach((col: any) => {
+        const w = col.wpx || (col.width ? Math.round(col.width * 7.5) : 30);
+        colGroupHtml += `<col style="width:${w}px; min-width:${w}px; max-width:${w}px;" />`;
+        totalWidth += w;
+      });
+      colGroupHtml += "</colgroup>";
+    }
+    
+    const tableWidthStyle = totalWidth > 0 ? `width:${totalWidth}px; min-width:${totalWidth}px;` : "width:100%;";
+
+    // 엑셀 테이블에 colgroup 및 고정 너비 스타일 부여
+    let updated = htmlStr.replace("<table>", `<table class="excel-live-table" style="${tableWidthStyle} table-layout:fixed; border-collapse:collapse; margin:0 auto;">${colGroupHtml}`);
 
     // 서명 위치 치환
     Object.entries(sigs).forEach(([role, sigUrl]) => {
