@@ -1,5 +1,5 @@
 ---
-description: Push directly to main; do not open pull requests
+description: Push directly to main; do not open pull requests; never auto-push
 alwaysApply: true
 ---
 
@@ -7,10 +7,17 @@ alwaysApply: true
 
 This project uses **direct push to `main`**. Do not create pull requests unless the user explicitly asks.
 
+## Never auto-push
+
+- **코드/설정 수정만 한 뒤 자동으로 `git push` 하지 말 것.**
+- 커밋도 사용자가 명시적으로 요청할 때만.
+- 푸시는 사용자가 **"푸쉬해" / "push" / "올려"**처럼 **명시적으로 요청할 때만** 실행.
+- 배포가 필요해 보여도 먼저 물어보거나, 푸시 요청을 기다릴 것.
+
 ## Default branch
 
 - Work on **`main`** only.
-- Before pushing: `git pull origin main` (merge/rebase as needed).
+- Before pushing (when explicitly asked): `git pull origin main` (merge/rebase as needed).
 - Push with: `git push origin main`
 
 ## When the user asks to commit or push
@@ -18,15 +25,16 @@ This project uses **direct push to `main`**. Do not create pull requests unless 
 1. Confirm changes on `main` (`git status`, `git branch`).
 2. If not on `main`, checkout `main` and merge/rebase local work first.
 3. Commit on `main` when explicitly requested.
-4. Push to **`origin main`** — not feature branches, not PR flow.
+4. Push to **`origin main`** — not feature branches, not PR flow — **only if push was requested**.
 
 ## Do not
 
 - Run `gh pr create` or suggest opening a PR by default.
 - Push to `cursor/*` or other long-lived feature branches unless the user asks.
 - Force-push `main` unless the user explicitly requests it.
+- Push as a side effect of finishing a feature or plan.
 
 ## If push is rejected (non-fast-forward)
 
 1. `git pull origin main` to integrate remote changes.
-2. Resolve conflicts if any, commit, then `git push origin main`.
+2. Resolve conflicts if any, commit, then `git push origin main` (only when push was requested).

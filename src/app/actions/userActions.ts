@@ -14,6 +14,9 @@ export interface ProfileItem {
   updated_at?: string;
   created_at?: string;
   permission_group_id?: string | null;
+  ecount_user_id?: string | null;
+  ecount_emp_cd?: string | null;
+  ecount_user_name?: string | null;
 }
 
 function computeRoleHelper(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
@@ -70,6 +73,9 @@ export async function getAllUserProfiles() {
         job_title: formatJobTitle(department, position),
         updated_at: p.updated_at || p.created_at || new Date().toISOString(),
         permission_group_id: p.permission_group_id || null,
+        ecount_user_id: p.ecount_user_id || null,
+        ecount_emp_cd: p.ecount_emp_cd || null,
+        ecount_user_name: p.ecount_user_name || null,
       };
     });
 

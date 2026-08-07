@@ -13,6 +13,13 @@ import {
 } from "@/app/actions/permissionActions";
 import type { PermissionGroupRecord } from "@/lib/permissions";
 import { canUserEdit } from "@/hooks/useCanEdit";
+import {
+  listEcountUsers,
+  syncEcountUsersFromApi,
+  upsertEcountUserManual,
+  updateEcountMapping,
+  type EcountUserRecord,
+} from "@/app/actions/ecountUserMapping";
 
 const DEPARTMENT_OPTIONS = [
   "생산팀",
@@ -66,12 +73,6 @@ const POSITION_OPTIONS = [
   "사원",
 ];
 
-const ROLE_OPTIONS: { value: "ADMIN" | "QA" | "WORKER"; label: string }[] = [
-  { value: "ADMIN", label: "ADMIN (전체 권한)" },
-  { value: "QA", label: "QA (품질/생산 권한)" },
-  { value: "WORKER", label: "WORKER (사원/작업자 권한)" },
-];
-
 export default function UserManagementPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -95,9 +96,13 @@ export default function UserManagementPage() {
       position: string;
       role: "ADMIN" | "QA" | "WORKER";
       permission_group_id: string | null;
+      ecount_user_id: string;
     };
   }>({});
   const [permGroups, setPermGroups] = useState<PermissionGroupRecord[]>([]);
+  const [ecountUsers, setEcountUsers] = useState<EcountUserRecord[]>([]);
+  const [ecountSyncMsg, setEcountSyncMsg] = useState<string | null>(null);
+  const [ecountSyncing, setEcountSyncing] = useState(false);
 
   const canManagePerms =
     canUserEdit(user, "admin_users") ||
@@ -106,8 +111,14 @@ export default function UserManagementPage() {
 
   const [dbStatusInfo, setDbStatusInfo] = useState<string>("Supabase DB 연결 확인 중...");
 
+  const loadEcountUsers = async () => {
+    const res = await listEcountUsers();
+    if (res.success) setEcountUsers(res.data);
+  };
+
   useEffect(() => {
     loadProfiles();
+    loadEcountUsers();
     (async () => {
       const res = await listPermissionGroups();
       if (res.success) setPermGroups(res.data);
@@ -148,6 +159,9 @@ export default function UserManagementPage() {
             job_title: formatJobTitle(dept, pos),
             updated_at: p.updated_at || p.created_at || new Date().toISOString(),
             permission_group_id: p.permission_group_id || null,
+            ecount_user_id: p.ecount_user_id || null,
+            ecount_emp_cd: p.ecount_emp_cd || null,
+            ecount_user_name: p.ecount_user_name || null,
           };
         });
       } else {
@@ -215,6 +229,7 @@ export default function UserManagementPage() {
         position: string;
         role: "ADMIN" | "QA" | "WORKER";
         permission_group_id: string | null;
+        ecount_user_id: string;
       };
     } = {};
     loadedData.forEach((p) => {
@@ -223,6 +238,7 @@ export default function UserManagementPage() {
         position: p.position,
         role: p.role,
         permission_group_id: p.permission_group_id || null,
+        ecount_user_id: p.ecount_user_id || "",
       };
     });
     setEditStates(initialEdits);
@@ -232,7 +248,7 @@ export default function UserManagementPage() {
 
   const handleSelectChange = (
     id: string,
-    field: "department" | "position" | "role" | "permission_group_id",
+    field: "department" | "position" | "role" | "permission_group_id" | "ecount_user_id",
     value: string
   ) => {
     setEditStates((prev) => {
@@ -241,11 +257,13 @@ export default function UserManagementPage() {
         position: "사원",
         role: "WORKER" as const,
         permission_group_id: null,
+        ecount_user_id: "",
       };
       let newDept = current.department;
       let newPos = current.position;
       let newRole = current.role;
       let newGroupId = current.permission_group_id;
+      let newEcountId = current.ecount_user_id;
 
       if (field === "position") {
         newPos = normalizePosition(value);
@@ -259,6 +277,8 @@ export default function UserManagementPage() {
         newRole = value as "ADMIN" | "QA" | "WORKER";
       } else if (field === "permission_group_id") {
         newGroupId = value || null;
+      } else if (field === "ecount_user_id") {
+        newEcountId = value;
       }
 
       return {
@@ -268,9 +288,36 @@ export default function UserManagementPage() {
           position: newPos,
           role: newRole,
           permission_group_id: newGroupId,
+          ecount_user_id: newEcountId,
         },
       };
     });
+  };
+
+  const handleSyncEcountUsers = async () => {
+    setEcountSyncing(true);
+    setEcountSyncMsg(null);
+    const res = await syncEcountUsersFromApi();
+    setEcountSyncMsg(res.message || (res.success ? "동기화 완료" : "동기화 실패"));
+    await loadEcountUsers();
+    setEcountSyncing(false);
+  };
+
+  const handleAddEcountUserManual = async () => {
+    const userId = prompt("이카운트 로그인 ID (예: BEANSHEAL 또는 사원ID)");
+    if (!userId?.trim()) return;
+    const userName = prompt("표시 이름 (선택)", "") || userId.trim();
+    const res = await upsertEcountUserManual({
+      user_id: userId.trim(),
+      emp_cd: userId.trim(),
+      user_name: userName.trim(),
+    });
+    if (!res.success) {
+      alert(res.message || "등록 실패");
+      return;
+    }
+    await loadEcountUsers();
+    setEcountSyncMsg(`이카운트 사용자 '${userId.trim()}' 등록됨`);
   };
 
   const handleSaveProfile = async (targetUser: ProfileItem) => {
@@ -306,6 +353,7 @@ export default function UserManagementPage() {
           position: savePos,
           role: saveRole,
           permission_group_id: edit.permission_group_id || null,
+          ecount_user_id: edit.ecount_user_id || null,
           updated_at: new Date().toISOString(),
         }, { onConflict: "id" });
 
@@ -331,7 +379,19 @@ export default function UserManagementPage() {
     const res = await updateUserProfile(targetUser.id, saveDept, savePos, saveRole);
     await assignUserPermissionGroup(targetUser.id, edit.permission_group_id || null);
 
+    const matchedEcount = ecountUsers.find((e) => e.user_id === edit.ecount_user_id);
+    const mapRes = await updateEcountMapping(targetUser.id, {
+      ecount_user_id: edit.ecount_user_id || null,
+      ecount_emp_cd: matchedEcount?.emp_cd || edit.ecount_user_id || null,
+      ecount_user_name: matchedEcount?.user_name || null,
+    });
+
     const groupName = permGroups.find((g) => g.id === edit.permission_group_id)?.name || "미배정";
+    const ecountLabel = edit.ecount_user_id
+      ? matchedEcount
+        ? `${matchedEcount.user_name} (${matchedEcount.user_id})`
+        : edit.ecount_user_id
+      : "미연결";
 
     if (dbSuccess || res.success) {
       setProfiles((prev) =>
@@ -344,6 +404,9 @@ export default function UserManagementPage() {
                 role: saveRole,
                 job_title: newJobTitle,
                 permission_group_id: edit.permission_group_id || null,
+                ecount_user_id: edit.ecount_user_id || null,
+                ecount_emp_cd: matchedEcount?.emp_cd || edit.ecount_user_id || null,
+                ecount_user_name: matchedEcount?.user_name || null,
                 updated_at: new Date().toISOString(),
               }
             : p
@@ -352,8 +415,10 @@ export default function UserManagementPage() {
 
       setStatusMsg({
         id: targetUser.id,
-        type: "success",
-        text: `'${targetUser.full_name}' 저장됨 — 부서(${saveDept}) / 직급(${savePos}) / 권한그룹(${groupName})`,
+        type: mapRes.success === false ? "error" : "success",
+        text: mapRes.success === false
+          ? mapRes.message || "이카운트 매칭 저장 실패 (마이그레이션 확인)"
+          : `'${targetUser.full_name}' 저장 — 권한그룹(${groupName}) / 이카운트(${ecountLabel})`,
       });
 
       // 본인 프로필 수정 시 로컬 세션도 동기화
@@ -501,25 +566,51 @@ export default function UserManagementPage() {
         )}
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-          <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-            <h2 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-              <span>가입 사원 목록 및 직책 부여</span>
-            </h2>
-            <span className="text-xs text-slate-500 font-normal">총 {profiles.length} 건</span>
+          <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-sm text-slate-800">가입 사원 · 이카운트 매칭</h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Google 로그인 계정에 이카운트 사용자 ID를 연결합니다. API 동기화가 안 되면 「수동 등록」으로 ID를 넣으세요.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAddEcountUserManual}
+                disabled={!canManagePerms}
+                className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-white cursor-pointer disabled:opacity-50"
+              >
+                + 이카운트 ID 수동 등록
+              </button>
+              <button
+                type="button"
+                onClick={handleSyncEcountUsers}
+                disabled={!canManagePerms || ecountSyncing}
+                className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-700 cursor-pointer disabled:opacity-50"
+              >
+                {ecountSyncing ? "동기화 중…" : "이카운트 사원 동기화"}
+              </button>
+              <span className="text-xs text-slate-500 font-normal">총 {profiles.length} 건</span>
+            </div>
           </div>
+          {ecountSyncMsg && (
+            <div className="px-5 py-2 text-[11px] border-b border-slate-100 bg-amber-50 text-amber-900">
+              {ecountSyncMsg}
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                  <th className="py-3 px-4">사용자 (이름 / 이메일)</th>
-                  <th className="py-3 px-4">현재 화면 표시 직책</th>
-                  <th className="py-3 px-4 min-w-[130px]">소속 부서 (Department)</th>
-                  <th className="py-3 px-4 min-w-[120px]">직급 (Position)</th>
-                  <th className="py-3 px-4 min-w-[150px]">권한 그룹</th>
-                  <th className="py-3 px-4 min-w-[180px]">레거시 Role</th>
-                  <th className="py-3 px-4">최근 수정일</th>
-                  <th className="py-3 px-4 text-right">권한 부여 저장</th>
+                  <th className="py-3 px-4">Google 사용자</th>
+                  <th className="py-3 px-4">표시 직책</th>
+                  <th className="py-3 px-4 min-w-[120px]">부서</th>
+                  <th className="py-3 px-4 min-w-[100px]">직급</th>
+                  <th className="py-3 px-4 min-w-[140px]">권한 그룹</th>
+                  <th className="py-3 px-4 min-w-[200px]">이카운트 매칭</th>
+                  <th className="py-3 px-4">최근 수정</th>
+                  <th className="py-3 px-4 text-right">저장</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-normal">
@@ -545,21 +636,24 @@ export default function UserManagementPage() {
                       position: p.position,
                       role: p.role,
                       permission_group_id: p.permission_group_id || null,
+                      ecount_user_id: p.ecount_user_id || "",
                     };
                     const isTopPos = isTopPosition(normalizePosition(currentEdit.position));
                     const displayDept = isTopPos ? "경영진" : currentEdit.department;
-                    const displayRole = isTopPos ? "ADMIN" : currentEdit.role;
                     const isChanged =
                       currentEdit.department !== p.department ||
                       currentEdit.position !== p.position ||
                       currentEdit.role !== p.role ||
-                      (currentEdit.permission_group_id || null) !== (p.permission_group_id || null);
+                      (currentEdit.permission_group_id || null) !== (p.permission_group_id || null) ||
+                      (currentEdit.ecount_user_id || "") !== (p.ecount_user_id || "");
                     const previewJobTitle = formatJobTitle(displayDept, currentEdit.position);
                     const isSelf = user?.email === p.email;
+                    const ecountFreeText =
+                      currentEdit.ecount_user_id &&
+                      !ecountUsers.some((e) => e.user_id === currentEdit.ecount_user_id);
 
                     return (
                       <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${isSelf ? "bg-slate-50/90" : ""}`}>
-                        {/* 이름 / 이메일 - 강조(Bold) */}
                         <td className="py-3.5 px-4">
                           <div className="flex flex-col">
                             <div className="flex items-center gap-1.5">
@@ -574,14 +668,12 @@ export default function UserManagementPage() {
                           </div>
                         </td>
 
-                        {/* 현재 직책 - 강조(Bold) */}
                         <td className="py-3.5 px-4">
                           <span className="font-semibold text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
                             {previewJobTitle}
                           </span>
                         </td>
 
-                        {/* 부서 선택 */}
                         <td className="py-3.5 px-4">
                           <select
                             value={displayDept}
@@ -597,7 +689,6 @@ export default function UserManagementPage() {
                           </select>
                         </td>
 
-                        {/* 직급 선택 */}
                         <td className="py-3.5 px-4">
                           <select
                             value={normalizePosition(currentEdit.position)}
@@ -612,7 +703,6 @@ export default function UserManagementPage() {
                           </select>
                         </td>
 
-                        {/* 권한 그룹 */}
                         <td className="py-3.5 px-4">
                           <select
                             value={currentEdit.permission_group_id || ""}
@@ -629,20 +719,33 @@ export default function UserManagementPage() {
                           </select>
                         </td>
 
-                        {/* 수동 권한 부여 (Role 선택 Dropdown) */}
                         <td className="py-3.5 px-4">
                           <select
-                            value={displayRole}
-                            onChange={(e) => handleSelectChange(p.id, "role", e.target.value)}
-                            disabled={isTopPos}
-                            className="w-full text-xs font-medium border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
+                            value={currentEdit.ecount_user_id || ""}
+                            onChange={(e) => handleSelectChange(p.id, "ecount_user_id", e.target.value)}
+                            disabled={!canManagePerms}
+                            className="w-full text-xs font-bold border border-emerald-200 rounded-lg px-2.5 py-1.5 bg-emerald-50 text-emerald-900 focus:ring-2 focus:ring-emerald-600 focus:outline-none cursor-pointer disabled:opacity-60"
                           >
-                            {ROLE_OPTIONS.map((rOpt) => (
-                              <option key={rOpt.value} value={rOpt.value}>
-                                {rOpt.label}
+                            <option value="">미연결</option>
+                            {ecountFreeText && (
+                              <option value={currentEdit.ecount_user_id}>
+                                {currentEdit.ecount_user_id} (직접입력)
+                              </option>
+                            )}
+                            {ecountUsers.map((e) => (
+                              <option key={e.user_id} value={e.user_id}>
+                                {e.user_name} ({e.user_id})
                               </option>
                             ))}
                           </select>
+                          <input
+                            type="text"
+                            placeholder="또는 ID 직접 입력"
+                            value={currentEdit.ecount_user_id}
+                            onChange={(e) => handleSelectChange(p.id, "ecount_user_id", e.target.value)}
+                            disabled={!canManagePerms}
+                            className="mt-1 w-full text-[11px] border border-slate-200 rounded-lg px-2 py-1 font-mono disabled:bg-slate-50"
+                          />
                         </td>
 
                         {/* 최근 수정일 */}
