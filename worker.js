@@ -1,52 +1,60 @@
 /**
  * Cloudflare Worker Proxy for Ecount ERP API
  * Domain: https://beansheal-ecount.sala0104.workers.dev
- * 
- * Cloudflare Worker 대시보드(Quick Edit) 온라인 에디터 호환 Service Worker 방식입니다. (빨간 줄 0개)
  */
 addEventListener("fetch", (event) => {
   event.respondWith(handleRequest(event.request));
 });
 
+// IPv4 전용 서버만 멀티 쿼리하여 순수 IPv4(xxx.xxx.xxx.xxx)만 추출하는 함수
+async function getWorkerIPv4() {
+  const ipv4Endpoints = [
+    "http://checkip.amazonaws.com",
+    "https://ipv4.icanhazip.com",
+    "http://ip4only.me/api/",
+    "http://v4.ipv6-test.com/api/myip.php"
+  ];
+
+  for (const url of ipv4Endpoints) {
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      const text = await res.text();
+      // IPv4 정규식 패턴 (xxx.xxx.xxx.xxx) 엄격 추출
+      const match = text.match(/\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/);
+      if (match && match[0]) {
+        return match[0];
+      }
+    } catch (e) {}
+  }
+  return "Cloudflare Outbound IPv4를 수신하지 못했습니다. (네트워크 지연)";
+}
+
 async function handleRequest(request) {
   const url = new URL(request.url);
 
-  // 1. 루트 (/) 또는 /ip 접속 시 즉시 Cloudflare Outbound IPv4 주소 반환!
+  // 1. 루트 (/) 또는 /ip 접속 시 순수 IPv4 주소 반환!
   if (url.pathname === "/" || url.pathname === "/ip" || url.pathname === "/my-ip") {
-    try {
-      // Cloudflare Worker 이그레스(Outbound) IPv4 전용 서버 조회 (api4.ipify.org)
-      const ipRes = await fetch("https://api4.ipify.org?format=json");
-      const ipData = await ipRes.json();
+    const outboundIPv4 = await getWorkerIPv4();
 
-      return new Response(
-        JSON.stringify({
-          status: "200 OK",
-          worker_outbound_ipv4: ipData.ip,
-          client_ip: request.headers.get("cf-connecting-ip") || "Unknown",
-          ecount_whitelist_guide: `이카운트 ERP [셀프커스터마이징 ➔ 정보관리 ➔ API인증서 관리 ➔ 허용 IP 관리] 메뉴에 [ ${ipData.ip} ] IPv4 주소를 등록하세요.`,
-          usage: {
-            ip_check: request.url,
-            oapi_proxy: "이 주소(https://beansheal-ecount.sala0104.workers.dev)를 Vercel 환경변수 ECOUNT_API_BASE_URL 에 등록하세요."
-          }
-        }, null, 2),
-        {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json; charset=utf-8",
-            "Access-Control-Allow-Origin": "*"
-          }
+    return new Response(
+      JSON.stringify({
+        status: "200 OK",
+        worker_outbound_ipv4: outboundIPv4,
+        client_ip: request.headers.get("cf-connecting-ip") || "Unknown",
+        ecount_whitelist_guide: `이카운트 ERP [셀프커스터마이징 ➔ 정보관리 ➔ API인증서 관리 ➔ 허용 IP 관리] 메뉴에 위 IPv4 주소 [ ${outboundIPv4} ] 를 등록하세요.`,
+        usage: {
+          ip_check: request.url,
+          oapi_proxy: "이 주소(https://beansheal-ecount.sala0104.workers.dev)를 Vercel 환경변수 ECOUNT_API_BASE_URL 에 등록하세요."
         }
-      );
-    } catch (e) {
-      return new Response(
-        JSON.stringify({
-          error: "Failed to fetch Worker outbound IPv4",
-          message: e.message,
-          client_ip: request.headers.get("cf-connecting-ip")
-        }, null, 2),
-        { status: 500, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
-      );
-    }
+      }, null, 2),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
   }
 
   // 2. CORS Preflight OPTIONS 처리
