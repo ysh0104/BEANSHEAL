@@ -54,6 +54,7 @@ export async function POST() {
 
     // 1. Cloudflare Pages 프록시 주소를 통해 세션 발급 / Zone 위치 확인
     let zone = 'BA';
+    let zoneDataRaw: any = null;
     try {
       const zoneRes = await fetch(`${baseUrl}/OAPI/V2/Zone`, {
         method: 'POST',
@@ -61,26 +62,28 @@ export async function POST() {
         body: JSON.stringify({ COM_CODE: comCode }),
         cache: 'no-store'
       });
-      const zoneData = await zoneRes.json();
-      if (zoneData?.Data?.ZONE) {
-        zone = zoneData.Data.ZONE;
+      zoneDataRaw = await zoneRes.json();
+      if (zoneDataRaw?.Data?.ZONE) {
+        zone = String(zoneDataRaw.Data.ZONE).trim();
       }
     } catch (e) {
-      console.warn('[Ecount Sync] Zone API 호출 실패, 기본값(BA) 적용:', e);
+      console.warn('[Ecount Sync] Zone API 호출 경고:', e);
     }
 
     // 2. 이카운트 OAPI 로그인 세션 발급 (/OAPI/V2/OAPILogin)
     const loginUrl = `${baseUrl}/OAPI/V2/OAPILogin`;
+    const loginPayload = {
+      COM_CODE: comCode,
+      USER_ID: userId,
+      API_CERT_KEY: apiKey,
+      LAN_TYPE: 'ko-KR',
+      ZONE: zone,
+    };
+
     const loginRes = await fetch(loginUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        COM_CODE: comCode,
-        USER_ID: userId,
-        API_CERT_KEY: apiKey,
-        LAN_TYPE: 'ko-KR',
-        ZONE: zone,
-      }),
+      body: JSON.stringify(loginPayload),
       cache: 'no-store'
     });
 
@@ -88,9 +91,33 @@ export async function POST() {
     const sessionId = loginData.Data?.Datas?.SESSION_ID || loginData.Data?.SESSION_ID;
 
     if (!sessionId) {
-      const errMsg = loginData.Result?.Message || loginData.Errors?.[0]?.Message || loginData.Data?.Message || '세션 발급 실패';
+      const detailErr = 
+        loginData.Result?.Message || 
+        loginData.Errors?.[0]?.Message || 
+        loginData.Data?.Message || 
+        loginData.Error?.Message || 
+        '이카운트 로그인 거절 (인증정보 또는 IP 승인 확인 필요)';
+
       return NextResponse.json(
-        { success: false, error: `이카운트 로그인 실패: ${errMsg}`, loginData },
+        { 
+          success: false, 
+          error: `이카운트 로그인 거절: ${detailErr}`,
+          diagnostics: {
+            com_code_used: comCode ? `${comCode.substring(0, 2)}***` : '없음',
+            user_id_used: userId ? `${userId.substring(0, 2)}***` : '없음',
+            api_key_length: apiKey ? apiKey.length : 0,
+            zone_used: zone,
+            proxy_url_used: baseUrl,
+            ecount_login_response: loginData,
+            ecount_zone_response: zoneDataRaw
+          },
+          solution_checklist: [
+            "1. ECOUNT_ZONE_ID (회사코드 6자리)가 맞는지 확인",
+            "2. ECOUNT_USER_ID (이카운트 사용자 ID)가 맞는지 확인",
+            "3. ECOUNT_API_KEY 에 일반 비밀번호가 아닌 [API 인증키]가 들어갔는지 확인",
+            "4. 이카운트 [셀프커스터마이징 ➔ 정보관리 ➔ API인증서 관리] 에서 API 인증키 상태가 '사용중'인지 확인"
+          ]
+        },
         { status: 401 }
       );
     }
