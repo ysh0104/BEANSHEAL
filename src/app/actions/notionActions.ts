@@ -18,6 +18,9 @@ export interface ProductionScheduleItem {
   source?: "supabase" | "notion";
   tag_name?: string;  // 🌟 태그 이름 추가
   tag_color?: string; // 🌟 태그 색상 추가
+  company_name?: string;
+  product_tags?: { name: string; color?: string }[];
+  detail_tags?: { name: string; color?: string }[];
 }
 
 /**
@@ -329,6 +332,22 @@ export async function fetchNotionSchedules(
       let note = "";
       let tagName = "";
       let tagColor = "";
+      let companyName = "";
+      const productTags: { name: string; color?: string }[] = [];
+      const detailTags: { name: string; color?: string }[] = [];
+
+      const pushMultiSelect = (
+        prop: any,
+        bucket: { name: string; color?: string }[]
+      ) => {
+        if (prop.type === "multi_select" && prop.multi_select?.length) {
+          for (const item of prop.multi_select) {
+            if (item?.name) bucket.push({ name: item.name, color: item.color });
+          }
+        } else if (prop.type === "select" && prop.select?.name) {
+          bucket.push({ name: prop.select.name, color: prop.select.color });
+        }
+      };
 
       // 1. 품목명/제목 파싱 (Title ➔ 특정 컬럼 ➔ Rich Text/Select/MultiSelect ➔ 태그명)
       for (const key of Object.keys(props)) {
@@ -476,17 +495,58 @@ export async function fetchNotionSchedules(
         }
       }
 
-      // 5. 태그(Select / Multi-select) 파싱
+      // 5. 태그(Select / Multi-select) 및 업체/제품/상세 속성 파싱
       for (const key of Object.keys(props)) {
         const prop = props[key];
-        if (prop.type === "select" && prop.select) {
+        const kLower = key.toLowerCase();
+
+        if (kLower.includes("업체") || kLower.includes("회사") || kLower.includes("고객") || kLower.includes("client")) {
+          if (prop.type === "rich_text" && prop.rich_text?.length > 0) {
+            companyName = prop.rich_text.map((t: any) => t.plain_text).join("").trim();
+          } else if (prop.type === "select" && prop.select?.name) {
+            companyName = prop.select.name;
+          } else if (prop.type === "title" && prop.title?.length > 0) {
+            companyName = prop.title.map((t: any) => t.plain_text).join("").trim();
+          }
+          continue;
+        }
+
+        if (kLower.includes("제품") || kLower.includes("품목") || kLower.includes("product")) {
+          pushMultiSelect(prop, productTags);
+          continue;
+        }
+
+        if (
+          kLower.includes("상세") ||
+          kLower.includes("부자재") ||
+          kLower.includes("포장") ||
+          kLower.includes("카톤") ||
+          kLower.includes("detail")
+        ) {
+          pushMultiSelect(prop, detailTags);
+          continue;
+        }
+
+        if (
+          (kLower.includes("타입") || kLower.includes("구분") || kLower.includes("type") || kLower.includes("분류")) &&
+          !tagName
+        ) {
+          if (prop.type === "select" && prop.select) {
+            tagName = prop.select.name;
+            tagColor = prop.select.color;
+          } else if (prop.type === "multi_select" && prop.multi_select?.length > 0) {
+            tagName = prop.multi_select[0].name;
+            tagColor = prop.multi_select[0].color;
+          }
+          continue;
+        }
+
+        if (prop.type === "select" && prop.select && !tagName) {
           tagName = prop.select.name;
           tagColor = prop.select.color;
-          break;
-        } else if (prop.type === "multi_select" && prop.multi_select?.length > 0) {
+        } else if (prop.type === "multi_select" && prop.multi_select?.length > 0 && !tagName) {
           tagName = prop.multi_select[0].name;
           tagColor = prop.multi_select[0].color;
-          break;
         }
       }
 
@@ -514,6 +574,9 @@ export async function fetchNotionSchedules(
           source: "notion",
           tag_name: tagName,
           tag_color: tagColor,
+          company_name: companyName || undefined,
+          product_tags: productTags.length ? productTags : undefined,
+          detail_tags: detailTags.length ? detailTags : undefined,
         });
       }
     }

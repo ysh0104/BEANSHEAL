@@ -25,6 +25,7 @@ import MemoRichEditor from "@/components/MemoRichEditor";
 import MemoRichContent from "@/components/MemoRichContent";
 import MemoPresetsManager from "@/components/MemoPresetsManager";
 import WeeklyPlanView from "@/components/WeeklyPlanView";
+import ScheduleEntryPills from "@/components/ScheduleEntryPills";
 import {
   memoPlainText,
   sanitizeMemoHtml,
@@ -1356,7 +1357,6 @@ export default function Home() {
                               <div className="absolute inset-x-0 top-[24px] bottom-1 pointer-events-none px-0.5 pb-2">
                                   {allocated.map((seg, sIdx) => {
                                     const sch = seg.sch;
-                                    const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
                                     const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md' : 'rounded-l-none'} ${seg.isEndOfSchedule ? 'rounded-r-md' : 'rounded-r-none'}`;
                                     const topPos = segTops[sIdx];
                                     const leftPct = (seg.startCol / 7) * 100;
@@ -1380,22 +1380,10 @@ export default function Home() {
                                         e.stopPropagation();
                                         handleDragStart(e, sch);
                                       }}
-                                      className={`pointer-events-auto relative h-fit min-h-[26px] py-0.5 px-2.5 text-left flex items-start justify-between transition-all group/bar ${canEditSchedule ? "cursor-grab active:cursor-grabbing hover:shadow-md" : "cursor-default"} ${tagStyle} ${roundedClass}`}
+                                      className={`pointer-events-auto relative h-fit min-h-[26px] py-1 px-2 text-left flex items-start justify-between transition-all group/bar ${canEditSchedule ? "cursor-grab active:cursor-grabbing hover:shadow-md" : "cursor-default"} bg-white/95 border border-slate-200/80 shadow-2xs ${roundedClass}`}
                                       >
-                                        <div className="text-[11px] font-extrabold leading-[1.35] text-slate-950 pr-1 w-full break-normal">
-                                          {sch.tag_name && (
-                                            <span className="inline-block text-[9.5px] font-black px-1.5 py-0.5 rounded bg-black/15 text-slate-900 mr-1 align-middle shrink-0 leading-none">
-                                              {sch.tag_name}
-                                            </span>
-                                          )}
-                                          <span className="inline leading-[1.35] font-extrabold text-slate-950 align-middle">
-                                            {sch.product_name}
-                                          </span>
-                                          {sch.quantity && sch.quantity !== "1" && (
-                                            <span className="inline-block text-[10px] opacity-90 font-black shrink-0 font-mono ml-1 align-middle leading-none">
-                                              ({sch.quantity})
-                                            </span>
-                                          )}
+                                        <div className="pr-1 w-full min-w-0">
+                                          <ScheduleEntryPills schedule={sch} compact />
                                         </div>
 
                                       {canEditSchedule && (

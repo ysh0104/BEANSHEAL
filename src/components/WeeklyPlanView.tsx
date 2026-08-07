@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { ProductionScheduleItem } from "@/app/actions/notionActions";
+import { ScheduleEntryPillsList } from "@/components/ScheduleEntryPills";
 import { getWeeklyPlan, saveWeeklyPlan } from "@/app/actions/weeklyPlanActions";
 import {
   emptyWeeklyPlanGrid,
@@ -17,7 +18,17 @@ const DAY_LABELS = ["월(Mon)", "화(Tue)", "수(Wed)", "목(Thu)", "금(Fri)", 
 
 type ScheduleLike = Pick<
   ProductionScheduleItem,
-  "id" | "product_name" | "plan_date" | "end_date" | "quantity" | "note" | "tag_name"
+  | "id"
+  | "product_name"
+  | "plan_date"
+  | "end_date"
+  | "quantity"
+  | "note"
+  | "tag_name"
+  | "tag_color"
+  | "company_name"
+  | "product_tags"
+  | "detail_tags"
 >;
 
 interface WeekDay {
@@ -131,6 +142,16 @@ function weekOfMonthLabel(monday: WeekDay): string {
   const adjusted = monday.day + ((firstDow + 6) % 7);
   const weekNum = Math.ceil(adjusted / 7) || 1;
   return `${y}년 ${month}월 ${weekNum}주차`;
+}
+
+function getSchedulesForCell(
+  schedules: ScheduleLike[],
+  category: WeeklyPlanCategory,
+  dateStr: string
+): ScheduleLike[] {
+  return schedules.filter(
+    (sch) => resolveScheduleCategory(sch) === category && scheduleOverlapsDay(sch, dateStr)
+  );
 }
 
 function shiftMonday(mondayStr: string, weeks: number): string {
@@ -332,6 +353,7 @@ export default function WeeklyPlanView({
                     const isSat = idx === 5;
                     const isSun = idx === 6;
                     const value = grid[cat][idx] || "";
+                    const cellSchedules = getSchedulesForCell(schedules, cat, day.dateStr);
                     const cellBg = isSun
                       ? "bg-[#fff5f5]"
                       : isSat
@@ -341,20 +363,31 @@ export default function WeeklyPlanView({
                     return (
                       <td
                         key={`${cat}-${day.dateStr}`}
-                        className={`border border-[#9db4d0] p-0 align-top min-h-[72px] ${cellBg}`}
+                        className={`border border-[#9db4d0] p-0 align-top min-h-[88px] ${cellBg}`}
                       >
-                        {canEdit ? (
-                          <textarea
-                            value={value}
-                            onChange={(e) => handleCellChange(cat, idx, e.target.value)}
-                            className={`w-full h-full min-h-[72px] px-2 py-2 text-[11px] font-semibold leading-relaxed resize-none bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-300 text-slate-900`}
-                            placeholder="입력…"
-                          />
-                        ) : (
-                          <div className="px-2 py-2 text-[11px] font-semibold leading-relaxed whitespace-pre-wrap text-slate-900 min-h-[72px]">
-                            {value}
-                          </div>
-                        )}
+                        <div className="flex flex-col min-h-[88px]">
+                          {/* 노션 스타일: 업체명 · 타입 · 제품/상세 pill */}
+                          {cellSchedules.length > 0 && (
+                            <div className="px-1.5 pt-1.5 pb-1 border-b border-slate-100/80">
+                              <ScheduleEntryPillsList schedules={cellSchedules} compact />
+                            </div>
+                          )}
+
+                          {canEdit ? (
+                            <textarea
+                              value={value}
+                              onChange={(e) => handleCellChange(cat, idx, e.target.value)}
+                              className="w-full flex-1 min-h-[48px] px-2 py-1.5 text-[10px] font-medium leading-relaxed resize-none bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-300 text-slate-700 placeholder:text-slate-400"
+                              placeholder={cellSchedules.length ? "추가 메모…" : "입력…"}
+                            />
+                          ) : value ? (
+                            <div className="px-2 py-1.5 text-[10px] font-medium leading-relaxed whitespace-pre-wrap text-slate-600">
+                              {value}
+                            </div>
+                          ) : cellSchedules.length === 0 ? (
+                            <div className="px-2 py-2 text-[10px] text-slate-300">—</div>
+                          ) : null}
+                        </div>
                       </td>
                     );
                   })}
