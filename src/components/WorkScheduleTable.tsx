@@ -13,38 +13,123 @@ export type ShiftCodeInfo = {
   hours?: string;
   category: "leave" | "shiftA" | "shiftB" | "shiftC" | "shiftD" | "shiftE";
   badgeClass: string;
-  dotColor?: string;
+  workHours: number; // 근무시간 계산용 (시간 단위)
 };
 
-// 근무/휴무 한국어 명칭 및 스타일 지정
 export const SHIFT_CODES: Record<string, ShiftCodeInfo> = {
   // 휴무 및 연차 코드
-  BE: { code: "BE", name: "휴무 (Off)", hours: "-", category: "leave", badgeClass: "bg-[#18181B] text-white font-bold" },
-  AL: { code: "AL", name: "연차 (Annual Leave)", hours: "-", category: "leave", badgeClass: "bg-[#DCFCE7] text-[#15803D] font-bold" },
-  ML: { code: "ML", name: "일차 (Full Day Off)", hours: "-", category: "leave", badgeClass: "bg-[#FEF3C7] text-[#92400E] font-bold" },
-  MO: { code: "MO", name: "오전반차 (Morning Off)", hours: "-", category: "leave", badgeClass: "bg-[#F3F4F6] text-[#374151] font-bold" },
-  AO: { code: "AO", name: "오후반차 (Afternoon Off)", hours: "-", category: "leave", badgeClass: "bg-[#FFEDD5] text-[#C2410C] font-bold" },
-  SL: { code: "SL", name: "병가 (Sick Leave)", hours: "-", category: "leave", badgeClass: "bg-[#FEE2E2] text-[#B91C1C] font-bold" },
-  PL: { code: "PL", name: "유급휴가 (Paid Leave)", hours: "-", category: "leave", badgeClass: "bg-[#FCE7F3] text-[#BE185D] font-bold" },
-  BT: { code: "BT", name: "출장 (Business Trip)", hours: "-", category: "leave", badgeClass: "bg-[#E0F2FE] text-[#0369A1] font-bold" },
-  OL: { code: "OL", name: "예비군/민방위", hours: "-", category: "leave", badgeClass: "bg-[#F1F5F9] text-[#475569] font-bold" },
-  RW: { code: "RW", name: "재택근무 (Remote Work)", hours: "-", category: "leave", badgeClass: "bg-[#E6FCF5] text-[#0CA678] font-bold" },
-  "?": { code: "?", name: "미정 (Pending)", hours: "-", category: "leave", badgeClass: "bg-[#F4F4F5] text-[#71717A] font-bold" },
+  BE: { code: "BE", name: "휴무", hours: "-", category: "leave", badgeClass: "bg-[#18181B] text-white font-bold", workHours: 0 },
+  ML: { code: "ML", name: "월차", hours: "-", category: "leave", badgeClass: "bg-[#E6F4EA] text-[#137333] font-bold border border-[#A8DADC]", workHours: 0 },
+  AL: { code: "AL", name: "연차", hours: "-", category: "leave", badgeClass: "bg-[#DCFCE7] text-[#15803D] font-bold border border-[#86EFAC]", workHours: 0 },
+  MO: { code: "MO", name: "오전반차", hours: "-", category: "leave", badgeClass: "bg-[#FEF3C7] text-[#92400E] font-bold border border-[#FDE68A]", workHours: 4 },
+  AO: { code: "AO", name: "오후반차", hours: "-", category: "leave", badgeClass: "bg-[#FFEDD5] text-[#C2410C] font-bold border border-[#FDBA74]", workHours: 4 },
+  SL: { code: "SL", name: "병가", hours: "-", category: "leave", badgeClass: "bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#FCA5A5]", workHours: 0 },
+  PL: { code: "PL", name: "유급휴가", hours: "-", category: "leave", badgeClass: "bg-[#FCE7F3] text-[#BE185D] font-bold border border-[#F472B6]", workHours: 8 },
+  BT: { code: "BT", name: "출장", hours: "-", category: "leave", badgeClass: "bg-[#E0F2FE] text-[#0369A1] font-bold border border-[#7DD3FC]", workHours: 8 },
+  OL: { code: "OL", name: "예비군/민방위", hours: "-", category: "leave", badgeClass: "bg-[#F1F5F9] text-[#475569] font-bold border border-[#CBD5E1]", workHours: 8 },
+  RW: { code: "RW", name: "재택근무", hours: "-", category: "leave", badgeClass: "bg-[#E6FCF5] text-[#0CA678] font-bold border border-[#6EE7B7]", workHours: 8 },
+  "?": { code: "?", name: "미정", hours: "-", category: "leave", badgeClass: "bg-[#F4F4F5] text-[#71717A] font-bold border border-[#E4E4E7]", workHours: 0 },
 
-  // A계열 주간/표준 근무 (06:00 ~ 18:00 시작)
-  A1: { code: "A1", name: "조근1 (06:00~15:00)", hours: "06:00 - 15:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold hover:bg-[#E4E4E7]", dotColor: "#3B82F6" },
-  A2: { code: "A2", name: "조근2 (07:00~16:00)", hours: "07:00 - 16:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold hover:bg-[#E4E4E7]", dotColor: "#3B82F6" },
-  A3: { code: "A3", name: "조근3 (08:00~17:00)", hours: "08:00 - 17:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold hover:bg-[#E4E4E7]", dotColor: "#3B82F6" },
-  A4: { code: "A4", name: "주간정속 (09:00~18:00)", hours: "09:00 - 18:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold hover:bg-[#E4E4E7]", dotColor: "#3B82F6" },
-  A5: { code: "A5", name: "주근5 (10:00~19:00)", hours: "10:00 - 19:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold hover:bg-[#E4E4E7]", dotColor: "#F97316" },
-  A6: { code: "A6", name: "주근6 (11:00~20:00)", hours: "11:00 - 20:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold hover:bg-[#E4E4E7]", dotColor: "#F97316" },
-  A7: { code: "A7", name: "주근7 (12:00~21:00)", hours: "12:00 - 21:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold hover:bg-[#E4E4E7]", dotColor: "#F97316" },
-  A8: { code: "A8", name: "석근8 (13:00~22:00)", hours: "13:00 - 22:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold hover:bg-[#E4E4E7]", dotColor: "#F97316" },
-  A9: { code: "A9", name: "야근9 (14:00~23:00)", hours: "14:00 - 23:00", category: "shiftA", badgeClass: "bg-[#EEF2FF] text-[#3730A3] font-semibold", dotColor: "#6366F1" },
-  A10: { code: "A10", name: "야근10 (15:00~24:00)", hours: "15:00 - 24:00", category: "shiftA", badgeClass: "bg-[#EEF2FF] text-[#3730A3] font-semibold", dotColor: "#6366F1" },
-  A11: { code: "A11", name: "철야11 (16:00~01:00)", hours: "16:00 - 01:00", category: "shiftA", badgeClass: "bg-[#E0E7FF] text-[#312E81] font-bold", dotColor: "#4338CA" },
-  A12: { code: "A12", name: "철야12 (17:00~02:00)", hours: "17:00 - 02:00", category: "shiftA", badgeClass: "bg-[#E0E7FF] text-[#312E81] font-bold", dotColor: "#4338CA" },
-  A13: { code: "A13", name: "철야13 (18:00~03:00)", hours: "18:00 - 03:00", category: "shiftA", badgeClass: "bg-[#F3E8FF] text-[#581C87] font-bold", dotColor: "#8B5CF6" },
+  // A계열 주간/표준 근무 (9시간)
+  A1: { code: "A1", name: "조근1", hours: "06:00~15:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold", workHours: 8 },
+  A2: { code: "A2", name: "조근2", hours: "07:00~16:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold", workHours: 8 },
+  A3: { code: "A3", name: "조근3", hours: "08:00~17:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold", workHours: 8 },
+  A4: { code: "A4", name: "주간정속", hours: "09:00~18:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold", workHours: 8 },
+  A5: { code: "A5", name: "주근5", hours: "10:00~19:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold", workHours: 8 },
+  A6: { code: "A6", name: "주근6", hours: "11:00~20:00", category: "shiftA", badgeClass: "bg-[#F8CBAD] text-[#7C2D12] font-extrabold border border-[#F0B080]", workHours: 8 },
+  A7: { code: "A7", name: "주근7", hours: "12:00~21:00", category: "shiftA", badgeClass: "bg-[#F8CBAD] text-[#7C2D12] font-extrabold border border-[#F0B080]", workHours: 8 },
+  A8: { code: "A8", name: "석근8", hours: "13:00~22:00", category: "shiftA", badgeClass: "bg-[#F8CBAD] text-[#7C2D12] font-extrabold border border-[#F0B080]", workHours: 8 },
+  A9: { code: "A9", name: "야근9", hours: "14:00~23:00", category: "shiftA", badgeClass: "bg-[#F8CBAD] text-[#7C2D12] font-extrabold border border-[#F0B080]", workHours: 8 },
+  A10: { code: "A10", name: "야근10", hours: "15:00~24:00", category: "shiftA", badgeClass: "bg-[#F8CBAD] text-[#7C2D12] font-extrabold border border-[#F0B080]", workHours: 8 },
+  A11: { code: "A11", name: "철야11", hours: "16:00~01:00", category: "shiftA", badgeClass: "bg-[#F8CBAD] text-[#7C2D12] font-extrabold border border-[#F0B080]", workHours: 8 },
+  A12: { code: "A12", name: "철야12", hours: "17:00~02:00", category: "shiftA", badgeClass: "bg-[#F8CBAD] text-[#7C2D12] font-extrabold border border-[#F0B080]", workHours: 8 },
+  A13: { code: "A13", name: "철야13", hours: "18:00~03:00", category: "shiftA", badgeClass: "bg-[#EEF2FF] text-[#312E81] font-bold border border-[#C7D2FE]", workHours: 8 },
+};
+
+// 이미지 상의 정확한 5개 계열 시간표 맵 데이터
+export const MASTER_LEGEND_GRID = {
+  shiftA: [
+    { code: "A1", time: "06:00~15:00", highlight: false },
+    { code: "A2", time: "07:00~16:00", highlight: false },
+    { code: "A3", time: "08:00~17:00", highlight: false },
+    { code: "A4", time: "09:00~18:00", highlight: false },
+    { code: "A5", time: "10:00~19:00", highlight: false },
+    { code: "A6", time: "11:00~20:00", highlight: true },
+    { code: "A7", time: "12:00~21:00", highlight: true },
+    { code: "A8", time: "13:00~22:00", highlight: true },
+    { code: "A9", time: "14:00~23:00", highlight: true },
+    { code: "A10", time: "15:00~24:00", highlight: true },
+    { code: "A11", time: "16:00~01:00", highlight: true },
+    { code: "A12", time: "17:00~02:00", highlight: true },
+    { code: "A13", time: "18:00~03:00", highlight: false },
+  ],
+  shiftB: [
+    { code: "B1", time: "06:00~16:00", highlight: false },
+    { code: "B2", time: "07:00~17:00", highlight: false },
+    { code: "B3", time: "08:00~18:00", highlight: false },
+    { code: "B4", time: "09:00~19:00", highlight: false },
+    { code: "B5", time: "10:00~20:00", highlight: false },
+    { code: "B6", time: "11:00~21:00", highlight: true },
+    { code: "B7", time: "12:00~22:00", highlight: true },
+    { code: "B8", time: "13:00~23:00", highlight: true },
+    { code: "B9", time: "14:00~24:00", highlight: true },
+    { code: "B10", time: "15:00~01:00", highlight: true },
+  ],
+  shiftC: [
+    { code: "C1", time: "06:00~17:00", highlight: false },
+    { code: "C2", time: "07:00~18:00", highlight: false },
+    { code: "C3", time: "08:00~19:00", highlight: false },
+    { code: "C4", time: "09:00~20:00", highlight: false },
+    { code: "C5", time: "10:00~21:00", highlight: false },
+    { code: "C6", time: "11:00~22:00", highlight: true },
+    { code: "C7", time: "12:00~23:00", highlight: true },
+    { code: "C8", time: "13:00~24:00", highlight: true },
+    { code: "C9", time: "14:00~01:00", highlight: true },
+    { code: "C10", time: "15:00~02:00", highlight: true },
+  ],
+  shiftD: [
+    { code: "D1", time: "06:00~18:00", highlight: false },
+    { code: "D2", time: "07:00~19:00", highlight: false },
+    { code: "D3", time: "08:00~20:00", highlight: false },
+    { code: "D4", time: "09:00~21:00", highlight: false },
+    { code: "D5", time: "10:00~22:00", highlight: false },
+    { code: "D6", time: "11:00~23:00", highlight: true },
+    { code: "D7", time: "12:00~24:00", highlight: true },
+    { code: "D8", time: "13:00~01:00", highlight: true },
+    { code: "D9", time: "14:00~02:00", highlight: true },
+    { code: "D10", time: "15:00~03:00", highlight: true },
+    { code: "D11", time: "16:00~04:00", highlight: false },
+    { code: "D12", time: "17:00~05:00", highlight: false },
+    { code: "D13", time: "18:00~06:00", highlight: false },
+  ],
+  shiftE: [
+    { code: "E1", time: "06:00~19:00", highlight: false },
+    { code: "E2", time: "07:00~20:00", highlight: false },
+    { code: "E3", time: "08:00~21:00", highlight: false },
+    { code: "E4", time: "09:00~22:00", highlight: false },
+    { code: "E5", time: "10:00~23:00", highlight: false },
+    { code: "E6", time: "11:00~24:00", highlight: true },
+    { code: "E7", time: "12:00~01:00", highlight: true },
+    { code: "E8", time: "13:00~02:00", highlight: true },
+    { code: "E9", time: "14:00~03:00", highlight: true },
+    { code: "E10", time: "15:00~04:00", highlight: true },
+    { code: "E11", time: "16:00~05:00", highlight: false },
+    { code: "E12", time: "17:00~06:00", highlight: false },
+    { code: "E13", time: "18:00~07:00", highlight: false },
+  ],
+  leaveCodes: [
+    { code: "BE", name: "휴무", badge: "bg-[#18181B] text-white font-bold" },
+    { code: "ML", name: "월차", badge: "bg-[#E6F4EA] text-[#137333] font-bold border border-[#A8DADC]" },
+    { code: "AL", name: "연차", badge: "bg-[#DCFCE7] text-[#15803D] font-bold border border-[#86EFAC]" },
+    { code: "MO", name: "오전반차", badge: "bg-[#FEF3C7] text-[#92400E] font-bold border border-[#FDE68A]" },
+    { code: "AO", name: "오후반차", badge: "bg-[#FFEDD5] text-[#C2410C] font-bold border border-[#FDBA74]" },
+    { code: "SL", name: "병가", badge: "bg-[#FEE2E2] text-[#B91C1C] font-bold border border-[#FCA5A5]" },
+    { code: "PL", name: "유급휴가", badge: "bg-[#FCE7F3] text-[#BE185D] font-bold border border-[#F472B6]" },
+    { code: "BT", name: "출장", badge: "bg-[#E0F2FE] text-[#0369A1] font-bold border border-[#7DD3FC]" },
+    { code: "OL", name: "예비군/민방위", badge: "bg-[#F1F5F9] text-[#475569] font-bold border border-[#CBD5E1]" },
+    { code: "RW", name: "재택근무", badge: "bg-[#E6FCF5] text-[#0CA678] font-bold border border-[#6EE7B7]" },
+    { code: "?", name: "미정", badge: "bg-[#F4F4F5] text-[#71717A] font-bold border border-[#E4E4E7]" },
+  ]
 };
 
 function getShiftInfo(code: string): ShiftCodeInfo {
@@ -53,19 +138,23 @@ function getShiftInfo(code: string): ShiftCodeInfo {
   const num = parseInt(code.slice(1), 10);
   if (!isNaN(num)) {
     const baseHour = (5 + num) % 24;
-    let dur = 9;
-    if (char === "B") dur = 10;
-    if (char === "C") dur = 11;
-    if (char === "D") dur = 12;
-    if (char === "E") dur = 13;
+    let dur = 8;
+    if (char === "B") dur = 9;
+    if (char === "C") dur = 10;
+    if (char === "D") dur = 11;
+    if (char === "E") dur = 12;
     const startH = String(baseHour).padStart(2, "0");
-    const endH = String((baseHour + dur) % 24).padStart(2, "0");
+    const endH = String((baseHour + dur + 1) % 24).padStart(2, "0");
+    const isHighlight = num >= 6 && num <= 10;
     return {
       code,
-      name: `${char} 계열 연장 근무`,
-      hours: `${startH}:00 - ${endH}:00`,
+      name: `${char}계열 근무`,
+      hours: `${startH}:00~${endH}:00`,
       category: `shift${char}` as any,
-      badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold",
+      badgeClass: isHighlight
+        ? "bg-[#F8CBAD] text-[#7C2D12] font-extrabold border border-[#F0B080]"
+        : "bg-[#F4F4F5] text-[#27272A] font-semibold",
+      workHours: dur,
     };
   }
   return {
@@ -74,6 +163,7 @@ function getShiftInfo(code: string): ShiftCodeInfo {
     hours: "-",
     category: "leave",
     badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold",
+    workHours: 0,
   };
 }
 
@@ -82,17 +172,14 @@ function getAvatarBadge(name: string) {
   const charCode = name.charCodeAt(0);
   const colorIndex = charCode % 6;
   const avatarColors = [
-    "bg-[#DBEAFE] text-[#1E40AF]", // Blue
-    "bg-[#CFFAFE] text-[#0891B2]", // Cyan
-    "bg-[#E0E7FF] text-[#3730A3]", // Indigo
-    "bg-[#F3E8FF] text-[#6B21A8]", // Purple
-    "bg-[#CCFBF1] text-[#0F766E]", // Teal
-    "bg-[#FEF3C7] text-[#92400E]", // Amber
+    "bg-[#DBEAFE] text-[#1E40AF]",
+    "bg-[#CFFAFE] text-[#0891B2]",
+    "bg-[#E0E7FF] text-[#3730A3]",
+    "bg-[#F3E8FF] text-[#6B21A8]",
+    "bg-[#CCFBF1] text-[#0F766E]",
+    "bg-[#FEF3C7] text-[#92400E]",
   ];
-  return {
-    initial,
-    colorClass: avatarColors[colorIndex],
-  };
+  return { initial, colorClass: avatarColors[colorIndex] };
 }
 
 const INITIAL_DEMO_DATA: ScheduleEmployeeRow[] = [
@@ -117,13 +204,14 @@ export default function WorkScheduleTable() {
   const [currentYear, setCurrentYear] = useState(2026);
   const [currentMonth, setCurrentMonth] = useState(8); // 1-12
   const [viewMode, setViewMode] = useState<"월간" | "주간" | "일간">("월간");
-  const [selectedWeek, setSelectedWeek] = useState<number>(1); // 주간 뷰 (1~5주차)
+  const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>("전체");
   
   const [rows, setRows] = useState<ScheduleEmployeeRow[]>(INITIAL_DEMO_DATA);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showMasterGrid, setShowMasterGrid] = useState(true); // 근무 코드표 100% 매칭 토글
 
   // 새 사원 등록 모달 state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -165,7 +253,7 @@ export default function WorkScheduleTable() {
       const res = await saveWorkSchedule(yearMonthKey, rows);
       localStorage.setItem(`beansheal_work_schedule_${yearMonthKey}`, JSON.stringify(rows));
       if (res.success) {
-        setSaveMsg({ type: "success", text: "월간 스케줄이 저장 및 전사 게시되었습니다! 🚀" });
+        setSaveMsg({ type: "success", text: "월간 스케줄이 성공적으로 저장 및 전사 게시되었습니다!" });
       } else {
         setSaveMsg({ type: "success", text: "로컬 스토리지에 스케줄이 보관되었습니다." });
       }
@@ -177,7 +265,7 @@ export default function WorkScheduleTable() {
     }
   };
 
-  // 전사 평일 A4 + 주말 BE 일괄 채우기
+  // 평일 A4 + 주말 BE 일괄 생성
   const handleGlobalAutoFill = () => {
     if (!confirm("전사 사원의 당월 평일을 'A4 (09~18)', 주말을 'BE (휴무)'로 일괄 생성하시겠습니까?")) return;
     const days = new Date(currentYear, currentMonth, 0).getDate();
@@ -192,48 +280,6 @@ export default function WorkScheduleTable() {
         return { ...r, shifts: nextShifts };
       })
     );
-  };
-
-  // 지난달 스케줄 패턴 가져오기 (복사)
-  const handleCopyPrevMonth = () => {
-    const prevM = currentMonth === 1 ? 12 : currentMonth - 1;
-    const prevY = currentMonth === 1 ? currentYear - 1 : currentYear;
-    const prevKey = `${prevY}-${String(prevM).padStart(2, "0")}`;
-    const localData = localStorage.getItem(`beansheal_work_schedule_${prevKey}`);
-    if (localData) {
-      try {
-        const parsed = JSON.parse(localData);
-        setRows(parsed);
-        alert(`${prevY}년 ${prevM}월 스케줄 패턴을 불러왔습니다!`);
-        return;
-      } catch (e) {}
-    }
-    alert(`${prevY}년 ${prevM}월 저장된 스케줄 데이터가 없습니다.`);
-  };
-
-  // 새 사원 추가
-  const handleCreateEmployee = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newEmpName.trim()) return;
-    const newId = String(Date.now());
-    const days = new Date(currentYear, currentMonth, 0).getDate();
-    const newRow: ScheduleEmployeeRow = {
-      id: newId,
-      name: newEmpName.trim(),
-      group: newEmpGroup,
-      shifts: {},
-    };
-    for (let day = 1; day <= days; day++) {
-      const dateObj = new Date(currentYear, currentMonth - 1, day);
-      if (dateObj.getDay() === 0 || dateObj.getDay() === 6) {
-        newRow.shifts[String(day)] = "BE";
-      } else {
-        newRow.shifts[String(day)] = "A4";
-      }
-    }
-    setRows((prev) => [...prev, newRow]);
-    setNewEmpName("");
-    setIsAddModalOpen(false);
   };
 
   const daysInMonth = useMemo(() => {
@@ -259,7 +305,23 @@ export default function WorkScheduleTable() {
     return arr;
   }, [currentYear, currentMonth, daysInMonth]);
 
-  // 주간/월간 뷰에 따른 표시 날짜 필터링
+  // 일자별 휴무자 수 및 비율 계산 (과다 휴무 경고 체크용)
+  const leaveStatsPerDay = useMemo(() => {
+    const map: Record<number, { count: number; ratio: number }> = {};
+    const totalCount = rows.length || 1;
+    for (let day = 1; day <= daysInMonth; day++) {
+      let count = 0;
+      rows.forEach((r) => {
+        const code = r.shifts[String(day)];
+        if (code && ["BE", "AL", "ML", "SL", "PL", "MO", "AO"].includes(code)) {
+          count++;
+        }
+      });
+      map[day] = { count, ratio: count / totalCount };
+    }
+    return map;
+  }, [rows, daysInMonth]);
+
   const visibleDaysHeader = useMemo(() => {
     if (viewMode === "주간") {
       const startDay = (selectedWeek - 1) * 7 + 1;
@@ -267,18 +329,16 @@ export default function WorkScheduleTable() {
       return daysHeader.filter((d) => d.day >= startDay && d.day <= endDay);
     }
     if (viewMode === "일간") {
-      return daysHeader.filter((d) => d.day === 1); // 기본 1일
+      return daysHeader.filter((d) => d.day === 1);
     }
     return daysHeader;
   }, [daysHeader, viewMode, selectedWeek, daysInMonth]);
 
-  // 부서 목록 추출
   const departmentList = useMemo(() => {
     const set = new Set(rows.map((r) => r.group));
     return ["전체", ...Array.from(set)];
   }, [rows]);
 
-  // 사원 필터링
   const filteredRows = useMemo(() => {
     let result = rows;
     if (selectedDeptFilter !== "전체") {
@@ -291,27 +351,24 @@ export default function WorkScheduleTable() {
     return result;
   }, [rows, selectedDeptFilter, searchQuery]);
 
-  // 스케줄 통계 (Dashboard Metrics)
-  const metrics = useMemo(() => {
-    let totalShifts = 0;
-    let leaveCount = 0;
-    let nightShiftCount = 0;
-
+  // 사원별 당월 총 근무시간 및 연차 횟수 계산
+  const empWorkStatsMap = useMemo(() => {
+    const map: Record<string, { totalHours: number; leaveDays: number; workDays: number }> = {};
     rows.forEach((r) => {
+      let hours = 0;
+      let leaves = 0;
+      let works = 0;
       Object.values(r.shifts).forEach((code) => {
         if (!code) return;
-        totalShifts++;
-        if (["AL", "ML", "MO", "AO", "SL", "PL"].includes(code)) leaveCount++;
-        if (["A9", "A10", "A11", "A12", "A13", "B9", "B10", "C9", "C10"].includes(code)) nightShiftCount++;
+        const info = getShiftInfo(code);
+        hours += info.workHours;
+        if (["AL", "ML", "SL", "PL"].includes(code)) leaves += 1;
+        if (["MO", "AO"].includes(code)) leaves += 0.5;
+        if (info.workHours > 0) works += 1;
       });
+      map[r.id] = { totalHours: hours, leaveDays: leaves, workDays: works };
     });
-
-    return {
-      totalEmployees: rows.length,
-      leaveCount,
-      nightShiftCount,
-      attendanceRate: totalShifts > 0 ? (((totalShifts - leaveCount) / totalShifts) * 100).toFixed(1) : "100.0",
-    };
+    return map;
   }, [rows]);
 
   const updateCellValue = (empId: string, day: number, code: string) => {
@@ -329,9 +386,16 @@ export default function WorkScheduleTable() {
   };
 
   const handleExportCSV = () => {
-    let csv = `사원명,부서,` + visibleDaysHeader.map((d) => `${d.label}(${d.dayName})`).join(",") + "\n";
+    let csv = `사원명,부서,월총근무시간,연차사용일수,` + visibleDaysHeader.map((d) => `${d.label}(${d.dayName})`).join(",") + "\n";
     filteredRows.forEach((r) => {
-      const line = [`"${r.name}"`, `"${r.group}"`, ...visibleDaysHeader.map((d) => `"${r.shifts[String(d.day)] || ""}"`)].join(",");
+      const stat = empWorkStatsMap[r.id] || { totalHours: 0, leaveDays: 0 };
+      const line = [
+        `"${r.name}"`,
+        `"${r.group}"`,
+        `"${stat.totalHours}시간"`,
+        `"${stat.leaveDays}일"`,
+        ...visibleDaysHeader.map((d) => `"${r.shifts[String(d.day)] || ""}"`)
+      ].join(",");
       csv += line + "\n";
     });
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -339,6 +403,11 @@ export default function WorkScheduleTable() {
     link.href = URL.createObjectURL(blob);
     link.download = `근무스케줄_${yearMonthKey}.csv`;
     link.click();
+  };
+
+  // 🖨️ 인쇄 출력 실행
+  const handlePrint = () => {
+    window.print();
   };
 
   return (
@@ -353,15 +422,15 @@ export default function WorkScheduleTable() {
             <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
               근무 및 근무조 스케줄 대시보드
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-bold border border-blue-200">
-                실시간 편집 지원
+                실시간 편집
               </span>
             </h1>
-            <p className="text-xs text-slate-400 font-medium">생산 · 품질 · 영업 · 경영 지원 인력 통합 스케줄링 관리 시스템</p>
+            <p className="text-xs text-slate-400 font-medium">생산 · 품질 · 영업 · 경영 지원 인력 통합 스케줄링 및 시간 집계 시스템</p>
           </div>
         </div>
 
-        {/* 검색 및 상단 액션 버튼 그룹 */}
-        <div className="flex items-center flex-wrap gap-2.5">
+        {/* 액션 버튼 그룹 */}
+        <div className="flex items-center flex-wrap gap-2">
           <div className="relative">
             <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -371,36 +440,28 @@ export default function WorkScheduleTable() {
               placeholder="사원명 / 부서 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2 text-xs bg-slate-100 dark:bg-slate-800 border-none rounded-full text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-600 w-40 sm:w-56 font-medium"
+              className="pl-9 pr-4 py-2 text-xs bg-slate-100 dark:bg-slate-800 border-none rounded-full text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-600 w-36 sm:w-48 font-medium"
             />
           </div>
 
           <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
-          >
-            + 사원 등록
-          </button>
-
-          <button
             onClick={handleGlobalAutoFill}
-            className="px-3.5 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all border border-blue-200"
+            className="px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all border border-blue-200"
             title="평일 A4 / 주말 BE 일괄 채우기"
           >
-            ⚡ 자동 일괄채우기
+            ⚡ 자동 생성
           </button>
 
           <button
-            onClick={handleCopyPrevMonth}
-            className="px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
-            title="지난 달 스케줄 가져오기"
+            onClick={handlePrint}
+            className="px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
           >
-            📋 전월 패턴 복사
+            🖨️ 인쇄
           </button>
 
           <button
             onClick={handleExportCSV}
-            className="px-3.5 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
+            className="px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
           >
             엑셀 다운로드 (CSV) 📥
           </button>
@@ -408,36 +469,15 @@ export default function WorkScheduleTable() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-5 py-2 text-xs font-bold text-white bg-[#0047FF] hover:bg-blue-700 rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 text-xs font-bold text-white bg-[#0047FF] hover:bg-blue-700 rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-1.5"
           >
             {saving ? "저장 중..." : "스케줄 저장 & 게시 🚀"}
           </button>
         </div>
       </div>
 
-      {/* 🌟 2. 요약 메트릭스 카드 (Metrics Dashboard) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-400">총 관리 사원수</div>
-          <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{metrics.totalEmployees}명</div>
-        </div>
-        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-400">당월 연차/휴가 건수</div>
-          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">{metrics.leaveCount}건</div>
-        </div>
-        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-400">야간/철야 잔업 건수</div>
-          <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-0.5">{metrics.nightShiftCount}건</div>
-        </div>
-        <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-400">평균 근무 출근율</div>
-          <div className="text-xl font-black text-blue-600 dark:text-blue-400 mt-0.5">{metrics.attendanceRate}%</div>
-        </div>
-      </div>
-
-      {/* 🌟 3. 년월 선택, 부서 필터 탭 & 뷰 전환 컨트롤 */}
+      {/* 🌟 2. 년월 선택, 부서 필터 탭 & 뷰 전환 컨트롤 */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        {/* 년/월 선택 및 네비게이션 */}
         <div className="flex items-center space-x-3">
           <button
             onClick={() => {
@@ -465,8 +505,7 @@ export default function WorkScheduleTable() {
           </button>
         </div>
 
-        {/* 부서 필터 칩 & 뷰 전환 (월간 | 주간 | 일간) */}
-        <div className="flex items-center flex-wrap gap-3">
+        <div className="flex items-center flex-wrap gap-2">
           {/* 부서 필터 칩 */}
           <div className="flex items-center bg-slate-200/70 dark:bg-slate-800/70 p-1 rounded-xl gap-1 text-xs font-bold">
             {departmentList.map((dept) => (
@@ -484,13 +523,13 @@ export default function WorkScheduleTable() {
             ))}
           </div>
 
-          {/* 뷰 전환 모드 (월간 | 주간 | 일간) */}
+          {/* 뷰 전환 모드 */}
           <div className="bg-slate-200/70 dark:bg-slate-800/70 p-1 rounded-xl flex items-center gap-1 text-xs font-bold">
             {(["월간", "주간", "일간"] as const).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
-                className={`px-3.5 py-1 rounded-lg transition-all ${
+                className={`px-3 py-1 rounded-lg transition-all ${
                   viewMode === mode
                     ? "bg-[#0047FF] text-white shadow-xs font-extrabold"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -500,20 +539,6 @@ export default function WorkScheduleTable() {
               </button>
             ))}
           </div>
-
-          {viewMode === "주간" && (
-            <select
-              value={selectedWeek}
-              onChange={(e) => setSelectedWeek(Number(e.target.value))}
-              className="px-3 py-1.5 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-800 dark:text-white"
-            >
-              <option value={1}>1주차 (1일~7일)</option>
-              <option value={2}>2주차 (8일~14일)</option>
-              <option value={3}>3주차 (15일~21일)</option>
-              <option value={4}>4주차 (22일~28일)</option>
-              <option value={5}>5주차 (29일~말일)</option>
-            </select>
-          )}
         </div>
       </div>
 
@@ -529,42 +554,53 @@ export default function WorkScheduleTable() {
         </div>
       )}
 
-      {/* 🌟 4. 스케줄 그리드 테이블 */}
+      {/* 🌟 3. 스케줄 그리드 테이블 (사원별 총 근무시간 열 포함) */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-sm">
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-xs text-center border-collapse">
             <thead>
               <tr className="bg-[#F8FAFC] dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
-                <th className="sticky left-0 z-20 bg-[#F8FAFC] dark:bg-slate-800 px-4 py-3.5 border-r border-slate-200 dark:border-slate-700 text-left font-bold min-w-[200px]">
+                <th className="sticky left-0 z-20 bg-[#F8FAFC] dark:bg-slate-800 px-4 py-3.5 border-r border-slate-200 dark:border-slate-700 text-left font-bold min-w-[180px]">
                   사원명 / 부서
                 </th>
-                {visibleDaysHeader.map((d) => (
-                  <th
-                    key={d.day}
-                    className={`px-1 py-2 border-r border-slate-200 dark:border-slate-700 min-w-[42px] font-bold ${
-                      d.isSun
-                        ? "text-[#DC2626] bg-[#FEF2F2] dark:bg-red-950/30"
-                        : d.isSat
-                        ? "text-[#1D4ED8] bg-[#EFF6FF] dark:bg-blue-950/30"
-                        : ""
-                    }`}
-                  >
-                    <div className="text-[12px] font-black">{d.day}일</div>
-                    <div className="text-[10px] font-semibold opacity-75">{d.dayName}</div>
-                  </th>
-                ))}
+                <th className="sticky left-[180px] z-20 bg-[#F8FAFC] dark:bg-slate-800 px-3 py-3.5 border-r border-slate-200 dark:border-slate-700 min-w-[90px] font-bold text-blue-600 dark:text-blue-400">
+                  월 총근무시간
+                </th>
+                {visibleDaysHeader.map((d) => {
+                  const stat = leaveStatsPerDay[d.day];
+                  const isHighLeave = stat && stat.ratio >= 0.4;
+                  return (
+                    <th
+                      key={d.day}
+                      className={`px-1 py-2 border-r border-slate-200 dark:border-slate-700 min-w-[42px] font-bold ${
+                        d.isSun
+                          ? "text-[#DC2626] bg-[#FEF2F2] dark:bg-red-950/30"
+                          : d.isSat
+                          ? "text-[#1D4ED8] bg-[#EFF6FF] dark:bg-blue-950/30"
+                          : ""
+                      }`}
+                    >
+                      <div className="text-[12px] font-black flex items-center justify-center gap-0.5">
+                        {d.day}일
+                        {isHighLeave && <span title="당일 휴휴/연차자 40% 이상" className="text-[10px]">⚠️</span>}
+                      </div>
+                      <div className="text-[10px] font-semibold opacity-75">{d.dayName}</div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={visibleDaysHeader.length + 1} className="py-12 text-slate-400 font-medium">
-                    검색 결과 또는 등록된 사원 스케줄이 없습니다.
+                  <td colSpan={visibleDaysHeader.length + 2} className="py-12 text-slate-400 font-medium">
+                    등록된 사원 스케줄이 없습니다.
                   </td>
                 </tr>
               ) : (
                 filteredRows.map((emp, idx) => {
                   const avatar = getAvatarBadge(emp.name);
+                  const stat = empWorkStatsMap[emp.id] || { totalHours: 0, leaveDays: 0, workDays: 0 };
                   return (
                     <tr
                       key={emp.id}
@@ -585,6 +621,12 @@ export default function WorkScheduleTable() {
                             <div className="text-[10px] text-slate-400 font-medium truncate">{emp.group}</div>
                           </div>
                         </div>
+                      </td>
+
+                      {/* 월 총근무시간 집계 열 */}
+                      <td className="sticky left-[180px] z-10 bg-white dark:bg-slate-900 px-2 py-2.5 border-r border-slate-200 dark:border-slate-800 text-center font-black text-slate-900 dark:text-white font-mono shadow-2xs">
+                        {stat.totalHours}시간
+                        <div className="text-[9px] text-slate-400 font-normal">({stat.workDays}일 근무)</div>
                       </td>
 
                       {/* 일자별 근무 코드 */}
@@ -628,7 +670,107 @@ export default function WorkScheduleTable() {
         </div>
       </div>
 
-      {/* 🌟 5. 셀 빠른 편집 모달 */}
+      {/* 🌟 4. 근무 코드설명 표 100% 매칭 그리드 카드 (이미지 100% 반영) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+              📋 이카운트 근무 코드 & 시간 기준표 (Shift Master Legend Grid)
+              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-bold border border-orange-200">
+                주황색 = 11시이후 야간/석근조
+              </span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">보내주신 시간 기준표 규격 100% 동일 매칭 표</p>
+          </div>
+          <button
+            onClick={() => setShowMasterGrid((prev) => !prev)}
+            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {showMasterGrid ? "표 접기 ▲" : "표 펼치기 ▼"}
+          </button>
+        </div>
+
+        {showMasterGrid && (
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full text-xs text-center border border-slate-300 dark:border-slate-700 border-collapse">
+              <thead>
+                <tr className="bg-slate-100 dark:bg-slate-800 font-bold border-b border-slate-300 dark:border-slate-700">
+                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">A계열 (9시간)</th>
+                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">B계열 (10시간)</th>
+                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">C계열 (11시간)</th>
+                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">D계열 (12시간)</th>
+                  <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">E계열 (13시간)</th>
+                  <th colSpan={2} className="py-2 bg-slate-200 dark:bg-slate-700">휴무/근태 구분</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => {
+                  const itemA = MASTER_LEGEND_GRID.shiftA[i];
+                  const itemB = MASTER_LEGEND_GRID.shiftB[i];
+                  const itemC = MASTER_LEGEND_GRID.shiftC[i];
+                  const itemD = MASTER_LEGEND_GRID.shiftD[i];
+                  const itemE = MASTER_LEGEND_GRID.shiftE[i];
+                  const itemLeave = MASTER_LEGEND_GRID.leaveCodes[i];
+
+                  return (
+                    <tr key={i} className="border-b border-slate-200 dark:border-slate-800 font-mono">
+                      {/* A계열 */}
+                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemA?.code || ""}
+                      </td>
+                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemA?.time || ""}
+                      </td>
+
+                      {/* B계열 */}
+                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemB?.code || ""}
+                      </td>
+                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemB?.time || ""}
+                      </td>
+
+                      {/* C계열 */}
+                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemC?.code || ""}
+                      </td>
+                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemC?.time || ""}
+                      </td>
+
+                      {/* D계열 */}
+                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemD?.code || ""}
+                      </td>
+                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemD?.time || ""}
+                      </td>
+
+                      {/* E계열 */}
+                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemE?.code || ""}
+                      </td>
+                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                        {itemE?.time || ""}
+                      </td>
+
+                      {/* 휴무/근태 코드 */}
+                      <td className="px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800">
+                        {itemLeave ? <span className={`px-2 py-0.5 rounded text-[11px] ${itemLeave.badge}`}>{itemLeave.code}</span> : ""}
+                      </td>
+                      <td className="px-2 py-1.5 font-sans font-bold text-slate-800 dark:text-slate-200">
+                        {itemLeave?.name || ""}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 🌟 5. 셀 편집 모달 */}
       {editingCell && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
@@ -648,9 +790,9 @@ export default function WorkScheduleTable() {
 
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin text-xs">
               <div>
-                <div className="text-[11px] font-bold text-slate-400 mb-1.5">휴무 및 휴가 코드</div>
+                <div className="text-[11px] font-bold text-slate-400 mb-1.5">휴무 및 근태 코드</div>
                 <div className="grid grid-cols-3 gap-1.5">
-                  {["BE", "AL", "MO", "AO", "SL", "BT", "RW", "?"].map((cd) => {
+                  {["BE", "ML", "AL", "MO", "AO", "SL", "PL", "BT", "OL", "RW", "?"].map((cd) => {
                     const info = getShiftInfo(cd);
                     return (
                       <button
@@ -659,7 +801,7 @@ export default function WorkScheduleTable() {
                         className={`p-2 rounded-xl text-center font-bold text-xs transition-all ${info.badgeClass}`}
                       >
                         <div>{cd}</div>
-                        <div className="text-[9px] opacity-80 font-normal">{info.name.split(" ")[0]}</div>
+                        <div className="text-[9px] opacity-80 font-normal">{info.name}</div>
                       </button>
                     );
                   })}
@@ -667,7 +809,7 @@ export default function WorkScheduleTable() {
               </div>
 
               <div>
-                <div className="text-[11px] font-bold text-slate-400 mb-1.5">표준 근무조 (A1-A13)</div>
+                <div className="text-[11px] font-bold text-slate-400 mb-1.5">A계열 표준 근무조 (A1-A13)</div>
                 <div className="grid grid-cols-4 gap-1.5">
                   {["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", "A13"].map((cd) => {
                     const info = getShiftInfo(cd);
@@ -696,125 +838,6 @@ export default function WorkScheduleTable() {
           </div>
         </div>
       )}
-
-      {/* 🌟 6. 새 사원 등록 모달 */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <form onSubmit={handleCreateEmployee} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
-            <h3 className="font-bold text-slate-900 dark:text-white text-base">새 사원 등록</h3>
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">사원 성명</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="예: 홍길동"
-                  value={newEmpName}
-                  onChange={(e) => setNewEmpName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">소속 부서 / 팀</label>
-                <select
-                  value={newEmpGroup}
-                  onChange={(e) => setNewEmpGroup(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
-                >
-                  <option value="생산1팀">생산1팀</option>
-                  <option value="생산2팀">생산2팀</option>
-                  <option value="품질팀">품질팀</option>
-                  <option value="경영지원팀">경영지원팀</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl"
-              >
-                취소
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl"
-              >
-                등록하기
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* 🌟 7. 하단 3개 요약 레전드 카드 (Kinetic 레퍼런스 스타일) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Card 1: 표준 주간 근무조 (A1-A13) */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
-            표준 주간 근무조 (A1 - A13)
-          </h3>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {[
-              { code: "A1: 06:00 - 15:00", dot: "bg-blue-500" },
-              { code: "A2: 07:00 - 16:00", dot: "bg-blue-500" },
-              { code: "A3: 08:00 - 17:00", dot: "bg-blue-500" },
-              { code: "A4: 09:00 - 18:00", dot: "bg-blue-500" },
-              { code: "A5: 10:00 - 19:00", dot: "bg-orange-500" },
-              { code: "A6: 11:00 - 20:00", dot: "bg-orange-500" },
-              { code: "A7: 12:00 - 21:00", dot: "bg-orange-500" },
-              { code: "A8: 13:00 - 22:00", dot: "bg-orange-500" },
-            ].map((item, i) => (
-              <div key={i} className="p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center space-x-2 font-medium text-slate-700 dark:text-slate-300">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${item.dot}`}></span>
-                <span className="truncate">{item.code}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Card 2: 연장 및 잔업 근무조 (B, C, D) */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
-            연장 및 잔업 근무조 (B, C, D)
-          </h3>
-          <div className="space-y-2 text-xs">
-            <div className="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-100 dark:border-purple-900/50 flex items-center space-x-2 font-semibold text-purple-900 dark:text-purple-300">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0"></span>
-              <span>B 계열: 10시간 연장 근무조</span>
-            </div>
-            <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/50 flex items-center space-x-2 font-semibold text-indigo-900 dark:text-indigo-300">
-              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0"></span>
-              <span>C 계열: 11시간 특근 근무조</span>
-            </div>
-            <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-100 dark:border-blue-900/50 flex items-center space-x-2 font-semibold text-blue-900 dark:text-blue-300">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0"></span>
-              <span>D 계열: 12시간 야간 교대조</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: 휴무 및 휴가 현황 코드 */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider">
-            휴무 및 근태 코드 기준
-          </h3>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="p-2.5 bg-[#18181B] text-white rounded-xl font-bold flex items-center justify-between">
-              <span>BE: 휴무 (Off)</span>
-            </div>
-            <div className="p-2.5 bg-[#DCFCE7] text-[#15803D] rounded-xl font-bold flex items-center justify-between">
-              <span>AL: 연차 (Leave)</span>
-            </div>
-            <div className="p-2.5 bg-[#FEE2E2] text-[#B91C1C] rounded-xl font-bold flex items-center justify-between">
-              <span>SL: 병가 (Sick)</span>
-            </div>
-            <div className="p-2.5 bg-[#F3F4F6] text-[#374151] rounded-xl font-bold flex items-center justify-between">
-              <span>MO: 오전반차</span>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
