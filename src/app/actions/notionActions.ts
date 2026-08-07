@@ -492,7 +492,12 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
       }
 
       if (planDate) {
-        const finalProductName = productName.trim() || (note.trim() ? note.trim() : (tagName ? `${tagName} 일정` : "일정"));
+        // 노션 제목, 비고, 태그가 모두 비어있는 빈 행/가짜 데이터는 깔끔하게 제외
+        if (!productName.trim() && !note.trim() && !tagName.trim()) {
+          continue;
+        }
+
+        const finalProductName = productName.trim() || note.trim() || `${tagName} 일정`;
 
         schedules.push({
           id: page.id,
