@@ -20,30 +20,21 @@ export async function getSessionId() {
     };
   }
 
-  const proxyBaseUrl = (
-    process.env.ECOUNT_API_BASE_URL || 
-    process.env.ECOUNT_PROXY_URL || 
-    'https://beansheal-ecount.sala0104.workers.dev'
-  ).replace(/\/$/, '');
-
   try {
-    const zoneResponse = await fetch(`${proxyBaseUrl}/OAPI/V2/Zone`, {
+    const zoneResponse = await fetch(`https://sboapi.ecount.com/OAPI/V2/Zone`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ COM_CODE: COM_CODE }),
+      cache: "no-store",
     });
     
     const zoneData = await zoneResponse.json();
     console.log("=== [DEBUG] ZONE API Response ===");
     console.log(JSON.stringify(zoneData, null, 2));
     
-    const ZONE = zoneData.Data?.ZONE;
+    const ZONE = (zoneData.Data?.ZONE || process.env.ECOUNT_ZONE || "AC").toLowerCase();
     
-    if (!ZONE) {
-      return { error: `ZONE 정보 수신 실패: ${zoneData.Message || zoneData.Data?.Message || '회사코드(COM_CODE)를 확인해주세요.'}` };
-    }
-
-    const loginUrl = `${proxyBaseUrl}/OAPI/V2/OAPILogin`;
+    const loginUrl = `https://oapi${ZONE}.ecount.com/OAPI/V2/OAPILogin`;
 
     const response = await fetch(loginUrl, {
       method: "POST",

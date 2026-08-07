@@ -1,58 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import https from 'https';
-import { HttpsProxyAgent } from 'https-proxy-agent';
-
-// Fixie 고정 IP 프록시 지원 HTTP POST 함수 (Vercel -> Fixie Static IPv4 -> Ecount 다이렉트 통신)
-async function fetchWithEgressProxy(url: string, body: any, headersExtra: Record<string, string> = {}) {
-  const fixieUrl = process.env.FIXIE_URL || process.env.FIXIE_SOCKS_HOST;
-
-  if (fixieUrl) {
-    const agent = new HttpsProxyAgent(fixieUrl);
-    return new Promise<any>((resolve, reject) => {
-      const parsedUrl = new URL(url);
-      const postData = JSON.stringify(body);
-
-      const options = {
-        hostname: parsedUrl.hostname,
-        port: parsedUrl.port || 443,
-        path: parsedUrl.pathname + parsedUrl.search,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData),
-          ...headersExtra,
-        },
-        agent: agent,
-      };
-
-      const req = https.request(options, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            resolve({ rawText: data });
-          }
-        });
-      });
-
-      req.on('error', (e) => reject(e));
-      req.write(postData);
-      req.end();
-    });
-  }
-
-  // FIXIE_URL 미설정 시 일반 fetch 수행
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headersExtra },
-    body: JSON.stringify(body),
-    cache: 'no-store',
-  });
-  return await res.json();
-}
 
 // Supabase Service Role Client (RLS 우회 저장용)
 function getSupabaseClient() {
@@ -62,8 +9,9 @@ function getSupabaseClient() {
 }
 
 /**
- * 이카운트 ERP ➔ Supabase ecount_inventory 자동 동기화 API
+ * 이카운트 ERP ➔ Supabase ecount_inventory 다이렉트 고정 IP 동기화 API
  * Path: /api/ecount/sync
+ * 고정 IP (AWS Lightsail: 43.202.118.225) 직접 호출 전용
  */
 export async function POST() {
   try {
@@ -98,31 +46,29 @@ export async function POST() {
       );
     }
 
-    // 1. Fixie 고정 IP 설정 시 Ecount 다이렉트 도메인 사용, 미설정 시 Cloudflare 프록시 도메인 사용
-    const isFixieActive = !!(process.env.FIXIE_URL || process.env.FIXIE_SOCKS_HOST);
-    
-    // Zone 위치 확인 (/OAPI/V2/Zone)
-    let zone = 'BA';
+    // 1. 이카운트 Zone 위치 조회 (/OAPI/V2/Zone)
+    let zone = (process.env.ECOUNT_ZONE || 'AC').toUpperCase().trim();
     let zoneDataRaw: any = null;
-    const initialZoneUrl = isFixieActive 
-      ? 'https://sboapi.ecount.com/OAPI/V2/Zone' 
-      : (process.env.ECOUNT_API_BASE_URL || 'https://beansheal-ecount.sala0104.workers.dev').replace(/\/$/, '') + '/OAPI/V2/Zone';
 
     try {
-      zoneDataRaw = await fetchWithEgressProxy(initialZoneUrl, { COM_CODE: comCode });
+      const zoneRes = await fetch('https://sboapi.ecount.com/OAPI/V2/Zone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ COM_CODE: comCode }),
+        cache: 'no-store',
+      });
+      zoneDataRaw = await zoneRes.json();
       if (zoneDataRaw?.Data?.ZONE) {
         zone = String(zoneDataRaw.Data.ZONE).trim();
       }
     } catch (e) {
-      console.warn('[Ecount Sync] Zone API 호출 경고:', e);
+      console.warn('[Ecount Sync Direct] Zone API 호출 경고:', e);
     }
 
     // 2. 이카운트 OAPI 로그인 세션 발급 (/OAPI/V2/OAPILogin)
-    const targetHost = isFixieActive 
-      ? `https://oapi${zone.toLowerCase()}.ecount.com`
-      : (process.env.ECOUNT_API_BASE_URL || 'https://beansheal-ecount.sala0104.workers.dev').replace(/\/$/, '');
-
+    const targetHost = `https://oapi${zone.toLowerCase()}.ecount.com`;
     const loginUrl = `${targetHost}/OAPI/V2/OAPILogin`;
+
     const loginPayload = {
       COM_CODE: comCode,
       USER_ID: userId,
@@ -131,7 +77,14 @@ export async function POST() {
       ZONE: zone,
     };
 
-    const loginData = await fetchWithEgressProxy(loginUrl, loginPayload, { 'X-Ecount-Zone': zone });
+    const loginRes = await fetch(loginUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(loginPayload),
+      cache: 'no-store',
+    });
+
+    const loginData = await loginRes.json();
     const sessionId = loginData.Data?.Datas?.SESSION_ID || loginData.Data?.SESSION_ID;
 
     if (!sessionId) {
@@ -140,7 +93,7 @@ export async function POST() {
         loginData.Errors?.[0]?.Message || 
         loginData.Data?.Message || 
         loginData.Error?.Message || 
-        '이카운트 로그인 거절';
+        '이카운트 로그인 거절 (고정 IP 43.202.118.225 등록 상태 확인 필요)';
 
       return NextResponse.json(
         { 
@@ -151,7 +104,6 @@ export async function POST() {
             user_id_used: userId ? `${userId.substring(0, 2)}***` : '없음',
             api_key_length: apiKey ? apiKey.length : 0,
             zone_used: zone,
-            is_fixie_active: isFixieActive,
             target_url_used: loginUrl,
             ecount_login_response: loginData,
             ecount_zone_response: zoneDataRaw
@@ -167,17 +119,23 @@ export async function POST() {
     const baseDate = `${kstTime.getUTCFullYear()}${String(kstTime.getUTCMonth() + 1).padStart(2, '0')}${String(kstTime.getUTCDate()).padStart(2, '0')}`;
 
     const invUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${sessionId}`;
-    const invData = await fetchWithEgressProxy(invUrl, {
-      SESSION_ID: sessionId,
-      COM_CODE: comCode,
-      BASE_DATE: baseDate,
-      DATA: {
+    const invRes = await fetch(invUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        SESSION_ID: sessionId,
+        COM_CODE: comCode,
         BASE_DATE: baseDate,
-        WH_CD: '',
-        PROD_CD: '',
-      },
-    }, { 'X-Ecount-Zone': zone });
+        DATA: {
+          BASE_DATE: baseDate,
+          WH_CD: '',
+          PROD_CD: '',
+        },
+      }),
+      cache: 'no-store',
+    });
 
+    const invData = await invRes.json();
     const rawList = invData.Data?.Result || invData.Data?.List || invData.Data || [];
 
     if (!Array.isArray(rawList)) {
@@ -228,13 +186,14 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: `이카운트 재고 ${upsertRows.length}건이 성공적으로 Supabase ecount_inventory 테이블에 동기화되었습니다.`,
+      message: `이카운트 재고 ${upsertRows.length}건이 성공적으로 Supabase ecount_inventory 테이블에 다이렉트 동기화되었습니다.`,
       count: upsertRows.length,
       synced_at: new Date().toISOString(),
+      server_ip: "43.202.118.225 (AWS Lightsail)"
     });
 
   } catch (error: any) {
-    console.error('[Ecount Sync Route Error]:', error);
+    console.error('[Ecount Sync Direct Error]:', error);
     return NextResponse.json(
       { success: false, error: error.message || '서버 내부 오류' },
       { status: 500 }
@@ -242,7 +201,7 @@ export async function POST() {
   }
 }
 
-// 브라우저에서 편리하게 테스트할 수 있는 GET 요청 지원
+// 브라우저 및 PM2 Cron에서 호출하기 편리하도록 GET 요청도 지원
 export async function GET() {
   return POST();
 }
