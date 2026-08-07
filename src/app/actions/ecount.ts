@@ -290,13 +290,27 @@ export async function getListProductDetailed(sessionObj: any): Promise<{ data: a
 
     const textData = await response.text();
 
-    let result;
+    if (textData.includes("시간당 연속 오류") || textData.includes("QUANTITY_INFO")) {
+      return {
+        data: [],
+        error: "이카운트 API 시간당 연속 오류 제한 초과 (이카운트 ERP [API인증서 관리] 메뉴에서 연속 오류 차단을 해제하시거나 30분~1시간 후 다시 시도해 주세요)."
+      };
+    }
+
+    let result: any = {};
     try {
       const cleanText = textData.replace(/^\uFEFF/, "").trim();
       result = JSON.parse(cleanText);
     } catch (e) {
       console.error("JSON 파싱 에러:", textData.substring(0, 200));
       return { data: [], error: `응답 파싱 실패: ${textData.substring(0, 100)}` };
+    }
+
+    if (result?.Data?.QUANTITY_INFO && String(result.Data.QUANTITY_INFO).includes("연속 오류")) {
+      return {
+        data: [],
+        error: `이카운트 제한: ${result.Data.QUANTITY_INFO} (이카운트 ERP [API인증서 관리] 메뉴에서 차단 해제 필요)`
+      };
     }
 
     if (result?.Status && result.Status !== "200") {
@@ -306,7 +320,8 @@ export async function getListProductDetailed(sessionObj: any): Promise<{ data: a
 
     const dataList = result.Data?.Result || result.Data?.List || result.Data || [];
     if (!Array.isArray(dataList)) {
-      return { data: [], error: result?.Errors?.[0]?.Message || "결과 데이터가 배열 형태가 아닙니다." };
+      const msg = result.Data?.QUANTITY_INFO || result?.Errors?.[0]?.Message || "품목 결과 데이터가 배열 형태가 아닙니다.";
+      return { data: [], error: msg };
     }
     return { data: dataList };
   } catch (error: any) {
@@ -352,13 +367,28 @@ export async function getInventoryStatusDetailed(sessionObj: any): Promise<{ dat
     });
 
     const textData = await response.text(); 
-    let result;
+
+    if (textData.includes("시간당 연속 오류") || textData.includes("QUANTITY_INFO")) {
+      return {
+        data: [],
+        error: "이카운트 API 시간당 연속 오류 제한 초과 (이카운트 ERP [API인증서 관리] 메뉴에서 연속 오류 차단을 해제해 주세요)."
+      };
+    }
+
+    let result: any = {};
     try {
       const cleanText = textData.replace(/^\uFEFF/, "").trim();
       result = JSON.parse(cleanText);
     } catch (e) {
       console.error("이카운트 응답 파싱 에러:", textData.substring(0, 500));
       return { data: [], error: `재고응답 파싱 실패: ${textData.substring(0, 100)}` };
+    }
+
+    if (result?.Data?.QUANTITY_INFO && String(result.Data.QUANTITY_INFO).includes("연속 오류")) {
+      return {
+        data: [],
+        error: `이카운트 제한: ${result.Data.QUANTITY_INFO} (이카운트 ERP [API인증서 관리] 메뉴에서 차단 해제 필요)`
+      };
     }
 
     if (result?.Status && result.Status !== "200") {
@@ -369,7 +399,8 @@ export async function getInventoryStatusDetailed(sessionObj: any): Promise<{ dat
     const dataList = result.Data?.Result || result.Data?.List || result.Data;
 
     if (!Array.isArray(dataList)) {
-      return { data: [], error: result?.Errors?.[0]?.Message || "재고 데이터가 배열 형식이 아닙니다." };
+      const msg = result.Data?.QUANTITY_INFO || result?.Errors?.[0]?.Message || "재고 데이터가 배열 형식이 아닙니다.";
+      return { data: [], error: msg };
     }
 
     const productListRes = await getListProductDetailed(sessionObj);
