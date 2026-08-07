@@ -221,7 +221,7 @@ export default function WorkScheduleTable() {
   const [saveMsg, setSaveMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // 🌟 요구사항 1: 시간표 설명 표 기본적으로 접어놓기 (false)
+  // 시간표 설명 표 기본적으로 접어놓기 (false)
   const [showMasterGrid, setShowMasterGrid] = useState(false);
 
   // 12개 도장 선택 코드 + 드래그 앤 드롭 순서 변경 state
@@ -231,8 +231,9 @@ export default function WorkScheduleTable() {
   const [isStampConfigOpen, setIsStampConfigOpen] = useState<boolean>(false);
   const [draggedStampIndex, setDraggedStampIndex] = useState<number | null>(null);
 
-  // 🌟 요구사항 2: 사원명/부서 행 순서 드래그 앤 드롭(Drag & Drop) state
+  // 🌟 요구사항 1: 사원명/부서 행 드래그 앤 드롭 실시간 시각적 인디케이터 state
   const [draggedEmpIndex, setDraggedEmpIndex] = useState<number | null>(null);
+  const [dragOverEmpIndex, setDragOverEmpIndex] = useState<number | null>(null);
 
   // 사원별 스케줄 복사 클립보드 state
   const [copiedScheduleRow, setCopiedScheduleRow] = useState<ScheduleEmployeeRow | null>(null);
@@ -329,9 +330,12 @@ export default function WorkScheduleTable() {
     setEditingEmpInfo(null);
   };
 
-  // 사원 삭제
+  // 🌟 요구사항 2: 사원 명확한 삭제 확인 팝업 안내
   const handleDeleteEmployee = (empId: string, empName: string) => {
-    if (!confirm(`'${empName}' 사원을 대시보드 목록에서 삭제하시겠습니까?`)) return;
+    const isConfirmed = confirm(
+      `⚠️ [사원 삭제 확인]\n\n정말로 '${empName}' 사원을 스케줄표에서 삭제하시겠습니까?\n\n(삭제 후 상단의 [스케줄 저장] 버튼을 누르면 최종 반영됩니다.)`
+    );
+    if (!isConfirmed) return;
     setRows((prev) => prev.filter((r) => r.id !== empId));
   };
 
@@ -581,24 +585,37 @@ export default function WorkScheduleTable() {
     setDraggedStampIndex(null);
   };
 
-  // 🌟 요구사항 2: 사원명 / 부서 행 드래그 앤 드롭 순서 변경 핸들러
+  // 🌟 요구사항 1: 사원 드래그 앤 드롭 명확한 시각적 타겟 및 가시화 핸들러
   const handleEmpDragStart = (e: React.DragEvent, index: number) => {
     setDraggedEmpIndex(index);
     e.dataTransfer.effectAllowed = "move";
   };
 
-  const handleEmpDragOver = (e: React.DragEvent) => {
+  const handleEmpDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
+    if (dragOverEmpIndex !== index) {
+      setDragOverEmpIndex(index);
+    }
   };
 
   const handleEmpDrop = (index: number) => {
-    if (draggedEmpIndex === null || draggedEmpIndex === index) return;
+    if (draggedEmpIndex === null || draggedEmpIndex === index) {
+      setDraggedEmpIndex(null);
+      setDragOverEmpIndex(null);
+      return;
+    }
     const updated = [...rows];
     const [movedEmp] = updated.splice(draggedEmpIndex, 1);
     updated.splice(index, 0, movedEmp);
     setRows(updated);
     setDraggedEmpIndex(null);
+    setDragOverEmpIndex(null);
+  };
+
+  const handleEmpDragEnd = () => {
+    setDraggedEmpIndex(null);
+    setDragOverEmpIndex(null);
   };
 
   // 주차 이전/다음 양사이드 컨트롤
@@ -645,7 +662,7 @@ export default function WorkScheduleTable() {
             <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
               근무 및 근무조 스케줄 대시보드
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-bold border border-blue-200">
-                사원 순서 드래그앤드롭 지원
+                시각적 드래그앤드롭 강화
               </span>
             </h1>
             <p className="text-xs text-slate-400 font-medium">생산 · 품질 · 영업 · 경영 지원 인력 통합 스케줄링 시스템</p>
@@ -862,7 +879,7 @@ export default function WorkScheduleTable() {
         </div>
       )}
 
-      {/* 🌟 4. 요구사항 2: 스케줄 그리드 테이블 (사원명 / 부서 행 드래그 앤 드롭 이동 가능) */}
+      {/* 🌟 4. 요구사항 1: 시각적 타겟 하이라이트가 명확히 적용된 스케줄 그리드 테이블 */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-sm">
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-xs text-center border-collapse">
@@ -917,28 +934,37 @@ export default function WorkScheduleTable() {
                   const stat = empWorkStatsMap[emp.id] || { totalHours: 0, leaveDays: 0, workDays: 0 };
                   const leftTotalHoursOffset = viewMode === "월간" ? "left-[170px]" : "left-[130px]";
 
+                  const isBeingDragged = draggedEmpIndex === idx;
+                  const isTargetOver = dragOverEmpIndex === idx && draggedEmpIndex !== idx;
+
                   return (
                     <tr
                       key={emp.id}
                       draggable
                       onDragStart={(e) => handleEmpDragStart(e, idx)}
-                      onDragOver={handleEmpDragOver}
+                      onDragOver={(e) => handleEmpDragOver(e, idx)}
                       onDrop={() => handleEmpDrop(idx)}
-                      className={`border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors ${
-                        idx % 2 === 1 ? "bg-[#FAFAFA] dark:bg-slate-900/50" : ""
-                      } ${draggedEmpIndex === idx ? "opacity-40 ring-2 ring-blue-500" : ""}`}
+                      onDragEnd={handleEmpDragEnd}
+                      className={`border-b border-slate-100 dark:border-slate-800 transition-all ${
+                        isBeingDragged
+                          ? "opacity-30 bg-blue-100/50 dark:bg-blue-950/50 scale-[0.98] border-dashed border-2 border-blue-400"
+                          : isTargetOver
+                          ? "bg-blue-200/90 dark:bg-blue-900/90 ring-4 ring-blue-600 border-t-4 border-t-blue-600 shadow-xl"
+                          : idx % 2 === 1
+                          ? "bg-[#FAFAFA] dark:bg-slate-900/50"
+                          : ""
+                      }`}
                     >
-                      {/* 🌟 사원 이름 / 부서 셀 (드래그앤드롭 가능 핸들 ⋮⋮ 포함) */}
+                      {/* 🌟 사원 이름 / 부서 셀 (드래그 타겟 하이라이트 인디케이터 포함) */}
                       <td
-                        className={`sticky left-0 z-10 bg-white dark:bg-slate-900 px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-left font-semibold text-slate-800 dark:text-slate-200 shadow-2xs group cursor-grab active:cursor-grabbing ${
-                          viewMode === "월간" ? "w-[170px] min-w-[170px]" : "w-[130px] min-w-[130px]"
-                        }`}
-                        title="마우스로 드래그하여 사원 위치 순서를 변경할 수 있습니다."
+                        className={`sticky left-0 z-10 px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-left font-semibold text-slate-800 dark:text-slate-200 shadow-2xs group cursor-grab active:cursor-grabbing ${
+                          isTargetOver ? "bg-blue-600 text-white font-black" : "bg-white dark:bg-slate-900"
+                        } ${viewMode === "월간" ? "w-[170px] min-w-[170px]" : "w-[130px] min-w-[130px]"}`}
+                        title="마우스로 드래그하여 이동할 사원 위치에 놓으세요."
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-1.5 truncate">
-                            {/* 드래그 앤 드롭 아이콘 핸들 */}
-                            <span className="text-slate-300 group-hover:text-slate-500 text-[11px] font-mono cursor-grab">
+                            <span className="text-slate-300 group-hover:text-blue-600 text-[11px] font-mono cursor-grab font-black">
                               ⋮⋮
                             </span>
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${avatar.colorClass}`}>
@@ -946,7 +972,10 @@ export default function WorkScheduleTable() {
                             </div>
                             <div className="truncate">
                               <div className="font-bold text-slate-900 dark:text-white text-[12px] leading-tight truncate flex items-center gap-1">
-                                {emp.name}
+                                <span>{emp.name}</span>
+                                {isTargetOver && <span className="text-[10px] bg-white text-blue-700 px-1 rounded font-black">📥 여기에 이동</span>}
+
+                                {/* 사원 이름/부서 수정 아이콘 */}
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -958,6 +987,17 @@ export default function WorkScheduleTable() {
                                   title="사원 이름/부서 수정"
                                 >
                                   ✏️
+                                </button>
+                                {/* 🌟 요구사항 2: 빠른 🗑️ 사원 삭제 버튼 */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteEmployee(emp.id, emp.name);
+                                  }}
+                                  className="text-slate-400 hover:text-red-600 opacity-60 group-hover:opacity-100 text-[10px]"
+                                  title="사원 삭제"
+                                >
+                                  🗑️
                                 </button>
                               </div>
                               <div className="text-[10px] text-slate-400 font-medium truncate">{emp.group}</div>
@@ -1073,7 +1113,7 @@ export default function WorkScheduleTable() {
         </div>
       </div>
 
-      {/* 🌟 5. 시간표 설명 표 (기본 접힘 상태, 토글 기능) */}
+      {/* 시간표 설명 표 (기본 접힘) */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 space-y-4 shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div>
@@ -1239,7 +1279,7 @@ export default function WorkScheduleTable() {
         </div>
       )}
 
-      {/* 사원 정보 수정 모달 */}
+      {/* 🌟 사원 정보 수정 및 🗑️ 사원 삭제 안내 모달 */}
       {editingEmpInfo && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
           <form onSubmit={handleSaveEmployeeInfo} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
@@ -1273,8 +1313,11 @@ export default function WorkScheduleTable() {
             <div className="flex justify-between items-center pt-2">
               <button
                 type="button"
-                onClick={() => handleDeleteEmployee(editingEmpInfo.id, editingEmpInfo.name)}
-                className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200"
+                onClick={() => {
+                  setEditingEmpInfo(null);
+                  handleDeleteEmployee(editingEmpInfo.id, editingEmpInfo.name);
+                }}
+                className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-200 flex items-center gap-1"
               >
                 🗑️ 사원 삭제
               </button>
