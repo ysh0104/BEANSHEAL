@@ -264,11 +264,62 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
     }
 
     const { databaseId } = await resolveDatabaseId(rawDbId, apiKey);
-    const queryRes = await notionFetch(`/databases/${databaseId}/query`, apiKey, { method: "POST" });
+
+    // 연결된 모든 데이터베이스 탐색 (2025년, 2026년 데이터베이스 통합 수집)
+    const targetDbIds = new Set<string>([databaseId]);
+
+    try {
+      const searchRes = await notionFetch("/search", apiKey, {
+        method: "POST",
+        body: {
+          filter: { value: "database", property: "object" },
+          page_size: 20,
+        },
+      });
+      if (searchRes.results) {
+        for (const db of searchRes.results) {
+          if (db.id) targetDbIds.add(db.id);
+        }
+      }
+    } catch (sErr) {}
+
+    const allPages: any[] = [];
+    const seenPageIds = new Set<string>();
+
+    for (const targetId of Array.from(targetDbIds)) {
+      let hasMore = true;
+      let nextCursor: string | undefined = undefined;
+
+      while (hasMore && allPages.length < 1000) {
+        const bodyPayload: any = { page_size: 100 };
+        if (nextCursor) bodyPayload.start_cursor = nextCursor;
+
+        try {
+          const queryRes = await notionFetch(`/databases/${targetId}/query`, apiKey, {
+            method: "POST",
+            body: bodyPayload,
+          });
+
+          if (queryRes.results && queryRes.results.length > 0) {
+            for (const p of queryRes.results) {
+              if (p.id && !seenPageIds.has(p.id)) {
+                seenPageIds.add(p.id);
+                allPages.push(p);
+              }
+            }
+          }
+
+          hasMore = !!queryRes.has_more;
+          nextCursor = queryRes.next_cursor || undefined;
+        } catch (dbErr) {
+          hasMore = false;
+        }
+      }
+    }
 
     const schedules: ProductionScheduleItem[] = [];
 
-    for (const page of queryRes.results || []) {
+    for (const page of allPages) {
       if (page.object !== "page") continue;
 
       const props = page.properties || {};
