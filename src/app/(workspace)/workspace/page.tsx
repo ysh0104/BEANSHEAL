@@ -43,6 +43,7 @@ import {
   getMemoPresetsFromSupabase,
   saveMemoPresetsToSupabase,
 } from "@/app/actions/memoPresetsActions";
+import WorkScheduleTable from "@/components/WorkScheduleTable";
 
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
@@ -1626,6 +1627,11 @@ export default function Home() {
 
           return null;
         })}
+      </div>
+
+      {/* 🌟 월간 근무 & 근무조 스케줄표 (엑셀 이미지 기준 편집 기능 탑재) */}
+      <div className="w-full mt-8">
+        <WorkScheduleTable />
       </div>
 
       <MemoPresetsManager
