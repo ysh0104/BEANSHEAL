@@ -893,16 +893,44 @@ export default function Home() {
 
           /* Widget 1: 월간 생산 계획표 (Calendar) - 노션 스타일 연장형 멀티데이 바 캘린더 */
           if (widget.id === "calendar") {
+            // 노션 수신 일정 중 연도/월 분포 파악 헬퍼
+            const latestScheduleDate = schedules.length > 0
+              ? schedules.map(s => s.plan_date ? String(s.plan_date).split('T')[0] : '').filter(Boolean).sort().reverse()[0]
+              : null;
+
+            const latestYear = latestScheduleDate ? Number(latestScheduleDate.split('-')[0]) : null;
+            const latestMonth = latestScheduleDate ? Number(latestScheduleDate.split('-')[1]) - 1 : null;
+
             const calendarHeaderLeft = (
-              <div className="flex items-center gap-1.5 text-slate-800 text-xs font-bold">
+              <div className="flex items-center gap-1.5 text-slate-800 text-xs font-bold flex-wrap">
                 <button onClick={handlePrevMonth} className="p-0.5 hover:bg-slate-200 rounded text-slate-600 cursor-pointer">
                   ‹
                 </button>
-                <span className="font-extrabold font-mono">{year}/{String(month + 1).padStart(2, '0')}</span>
+                <select 
+                  value={year} 
+                  onChange={(e) => setCurrentDate(new Date(Number(e.target.value), month, 1))}
+                  className="font-extrabold font-mono border border-slate-200 rounded px-1 py-0.5 text-xs bg-slate-50 cursor-pointer"
+                >
+                  {[2023, 2024, 2025, 2026, 2027].map((y) => (
+                    <option key={y} value={y}>{y}년</option>
+                  ))}
+                </select>
+                <span className="font-extrabold font-mono">{String(month + 1).padStart(2, '0')}월</span>
                 <button onClick={handleNextMonth} className="p-0.5 hover:bg-slate-200 rounded text-slate-600 cursor-pointer">
                   ›
                 </button>
                 <span className="ml-1 text-slate-900 font-extrabold text-xs">일정관리</span>
+
+                {/* 🌟 노션 수신 성공했으나 2025년 일정이 많은 경우 연도 이동 바로가기 버튼 */}
+                {schedules.length > 0 && latestYear && latestYear !== year && (
+                  <button 
+                    onClick={() => setCurrentDate(new Date(latestYear, latestMonth !== null ? latestMonth : 0, 1))}
+                    className="ml-2 text-[11px] font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                  >
+                    💡 노션 일정 {schedules.length}건 수신 완료 ({latestYear}년 {latestMonth !== null ? latestMonth + 1 : 1}월 바로가기 ➔)
+                  </button>
+                )}
+
                 {notionSyncStatusMsg && (
                   <span className="ml-2 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded shadow-xs" title={notionSyncStatusMsg}>
                     ⚠️ {notionSyncStatusMsg}
