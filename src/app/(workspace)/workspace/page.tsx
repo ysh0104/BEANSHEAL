@@ -1274,51 +1274,30 @@ export default function Home() {
                             }
                           });
 
-                          // 🌟 주(Week)별 레인 상단 Y좌표(top) 및 픽셀 정밀 배치
-                          // 1. 각 레인-컬럼별 적재 높이 계산 (긴 줄바꿈 품목 포함)
-                          const laneColHeights: { [key: string]: number } = {};
-                          const segCardHeights: number[] = [];
-
-                          allocated.forEach((seg, sIdx) => {
-                            segCardHeights[sIdx] = estimateScheduleCardHeight(seg.sch, seg.colSpan);
-
-                            for (let c = seg.startCol; c <= seg.endCol; c++) {
-                              const key = `${seg.lane}-${c}`;
-                              laneColHeights[key] = Math.max(laneColHeights[key] || 0, segCardHeights[sIdx]);
-                            }
-                          });
+                          const segCardHeights = allocated.map((seg) =>
+                            estimateScheduleCardHeight(seg.sch, seg.colSpan)
+                          );
 
                           const LANE_GAP = 8;
+                          const maxLane = allocated.reduce((m, s) => Math.max(m, s.lane), -1);
+                          const laneRowHeights: number[] = [];
+                          for (let l = 0; l <= maxLane; l++) {
+                            let maxH = 56;
+                            allocated.forEach((seg, i) => {
+                              if (seg.lane === l) maxH = Math.max(maxH, segCardHeights[i]);
+                            });
+                            laneRowHeights.push(maxH);
+                          }
 
-                          // 2. 해당 세그먼트가 차지하는 컬럼들에서의 이전 레인 최대 높이 합 + gap으로 상단 Y좌표 결정
-                          const segTops = allocated.map((seg) => {
-                            let currentTop = 0;
-                            for (let l = 0; l < seg.lane; l++) {
-                              let maxPrevLaneH = 52;
-                              for (let c = seg.startCol; c <= seg.endCol; c++) {
-                                const key = `${l}-${c}`;
-                                if (laneColHeights[key]) {
-                                  maxPrevLaneH = Math.max(maxPrevLaneH, laneColHeights[key]);
-                                }
-                              }
-                              currentTop += maxPrevLaneH + LANE_GAP;
-                            }
-                            return currentTop;
-                          });
-
-                          let maxTopWithCard = 0;
-                          allocated.forEach((seg, i) => {
-                            const topH = segTops[i] + (segCardHeights[i] || 52);
-                            if (topH > maxTopWithCard) maxTopWithCard = topH;
-                          });
-
-                          const weekRequiredMinHeight = Math.max(140, 32 + maxTopWithCard + 16);
+                          const scheduleStackHeight = laneRowHeights.reduce((sum, h) => sum + h, 0)
+                            + Math.max(0, laneRowHeights.length - 1) * LANE_GAP;
+                          const weekRequiredMinHeight = Math.max(140, 32 + scheduleStackHeight + 16);
 
                           return (
                             <div
                               key={wIdx}
                               style={{ minHeight: `${weekRequiredMinHeight}px` }}
-                              className="flex-1 grid grid-cols-7 gap-1 relative border-b border-slate-100 last:border-0 pb-1"
+                              className="grid grid-cols-7 gap-1.5 relative border-b border-slate-100 last:border-0 pb-1 shrink-0"
                             >
                               {/* 1. 배경 날짜 셀 Layer */}
                               {week.map((cell, cIdx) => (
@@ -1346,26 +1325,26 @@ export default function Home() {
                                 </div>
                               ))}
 
-                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer */}
-                              <div className="absolute inset-x-0 top-[28px] bottom-1 pointer-events-none px-0.5 pb-2">
+                              {/* 2. 오버레이 — 배경 그리드와 동일한 7열 grid로 레인별 배치 (겹침 방지) */}
+                              <div
+                                className="absolute inset-x-0 top-[28px] bottom-1 grid grid-cols-7 gap-1.5 pointer-events-none pb-2"
+                                style={{
+                                  gridTemplateRows: laneRowHeights.length
+                                    ? laneRowHeights.map((h) => `${h}px`).join(" ")
+                                    : undefined,
+                                  rowGap: `${LANE_GAP}px`,
+                                }}
+                              >
                                   {allocated.map((seg, sIdx) => {
                                     const sch = seg.sch;
                                     const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md' : 'rounded-l-none'} ${seg.isEndOfSchedule ? 'rounded-r-md' : 'rounded-r-none'}`;
-                                    const topPos = segTops[sIdx];
-                                    const cardH = segCardHeights[sIdx] || 52;
-                                    const leftPct = (seg.startCol / 7) * 100;
-                                    const widthPct = (seg.colSpan / 7) * 100;
 
                                     return (
                                       <div
                                         key={`${sch.id}-${wIdx}-${sIdx}`}
                                         style={{
-                                          position: "absolute",
-                                          top: `${topPos}px`,
-                                          left: `calc(${leftPct}% + 2px)`,
-                                          width: `calc(${widthPct}% - 4px)`,
-                                          minHeight: `${cardH}px`,
-                                          zIndex: seg.lane + 1,
+                                          gridColumn: `${seg.startCol + 1} / span ${seg.colSpan}`,
+                                          gridRow: `${seg.lane + 1}`,
                                         }}
                                       draggable={canEditSchedule}
                                       onDragStart={(e) => {
@@ -1376,9 +1355,9 @@ export default function Home() {
                                         e.stopPropagation();
                                         handleDragStart(e, sch);
                                       }}
-                                      className={`pointer-events-auto relative py-1.5 px-2.5 text-left flex items-start justify-between transition-all group/bar ${canEditSchedule ? "cursor-grab active:cursor-grabbing hover:shadow-md" : "cursor-default"} bg-white border border-slate-300/90 shadow-sm ${roundedClass}`}
+                                      className={`pointer-events-auto relative h-full min-h-0 py-1.5 px-2.5 text-left flex items-start justify-between transition-all group/bar overflow-hidden ${canEditSchedule ? "cursor-grab active:cursor-grabbing hover:shadow-md" : "cursor-default"} bg-white border border-slate-300/90 shadow-sm ${roundedClass}`}
                                       >
-                                        <div className="pr-1 w-full min-w-0">
+                                        <div className="pr-1 w-full min-w-0 overflow-hidden">
                                           <ScheduleEntryPills schedule={sch} compact />
                                         </div>
 
