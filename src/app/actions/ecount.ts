@@ -2,6 +2,31 @@
 
 import { supabase } from "@/lib/supabase"; 
 
+/** Vercel → 사무실 프록시(또는 Worker) 베이스 URL */
+export function getEcountProxyBaseUrl() {
+  return (
+    process.env.ECOUNT_API_BASE_URL ||
+    process.env.ECOUNT_PROXY_URL ||
+    "https://beansheal-ecount.sala0104.workers.dev"
+  ).replace(/\/$/, "");
+}
+
+export function ecountFetchHeaders(extra: Record<string, string> = {}) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...extra,
+  };
+  const secret = process.env.ECOUNT_PROXY_SECRET || process.env.PROXY_SECRET;
+  if (secret) headers["X-Beansheal-Proxy-Secret"] = secret;
+  return headers;
+}
+
+/** 세션 HOST_URL 대신 항상 프록시로 호출 (사무실 고정 IP 관문) */
+function ecountApiUrl(pathWithQuery: string) {
+  const path = pathWithQuery.startsWith("/") ? pathWithQuery : `/${pathWithQuery}`;
+  return `${getEcountProxyBaseUrl()}${path}`;
+}
+
 // 1. 이카운트 로그인 및 세션 발급
 export async function getSessionId() {
   const COM_CODE = process.env.ECOUNT_COM_CODE || process.env.ECOUNT_COMPANY_CODE || process.env.ECOUNT_COM_CD;
@@ -12,6 +37,7 @@ export async function getSessionId() {
   console.log("ECOUNT_COM_CODE:", COM_CODE ? `${COM_CODE.substring(0, 2)}*** (길이: ${COM_CODE.length})` : "undefined / 누락");
   console.log("ECOUNT_USER_ID:", USER_ID ? `${USER_ID.substring(0, 2)}*** (길이: ${USER_ID.length})` : "undefined / 누락");
   console.log("ECOUNT_API_KEY:", API_KEY ? `${API_KEY.substring(0, Math.min(4, API_KEY.length))}*** (길이: ${API_KEY.length})` : "undefined / 누락");
+  console.log("ECOUNT_API_BASE_URL:", getEcountProxyBaseUrl());
   console.log("=========================================");
 
   if (!COM_CODE || !USER_ID || !API_KEY) {
@@ -20,16 +46,12 @@ export async function getSessionId() {
     };
   }
 
-  const proxyBaseUrl = (
-    process.env.ECOUNT_API_BASE_URL || 
-    process.env.ECOUNT_PROXY_URL || 
-    'https://beansheal-ecount.sala0104.workers.dev'
-  ).replace(/\/$/, '');
+  const proxyBaseUrl = getEcountProxyBaseUrl();
 
   try {
     const zoneResponse = await fetch(`${proxyBaseUrl}/OAPI/V2/Zone`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: ecountFetchHeaders(),
       body: JSON.stringify({ COM_CODE: COM_CODE }),
       cache: "no-store",
     });
@@ -44,7 +66,7 @@ export async function getSessionId() {
 
     const response = await fetch(loginUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: ecountFetchHeaders(),
       body: JSON.stringify({
         COM_CODE: COM_CODE,
         USER_ID: USER_ID,
@@ -66,6 +88,17 @@ export async function getSessionId() {
 
     if (!isLoginSuccess) {
       return { error: data.Result?.Message || data.Errors?.[0]?.Message || data.Data?.Message || "이카운트 로그인 거절" };
+    }
+
+    // 후속 API가 이카운트 직행하지 않도록 HOST_URL을 프록시 호스트로 덮어씀
+    try {
+      const proxyHost = new URL(proxyBaseUrl).host;
+      if (successData && typeof successData === "object") {
+        (successData as any).HOST_URL = proxyHost;
+        if ((successData as any).Datas) (successData as any).Datas.HOST_URL = proxyHost;
+      }
+    } catch {
+      /* ignore */
     }
     
     return { Data: successData }; 
@@ -97,11 +130,11 @@ export async function getRecentPurchases(sessionObj: any) {
       return `${y}${m}${d}`;
     };
 
-    const requestUrl = `https://${hostUrl}/OAPI/V2/Purchases/GetListPurchases?SESSION_ID=${actualSessionId}`;
+    const requestUrl = ecountApiUrl(`/OAPI/V2/Purchases/GetListPurchases?SESSION_ID=${actualSessionId}`);
 
     const response = await fetch(requestUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: ecountFetchHeaders(),
       body: JSON.stringify({
         SESSION_ID: actualSessionId, 
         COM_CODE: COM_CODE,
@@ -224,11 +257,11 @@ export async function getListProduct(sessionObj: any) {
     const actualSessionId = sessionObj?.Datas?.SESSION_ID || sessionObj?.SESSION_ID;
     const hostUrl = sessionObj?.Datas?.HOST_URL || sessionObj?.HOST_URL || "oapiac.ecount.com";
 
-    const requestUrl = `https://${hostUrl}/OAPI/V2/InventoryBasic/GetBasicProductsList?SESSION_ID=${actualSessionId}`;
+    const requestUrl = ecountApiUrl(`/OAPI/V2/InventoryBasic/GetBasicProductsList?SESSION_ID=${actualSessionId}`);
 
     const response = await fetch(requestUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: ecountFetchHeaders(),
       body: JSON.stringify({
         SESSION_ID: actualSessionId,
         COM_CODE: COM_CODE,
@@ -268,11 +301,11 @@ export async function getInventoryStatus(sessionObj: any) {
     const d = String(kstTime.getUTCDate()).padStart(2, '0');
     const baseDateString = `${y}${m}${d}`; 
 
-    const requestUrl = `https://${hostUrl}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${actualSessionId}`;
+    const requestUrl = ecountApiUrl(`/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${actualSessionId}`);
 
     const response = await fetch(requestUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: ecountFetchHeaders(),
       body: JSON.stringify({
         SESSION_ID: actualSessionId,
         COM_CODE: COM_CODE,
@@ -356,10 +389,10 @@ export async function debugEcountAPI() {
     const baseDateString = `${y}${m}${d}`; 
 
     // 확실하게 열려있는 '재고 현황 조회' API 호출
-    const requestUrl = `https://${hostUrl}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${actualSessionId}`;
+    const requestUrl = ecountApiUrl(`/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${actualSessionId}`);
     const response = await fetch(requestUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: ecountFetchHeaders(),
       body: JSON.stringify({
         SESSION_ID: actualSessionId,
         COM_CODE: COM_CODE,
@@ -410,7 +443,7 @@ export async function saveProductionInboundToEcount(productionData: EcountProduc
     const d = String(kstTime.getUTCDate()).padStart(2, '0');
     const slipDate = `${y}${m}${d}`; // YYYYMMDD 포맷
 
-    const requestUrl = `https://${hostUrl}/OAPI/V2/GoodsReceipt/SaveGoodsReceipt?SESSION_ID=${actualSessionId}`;
+    const requestUrl = ecountApiUrl(`/OAPI/V2/GoodsReceipt/SaveGoodsReceipt?SESSION_ID=${actualSessionId}`);
 
     const payload = {
       SESSION_ID: actualSessionId,
@@ -434,7 +467,7 @@ export async function saveProductionInboundToEcount(productionData: EcountProduc
 
     const response = await fetch(requestUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: ecountFetchHeaders(),
       body: JSON.stringify(payload)
     });
 
@@ -493,7 +526,7 @@ export async function savePurchasesToEcount(lines: EcountPurchaseLine[], whCd = 
     const kstTime = new Date(today.getTime() + (9 * 60 * 60 * 1000));
     const slipDate = `${kstTime.getUTCFullYear()}${String(kstTime.getUTCMonth() + 1).padStart(2, "0")}${String(kstTime.getUTCDate()).padStart(2, "0")}`;
 
-    const requestUrl = `https://${hostUrl}/OAPI/V2/Purchases/SavePurchases?SESSION_ID=${actualSessionId}`;
+    const requestUrl = ecountApiUrl(`/OAPI/V2/Purchases/SavePurchases?SESSION_ID=${actualSessionId}`);
 
     const PurchasesList = lines.map((line, index) => ({
       Line: String(index),
@@ -517,7 +550,7 @@ export async function savePurchasesToEcount(lines: EcountPurchaseLine[], whCd = 
 
     const response = await fetch(requestUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: ecountFetchHeaders(),
       body: JSON.stringify(payload),
     });
 

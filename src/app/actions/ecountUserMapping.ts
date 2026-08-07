@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
-import { getSessionId } from "@/app/actions/ecount";
+import { getSessionId, getEcountProxyBaseUrl, ecountFetchHeaders } from "@/app/actions/ecount";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
 const supabaseServiceKey =
@@ -95,31 +95,26 @@ export async function syncEcountUsersFromApi() {
     if (sessionRes?.error || !sessionRes?.Data) {
       return {
         success: false,
-        message: sessionRes?.error || "이카운트 로그인 실패. 수동으로 ID를 입력해 매칭하세요.",
+        message:
+          (sessionRes?.error || "이카운트 로그인 실패") +
+          " — 사무실 프록시(ECOUNT_API_BASE_URL)가 켜져 있는지, 이카운트 허용 IP가 사무실 PC인지 확인하세요. 당장은 수동 매칭도 가능합니다.",
         count: 0,
       };
     }
 
     const sessionData = sessionRes.Data?.Datas || sessionRes.Data;
     const sessionId = sessionData?.SESSION_ID;
-    const hostUrl = sessionData?.HOST_URL || "oapiac.ecount.com";
     const COM_CODE = process.env.ECOUNT_COM_CODE;
 
     if (!sessionId) {
       return { success: false, message: "세션 ID 없음. 수동 매칭을 사용하세요.", count: 0 };
     }
 
-    const proxyBaseUrl = (
-      process.env.ECOUNT_API_BASE_URL ||
-      process.env.ECOUNT_PROXY_URL ||
-      "https://beansheal-ecount.sala0104.workers.dev"
-    ).replace(/\/$/, "");
+    const proxyBaseUrl = getEcountProxyBaseUrl();
 
     const candidates = [
       `${proxyBaseUrl}/OAPI/V2/AccountCommon/GetListEmployee?SESSION_ID=${sessionId}`,
       `${proxyBaseUrl}/OAPI/V2/CommonBasic/GetListEmployee?SESSION_ID=${sessionId}`,
-      `https://${hostUrl}/OAPI/V2/AccountCommon/GetListEmployee?SESSION_ID=${sessionId}`,
-      `https://${hostUrl}/OAPI/V2/CommonBasic/GetListEmployee?SESSION_ID=${sessionId}`,
     ];
 
     let rows: any[] = [];
@@ -129,7 +124,7 @@ export async function syncEcountUsersFromApi() {
       try {
         const res = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: ecountFetchHeaders(),
           body: JSON.stringify({
             SESSION_ID: sessionId,
             COM_CODE,

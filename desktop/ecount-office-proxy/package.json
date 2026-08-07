@@ -1,0 +1,11 @@
+{
+  "name": "beansheal-ecount-office-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Office PC fixed-IP gateway for Ecount Open API",
+  "scripts": {
+    "start": "node server.mjs",
+    "start:ac": "ECOUNT_ZONE=AC ECOUNT_DOMAIN=oapi node server.mjs"
+  }
+}
