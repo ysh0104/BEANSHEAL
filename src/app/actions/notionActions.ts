@@ -331,27 +331,48 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
       let tagName = "";
       let tagColor = "";
 
-      // 1. 품목명/제목 파싱 (Title ➔ Rich Text ➔ 기본값)
+      // 1. 품목명/제목 파싱 (Title ➔ 특정 컬럼 ➔ Rich Text/Select/MultiSelect ➔ 태그명)
       for (const key of Object.keys(props)) {
         const prop = props[key];
         if (prop.type === "title" && prop.title?.length > 0) {
-          productName = prop.title.map((t: any) => t.plain_text).join("").trim();
-          break;
+          const txt = prop.title.map((t: any) => t.plain_text).join("").trim();
+          if (txt) {
+            productName = txt;
+            break;
+          }
         }
       }
+
       if (!productName) {
+        // 특정 키 이름 ("품목", "제품", "업체", "내용", "상세", "구분", "일정", "제목") 검색
         for (const key of Object.keys(props)) {
           const prop = props[key];
-          if (prop.type === "rich_text" && prop.rich_text?.length > 0) {
-            const txt = prop.rich_text.map((t: any) => t.plain_text).join("").trim();
-            if (txt) {
-              productName = txt;
-              break;
+          const kLower = key.toLowerCase();
+          if (kLower.includes("품목") || kLower.includes("제품") || kLower.includes("업체") || kLower.includes("내용") || kLower.includes("상세") || kLower.includes("구분") || kLower.includes("일정") || kLower.includes("제목")) {
+            if (prop.type === "rich_text" && prop.rich_text?.length > 0) {
+              const txt = prop.rich_text.map((t: any) => t.plain_text).join("").trim();
+              if (txt) { productName = txt; break; }
+            } else if (prop.type === "select" && prop.select?.name) {
+              productName = prop.select.name; break;
+            } else if (prop.type === "multi_select" && prop.multi_select?.length > 0) {
+              productName = prop.multi_select.map((m: any) => m.name).join(", "); break;
             }
           }
         }
       }
-      if (!productName) productName = "생산 일정";
+
+      if (!productName) {
+        // 모든 rich_text / select 항목 파싱
+        for (const key of Object.keys(props)) {
+          const prop = props[key];
+          if (prop.type === "rich_text" && prop.rich_text?.length > 0) {
+            const txt = prop.rich_text.map((t: any) => t.plain_text).join("").trim();
+            if (txt) { productName = txt; break; }
+          } else if (prop.type === "select" && prop.select?.name) {
+            productName = prop.select.name; break;
+          }
+        }
+      }
 
       // 2. 날짜 파싱 (Date ➔ 키이름 검색 ➔ Formula Date ➔ Created Time ➔ Page Created Time)
       // 2-1. Date 타입 직접 파싱
@@ -471,10 +492,12 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
       }
 
       if (planDate) {
+        const finalProductName = productName.trim() || (note.trim() ? note.trim() : (tagName ? `${tagName} 일정` : "일정"));
+
         schedules.push({
           id: page.id,
           notion_page_id: page.id,
-          product_name: productName,
+          product_name: finalProductName,
           plan_date: planDate,
           end_date: endDate || planDate,
           quantity: quantity || "1",
