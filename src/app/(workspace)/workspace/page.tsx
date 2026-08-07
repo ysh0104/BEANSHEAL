@@ -1422,7 +1422,7 @@ export default function Home() {
                       </div>
                     )}
 
-                    <div className="flex-1 min-h-[140px] overflow-y-auto space-y-2 pr-1 mb-3">
+                    <div className="flex-1 min-h-[140px] overflow-y-auto flex flex-wrap gap-2.5 items-start content-start pr-1 mb-3">
                       {visibleMemos.map((memo) => {
                         let dept = user?.department || "";
                         if (dept && !dept.endsWith("팀")) dept += "팀";
@@ -1444,10 +1444,10 @@ export default function Home() {
                           <div 
                             key={memo.id} 
                             onDoubleClick={(e) => handleToggleLike(memo.id, e)}
-                            className={`p-3 border rounded-lg shadow-xs relative group transition-all select-none cursor-pointer ${
+                            className={`p-3 border rounded-xl shadow-xs relative group transition-all select-none cursor-pointer inline-flex flex-col justify-between w-fit max-w-full min-w-[200px] flex-grow-0 flex-shrink-0 ${
                               memo.pinned
-                                ? "border-amber-300 bg-amber-50/60 hover:bg-amber-50"
-                                : "border-gray-100 bg-gray-50 hover:bg-white hover:border-indigo-100"
+                                ? "border-amber-300 bg-amber-50/80 hover:bg-amber-50 shadow-sm"
+                                : "border-gray-200/90 bg-slate-50/90 hover:bg-white hover:border-indigo-200 hover:shadow-md"
                             }`}
                             title="더블클릭하여 카카오톡처럼 확인 하트(❤️) 표시"
                           >
@@ -1466,7 +1466,7 @@ export default function Home() {
                             )}
 
                             {editingMemoId != null && String(editingMemoId) === String(memo.id) ? (
-                              <div className="space-y-1.5" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                              <div className="space-y-1.5 w-full min-w-[260px]" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                                 <MemoRichEditor
                                   key={`edit-${memo.id}`}
                                   value={editingMemoText}
@@ -1501,7 +1501,7 @@ export default function Home() {
                             ) : (
                               <>
                                 <div className={`pr-14 ${memo.pinned ? "pl-4" : ""}`}>
-                                  <MemoRichContent html={memo.text} className="font-medium" />
+                                  <MemoRichContent html={memo.text} className="font-medium text-slate-800 text-xs leading-relaxed" />
                                   {reminderLabel && (
                                     <div
                                       className={`mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${
@@ -1515,8 +1515,8 @@ export default function Home() {
                                     </div>
                                   )}
                                 </div>
-                                <div className="flex justify-between items-center mt-2">
-                                  <div className="flex items-center gap-2">
+                                <div className="flex items-center justify-between gap-3 mt-3 pt-1 border-t border-gray-100/80">
+                                  <div className="flex items-center gap-1.5">
                                     <span className="text-[10px] text-gray-400 font-bold">{memo.date}</span>
                                     <button
                                       type="button"
@@ -1524,7 +1524,7 @@ export default function Home() {
                                         e.stopPropagation();
                                         handleToggleLike(memo.id);
                                       }}
-                                      className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full transition-all cursor-pointer ${
+                                      className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full transition-all cursor-pointer ${
                                         isLikedByMe
                                           ? "bg-rose-50 text-rose-600 border border-rose-200 shadow-2xs"
                                           : "bg-gray-200/80 text-gray-500 hover:bg-rose-50 hover:text-rose-600"
@@ -1535,7 +1535,7 @@ export default function Home() {
                                       {likedByList.length > 0 && <span>{likedByList.length}</span>}
                                     </button>
                                   </div>
-                                  <span className="text-[10px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">{memo.author}</span>
+                                  <span className="text-[10px] font-bold text-gray-600 bg-gray-200/80 px-1.5 py-0.5 rounded-md whitespace-nowrap">{memo.author}</span>
                                 </div>
 
                                 <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
@@ -1571,7 +1571,7 @@ export default function Home() {
                         );
                       })}
                       {visibleMemos.length === 0 && (
-                        <div className="text-center py-12 text-gray-400 text-xs font-medium">
+                        <div className="w-full text-center py-12 text-gray-400 text-xs font-medium">
                           {memoTagFilter
                             ? `선택한 태그(${memoTagFilter})에 해당하는 메모가 없습니다.`
                             : memos.length > 0
