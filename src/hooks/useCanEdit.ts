@@ -1,62 +1,84 @@
 "use client";
 
 import { useAuth, UserProfile } from "@/context/AuthContext";
+import type { FeatureKey } from "@/lib/permissions";
 
-export type FeatureGroup = "production" | "qa" | "inventory" | "recipes" | "cms" | "all";
+/** @deprecated FeatureGroup → FeatureKey 와 동일. 기존 페이지 호환용 */
+export type FeatureGroup = FeatureKey | "all";
+
+function isSuperUser(user: UserProfile): boolean {
+  return (
+    user.role === "ADMIN" ||
+    user.position === "대표" ||
+    user.position === "대표이사" ||
+    user.permissionGroupName === "전체관리자"
+  );
+}
 
 /**
- * 사용자 부서 및 권한을 기반으로 특정 기능의 쓰기(생성/수정/삭제) 권한 보유 여부 확인
+ * 권한 그룹(또는 레거시 부서 규칙) 기반 수정 권한
  */
 export function canUserEdit(user: UserProfile | null, group: FeatureGroup): boolean {
   if (!user) return false;
+  if (group === "all") return true;
+  if (isSuperUser(user)) return true;
 
-  // 경영지원팀·경영진, 관리자 직급, 또는 ADMIN 권한은 모든 화면 수정/생성 가능
-  if (
-    (user.role as string) === "ADMIN" ||
-    user.department.includes("경영") ||
-    user.position === "관리자" ||
-    user.position === "대표" ||
-    user.position === "대표이사"
-  ) {
-    return true;
+  const key = group as FeatureKey;
+  if (user.permissions?.[key]) {
+    return !!user.permissions[key].can_edit;
   }
 
+  // 레거시 폴백 (권한 그룹 미적용 환경)
   const dept = user.department || "";
+  if (dept.includes("경영")) return true;
 
-  switch (group) {
+  switch (key) {
     case "production":
-      // 생산팀 -> 생산/발주 계획, 제조/공정 실행 수정 가능
-      return dept.includes("생산");
-
-    case "qa":
-      // 품질관리팀 또는 QA 권한 -> 품질/감사(QA) 수정 가능
-      return dept.includes("품질") || user.role === "QA";
-
-    case "inventory":
-      // 자재/재고: 생산팀 또는 경영지원팀
-      return dept.includes("생산") || dept.includes("경영지원");
-
     case "recipes":
-      // 기준정보 레시피 -> 생산팀 수정 가능
       return dept.includes("생산");
-
+    case "qa":
+      return dept.includes("품질") || user.role === "QA";
+    case "inventory":
+      return dept.includes("생산") || dept.includes("경영지원");
     case "cms":
-      // 홈페이지 관리 -> 관리자 전용
+    case "admin_users":
       return user.role === "ADMIN";
-
-    case "all":
+    case "workspace":
       return true;
-
     default:
       return false;
   }
 }
 
-/**
- * 리액트 컴포넌트용 커스텀 훅
- */
+export function canUserView(user: UserProfile | null, group: FeatureGroup): boolean {
+  if (!user) return false;
+  if (group === "all") return true;
+  if (isSuperUser(user)) return true;
+
+  const key = group as FeatureKey;
+  if (user.permissions?.[key]) {
+    return !!user.permissions[key].can_view || !!user.permissions[key].can_edit;
+  }
+
+  // 그룹 없으면 기존처럼 로그인 사용자는 대부분 조회 가능
+  if (key === "cms" || key === "admin_users") {
+    return (
+      user.role === "ADMIN" ||
+      user.department.includes("경영") ||
+      !!user.permissions?.[key]?.can_view
+    );
+  }
+  return true;
+}
+
 export function useCanEdit(group: FeatureGroup): { canEdit: boolean; user: UserProfile | null } {
   const { user } = useAuth();
   const canEdit = canUserEdit(user, group);
   return { canEdit, user };
+}
+
+export function useCanView(group: FeatureGroup): { canView: boolean; user: UserProfile | null } {
+  const { user } = useAuth();
+  const canView = canUserView(user, group);
+  return { canView, user };
 }

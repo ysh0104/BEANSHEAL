@@ -6,6 +6,13 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getAllUserProfiles, updateUserProfile, ProfileItem } from "@/app/actions/userActions";
 import { formatJobTitle } from "@/context/AuthContext";
+import PermissionGroupsPanel from "@/components/PermissionGroupsPanel";
+import {
+  listPermissionGroups,
+  assignUserPermissionGroup,
+} from "@/app/actions/permissionActions";
+import type { PermissionGroupRecord } from "@/lib/permissions";
+import { canUserEdit } from "@/hooks/useCanEdit";
 
 function computeRoleLocal(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
   if (position === "관리자" || department.includes("경영")) return "ADMIN";
@@ -61,19 +68,29 @@ export default function UserManagementPage() {
   const [statusMsg, setStatusMsg] = useState<{ id: string; type: "success" | "error"; text: string } | null>(null);
 
   // 수정 중인 인메모리 유저별 상태
-  const [editStates, setEditStates] = useState<{ [id: string]: { department: string; position: string; role: "ADMIN" | "QA" | "WORKER" } }>({});
+  const [editStates, setEditStates] = useState<{
+    [id: string]: {
+      department: string;
+      position: string;
+      role: "ADMIN" | "QA" | "WORKER";
+      permission_group_id: string | null;
+    };
+  }>({});
+  const [permGroups, setPermGroups] = useState<PermissionGroupRecord[]>([]);
 
-  const isAdmin =
+  const canManagePerms =
+    canUserEdit(user, "admin_users") ||
     user?.role === "ADMIN" ||
-    user?.department.includes("경영") ||
-    user?.position === "관리자" ||
-    user?.position === "대표" ||
-    user?.position === "대표이사";
+    !!user?.department?.includes("경영");
 
   const [dbStatusInfo, setDbStatusInfo] = useState<string>("Supabase DB 연결 확인 중...");
 
   useEffect(() => {
     loadProfiles();
+    (async () => {
+      const res = await listPermissionGroups();
+      if (res.success) setPermGroups(res.data);
+    })();
   }, [user]);
 
   const loadProfiles = async () => {
@@ -106,6 +123,7 @@ export default function UserManagementPage() {
             role: r,
             job_title: formatJobTitle(dept, p.position || "사원"),
             updated_at: p.updated_at || p.created_at || new Date().toISOString(),
+            permission_group_id: p.permission_group_id || null,
           };
         });
       } else {
@@ -166,25 +184,46 @@ export default function UserManagementPage() {
     setProfiles(loadedData);
     setDbStatusInfo(dbMsg);
 
-    const initialEdits: { [id: string]: { department: string; position: string; role: "ADMIN" | "QA" | "WORKER" } } = {};
+    const initialEdits: {
+      [id: string]: {
+        department: string;
+        position: string;
+        role: "ADMIN" | "QA" | "WORKER";
+        permission_group_id: string | null;
+      };
+    } = {};
     loadedData.forEach((p) => {
-      initialEdits[p.id] = { department: p.department, position: p.position, role: p.role };
+      initialEdits[p.id] = {
+        department: p.department,
+        position: p.position,
+        role: p.role,
+        permission_group_id: p.permission_group_id || null,
+      };
     });
     setEditStates(initialEdits);
 
     setLoading(false);
   };
 
-  const handleSelectChange = (id: string, field: "department" | "position" | "role", value: string) => {
+  const handleSelectChange = (
+    id: string,
+    field: "department" | "position" | "role" | "permission_group_id",
+    value: string
+  ) => {
     setEditStates((prev) => {
-      const current = prev[id] || { department: "생산팀", position: "사원", role: "WORKER" };
+      const current = prev[id] || {
+        department: "생산팀",
+        position: "사원",
+        role: "WORKER" as const,
+        permission_group_id: null,
+      };
       let newDept = current.department;
       let newPos = current.position;
       let newRole = current.role;
+      let newGroupId = current.permission_group_id;
 
       if (field === "position") {
         newPos = value;
-        // 관리자, 대표이사, 대표, 이사는 소속 부서를 '-'로 자동 설정하고 모든 권한(ADMIN) 부여
         if (value === "관리자" || value === "대표이사" || value === "대표" || value === "이사") {
           newDept = "-";
           newRole = "ADMIN";
@@ -195,6 +234,8 @@ export default function UserManagementPage() {
         newDept = value;
       } else if (field === "role") {
         newRole = value as "ADMIN" | "QA" | "WORKER";
+      } else if (field === "permission_group_id") {
+        newGroupId = value || null;
       }
 
       return {
@@ -203,6 +244,7 @@ export default function UserManagementPage() {
           department: newDept,
           position: newPos,
           role: newRole,
+          permission_group_id: newGroupId,
         },
       };
     });
@@ -237,14 +279,33 @@ export default function UserManagementPage() {
           department: saveDept,
           position: edit.position,
           role: saveRole,
+          permission_group_id: edit.permission_group_id || null,
           updated_at: new Date().toISOString(),
         }, { onConflict: "id" });
 
       if (!error) dbSuccess = true;
+      else {
+        // permission_group_id 컬럼 없을 수 있음 → 컬럼 없이 재시도
+        const { error: e2 } = await supabase
+          .from("profiles")
+          .upsert({
+            id: targetUser.id,
+            email: targetUser.email,
+            full_name: targetUser.full_name,
+            department: saveDept,
+            position: edit.position,
+            role: saveRole,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "id" });
+        if (!e2) dbSuccess = true;
+      }
     } catch (e) {}
 
     // 2. Server Action도 동시 실행하여 이중 보장
     const res = await updateUserProfile(targetUser.id, saveDept, edit.position, saveRole);
+    await assignUserPermissionGroup(targetUser.id, edit.permission_group_id || null);
+
+    const groupName = permGroups.find((g) => g.id === edit.permission_group_id)?.name || "미배정";
 
     if (dbSuccess || res.success) {
       setProfiles((prev) =>
@@ -256,6 +317,7 @@ export default function UserManagementPage() {
                 position: edit.position,
                 role: saveRole,
                 job_title: newJobTitle,
+                permission_group_id: edit.permission_group_id || null,
                 updated_at: new Date().toISOString(),
               }
             : p
@@ -265,7 +327,7 @@ export default function UserManagementPage() {
       setStatusMsg({
         id: targetUser.id,
         type: "success",
-        text: `'${targetUser.full_name}' 님의 부서(${saveDept}), 직급(${edit.position}) 및 권한(${saveRole})이 성공적으로 저장되었습니다.`,
+        text: `'${targetUser.full_name}' 저장됨 — 부서(${saveDept}) / 직급(${edit.position}) / 권한그룹(${groupName})`,
       });
 
       // 본인 프로필 수정 시 로컬 세션도 동기화
@@ -344,10 +406,10 @@ export default function UserManagementPage() {
                 )}
               </div>
               <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                <span>사용자 관리 및 부서/직책 권한 설정</span>
+                <span>사용자 · 권한 그룹 관리</span>
               </h1>
               <p className="text-xs text-slate-500 mt-1 font-normal">
-                가입된 사원의 부서와 직급을 부여하고 시스템 접근 권한(ADMIN / QA / WORKER)을 설정할 수 있습니다.
+                권한 그룹을 만들고 메뉴별 조회/수정을 설정한 뒤, 사원에게 그룹을 배정하세요. (이카운트식)
               </p>
             </div>
 
@@ -386,7 +448,9 @@ export default function UserManagementPage() {
       </div>
 
       {/* 메인 데이터 테이블 */}
-      <div className="max-w-7xl mx-auto px-4 md:px-6 mt-6">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 mt-6 space-y-6">
+        <PermissionGroupsPanel canManage={canManagePerms} onGroupsChange={setPermGroups} />
+
         {/* 무채색 깔끔한 알림 메시지 토스트 */}
         {statusMsg && (
           <div className="mb-4 p-3.5 rounded-xl border border-slate-300 bg-slate-900 text-white text-xs font-medium flex items-center justify-between shadow-xs animate-fadeIn">
@@ -413,7 +477,8 @@ export default function UserManagementPage() {
                   <th className="py-3 px-4">현재 화면 표시 직책</th>
                   <th className="py-3 px-4 min-w-[130px]">소속 부서 (Department)</th>
                   <th className="py-3 px-4 min-w-[120px]">직급 (Position)</th>
-                  <th className="py-3 px-4 min-w-[210px]">시스템 접근 권한 (Role 지정)</th>
+                  <th className="py-3 px-4 min-w-[150px]">권한 그룹</th>
+                  <th className="py-3 px-4 min-w-[180px]">레거시 Role</th>
                   <th className="py-3 px-4">최근 수정일</th>
                   <th className="py-3 px-4 text-right">권한 부여 저장</th>
                 </tr>
@@ -421,7 +486,7 @@ export default function UserManagementPage() {
               <tbody className="divide-y divide-slate-100 text-xs font-normal">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                    <td colSpan={8} className="py-12 text-center text-slate-400 font-medium">
                       <div className="flex justify-center items-center gap-2">
                         <span className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
                         <span>사용자 프로필을 로딩하는 중입니다...</span>
@@ -430,18 +495,26 @@ export default function UserManagementPage() {
                   </tr>
                 ) : profiles.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                    <td colSpan={8} className="py-12 text-center text-slate-400 font-medium">
                       가입된 사용자 프로필이 없습니다.
                     </td>
                   </tr>
                 ) : (
                   profiles.map((p) => {
-                    const currentEdit = editStates[p.id] || { department: p.department, position: p.position, role: p.role };
+                    const currentEdit = editStates[p.id] || {
+                      department: p.department,
+                      position: p.position,
+                      role: p.role,
+                      permission_group_id: p.permission_group_id || null,
+                    };
                     const isTopPos = currentEdit.position === "관리자" || currentEdit.position === "대표이사" || currentEdit.position === "대표" || currentEdit.position === "이사";
                     const displayDept = isTopPos ? "-" : currentEdit.department;
                     const displayRole = isTopPos ? "ADMIN" : currentEdit.role;
                     const isChanged =
-                      currentEdit.department !== p.department || currentEdit.position !== p.position || currentEdit.role !== p.role;
+                      currentEdit.department !== p.department ||
+                      currentEdit.position !== p.position ||
+                      currentEdit.role !== p.role ||
+                      (currentEdit.permission_group_id || null) !== (p.permission_group_id || null);
                     const previewJobTitle = formatJobTitle(displayDept, currentEdit.position);
                     const isSelf = user?.email === p.email;
 
@@ -498,6 +571,23 @@ export default function UserManagementPage() {
                             {POSITION_OPTIONS.map((pos) => (
                               <option key={pos} value={pos}>
                                 {pos}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+
+                        {/* 권한 그룹 */}
+                        <td className="py-3.5 px-4">
+                          <select
+                            value={currentEdit.permission_group_id || ""}
+                            onChange={(e) => handleSelectChange(p.id, "permission_group_id", e.target.value)}
+                            disabled={!canManagePerms}
+                            className="w-full text-xs font-bold border border-indigo-200 rounded-lg px-2.5 py-1.5 bg-indigo-50 text-indigo-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer disabled:opacity-60"
+                          >
+                            <option value="">미배정 (자동)</option>
+                            {permGroups.map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.name}
                               </option>
                             ))}
                           </select>

@@ -13,6 +13,7 @@ export interface ProfileItem {
   job_title?: string;
   updated_at?: string;
   created_at?: string;
+  permission_group_id?: string | null;
 }
 
 function computeRoleHelper(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
@@ -50,6 +51,7 @@ export async function getAllUserProfiles() {
       role: p.role || computeRoleHelper(p.department || "생산팀", p.position || "사원"),
       job_title: formatJobTitle(p.department || "생산팀", p.position || "사원"),
       updated_at: p.updated_at || p.created_at || new Date().toISOString(),
+      permission_group_id: p.permission_group_id || null,
     }));
 
     return { success: true, data: profiles };

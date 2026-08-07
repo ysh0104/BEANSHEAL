@@ -3,15 +3,24 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
+import {
+  emptyPermissionMap,
+  fullPermissionMap,
+  type PermissionMap,
+} from "@/lib/permissions";
+import { getUserPermissionMap } from "@/app/actions/permissionActions";
 
 export interface UserProfile {
   name: string;
   email: string;
   department: string;
   position: string;
-  role: "ADMIN" | "QA" | "WORKER"; // 실제 권한 (내부 로직용)
-  jobTitle: string; // 화면 표시용, 예: "생산관리 팀장"
+  role: "ADMIN" | "QA" | "WORKER"; // 레거시 호환 (ADMIN = 슈퍼유저 폴백)
+  jobTitle: string;
   provider: string;
+  permissionGroupId?: string | null;
+  permissionGroupName?: string | null;
+  permissions?: PermissionMap;
 }
 
 interface AuthContextType {
@@ -81,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data } = await supabase
         .from("profiles")
-        .select("full_name, department, position, role")
+        .select("full_name, department, position, role, permission_group_id")
         .eq("id", authUser.id)
         .maybeSingle();
 
@@ -97,6 +106,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const jobTitle = formatJobTitle(department, position);
 
+    let permissions = emptyPermissionMap(true, false);
+    let permissionGroupId: string | null = null;
+    let permissionGroupName: string | null = null;
+
+    try {
+      const permRes = await getUserPermissionMap(authUser.id);
+      if (permRes.success) {
+        permissions = permRes.permissions;
+        permissionGroupId = permRes.groupId;
+        permissionGroupName = permRes.groupName;
+      }
+    } catch {
+      /* 테이블 미생성 시 레거시 폴백 */
+      if (permissionRole === "ADMIN" || department.includes("경영")) {
+        permissions = fullPermissionMap();
+      }
+    }
+
+    // ADMIN 역할은 항상 전체 권한
+    if (permissionRole === "ADMIN") {
+      permissions = fullPermissionMap();
+    }
+
     const userProfile: UserProfile = {
       name: fullName,
       email: authUser.email || "",
@@ -105,6 +137,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role: permissionRole,
       jobTitle,
       provider: authUser.app_metadata?.provider || "google",
+      permissionGroupId,
+      permissionGroupName,
+      permissions,
     };
 
     setUser(userProfile);

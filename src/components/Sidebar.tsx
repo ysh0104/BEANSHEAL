@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import LoginModal from "@/components/LoginModal";
+import { canUserView } from "@/hooks/useCanEdit";
+import { MENU_FEATURE_MAP } from "@/lib/permissions";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -26,7 +28,9 @@ export default function Sidebar() {
     user?.department?.includes("경영") ||
     user?.position === "관리자" ||
     user?.position === "대표" ||
-    user?.position === "대표이사";
+    user?.position === "대표이사" ||
+    user?.permissionGroupName === "전체관리자" ||
+    !!user?.permissions?.admin_users?.can_edit;
 
   const rawMenuGroups = [
     {
@@ -80,7 +84,16 @@ export default function Sidebar() {
     }
   ];
 
-  const menuGroups = rawMenuGroups;
+  const menuGroups = rawMenuGroups.filter((group) => {
+    const featureKey = MENU_FEATURE_MAP[group.name];
+    if (!featureKey) return true;
+    // 로그인 전/권한맵 없으면 기존처럼 전체 표시 (관리자 메뉴만 isAdmin)
+    if (!user?.permissions) {
+      if (featureKey === "admin_users" || featureKey === "cms") return isAdmin;
+      return true;
+    }
+    return canUserView(user, featureKey);
+  });
 
   return (
     <>
