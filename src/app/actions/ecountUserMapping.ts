@@ -110,7 +110,8 @@ export async function syncEcountUsersFromApi() {
       return { success: false, message: "세션 ID 없음. 수동 매칭을 사용하세요.", count: 0 };
     }
 
-    const proxyBaseUrl = getEcountProxyBaseUrl();
+    const proxyBaseUrl = await getEcountProxyBaseUrl();
+    const headers = await ecountFetchHeaders();
 
     const candidates = [
       `${proxyBaseUrl}/OAPI/V2/AccountCommon/GetListEmployee?SESSION_ID=${sessionId}`,
@@ -124,7 +125,7 @@ export async function syncEcountUsersFromApi() {
       try {
         const res = await fetch(url, {
           method: "POST",
-          headers: ecountFetchHeaders(),
+          headers,
           body: JSON.stringify({
             SESSION_ID: sessionId,
             COM_CODE,
