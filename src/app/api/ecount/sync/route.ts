@@ -18,7 +18,7 @@ export async function POST() {
     const baseUrl = (
       process.env.ECOUNT_API_BASE_URL || 
       process.env.ECOUNT_PROXY_URL || 
-      'https://oapi.ecount.com'
+      'https://beansheal-ecount.sala0104.workers.dev'
     ).replace(/\/$/, '');
 
     const comCode = (
