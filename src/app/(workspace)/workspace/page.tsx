@@ -145,6 +145,53 @@ export default function Home() {
   const [editingMemoText, setEditingMemoText] = useState<string>("");
   const [heartAnim, setHeartAnim] = useState<{ id: number | string; x: number; y: number } | null>(null);
 
+  // 🌟 메모 카드 격자 드래그 앤 드롭 (Drag & Drop) 위치 이동 State 및 핸들러
+  const [draggedMemoId, setDraggedMemoId] = useState<number | string | null>(null);
+  const [dragOverMemoId, setDragOverMemoId] = useState<number | string | null>(null);
+
+  const handleMemoCardDragStart = (e: React.DragEvent, memoId: number | string) => {
+    e.stopPropagation();
+    setDraggedMemoId(memoId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleMemoCardDragOver = (e: React.DragEvent, memoId: number | string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverMemoId !== memoId) {
+      setDragOverMemoId(memoId);
+    }
+  };
+
+  const handleMemoCardDrop = (e: React.DragEvent, targetMemoId: number | string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!draggedMemoId || String(draggedMemoId) === String(targetMemoId)) {
+      setDraggedMemoId(null);
+      setDragOverMemoId(null);
+      return;
+    }
+    setMemos((prev) => {
+      const updated = [...prev];
+      const sourceIdx = updated.findIndex((m) => String(m.id) === String(draggedMemoId));
+      const targetIdx = updated.findIndex((m) => String(m.id) === String(targetMemoId));
+      if (sourceIdx < 0 || targetIdx < 0) return prev;
+      const [moved] = updated.splice(sourceIdx, 1);
+      updated.splice(targetIdx, 0, moved);
+      localStorage.setItem("beansheal_memos", JSON.stringify(updated));
+      return updated;
+    });
+    setDraggedMemoId(null);
+    setDragOverMemoId(null);
+  };
+
+  const handleMemoCardDragEnd = (e: React.DragEvent) => {
+    e.stopPropagation();
+    setDraggedMemoId(null);
+    setDragOverMemoId(null);
+  };
+
   // 계획(Schedule) 데이터 관리 State
   const [schedules, setSchedules] = useState<any[]>([]);
   const [selectedDateForPlan, setSelectedDateForPlan] = useState<string | null>(null);
@@ -1440,19 +1487,44 @@ export default function Home() {
                         const reminderDue =
                           memo.reminder_at && new Date(memo.reminder_at).getTime() <= Date.now();
 
+                        const isBeingDragged = draggedMemoId != null && String(draggedMemoId) === String(memo.id);
+                        const isTargetOver = dragOverMemoId != null && String(dragOverMemoId) === String(memo.id) && !isBeingDragged;
+
                         return (
                           <div 
                             key={memo.id} 
+                            draggable={editingMemoId === null}
+                            onDragStart={(e) => handleMemoCardDragStart(e, memo.id)}
+                            onDragOver={(e) => handleMemoCardDragOver(e, memo.id)}
+                            onDrop={(e) => handleMemoCardDrop(e, memo.id)}
+                            onDragEnd={handleMemoCardDragEnd}
                             onDoubleClick={(e) => handleToggleLike(memo.id, e)}
-                            className={`p-3 border rounded-xl shadow-xs relative group transition-all select-none cursor-pointer inline-flex flex-col justify-between w-fit max-w-full min-w-[200px] flex-grow-0 flex-shrink-0 ${
-                              memo.pinned
+                            className={`p-3 border rounded-xl shadow-xs relative group transition-all select-none cursor-grab active:cursor-grabbing inline-flex flex-col justify-between w-fit max-w-full min-w-[200px] flex-grow-0 flex-shrink-0 ${
+                              isBeingDragged
+                                ? "opacity-30 border-dashed border-2 border-indigo-400 scale-95"
+                                : isTargetOver
+                                ? "bg-indigo-100/90 ring-4 ring-indigo-500 border-2 border-indigo-600 scale-105 shadow-xl"
+                                : memo.pinned
                                 ? "border-amber-300 bg-amber-50/80 hover:bg-amber-50 shadow-sm"
                                 : "border-gray-200/90 bg-slate-50/90 hover:bg-white hover:border-indigo-200 hover:shadow-md"
                             }`}
-                            title="더블클릭하여 카카오톡처럼 확인 하트(❤️) 표시"
+                            title="마우스로 드래그하여 메모 위치 순서를 자유롭게 바꿀 수 있습니다."
                           >
-                            {memo.pinned && (
-                              <span className="absolute top-2 left-2 text-[10px] font-extrabold text-amber-700">📌</span>
+                            {/* 🌟 드래그 핸들 (⋮⋮) & 고정 핀 아이콘 */}
+                            <div className="absolute top-2 left-2 flex items-center gap-1">
+                              <span className="text-slate-300 group-hover:text-indigo-600 text-[11px] font-mono font-black cursor-grab">
+                                ⋮⋮
+                              </span>
+                              {memo.pinned && (
+                                <span className="text-[10px] font-extrabold text-amber-700">📌</span>
+                              )}
+                            </div>
+
+                            {/* 드래그 위치 이동 뱃지 */}
+                            {isTargetOver && (
+                              <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-black shadow-md z-20">
+                                📥 여기에 이동
+                              </span>
                             )}
 
                             {/* 팝업 하트 애니메이션 */}
