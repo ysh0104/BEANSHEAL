@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { getRecipeList } from "@/app/actions/recipe"; 
 import { 
   syncNotionWithSupabase, 
@@ -220,16 +221,6 @@ export default function Home() {
       }
     };
 
-    const fetchMemosSilently = async () => {
-      try {
-        const memoRes = await getMemosFromSupabase();
-        if (memoRes?.success && memoRes.data && memoRes.data.length > 0) {
-          setMemos(memoRes.data);
-          localStorage.setItem("beansheal_memos", JSON.stringify(memoRes.data));
-        }
-      } catch (e) {}
-    };
-
     const initData = async () => {
       try {
         const recipeRes = await getRecipeList();
@@ -272,13 +263,46 @@ export default function Home() {
     };
     initData();
 
-    // 🌟 사용자가 버튼을 누르지 않아도 15초마다 노션 일정 & Supabase 메모 백그라운드 실시간 동기화
+    // 노션 일정만 주기적 폴링 (메모는 Realtime으로 즉시 반영)
     const interval = setInterval(() => {
       fetchSchedulesSilently();
-      fetchMemosSilently();
     }, 15000);
 
-    return () => clearInterval(interval);
+    // Supabase Realtime: 다른 사용자가 메모를 추가/수정/삭제하면 새로고침 없이 반영
+    const refreshMemos = async () => {
+      try {
+        const memoRes = await getMemosFromSupabase();
+        if (memoRes?.success && Array.isArray(memoRes.data)) {
+          setMemos(memoRes.data);
+          localStorage.setItem("beansheal_memos", JSON.stringify(memoRes.data));
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const memoChannel = supabase
+      .channel("workspace-memos-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "memos" },
+        () => {
+          void refreshMemos();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "workspace_memos" },
+        () => {
+          void refreshMemos();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearInterval(interval);
+      void supabase.removeChannel(memoChannel);
+    };
   }, [currentDate]);
 
   const handleAddMemo = async (e: React.FormEvent) => {
