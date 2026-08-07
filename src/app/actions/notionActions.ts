@@ -438,6 +438,28 @@ export async function fetchNotionSchedules(config?: NotionConfig) {
     return { success: true, data: schedules };
   } catch (error: any) {
     console.error("Notion fetch error:", error);
+    
+    // Notion API 실패 시 Supabase 백업 DB에서 일정 자동 로드 (달력이 텅 비는 문제 100% 방지)
+    try {
+      const { data: sbData } = await supabase.from('production_schedules').select('*');
+      if (sbData && sbData.length > 0) {
+        return {
+          success: true,
+          message: `노션 API 연결 실패 (${error?.message}). Supabase 백업에서 ${sbData.length}건의 일정을 불러왔습니다.`,
+          data: sbData.map((s: any) => ({
+            id: s.id,
+            product_name: s.product_name,
+            plan_date: s.plan_date,
+            end_date: s.end_date || s.plan_date,
+            quantity: s.quantity || "1",
+            note: s.note || "",
+            notion_page_id: s.notion_page_id,
+            source: "supabase" as const
+          }))
+        };
+      }
+    } catch (sbErr) {}
+
     return {
       success: false,
       message: `노션 일정 불러오기 실패: ${error?.message || "오류가 발생했습니다."}`,

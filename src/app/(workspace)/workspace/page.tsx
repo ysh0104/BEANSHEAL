@@ -188,11 +188,22 @@ export default function Home() {
     const fetchSchedulesSilently = async () => {
       try {
         const notionRes = await fetchNotionSchedules(getNotionConfig());
-        if (notionRes?.success && notionRes.data) {
+        if (notionRes?.success && notionRes.data && notionRes.data.length > 0) {
           setSchedules(notionRes.data);
           setNotionSyncStatusMsg(null);
-        } else if (notionRes && !notionRes.success) {
-          setNotionSyncStatusMsg(notionRes.message || "노션 연동 실패");
+          localStorage.setItem("beansheal_cached_schedules", JSON.stringify(notionRes.data));
+        } else {
+          // 백업 캐시 일정 불러오기 시도
+          const cached = localStorage.getItem("beansheal_cached_schedules");
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (parsed && parsed.length > 0) setSchedules(parsed);
+            } catch (cE) {}
+          }
+          if (notionRes && !notionRes.success) {
+            setNotionSyncStatusMsg(notionRes.message || "노션 연동 실패");
+          }
         }
       } catch (e: any) {
         setNotionSyncStatusMsg(e?.message || "노션 데이터 불러오기 오류");
