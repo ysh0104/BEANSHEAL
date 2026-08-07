@@ -33,31 +33,27 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // 부서 + 직급에 따른 표시용 타이틀 자동 생성
-// - 관리자, 이사, 대표 등 전사 관리직: 부서명 없이 직급만 표시 (예: 관리자, 이사)
-// - 과장, 팀장 등 중간 관리직: [부서]관리 [직급] (예: 생산관리 팀장, 품질관리 과장)
-// - 사원, 주임 등 실무직: [부서]팀 [직급] (예: 생산팀 사원, 경영팀 주임)
+// 예: "생산팀 사원", "품질관리팀 팀장", "경영진 이사"
 export function formatJobTitle(department: string, position: string): string {
   const pos = position || "사원";
-  
+
   if (["관리자", "이사", "대표", "대표이사"].includes(pos)) {
     return pos;
   }
-  
-  let baseDept = (department || "생산").replace(/(관리|팀)$/, "");
-  if (baseDept === "자재/물류" || baseDept === "자재물류") baseDept = "자재물류";
 
-  const isManagement = ["팀장", "과장", "차장", "부장"].includes(pos);
+  const dept = (department || "생산팀").trim();
+  if (!dept || dept === "-") return pos;
 
-  if (isManagement) {
-    return `${baseDept}관리 ${pos}`;
-  } else {
-    return `${baseDept}팀 ${pos}`;
-  }
+  return `${dept} ${pos}`;
 }
 
 // 부서 + 직급 조합으로 실제 권한을 자동 계산
 function computePermissionRole(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
-  if (position === "관리자") return "ADMIN";
+  if (position === "관리자" || position === "대표" || position === "대표이사" || position === "이사") {
+    return "ADMIN";
+  }
+  // 경영진·경영지원팀 → ADMIN, 품질관리팀 → QA
+  if (department.includes("경영")) return "ADMIN";
   if (department.includes("품질")) return "QA";
   return "WORKER";
 }
@@ -68,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAutoLogin, setIsAutoLogin] = useState(true);
 
   const loadProfile = async (authUser: User) => {
-    let department = authUser.user_metadata?.department || "생산";
+    let department = authUser.user_metadata?.department || "생산팀";
     let position = authUser.user_metadata?.position || "사원";
     let fullName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
 
@@ -250,7 +246,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const activeUser: UserProfile = matchedUser || {
           name: rawEmail.split("@")[0] || "구글 사원",
           email: email,
-          department: "생산",
+          department: "생산팀",
           position: "사원",
           role: "WORKER",
           jobTitle: "생산팀 사원",

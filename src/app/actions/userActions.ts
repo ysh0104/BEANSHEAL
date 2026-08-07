@@ -45,10 +45,10 @@ export async function getAllUserProfiles() {
       id: p.id,
       email: p.email || "",
       full_name: p.full_name || p.name || "사용자",
-      department: p.department || "생산",
+      department: p.department || "생산팀",
       position: p.position || "사원",
-      role: p.role || computeRoleHelper(p.department || "생산", p.position || "사원"),
-      job_title: formatJobTitle(p.department || "생산", p.position || "사원"),
+      role: p.role || computeRoleHelper(p.department || "생산팀", p.position || "사원"),
+      job_title: formatJobTitle(p.department || "생산팀", p.position || "사원"),
       updated_at: p.updated_at || p.created_at || new Date().toISOString(),
     }));
 

@@ -25,7 +25,7 @@ export default function LoginPage() {
   // 회원가입 전용 폼 상태
   const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
-  const [signupDepartment, setSignupDepartment] = useState("생산");
+  const [signupDepartment, setSignupDepartment] = useState("생산팀");
   const [signupPosition, setSignupPosition] = useState("사원");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
@@ -330,11 +330,10 @@ export default function LoginPage() {
                   onChange={(e) => setSignupDepartment(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-2 py-2 text-xs font-semibold focus:outline-none focus:border-[#2c4cb0]"
                 >
-                  <option value="생산">생산팀</option>
-                  <option value="품질">품질팀</option>
-                  <option value="경영">경영팀</option>
-                  <option value="영업">영업팀</option>
-                  <option value="관리자">관리자 (부서없음)</option>
+                  <option value="생산팀">생산팀</option>
+                  <option value="품질관리팀">품질관리팀</option>
+                  <option value="경영지원팀">경영지원팀</option>
+                  <option value="경영진">경영진</option>
                 </select>
               </div>
 
@@ -349,8 +348,9 @@ export default function LoginPage() {
                   <option value="주임">주임</option>
                   <option value="과장">과장</option>
                   <option value="팀장">팀장</option>
-                  <option value="이사">이사 (부서없음)</option>
-                  <option value="관리자">관리자 (부서없음)</option>
+                  <option value="이사">이사</option>
+                  <option value="대표">대표</option>
+                  <option value="대표이사">대표이사</option>
                 </select>
               </div>
             </div>

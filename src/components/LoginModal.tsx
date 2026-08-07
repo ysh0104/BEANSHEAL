@@ -20,7 +20,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   // 회원가입 폼 상태
   const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
-  const [signupDepartment, setSignupDepartment] = useState("생산관리");
+  const [signupDepartment, setSignupDepartment] = useState("생산팀");
   const [signupPosition, setSignupPosition] = useState("사원");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
@@ -220,10 +220,10 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
               onChange={(e) => setSignupDepartment(e.target.value)}
               className="w-full border border-gray-300 focus:border-black rounded-full px-5 py-2.5 text-xs focus:outline-none text-gray-900 font-bold bg-white cursor-pointer"
             >
-              <option value="생산">생산</option>
-              <option value="품질">품질</option>
-              <option value="경영">경영</option>
-              <option value="자재물류">자재/물류</option>
+              <option value="생산팀">생산팀</option>
+              <option value="품질관리팀">품질관리팀</option>
+              <option value="경영지원팀">경영지원팀</option>
+              <option value="경영진">경영진</option>
             </select>
 
             {/* 직급 선택 */}
@@ -237,7 +237,6 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
               <option value="팀장">팀장</option>
               <option value="과장">과장</option>
               <option value="이사">이사</option>
-              <option value="관리자">관리자 (Admin)</option>
             </select>
 
             <input

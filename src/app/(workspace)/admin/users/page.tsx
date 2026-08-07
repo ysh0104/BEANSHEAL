@@ -15,18 +15,25 @@ function computeRoleLocal(department: string, position: string): "ADMIN" | "QA" 
 
 const DEPARTMENT_OPTIONS = [
   "-",
-  "생산관리",
-  "생산",
-  "품질관리",
-  "품질",
-  "자재물류",
-  "자재/물류",
-  "경영관리",
-  "경영",
+  "생산팀",
+  "품질관리팀",
+  "경영지원팀",
+  "경영진",
 ];
 
+/** 기존 부서명을 새 4개 체계로 맞춤 */
+function normalizeDepartment(dept: string): string {
+  const d = (dept || "").trim();
+  if (!d || d === "-") return d || "-";
+  if (DEPARTMENT_OPTIONS.includes(d)) return d;
+  if (d.includes("경영진")) return "경영진";
+  if (d.includes("경영지원") || d.includes("경영관리") || d === "경영") return "경영지원팀";
+  if (d.includes("품질")) return "품질관리팀";
+  if (d.includes("자재") || d.includes("물류") || d.includes("생산")) return "생산팀";
+  return "생산팀";
+}
+
 const POSITION_OPTIONS = [
-  "관리자",
   "대표이사",
   "대표",
   "이사",
@@ -87,7 +94,7 @@ export default function UserManagementPage() {
         dbMsg = `Supabase DB 'profiles' 테이블 연동 성공 (${data.length}건 수신됨)`;
         loadedData = data.map((p: any) => {
           const isTopPos = p.position === "관리자" || p.position === "대표이사" || p.position === "대표" || p.position === "이사";
-          const dept = isTopPos ? "-" : (p.department || "생산");
+          const dept = isTopPos ? "-" : normalizeDepartment(p.department || "생산팀");
           const r = isTopPos ? "ADMIN" : (p.role || computeRoleLocal(dept, p.position || "사원"));
 
           return {
@@ -123,7 +130,7 @@ export default function UserManagementPage() {
       const userExistsInDb = loadedData.some((p) => p.email.toLowerCase() === user.email.toLowerCase());
       if (!userExistsInDb) {
         const isTopPos = user.position === "관리자" || user.position === "대표이사" || user.position === "대표" || user.position === "이사";
-        const selfDept = isTopPos ? "-" : (user.department || "생산관리");
+        const selfDept = isTopPos ? "-" : normalizeDepartment(user.department || "생산팀");
         const selfRole = isTopPos ? "ADMIN" : (user.role || "ADMIN");
 
         const selfProfile: ProfileItem = {
@@ -170,7 +177,7 @@ export default function UserManagementPage() {
 
   const handleSelectChange = (id: string, field: "department" | "position" | "role", value: string) => {
     setEditStates((prev) => {
-      const current = prev[id] || { department: "생산", position: "사원", role: "WORKER" };
+      const current = prev[id] || { department: "생산팀", position: "사원", role: "WORKER" };
       let newDept = current.department;
       let newPos = current.position;
       let newRole = current.role;
@@ -182,7 +189,7 @@ export default function UserManagementPage() {
           newDept = "-";
           newRole = "ADMIN";
         } else if (newDept === "-") {
-          newDept = "생산관리";
+          newDept = "생산팀";
         }
       } else if (field === "department") {
         newDept = value;
@@ -485,6 +492,9 @@ export default function UserManagementPage() {
                             onChange={(e) => handleSelectChange(p.id, "position", e.target.value)}
                             className="w-full text-xs font-normal border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer"
                           >
+                            {currentEdit.position === "관리자" && (
+                              <option value="관리자">관리자 (삭제예정)</option>
+                            )}
                             {POSITION_OPTIONS.map((pos) => (
                               <option key={pos} value={pos}>
                                 {pos}

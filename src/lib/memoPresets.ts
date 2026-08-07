@@ -39,7 +39,7 @@ export const DEFAULT_MEMO_PRESETS: MemoPresets = {
     },
   ],
   tags: ["#긴급", "#입고", "#점검", "#지연", "#완료", "#품질"],
-  mentions: ["@생산팀", "@품질팀", "@관리팀", "@영업팀"],
+  mentions: ["@생산팀", "@품질관리팀", "@경영지원팀", "@경영진"],
 };
 
 export const MEMO_PRESETS_STORAGE_KEY = "beansheal_memo_presets_v1";
