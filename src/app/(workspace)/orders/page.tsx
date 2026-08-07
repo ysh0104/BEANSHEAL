@@ -626,112 +626,55 @@ export default function OrdersPage() {
       {/* 기록 뷰어 모달 */}
       {selectedOrder && (
         <div className="fixed inset-0 bg-gray-900/60 flex items-center justify-center z-40 p-4">
-          <div className="bg-gray-100 shadow-2xl w-full max-w-6xl flex flex-col h-[96vh] border-2 border-black rounded-xl overflow-hidden">
+          <div className="bg-gray-100 shadow-2xl w-full max-w-5xl flex flex-col h-[95vh] border-2 border-black">
             
-            {/* 🌟 엑셀 원본 모드 / 탭별 뷰어 모드 전환 헤더 바 */}
-            <div className="flex items-center justify-between bg-slate-900 text-white px-5 py-2.5 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <span className="font-extrabold text-sm md:text-base text-white">
-                  제조지시기록서 : <span className="text-emerald-400 font-black">{selectedOrder?.itemName}</span>
-                </span>
-                <span className="text-[11px] font-bold text-slate-300 bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700">
-                  {selectedOrder?.orderNumber}
-                </span>
+            <div className="flex justify-between items-end bg-[#e2e8f0] border-b border-gray-400 pt-3 px-3">
+              <div className="flex overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] w-full mr-4">
+                {allowedTabs.map((tab) => (
+                  <button 
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.label)}
+                    className={`whitespace-nowrap px-4 py-2.5 text-[14px] font-bold border-t border-l border-r rounded-t-md mr-1 transition-colors ${
+                      activeTab === tab.label 
+                      ? "bg-white border-gray-400 text-black border-b-transparent translate-y-[1px]" 
+                      : "bg-[#cbd5e1] border-gray-400 text-gray-500 hover:bg-[#94a3b8] hover:text-white"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setViewMode("excel")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                    viewMode === "excel"
-                      ? "bg-emerald-600 text-white shadow-sm"
-                      : "bg-slate-800 text-slate-400 hover:text-white"
-                  }`}
+              
+              <div className="flex items-center gap-3 pb-2 shrink-0">
+                <button 
+                  onClick={handleDownloadAllPDF}
+                  disabled={isPrinting}
+                  className={`${isPrinting ? 'bg-gray-500' : 'bg-blue-800 hover:bg-blue-900'} text-white px-4 py-2 text-[13px] font-bold rounded shadow-sm transition-colors flex items-center gap-1 whitespace-nowrap`}
                 >
-                  📊 MS Excel 원본 에디터 모드 (100% 일치)
+                  {isPrinting ? "PDF 생성 준비중..." : "PDF 인쇄"}
                 </button>
-                <button
-                  onClick={() => setViewMode("web")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                    viewMode === "web"
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "bg-slate-800 text-slate-400 hover:text-white"
-                  }`}
-                >
-                  📋 탭별 통합 뷰어 모드
-                </button>
-                <button onClick={closeModal} className="text-slate-400 hover:text-white font-bold text-2xl ml-2">&times;</button>
+                <button onClick={closeModal} className="text-gray-500 hover:text-black font-bold text-2xl pb-0.5 px-2">&times;</button>
               </div>
             </div>
 
-            {/* 🌟 1. MS Excel 원본 모드일 때: ExcelViewer 렌더링 */}
-            {viewMode === "excel" && (
-              <div className="flex-1 overflow-y-auto bg-slate-200">
-                <ExcelViewer
-                  selectedOrder={selectedOrder}
-                  signatures={signatures}
-                  openSignModal={openSignModal}
-                />
+            <div className="overflow-y-auto flex-1 bg-gray-100">
+              <div className="p-8 flex justify-center">
+                {/* 🌟 각 탭에 saveTrigger 전달 */}
+                {activeTab === "표지" && <CoverPage selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
+                {activeTab === "제조지시기록서" && <ManufacturingLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
+                {activeTab === "원료칭량기록서" && allowedTabs.find(t=>t.label==="원료칭량기록서") && <WeighingLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
+                {activeTab === "공정검사기록서" && allowedTabs.find(t=>t.label==="공정검사기록서") && <ProcessInspection selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
+                
+                {activeTab === "추출공정점검표" && allowedTabs.find(t=>t.label==="추출공정점검표") && (
+                  <PrintAdjuster formId="extraction_handdrip">
+                    <ExtractionProcessLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />
+                  </PrintAdjuster>
+                )}
+                
+                {activeTab === "CCP-2P 일지" && allowedTabs.find(t=>t.label==="CCP-2P 일지") && <CCPLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
+                {activeTab === "완제품출하승인서" && allowedTabs.find(t=>t.label==="완제품출하승인서") && <ShippingApproval selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
               </div>
-            )}
-
-            {/* 🌟 2. 탭별 뷰어 모드일 때 */}
-            {viewMode === "web" && (
-              <>
-                <div className="flex justify-between items-end bg-[#e2e8f0] border-b border-gray-400 pt-3 px-3">
-                  <div className="flex overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] w-full mr-4">
-                    {allowedTabs.map((tab) => (
-                      <button 
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.label)}
-                        className={`whitespace-nowrap px-4 py-2.5 text-[14px] font-bold border-t border-l border-r rounded-t-md mr-1 transition-colors ${
-                          activeTab === tab.label 
-                          ? "bg-white border-gray-400 text-black border-b-transparent translate-y-[1px]" 
-                          : "bg-[#cbd5e1] border-gray-400 text-gray-500 hover:bg-[#94a3b8] hover:text-white"
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <div className="flex items-center gap-3 pb-2 shrink-0">
-                    <button 
-                      onClick={handleDirectExcelDownload}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 text-[13px] font-bold rounded shadow-sm transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
-                    >
-                      📥 원본 엑셀 자동 채움 다운로드 (.xlsx)
-                    </button>
-                    <button 
-                      onClick={handleDownloadAllPDF}
-                      disabled={isPrinting}
-                      className={`${isPrinting ? 'bg-gray-500' : 'bg-blue-800 hover:bg-blue-900'} text-white px-4 py-2 text-[13px] font-bold rounded shadow-sm transition-colors flex items-center gap-1 whitespace-nowrap`}
-                    >
-                      {isPrinting ? "PDF 생성 준비중..." : "PDF 인쇄"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="overflow-y-auto flex-1 bg-gray-100">
-                  <div className="p-8 flex justify-center">
-                    {/* 🌟 각 탭에 saveTrigger 전달 */}
-                    {activeTab === "표지" && <CoverPage selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
-                    {activeTab === "제조지시기록서" && <ManufacturingLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
-                    {activeTab === "원료칭량기록서" && allowedTabs.find(t=>t.label==="원료칭량기록서") && <WeighingLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
-                    {activeTab === "공정검사기록서" && allowedTabs.find(t=>t.label==="공정검사기록서") && <ProcessInspection selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
-                    
-                    {activeTab === "추출공정점검표" && allowedTabs.find(t=>t.label==="추출공정점검표") && (
-                      <PrintAdjuster formId="extraction_handdrip">
-                        <ExtractionProcessLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />
-                      </PrintAdjuster>
-                    )}
-                    
-                    {activeTab === "CCP-2P 일지" && allowedTabs.find(t=>t.label==="CCP-2P 일지") && <CCPLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
-                    {activeTab === "완제품출하승인서" && allowedTabs.find(t=>t.label==="완제품출하승인서") && <ShippingApproval selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
-                  </div>
-                </div>
-              </>
-            )}
+            </div>
             
             {/* 🌟 대망의 통합 저장 버튼 위치! (팝업창 최하단 고정) */}
             <div className="p-4 border-t border-gray-400 bg-white flex justify-between gap-2">
