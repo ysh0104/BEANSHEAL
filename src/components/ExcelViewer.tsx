@@ -79,16 +79,23 @@ export default function ExcelViewer({
     setSheetHtml(html);
   }, [workbook, activeSheet, selectedOrder, signatures]);
 
-  // 엑셀 셀에 DB 데이터 자동 삽입
+  // 엑셀 셀에 DB 데이터 자동 삽입 (원본 Cell Style 보존)
   function injectOrderDataToSheet(sheet: XLSX.WorkSheet, sheetName: string, order: any) {
     const itemName = order.itemName || order.product_name || "세리컷 프레소 V2";
     const orderDate = order.date ? order.date.replace(/-/g, ".") : "2026.04.09";
     const orderQty = order.qty || order.target_qty || 2250;
     const docNum = order.orderNumber || order.order_no || "PLS260401D";
 
-    // 셀 값 변경 헬퍼
+    // 셀 값 변경 헬퍼 (원본 s: cell style 보존)
     const setCell = (cellRef: string, val: any) => {
-      sheet[cellRef] = { t: typeof val === "number" ? "n" : "s", v: String(val) };
+      const isNum = typeof val === "number" && !isNaN(val);
+      const existing = sheet[cellRef] || {};
+      sheet[cellRef] = {
+        ...existing,
+        t: isNum ? "n" : "s",
+        v: val,
+        w: String(val),
+      };
     };
 
     if (sheetName === "표지") {
@@ -101,10 +108,15 @@ export default function ExcelViewer({
       setCell("F7", docNum);
       setCell("B9", orderDate);
       setCell("D9", orderQty);
-    } else if (sheetName === "원료칭량기록서" || sheetName === "원료칭량기록서 (2)") {
+    } else if (sheetName.includes("원료칭량기록서")) {
       setCell("B2", `  제품명 : ${itemName}`);
       setCell("B3", `  제조지시기록량 : ${orderQty} kg`);
       setCell("B4", `  칭량일 : ${orderDate}`);
+    } else if (sheetName.includes("공정검사기록서")) {
+      setCell("B4", `제품명 : ${itemName}`);
+      setCell("D4", `${orderQty} kg`);
+    } else if (sheetName === "추출공정점검표") {
+      setCell("B3", `제품명: ${itemName}`);
     } else if (sheetName === "완제품 출하 승인서") {
       setCell("B5", itemName);
       setCell("B8", orderDate);
@@ -258,24 +270,30 @@ export default function ExcelViewer({
           <div className="excel-container w-full" ref={containerRef}>
             <style>{`
               .excel-container table {
-                border-collapse: collapse;
+                border-collapse: collapse !important;
                 width: 100%;
                 margin: 0 auto;
                 font-family: '맑은 고딕', 'Malgun Gothic', Dotum, sans-serif;
-                font-size: 13px;
+                font-size: 12px;
                 color: #000;
                 table-layout: fixed;
                 background-color: #fff;
               }
               .excel-container td, .excel-container th {
-                border: 1px solid #475569;
-                padding: 6px 8px;
+                border: 1px solid #334155;
+                padding: 4px 6px;
                 text-align: center;
                 vertical-align: middle;
                 word-break: break-all;
-                background-clip: padding-box;
+                box-sizing: border-box;
               }
               .excel-container tr {
+                height: 28px;
+              }
+              /* 900개 이상의 의미없는 공백 트레일링 행 자동 숨김 */
+              .excel-container tr:has(> td[id]:only-child) {
+                display: none;
+              }
                 height: 30px;
               }
               .excel-container td[contenteditable="true"]:focus {
