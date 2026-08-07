@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: path.join(__dirname),
   outputFileTracingIncludes: {
     '/api/**/*': ['./public/templates/**/*', './src/templates/**/*', './templates/**/*'],
   },
@@ -13,16 +15,12 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: "/index.html",
-        destination: "/page.html",
-      },
-      {
         source: "/admin.html",
-        destination: "/page.html",
+        destination: "/admin/cms",
       },
       {
         source: "/admin",
-        destination: "/page.html",
+        destination: "/admin/cms",
       },
     ];
   },

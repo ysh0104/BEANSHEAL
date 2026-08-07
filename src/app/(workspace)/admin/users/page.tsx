@@ -62,6 +62,13 @@ export default function UserManagementPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
+  const isAdmin =
+    user?.role === "ADMIN" ||
+    user?.department?.includes("경영") ||
+    user?.position === "관리자" ||
+    user?.position === "대표" ||
+    user?.position === "대표이사";
+
   const [profiles, setProfiles] = useState<ProfileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
