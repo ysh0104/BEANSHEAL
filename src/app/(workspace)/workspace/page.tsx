@@ -138,6 +138,7 @@ export default function Home() {
   const { canView: canViewWorkSchedule } = useCanView("work_schedule");
   const { canEdit: canEditWorkSchedule } = useCanEdit("work_schedule");
   const { canView: canViewWeeklyPlan } = useCanView("weekly_plan");
+  const { canEdit: canEditWeeklyPlan } = useCanEdit("weekly_plan");
   const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
 
   // 달력 및 메모장용 State
@@ -221,12 +222,8 @@ export default function Home() {
   const [notionSyncStatusMsg, setNotionSyncStatusMsg] = useState<string | null>(null);
   const [isTestingConn, setIsTestingConn] = useState(false);
   const [draggedSchedule, setDraggedSchedule] = useState<any | null>(null);
-  /** 주간계획표 모달: 선택된 주(일~토 7칸) */
-  const [weeklyPlanWeek, setWeeklyPlanWeek] = useState<
-    { day: number; dateStr: string; isToday: boolean; isOtherMonth: boolean; dayOfWeek: number }[] | null
-  >(null);
 
-  // 현재 유효한 노션 설정 객체 반환 헬퍼 (개별 커스텀 키가 없으면 undefined를 넘겨 Vercel 환경변수 사용)
+  // 현재 유효한 노션 설정 객체 반환 헬퍼
   const getNotionConfig = () => {
     if (notionApiKey.trim() && notionDatabaseId.trim()) {
       return { apiKey: notionApiKey.trim(), databaseId: notionDatabaseId.trim() };
@@ -244,6 +241,7 @@ export default function Home() {
   }>>([
     { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 640 },
     { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 640 },
+    { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 480 },
   ]);
 
   const [draggedWidgetId, setDraggedWidgetId] = useState<string | null>(null);
@@ -263,8 +261,14 @@ export default function Home() {
     if (savedLayout) {
       try {
         const parsed = JSON.parse(savedLayout);
-        const filtered = parsed.filter((w: any) => w.id === "calendar" || w.id === "memo");
-        if (filtered.length > 0) setWidgetConfigs(filtered);
+        const allowed = new Set(["calendar", "memo", "weekly_plan"]);
+        const filtered = parsed.filter((w: any) => allowed.has(w.id));
+        if (filtered.length > 0) {
+          if (!filtered.some((w: any) => w.id === "weekly_plan")) {
+            filtered.push({ id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 480 });
+          }
+          setWidgetConfigs(filtered);
+        }
       } catch (e) {}
     }
   }, [user?.email]);
@@ -878,6 +882,7 @@ export default function Home() {
     const defaultConfig = [
       { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 640 },
       { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 640 },
+      { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 480 },
     ];
     saveWidgetConfigs(defaultConfig);
   };
@@ -957,6 +962,7 @@ export default function Home() {
   const visibleWidgetConfigs = widgetConfigs.filter((w) => {
     if (w.id === "calendar") return canViewSchedule;
     if (w.id === "memo") return canViewMemo;
+    if (w.id === "weekly_plan") return canViewWeeklyPlan;
     return true;
   });
 
@@ -1179,23 +1185,13 @@ export default function Home() {
                   {renderWidgetHeader(calendarHeaderLeft, calendarHeaderRight)}
                   <div className="p-3 flex flex-col flex-1 overflow-hidden">
                     <div className="flex-1 flex flex-col h-full min-h-0">
-                      {/* 요일 헤더 (+ 주간계획표 화살표 열) */}
-                      <div className="flex gap-0.5 mb-1 bg-slate-50 py-1.5 border-b border-slate-200 rounded-t shrink-0">
-                        {canViewWeeklyPlan && (
-                          <div
-                            className="w-6 shrink-0 flex items-center justify-center"
-                            title="각 주 화살표 → 주간계획표"
-                          >
-                            <span className="text-[9px] font-black text-slate-400">주</span>
+                      {/* 요일 헤더 */}
+                      <div className="grid grid-cols-7 gap-1 text-center mb-1 bg-slate-50 py-1.5 border-b border-slate-200 rounded-t shrink-0">
+                        {['일', '월', '화', '수', '목', '금', '토'].map(day => (
+                          <div key={day} className={`text-[11px] font-extrabold ${day === '일' ? 'text-red-500' : day === '토' ? 'text-blue-500' : 'text-slate-600'}`}>
+                            {day}
                           </div>
-                        )}
-                        <div className="flex-1 grid grid-cols-7 gap-1 text-center">
-                          {['일', '월', '화', '수', '목', '금', '토'].map(day => (
-                            <div key={day} className={`text-[11px] font-extrabold ${day === '일' ? 'text-red-500' : day === '토' ? 'text-blue-500' : 'text-slate-600'}`}>
-                              {day}
-                            </div>
-                          ))}
-                        </div>
+                        ))}
                       </div>
 
                       {/* 🌟 노션 스타일 주(Week) 단위 멀티데이 오버레이 그리드 */}
@@ -1328,60 +1324,36 @@ export default function Home() {
                             <div
                               key={wIdx}
                               style={{ minHeight: `${weekRequiredMinHeight}px` }}
-                              className="flex gap-0.5 relative border-b border-slate-100 last:border-0 pb-1"
+                              className="flex-1 grid grid-cols-7 gap-1 relative border-b border-slate-100 last:border-0 pb-1"
                             >
-                              {/* 주간계획표 진입 화살표 */}
-                              {canViewWeeklyPlan && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setWeeklyPlanWeek(week);
+                              {/* 1. 배경 날짜 셀 Layer */}
+                              {week.map((cell, cIdx) => (
+                                <div
+                                  key={cIdx}
+                                  onDragOver={(e) => {
+                                    if (canEditSchedule && draggedSchedule) e.preventDefault();
                                   }}
-                                  className="w-6 shrink-0 flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 hover:bg-[#1e3a5f] hover:border-[#1e3a5f] hover:text-white text-slate-500 transition-colors cursor-pointer group/week-arrow"
-                                  title={`${week[1]?.dateStr || week[0].dateStr} 주 주간계획표 보기`}
+                                  onDrop={(e) => {
+                                    if (canEditSchedule && draggedSchedule && cell.dateStr) {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleDropOnCell(e, cell.dateStr);
+                                    }
+                                  }}
+                                  className={`border border-slate-200/90 p-1 flex flex-col justify-start items-start relative h-full w-full ${
+                                    cell.isOtherMonth ? 'bg-slate-50/40 text-slate-300' : cell.isToday ? 'bg-indigo-50/50' : 'bg-white hover:bg-slate-50/80'
+                                  } transition-colors rounded`}
                                 >
-                                  <svg
-                                    className="w-3.5 h-3.5 group-hover/week-arrow:translate-x-0.5 transition-transform"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    strokeWidth={2.5}
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                  </svg>
-                                </button>
-                              )}
-
-                              <div className="flex-1 grid grid-cols-7 gap-1 relative min-w-0">
-                                {/* 1. 배경 날짜 셀 Layer */}
-                                {week.map((cell, cIdx) => (
-                                  <div
-                                    key={cIdx}
-                                    onDragOver={(e) => {
-                                      if (canEditSchedule && draggedSchedule) e.preventDefault();
-                                    }}
-                                    onDrop={(e) => {
-                                      if (canEditSchedule && draggedSchedule && cell.dateStr) {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        handleDropOnCell(e, cell.dateStr);
-                                      }
-                                    }}
-                                    className={`border border-slate-200/90 p-1 flex flex-col justify-start items-start relative h-full w-full ${
-                                      cell.isOtherMonth ? 'bg-slate-50/40 text-slate-300' : cell.isToday ? 'bg-indigo-50/50' : 'bg-white hover:bg-slate-50/80'
-                                    } transition-colors rounded`}
-                                  >
-                                    <div className="w-full flex justify-between items-center">
-                                      <span className={`text-[11px] font-extrabold ${cell.isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : cell.isOtherMonth ? 'text-slate-300' : 'text-slate-700 ml-0.5'}`}>
-                                        {cell.day}
-                                      </span>
-                                    </div>
+                                  <div className="w-full flex justify-between items-center">
+                                    <span className={`text-[11px] font-extrabold ${cell.isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : cell.isOtherMonth ? 'text-slate-300' : 'text-slate-700 ml-0.5'}`}>
+                                      {cell.day}
+                                    </span>
                                   </div>
-                                ))}
+                                </div>
+                              ))}
 
-                                {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer */}
-                                <div className="absolute inset-x-0 top-[24px] bottom-1 pointer-events-none px-0.5 pb-2">
+                              {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer */}
+                              <div className="absolute inset-x-0 top-[24px] bottom-1 pointer-events-none px-0.5 pb-2">
                                   {allocated.map((seg, sIdx) => {
                                     const sch = seg.sch;
                                     const tagStyle = getNotionScheduleColorClass(sch.tag_name, sch.tag_color, sch.product_name);
@@ -1445,7 +1417,6 @@ export default function Home() {
                                     );
                                   })}
                                 </div>
-                              </div>
                             </div>
                           );
                         })}
@@ -1779,6 +1750,44 @@ export default function Home() {
             );
           }
 
+          /* Widget 3: BEANSHEAL 주간계획표 */
+          if (widget.id === "weekly_plan") {
+            const weeklyHeaderLeft = (
+              <span className="text-xs font-bold text-slate-900">BEANSHEAL 주간계획표</span>
+            );
+            const weeklyHeaderRight = (
+              <span className="text-[10px] font-bold text-slate-500">
+                {!canEditWeeklyPlan ? "조회 전용" : "셀 클릭 후 편집 · 저장"}
+              </span>
+            );
+
+            return (
+              <div
+                key={widget.id}
+                onDragOver={(e) => handleWidgetDragOver(e, widget.id)}
+                onDragLeave={handleWidgetDragLeave}
+                onDragEnd={handleWidgetDragEnd}
+                onDrop={(e) => handleWidgetDrop(e, widget.id)}
+                style={cardStyle}
+                className={`transition-all duration-300 ease-in-out rounded-lg group/card ${dragVisualClass}`}
+              >
+                <div className="bg-white border border-gray-200 rounded-lg shadow-xs flex flex-col h-full overflow-hidden relative">
+                  {renderWidgetHeader(weeklyHeaderLeft, weeklyHeaderRight)}
+                  <div className="p-3 flex flex-col flex-1 overflow-hidden min-h-0">
+                    <WeeklyPlanView
+                      schedules={schedules}
+                      department={user?.department || "생산팀"}
+                      canEdit={canEditWeeklyPlan}
+                      embedded
+                      updatedBy={user?.name || user?.email || undefined}
+                    />
+                  </div>
+                  {renderCornerResizeHandles()}
+                </div>
+              </div>
+            );
+          }
+
           return null;
         })}
       </div>
@@ -1909,26 +1918,6 @@ export default function Home() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 주간계획표 모달 */}
-      {weeklyPlanWeek && canViewWeeklyPlan && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-xs p-3 md:p-6 overflow-y-auto animate-fadeIn print:bg-white print:p-0"
-          onClick={() => setWeeklyPlanWeek(null)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-6xl my-4 p-4 md:p-6 print:shadow-none print:border-0 print:rounded-none print:my-0 relative z-10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <WeeklyPlanView
-              weekCells={weeklyPlanWeek}
-              schedules={schedules}
-              department={user?.department || "생산팀"}
-              onClose={() => setWeeklyPlanWeek(null)}
-            />
           </div>
         </div>
       )}
