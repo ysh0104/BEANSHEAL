@@ -20,8 +20,14 @@ export async function getSessionId() {
     };
   }
 
+  const proxyBaseUrl = (
+    process.env.ECOUNT_API_BASE_URL || 
+    process.env.ECOUNT_PROXY_URL || 
+    'https://beansheal-ecount.sala0104.workers.dev'
+  ).replace(/\/$/, '');
+
   try {
-    const zoneResponse = await fetch(`https://sboapi.ecount.com/OAPI/V2/Zone`, {
+    const zoneResponse = await fetch(`${proxyBaseUrl}/OAPI/V2/Zone`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ COM_CODE: COM_CODE }),
@@ -32,9 +38,9 @@ export async function getSessionId() {
     console.log("=== [DEBUG] ZONE API Response ===");
     console.log(JSON.stringify(zoneData, null, 2));
     
-    const ZONE = (zoneData.Data?.ZONE || process.env.ECOUNT_ZONE || "AC").toLowerCase();
+    const ZONE = zoneData.Data?.ZONE || process.env.ECOUNT_ZONE || "AC";
     
-    const loginUrl = `https://oapi${ZONE}.ecount.com/OAPI/V2/OAPILogin`;
+    const loginUrl = `${proxyBaseUrl}/OAPI/V2/OAPILogin`;
 
     const response = await fetch(loginUrl, {
       method: "POST",
