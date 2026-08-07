@@ -13,11 +13,10 @@ export type ShiftCodeInfo = {
   hours?: string;
   category: "leave" | "shiftA" | "shiftB" | "shiftC" | "shiftD" | "shiftE";
   badgeClass: string;
-  workHours: number; // 근무시간 계산용 (시간 단위)
+  workHours: number;
 };
 
 export const SHIFT_CODES: Record<string, ShiftCodeInfo> = {
-  // 휴무 및 연차 코드
   BE: { code: "BE", name: "휴무", hours: "-", category: "leave", badgeClass: "bg-[#18181B] text-white font-bold", workHours: 0 },
   ML: { code: "ML", name: "월차", hours: "-", category: "leave", badgeClass: "bg-[#E6F4EA] text-[#137333] font-bold border border-[#A8DADC]", workHours: 0 },
   AL: { code: "AL", name: "연차", hours: "-", category: "leave", badgeClass: "bg-[#DCFCE7] text-[#15803D] font-bold border border-[#86EFAC]", workHours: 0 },
@@ -30,7 +29,6 @@ export const SHIFT_CODES: Record<string, ShiftCodeInfo> = {
   RW: { code: "RW", name: "재택근무", hours: "-", category: "leave", badgeClass: "bg-[#E6FCF5] text-[#0CA678] font-bold border border-[#6EE7B7]", workHours: 8 },
   "?": { code: "?", name: "미정", hours: "-", category: "leave", badgeClass: "bg-[#F4F4F5] text-[#71717A] font-bold border border-[#E4E4E7]", workHours: 0 },
 
-  // A계열 주간/표준 근무 (9시간)
   A1: { code: "A1", name: "조근1", hours: "06:00~15:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold", workHours: 8 },
   A2: { code: "A2", name: "조근2", hours: "07:00~16:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold", workHours: 8 },
   A3: { code: "A3", name: "조근3", hours: "08:00~17:00", category: "shiftA", badgeClass: "bg-[#F4F4F5] text-[#27272A] font-semibold", workHours: 8 },
@@ -46,7 +44,6 @@ export const SHIFT_CODES: Record<string, ShiftCodeInfo> = {
   A13: { code: "A13", name: "철야13", hours: "18:00~03:00", category: "shiftA", badgeClass: "bg-[#EEF2FF] text-[#312E81] font-bold border border-[#C7D2FE]", workHours: 8 },
 };
 
-// 이미지 상의 정확한 5개 계열 시간표 맵 데이터
 export const MASTER_LEGEND_GRID = {
   shiftA: [
     { code: "A1", time: "06:00~15:00", highlight: false },
@@ -211,7 +208,17 @@ export default function WorkScheduleTable() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showMasterGrid, setShowMasterGrid] = useState(true); // 근무 코드표 100% 매칭 토글
+  const [showMasterGrid, setShowMasterGrid] = useState(true);
+
+  // 🌟 작성자 전용 퀵 도킹 팔레트 활성 코드 (클릭 한 번으로 원클릭 스탬프 찍기)
+  const [activeStampCode, setActiveStampCode] = useState<string>("A4");
+  const [isStampMode, setIsStampMode] = useState<boolean>(false);
+
+  // 사원별 스케줄 복사 클립보드 state
+  const [copiedScheduleRow, setCopiedScheduleRow] = useState<ScheduleEmployeeRow | null>(null);
+
+  // 사원별 패턴 적용 팝업 모달 state
+  const [patternModalEmp, setPatternModalEmp] = useState<ScheduleEmployeeRow | null>(null);
 
   // 새 사원 등록 모달 state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -253,7 +260,7 @@ export default function WorkScheduleTable() {
       const res = await saveWorkSchedule(yearMonthKey, rows);
       localStorage.setItem(`beansheal_work_schedule_${yearMonthKey}`, JSON.stringify(rows));
       if (res.success) {
-        setSaveMsg({ type: "success", text: "월간 스케줄이 성공적으로 저장 및 전사 게시되었습니다!" });
+        setSaveMsg({ type: "success", text: "월간 스케줄이 성공적으로 저장 및 전사 게시되었습니다! 🚀" });
       } else {
         setSaveMsg({ type: "success", text: "로컬 스토리지에 스케줄이 보관되었습니다." });
       }
@@ -282,6 +289,63 @@ export default function WorkScheduleTable() {
     );
   };
 
+  // 🌟 패턴 템플릿 적용 (사원 개별)
+  const applyPresetPattern = (empId: string, patternType: "day5" | "night5" | "shift2" | "day4_leave1" | "clear") => {
+    const days = new Date(currentYear, currentMonth, 0).getDate();
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== empId) return r;
+        const nextShifts = { ...r.shifts };
+        for (let day = 1; day <= days; day++) {
+          const dateObj = new Date(currentYear, currentMonth - 1, day);
+          const dayOfWeek = dateObj.getDay();
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+          if (patternType === "clear") {
+            delete nextShifts[String(day)];
+          } else if (patternType === "day5") {
+            nextShifts[String(day)] = isWeekend ? "BE" : "A4";
+          } else if (patternType === "night5") {
+            nextShifts[String(day)] = isWeekend ? "BE" : "A8";
+          } else if (patternType === "shift2") {
+            const weekNum = Math.ceil(day / 7);
+            if (isWeekend) nextShifts[String(day)] = "BE";
+            else nextShifts[String(day)] = weekNum % 2 === 1 ? "A1" : "A8";
+          } else if (patternType === "day4_leave1") {
+            if (isWeekend) nextShifts[String(day)] = "BE";
+            else if (dayOfWeek === 5) nextShifts[String(day)] = "AL"; // 금요일 연차
+            else nextShifts[String(day)] = "A4";
+          }
+        }
+        return { ...r, shifts: nextShifts };
+      })
+    );
+    setPatternModalEmp(null);
+  };
+
+  // 사원 스케줄 복사
+  const handleCopyRow = (emp: ScheduleEmployeeRow) => {
+    setCopiedScheduleRow(emp);
+    alert(`'${emp.name}' 사원의 스케줄이 클립보드에 복사되었습니다. 다른 사원의 [붙여넣기]를 클릭하세요.`);
+  };
+
+  // 사원 스케줄 붙여넣기
+  const handlePasteRow = (targetEmpId: string, targetEmpName: string) => {
+    if (!copiedScheduleRow) {
+      alert("복사된 스케줄이 없습니다. 먼저 다른 사원의 [복사]를 누르세요.");
+      return;
+    }
+    if (!confirm(`'${copiedScheduleRow.name}' 사원의 스케줄 패턴을 '${targetEmpName}' 사원에게 그대로 덮어쓰시겠습니까?`)) return;
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id === targetEmpId) {
+          return { ...r, shifts: { ...copiedScheduleRow.shifts } };
+        }
+        return r;
+      })
+    );
+  };
+
   const daysInMonth = useMemo(() => {
     return new Date(currentYear, currentMonth, 0).getDate();
   }, [currentYear, currentMonth]);
@@ -305,19 +369,21 @@ export default function WorkScheduleTable() {
     return arr;
   }, [currentYear, currentMonth, daysInMonth]);
 
-  // 일자별 휴무자 수 및 비율 계산 (과다 휴무 경고 체크용)
-  const leaveStatsPerDay = useMemo(() => {
-    const map: Record<number, { count: number; ratio: number }> = {};
-    const totalCount = rows.length || 1;
+  // 🌟 일자별 실시간 출근자/야간/휴무 인원 카운트 (스케줄 작성자 핵심 조율 도구)
+  const dailyDistributionMap = useMemo(() => {
+    const map: Record<number, { dayCount: number; nightCount: number; leaveCount: number }> = {};
     for (let day = 1; day <= daysInMonth; day++) {
-      let count = 0;
+      let dayCount = 0;
+      let nightCount = 0;
+      let leaveCount = 0;
       rows.forEach((r) => {
         const code = r.shifts[String(day)];
-        if (code && ["BE", "AL", "ML", "SL", "PL", "MO", "AO"].includes(code)) {
-          count++;
-        }
+        if (!code) return;
+        if (["BE", "AL", "ML", "SL", "PL", "MO", "AO"].includes(code)) leaveCount++;
+        else if (["A8", "A9", "A10", "A11", "A12", "A13", "B8", "B9", "B10", "C8", "C9", "C10"].includes(code)) nightCount++;
+        else dayCount++;
       });
-      map[day] = { count, ratio: count / totalCount };
+      map[day] = { dayCount, nightCount, leaveCount };
     }
     return map;
   }, [rows, daysInMonth]);
@@ -351,7 +417,6 @@ export default function WorkScheduleTable() {
     return result;
   }, [rows, selectedDeptFilter, searchQuery]);
 
-  // 사원별 당월 총 근무시간 및 연차 횟수 계산
   const empWorkStatsMap = useMemo(() => {
     const map: Record<string, { totalHours: number; leaveDays: number; workDays: number }> = {};
     rows.forEach((r) => {
@@ -370,6 +435,15 @@ export default function WorkScheduleTable() {
     });
     return map;
   }, [rows]);
+
+  // 셀 클릭 처리 (스탬프 모드 ON 시 즉시 활성 코드로 도장 찍기, OFF 시 편집 팝업 열기)
+  const handleCellClick = (empId: string, day: number, empName: string, code: string) => {
+    if (isStampMode) {
+      updateCellValue(empId, day, activeStampCode);
+    } else {
+      setEditingCell({ empId, day, empName, currentCode: code });
+    }
+  };
 
   const updateCellValue = (empId: string, day: number, code: string) => {
     setRows((prev) =>
@@ -405,11 +479,6 @@ export default function WorkScheduleTable() {
     link.click();
   };
 
-  // 🖨️ 인쇄 출력 실행
-  const handlePrint = () => {
-    window.print();
-  };
-
   return (
     <div className="w-full bg-[#F8FAFC] dark:bg-slate-950 p-4 sm:p-6 rounded-[24px] font-sans border border-slate-200/80 dark:border-slate-800 shadow-2xl space-y-6">
       {/* 🌟 1. 상단 타이틀 & 글로벌 컨트롤 바 */}
@@ -422,7 +491,7 @@ export default function WorkScheduleTable() {
             <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
               근무 및 근무조 스케줄 대시보드
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-bold border border-blue-200">
-                실시간 편집
+                작성자 편의모드 지원
               </span>
             </h1>
             <p className="text-xs text-slate-400 font-medium">생산 · 품질 · 영업 · 경영 지원 인력 통합 스케줄링 및 시간 집계 시스템</p>
@@ -449,11 +518,11 @@ export default function WorkScheduleTable() {
             className="px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all border border-blue-200"
             title="평일 A4 / 주말 BE 일괄 채우기"
           >
-            ⚡ 자동 생성
+            ⚡ 자동 일괄생성
           </button>
 
           <button
-            onClick={handlePrint}
+            onClick={() => window.print()}
             className="px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
           >
             🖨️ 인쇄
@@ -476,7 +545,49 @@ export default function WorkScheduleTable() {
         </div>
       </div>
 
-      {/* 🌟 2. 년월 선택, 부서 필터 탭 & 뷰 전환 컨트롤 */}
+      {/* 🌟 2. 작성자 전용 퀵 도킹 팔레트 (스탬프 원클릭 연속 도장 모드) */}
+      <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-3.5 rounded-2xl border border-slate-800 shadow-md flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setIsStampMode((prev) => !prev)}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 ${
+              isStampMode
+                ? "bg-blue-600 text-white ring-2 ring-blue-400 animate-pulse shadow-md"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            <span>{isStampMode ? "⚡ 원클릭 스탬프 입력 ON" : "🖱️ 원클릭 스탬프 입력 OFF"}</span>
+          </button>
+          <span className="text-xs text-slate-300 font-medium hidden sm:inline">
+            ※ 셀 클릭 시 팝업 없이 지정한 코드(예: {activeStampCode})로 1초 만에 즉시 찍힙니다!
+          </span>
+        </div>
+
+        {/* 퀵 코드 팔레트 선택 버튼 그룹 */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin">
+          <span className="text-[11px] text-slate-400 font-bold mr-1">도장 코드:</span>
+          {["A4", "BE", "AL", "A1", "A3", "A8", "A9", "MO", "AO", "SL", "BT"].map((cd) => {
+            const info = getShiftInfo(cd);
+            const isSelected = activeStampCode === cd;
+            return (
+              <button
+                key={cd}
+                onClick={() => {
+                  setActiveStampCode(cd);
+                  setIsStampMode(true);
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all border ${
+                  info.badgeClass
+                } ${isSelected ? "ring-2 ring-blue-500 scale-110 shadow-lg" : "opacity-80 hover:opacity-100"}`}
+              >
+                {cd}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 🌟 3. 년월 선택, 부서 필터 탭 & 뷰 전환 컨트롤 */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
           <button
@@ -529,7 +640,7 @@ export default function WorkScheduleTable() {
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
-                className={`px-3 py-1 rounded-lg transition-all ${
+                className={`px-3.5 py-1 rounded-lg transition-all ${
                   viewMode === mode
                     ? "bg-[#0047FF] text-white shadow-xs font-extrabold"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
@@ -554,40 +665,33 @@ export default function WorkScheduleTable() {
         </div>
       )}
 
-      {/* 🌟 3. 스케줄 그리드 테이블 (사원별 총 근무시간 열 포함) */}
+      {/* 🌟 4. 스케줄 그리드 테이블 (일자별 주간/야간/휴무 인원 집계 행 포함) */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-sm">
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-xs text-center border-collapse">
             <thead>
               <tr className="bg-[#F8FAFC] dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
-                <th className="sticky left-0 z-20 bg-[#F8FAFC] dark:bg-slate-800 px-4 py-3.5 border-r border-slate-200 dark:border-slate-700 text-left font-bold min-w-[180px]">
+                <th className="sticky left-0 z-20 bg-[#F8FAFC] dark:bg-slate-800 px-4 py-3.5 border-r border-slate-200 dark:border-slate-700 text-left font-bold min-w-[200px]">
                   사원명 / 부서
                 </th>
-                <th className="sticky left-[180px] z-20 bg-[#F8FAFC] dark:bg-slate-800 px-3 py-3.5 border-r border-slate-200 dark:border-slate-700 min-w-[90px] font-bold text-blue-600 dark:text-blue-400">
+                <th className="sticky left-[200px] z-20 bg-[#F8FAFC] dark:bg-slate-800 px-3 py-3.5 border-r border-slate-200 dark:border-slate-700 min-w-[90px] font-bold text-blue-600 dark:text-blue-400">
                   월 총근무시간
                 </th>
-                {visibleDaysHeader.map((d) => {
-                  const stat = leaveStatsPerDay[d.day];
-                  const isHighLeave = stat && stat.ratio >= 0.4;
-                  return (
-                    <th
-                      key={d.day}
-                      className={`px-1 py-2 border-r border-slate-200 dark:border-slate-700 min-w-[42px] font-bold ${
-                        d.isSun
-                          ? "text-[#DC2626] bg-[#FEF2F2] dark:bg-red-950/30"
-                          : d.isSat
-                          ? "text-[#1D4ED8] bg-[#EFF6FF] dark:bg-blue-950/30"
-                          : ""
-                      }`}
-                    >
-                      <div className="text-[12px] font-black flex items-center justify-center gap-0.5">
-                        {d.day}일
-                        {isHighLeave && <span title="당일 휴휴/연차자 40% 이상" className="text-[10px]">⚠️</span>}
-                      </div>
-                      <div className="text-[10px] font-semibold opacity-75">{d.dayName}</div>
-                    </th>
-                  );
-                })}
+                {visibleDaysHeader.map((d) => (
+                  <th
+                    key={d.day}
+                    className={`px-1 py-2 border-r border-slate-200 dark:border-slate-700 min-w-[42px] font-bold ${
+                      d.isSun
+                        ? "text-[#DC2626] bg-[#FEF2F2] dark:bg-red-950/30"
+                        : d.isSat
+                        ? "text-[#1D4ED8] bg-[#EFF6FF] dark:bg-blue-950/30"
+                        : ""
+                    }`}
+                  >
+                    <div className="text-[12px] font-black">{d.day}일</div>
+                    <div className="text-[10px] font-semibold opacity-75">{d.dayName}</div>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -608,23 +712,52 @@ export default function WorkScheduleTable() {
                         idx % 2 === 1 ? "bg-[#FAFAFA] dark:bg-slate-900/50" : ""
                       }`}
                     >
-                      {/* 사원 이름 + 아바타 */}
-                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-4 py-2.5 border-r border-slate-200 dark:border-slate-800 text-left font-semibold text-slate-800 dark:text-slate-200 shadow-2xs">
-                        <div className="flex items-center space-x-2.5">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatar.colorClass}`}>
-                            {avatar.initial}
-                          </div>
-                          <div className="truncate">
-                            <div className="font-bold text-slate-900 dark:text-white text-[13px] leading-tight truncate">
-                              {emp.name}
+                      {/* 사원 이름 + 퀵 패턴/복사 버튼 */}
+                      <td className="sticky left-0 z-10 bg-white dark:bg-slate-900 px-3 py-2 border-r border-slate-200 dark:border-slate-800 text-left font-semibold text-slate-800 dark:text-slate-200 shadow-2xs group">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2 truncate">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatar.colorClass}`}>
+                              {avatar.initial}
                             </div>
-                            <div className="text-[10px] text-slate-400 font-medium truncate">{emp.group}</div>
+                            <div className="truncate">
+                              <div className="font-bold text-slate-900 dark:text-white text-[13px] leading-tight truncate">
+                                {emp.name}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-medium truncate">{emp.group}</div>
+                            </div>
+                          </div>
+
+                          {/* 🌟 스케줄 작성자 퀵 패턴/복사/붙여넣기 툴바 */}
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => setPatternModalEmp(emp)}
+                              className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-200 font-bold hover:bg-blue-100"
+                              title="패턴 템플릿 적용"
+                            >
+                              패턴
+                            </button>
+                            <button
+                              onClick={() => handleCopyRow(emp)}
+                              className="text-[10px] px-1 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200 hover:bg-slate-200"
+                              title="스케줄 복사"
+                            >
+                              복사
+                            </button>
+                            {copiedScheduleRow && (
+                              <button
+                                onClick={() => handlePasteRow(emp.id, emp.name)}
+                                className="text-[10px] px-1 py-0.5 bg-emerald-50 text-emerald-600 rounded border border-emerald-200 hover:bg-emerald-100 font-bold"
+                                title="스케줄 붙여넣기"
+                              >
+                                붙여넣기
+                              </button>
+                            )}
                           </div>
                         </div>
                       </td>
 
                       {/* 월 총근무시간 집계 열 */}
-                      <td className="sticky left-[180px] z-10 bg-white dark:bg-slate-900 px-2 py-2.5 border-r border-slate-200 dark:border-slate-800 text-center font-black text-slate-900 dark:text-white font-mono shadow-2xs">
+                      <td className="sticky left-[200px] z-10 bg-white dark:bg-slate-900 px-2 py-2.5 border-r border-slate-200 dark:border-slate-800 text-center font-black text-slate-900 dark:text-white font-mono shadow-2xs">
                         {stat.totalHours}시간
                         <div className="text-[9px] text-slate-400 font-normal">({stat.workDays}일 근무)</div>
                       </td>
@@ -637,14 +770,7 @@ export default function WorkScheduleTable() {
                         return (
                           <td
                             key={d.day}
-                            onClick={() =>
-                              setEditingCell({
-                                empId: emp.id,
-                                day: d.day,
-                                empName: emp.name,
-                                currentCode: code,
-                              })
-                            }
+                            onClick={() => handleCellClick(emp.id, d.day, emp.name, code)}
                             className={`p-1 border-r border-slate-100 dark:border-slate-800/80 cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all select-none ${
                               d.isSun ? "bg-[#FEF2F2]/30" : d.isSat ? "bg-[#EFF6FF]/30" : ""
                             }`}
@@ -666,11 +792,101 @@ export default function WorkScheduleTable() {
                 })
               )}
             </tbody>
+
+            {/* 🌟 5. 스케줄 작성자 전용 실시간 일자별 출근자/야간/휴무 인원 합계 행 */}
+            <tfoot>
+              {/* 주간 출근자 합계 행 */}
+              <tr className="bg-blue-50/70 dark:bg-blue-950/40 border-t-2 border-slate-300 dark:border-slate-700 font-extrabold text-blue-900 dark:text-blue-200">
+                <td className="sticky left-0 z-20 bg-blue-100/80 dark:bg-blue-950 px-4 py-1.5 text-left border-r border-slate-300 dark:border-slate-700">
+                  ☀️ 주간 출근자 (A1~A7)
+                </td>
+                <td className="sticky left-[200px] z-20 bg-blue-100/80 dark:bg-blue-950 border-r border-slate-300 dark:border-slate-700"></td>
+                {visibleDaysHeader.map((d) => (
+                  <td key={d.day} className="px-1 py-1 border-r border-slate-300 dark:border-slate-700 font-mono text-[11px]">
+                    {dailyDistributionMap[d.day]?.dayCount || 0}명
+                  </td>
+                ))}
+              </tr>
+              {/* 야간/석근자 합계 행 */}
+              <tr className="bg-indigo-50/70 dark:bg-indigo-950/40 border-t border-slate-200 dark:border-slate-800 font-extrabold text-indigo-900 dark:text-indigo-200">
+                <td className="sticky left-0 z-20 bg-indigo-100/80 dark:bg-indigo-950 px-4 py-1.5 text-left border-r border-slate-300 dark:border-slate-700">
+                  🌙 야간/석근자 (A8~)
+                </td>
+                <td className="sticky left-[200px] z-20 bg-indigo-100/80 dark:bg-indigo-950 border-r border-slate-300 dark:border-slate-700"></td>
+                {visibleDaysHeader.map((d) => (
+                  <td key={d.day} className="px-1 py-1 border-r border-slate-300 dark:border-slate-700 font-mono text-[11px]">
+                    {dailyDistributionMap[d.day]?.nightCount || 0}명
+                  </td>
+                ))}
+              </tr>
+              {/* 휴무/연차자 합계 행 */}
+              <tr className="bg-slate-100 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 font-extrabold text-slate-700 dark:text-slate-300">
+                <td className="sticky left-0 z-20 bg-slate-200 dark:bg-slate-800 px-4 py-1.5 text-left border-r border-slate-300 dark:border-slate-700">
+                  🌴 휴무/연차자 (BE,AL)
+                </td>
+                <td className="sticky left-[200px] z-20 bg-slate-200 dark:bg-slate-800 border-r border-slate-300 dark:border-slate-700"></td>
+                {visibleDaysHeader.map((d) => (
+                  <td key={d.day} className="px-1 py-1 border-r border-slate-300 dark:border-slate-700 font-mono text-[11px]">
+                    {dailyDistributionMap[d.day]?.leaveCount || 0}명
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
 
-      {/* 🌟 4. 근무 코드설명 표 100% 매칭 그리드 카드 (이미지 100% 반영) */}
+      {/* 🌟 6. 사원별 패턴 템플릿 선택 모달 */}
+      {patternModalEmp && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
+                스케줄 패턴 템플릿: <span className="text-blue-600">{patternModalEmp.name}</span>
+              </h3>
+              <button onClick={() => setPatternModalEmp(null)} className="text-slate-400 font-bold">✕</button>
+            </div>
+            <div className="space-y-2 text-xs">
+              <button
+                onClick={() => applyPresetPattern(patternModalEmp.id, "day5")}
+                className="w-full p-3 bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 text-left font-bold text-slate-800 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 flex justify-between items-center"
+              >
+                <span>☀️ 평일 주간 (월~금 A4 09-18, 주말 BE)</span>
+                <span className="text-blue-600 font-extrabold">적용 ➔</span>
+              </button>
+              <button
+                onClick={() => applyPresetPattern(patternModalEmp.id, "night5")}
+                className="w-full p-3 bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 text-left font-bold text-slate-800 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 flex justify-between items-center"
+              >
+                <span>🌙 평일 석근 (월~금 A8 13-22, 주말 BE)</span>
+                <span className="text-indigo-600 font-extrabold">적용 ➔</span>
+              </button>
+              <button
+                onClick={() => applyPresetPattern(patternModalEmp.id, "shift2")}
+                className="w-full p-3 bg-slate-50 dark:bg-slate-800 hover:bg-purple-50 text-left font-bold text-slate-800 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 flex justify-between items-center"
+              >
+                <span>🔄 2교대 교대조 (1주 A1 조근, 2주 A8 석근)</span>
+                <span className="text-purple-600 font-extrabold">적용 ➔</span>
+              </button>
+              <button
+                onClick={() => applyPresetPattern(patternModalEmp.id, "day4_leave1")}
+                className="w-full p-3 bg-slate-50 dark:bg-slate-800 hover:bg-emerald-50 text-left font-bold text-slate-800 dark:text-slate-200 rounded-xl border border-slate-200 dark:border-slate-700 flex justify-between items-center"
+              >
+                <span>🌴 주4일 근무 (월~목 A4, 금요일 AL 연차)</span>
+                <span className="text-emerald-600 font-extrabold">적용 ➔</span>
+              </button>
+              <button
+                onClick={() => applyPresetPattern(patternModalEmp.id, "clear")}
+                className="w-full p-2.5 bg-red-50 text-red-600 font-bold text-center rounded-xl border border-red-200 hover:bg-red-100"
+              >
+                전체 스케줄 초기화
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 7. 근무 코드설명 표 100% 매칭 그리드 카드 */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 space-y-4 shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div>
@@ -714,7 +930,6 @@ export default function WorkScheduleTable() {
 
                   return (
                     <tr key={i} className="border-b border-slate-200 dark:border-slate-800 font-mono">
-                      {/* A계열 */}
                       <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
                         {itemA?.code || ""}
                       </td>
@@ -722,7 +937,6 @@ export default function WorkScheduleTable() {
                         {itemA?.time || ""}
                       </td>
 
-                      {/* B계열 */}
                       <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
                         {itemB?.code || ""}
                       </td>
@@ -730,7 +944,6 @@ export default function WorkScheduleTable() {
                         {itemB?.time || ""}
                       </td>
 
-                      {/* C계열 */}
                       <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
                         {itemC?.code || ""}
                       </td>
@@ -738,7 +951,6 @@ export default function WorkScheduleTable() {
                         {itemC?.time || ""}
                       </td>
 
-                      {/* D계열 */}
                       <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
                         {itemD?.code || ""}
                       </td>
@@ -746,7 +958,6 @@ export default function WorkScheduleTable() {
                         {itemD?.time || ""}
                       </td>
 
-                      {/* E계열 */}
                       <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
                         {itemE?.code || ""}
                       </td>
@@ -754,7 +965,6 @@ export default function WorkScheduleTable() {
                         {itemE?.time || ""}
                       </td>
 
-                      {/* 휴무/근태 코드 */}
                       <td className="px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800">
                         {itemLeave ? <span className={`px-2 py-0.5 rounded text-[11px] ${itemLeave.badge}`}>{itemLeave.code}</span> : ""}
                       </td>
@@ -770,7 +980,7 @@ export default function WorkScheduleTable() {
         )}
       </div>
 
-      {/* 🌟 5. 셀 편집 모달 */}
+      {/* 셀 편집 모달 */}
       {editingCell && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
