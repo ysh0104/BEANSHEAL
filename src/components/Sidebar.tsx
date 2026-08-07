@@ -84,12 +84,15 @@ export default function Sidebar() {
     }
   ];
 
+  // 🌟 시스템/사용자 관리 탭은 관리자 권한(isAdmin)이 있는 경우에만 메뉴에 노출
   const menuGroups = rawMenuGroups.filter((group) => {
     const featureKey = MENU_FEATURE_MAP[group.name];
+    if (group.name === "시스템/사용자 관리" || featureKey === "admin_users") {
+      return isAdmin;
+    }
     if (!featureKey) return true;
-    // 로그인 전/권한맵 없으면 기존처럼 전체 표시 (관리자 메뉴만 isAdmin)
     if (!user?.permissions) {
-      if (featureKey === "admin_users" || featureKey === "cms") return isAdmin;
+      if (featureKey === "cms") return isAdmin;
       return true;
     }
     return canUserView(user, featureKey);

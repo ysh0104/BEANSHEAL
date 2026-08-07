@@ -365,20 +365,33 @@ export default function UserManagementPage() {
     );
   }
 
-  if (!user) {
+  if (!user || !isAdmin) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
-        <div className="bg-white border border-slate-200 p-8 rounded-2xl shadow-xs text-center max-w-md w-full">
-          <h2 className="text-lg font-extrabold text-slate-900 mb-2">로그인이 필요합니다</h2>
-          <p className="text-xs text-slate-500 mb-5">
-            사용자 및 권한 관리를 이용하시려면 먼저 사원 계정으로 로그인해 주세요.
+        <div className="bg-white border border-rose-200 p-8 rounded-2xl shadow-md text-center max-w-md w-full">
+          <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
+            🔒
+          </div>
+          <h2 className="text-lg font-extrabold text-slate-900 mb-2">관리자 전용 접근 제한</h2>
+          <p className="text-xs text-slate-600 leading-relaxed mb-6">
+            시스템 사용자 및 부서/직책 권한 설정 페이지는 <strong className="text-rose-600 font-bold">관리자(ADMIN) 직급</strong> 또는 <strong className="text-slate-900 font-bold">경영관리 부서</strong> 계정으로만 접근하실 수 있습니다.
           </p>
-          <button
-            onClick={() => router.push("/login")}
-            className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer w-full"
-          >
-            로그인 하러 가기
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => router.push("/workspace")}
+              className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer w-full"
+            >
+              메인 워크스페이스로 이동
+            </button>
+            {!user && (
+              <button
+                onClick={() => router.push("/login")}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition-colors cursor-pointer w-full border border-slate-200"
+              >
+                관리자 계정으로 로그인
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );

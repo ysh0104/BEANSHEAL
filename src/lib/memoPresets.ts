@@ -84,21 +84,21 @@ export function sanitizePresets(input: any): MemoPresets {
         .filter((t: MemoTemplate) => t.label)
     : structuredClone(DEFAULT_MEMO_PRESETS.templates);
 
-  const tags = [
-    ...new Set(
+  const tags: string[] = Array.from(
+    new Set(
       (Array.isArray(input?.tags) ? input.tags : DEFAULT_MEMO_PRESETS.tags)
         .map((t: any) => normalizeTag(String(t || "")))
         .filter(Boolean)
-    ),
-  ];
+    )
+  );
 
-  const mentions = [
-    ...new Set(
+  const mentions: string[] = Array.from(
+    new Set(
       (Array.isArray(input?.mentions) ? input.mentions : DEFAULT_MEMO_PRESETS.mentions)
         .map((t: any) => normalizeMention(String(t || "")))
         .filter(Boolean)
-    ),
-  ];
+    )
+  );
 
   return { templates, tags, mentions };
 }
