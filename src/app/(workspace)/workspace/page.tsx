@@ -26,6 +26,7 @@ import MemoRichContent from "@/components/MemoRichContent";
 import MemoPresetsManager from "@/components/MemoPresetsManager";
 import WeeklyPlanView from "@/components/WeeklyPlanView";
 import ScheduleEntryPills from "@/components/ScheduleEntryPills";
+import { estimateScheduleCardHeight } from "@/lib/scheduleDisplay";
 import {
   memoPlainText,
   sanitizeMemoHtml,
@@ -240,9 +241,9 @@ export default function Home() {
     widthPct: number;
     heightPx: number;
   }>>([
-    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 640 },
-    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 640 },
-    { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 480 },
+    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 780 },
+    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 780 },
+    { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 540 },
   ]);
 
   const [draggedWidgetId, setDraggedWidgetId] = useState<string | null>(null);
@@ -266,7 +267,7 @@ export default function Home() {
         const filtered = parsed.filter((w: any) => allowed.has(w.id));
         if (filtered.length > 0) {
           if (!filtered.some((w: any) => w.id === "weekly_plan")) {
-            filtered.push({ id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 480 });
+            filtered.push({ id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 540 });
           }
           setWidgetConfigs(filtered);
         }
@@ -881,9 +882,9 @@ export default function Home() {
 
   const resetWidgetLayout = () => {
     const defaultConfig = [
-      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 640 },
-      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 640 },
-      { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 480 },
+      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 780 },
+      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 780 },
+      { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 540 },
     ];
     saveWidgetConfigs(defaultConfig);
   };
@@ -979,7 +980,7 @@ export default function Home() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto w-full pb-20 mt-2 px-2 font-sans">
+    <div className="space-y-6 max-w-7xl mx-auto w-full pb-20 mt-2 px-2 font-sans text-sm">
       
       {/* 대시보드 상단 타이틀 & 그리드 스냅 토글 */}
       <div className="flex justify-between items-center pb-4 border-b border-gray-200">
@@ -1110,26 +1111,26 @@ export default function Home() {
             const latestMonth = latestScheduleDate ? Number(latestScheduleDate.split('-')[1]) - 1 : null;
 
             const calendarHeaderLeft = (
-              <div className="flex items-center gap-1.5 text-slate-800 text-xs font-bold flex-wrap">
-                <button onClick={handlePrevMonth} className="p-0.5 hover:bg-slate-200 rounded text-slate-600 cursor-pointer">
+              <div className="flex items-center gap-2 text-slate-800 text-sm font-bold flex-wrap">
+                <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-200 rounded text-slate-600 cursor-pointer text-base">
                   ‹
                 </button>
                 <select 
                   value={year} 
                   onChange={(e) => setCurrentDate(new Date(Number(e.target.value), month, 1))}
-                  className="font-extrabold font-mono border border-slate-200 rounded px-1 py-0.5 text-xs bg-slate-50 cursor-pointer"
+                  className="font-extrabold font-mono border border-slate-200 rounded px-2 py-1 text-sm bg-slate-50 cursor-pointer"
                 >
                   {[2023, 2024, 2025, 2026, 2027].map((y) => (
                     <option key={y} value={y}>{y}년</option>
                   ))}
                 </select>
-                <span className="font-extrabold font-mono">{String(month + 1).padStart(2, '0')}월</span>
-                <button onClick={handleNextMonth} className="p-0.5 hover:bg-slate-200 rounded text-slate-600 cursor-pointer">
+                <span className="font-extrabold font-mono text-sm">{String(month + 1).padStart(2, '0')}월</span>
+                <button onClick={handleNextMonth} className="p-1 hover:bg-slate-200 rounded text-slate-600 cursor-pointer text-base">
                   ›
                 </button>
-                <span className="ml-1 text-slate-900 font-extrabold text-xs">일정관리</span>
+                <span className="ml-1 text-slate-900 font-extrabold text-sm">일정관리</span>
                 {!canEditSchedule && (
-                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">조회 전용</span>
+                  <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">조회 전용</span>
                 )}
 
                 {/* 🌟 노션 수신 성공했으나 2025년 일정이 많은 경우 연도 이동 바로가기 버튼 */}
@@ -1151,20 +1152,20 @@ export default function Home() {
             );
 
             const calendarHeaderRight = (
-              <div className="hidden sm:flex items-center gap-1.5 text-[10.5px] font-bold shrink-0">
-                <span className="bg-[#e6f4ea] text-[#137333] px-2 py-0.5 rounded font-bold">
+              <div className="hidden sm:flex items-center gap-2 text-xs font-bold shrink-0">
+                <span className="bg-[#e6f4ea] text-[#137333] px-2.5 py-1 rounded font-bold">
                   생산
                 </span>
-                <span className="bg-[#e8f0fe] text-[#1a73e8] px-2 py-0.5 rounded font-bold">
+                <span className="bg-[#e8f0fe] text-[#1a73e8] px-2.5 py-1 rounded font-bold">
                   입고
                 </span>
-                <span className="bg-[#f3e8fd] text-[#7627bb] px-2 py-0.5 rounded font-bold">
+                <span className="bg-[#f3e8fd] text-[#7627bb] px-2.5 py-1 rounded font-bold">
                   출고
                 </span>
-                <span className="bg-[#fef7e0] text-[#b06000] px-2 py-0.5 rounded font-bold">
+                <span className="bg-[#fef7e0] text-[#b06000] px-2.5 py-1 rounded font-bold">
                   휴가
                 </span>
-                <span className="bg-[#fce8e6] text-[#c5221f] px-2 py-0.5 rounded font-bold">
+                <span className="bg-[#fce8e6] text-[#c5221f] px-2.5 py-1 rounded font-bold">
                   점검
                 </span>
               </div>
@@ -1187,9 +1188,9 @@ export default function Home() {
                   <div className="p-3 flex flex-col flex-1 overflow-hidden">
                     <div className="flex-1 flex flex-col h-full min-h-0">
                       {/* 요일 헤더 */}
-                      <div className="grid grid-cols-7 gap-1 text-center mb-1 bg-slate-50 py-1.5 border-b border-slate-200 rounded-t shrink-0">
+                      <div className="grid grid-cols-7 gap-1.5 text-center mb-1.5 bg-slate-50 py-2 border-b border-slate-200 rounded-t shrink-0">
                         {['일', '월', '화', '수', '목', '금', '토'].map(day => (
-                          <div key={day} className={`text-[11px] font-extrabold ${day === '일' ? 'text-red-500' : day === '토' ? 'text-blue-500' : 'text-slate-600'}`}>
+                          <div key={day} className={`text-sm font-extrabold ${day === '일' ? 'text-red-500' : day === '토' ? 'text-blue-500' : 'text-slate-700'}`}>
                             {day}
                           </div>
                         ))}
@@ -1279,47 +1280,39 @@ export default function Home() {
                           const segCardHeights: number[] = [];
 
                           allocated.forEach((seg, sIdx) => {
-                            const prodName = seg.sch.product_name || "";
-                            const tagName = seg.sch.tag_name || "";
-                            const nameLen = prodName.length + tagName.length;
-
-                            let cardH = 26; // 기본 1줄 카드
-                            if (nameLen > 25 || (prodName.length > 15 && tagName)) {
-                              cardH = 58; // 3~4줄 긴 품목명
-                            } else if (nameLen > 14 || (prodName.length > 8 && tagName)) {
-                              cardH = 42; // 2줄 품목명
-                            }
-                            segCardHeights[sIdx] = cardH;
+                            segCardHeights[sIdx] = estimateScheduleCardHeight(seg.sch, seg.colSpan);
 
                             for (let c = seg.startCol; c <= seg.endCol; c++) {
                               const key = `${seg.lane}-${c}`;
-                              laneColHeights[key] = Math.max(laneColHeights[key] || 0, cardH);
+                              laneColHeights[key] = Math.max(laneColHeights[key] || 0, segCardHeights[sIdx]);
                             }
                           });
 
-                          // 2. 해당 세그먼트가 차지하는 컬럼들에서의 이전 레인 최대 높이 합 + gap(4px)으로 상단 Y좌표 결정
+                          const LANE_GAP = 8;
+
+                          // 2. 해당 세그먼트가 차지하는 컬럼들에서의 이전 레인 최대 높이 합 + gap으로 상단 Y좌표 결정
                           const segTops = allocated.map((seg) => {
                             let currentTop = 0;
                             for (let l = 0; l < seg.lane; l++) {
-                              let maxPrevLaneH = 26; // 기본 레인 최소 높이 26px
+                              let maxPrevLaneH = 52;
                               for (let c = seg.startCol; c <= seg.endCol; c++) {
                                 const key = `${l}-${c}`;
                                 if (laneColHeights[key]) {
                                   maxPrevLaneH = Math.max(maxPrevLaneH, laneColHeights[key]);
                                 }
                               }
-                              currentTop += maxPrevLaneH + 4; // 상하 레인 간격 4px 고정
+                              currentTop += maxPrevLaneH + LANE_GAP;
                             }
                             return currentTop;
                           });
 
                           let maxTopWithCard = 0;
                           allocated.forEach((seg, i) => {
-                            const topH = segTops[i] + (segCardHeights[i] || 26);
+                            const topH = segTops[i] + (segCardHeights[i] || 52);
                             if (topH > maxTopWithCard) maxTopWithCard = topH;
                           });
 
-                          const weekRequiredMinHeight = Math.max(115, 28 + maxTopWithCard + 12);
+                          const weekRequiredMinHeight = Math.max(140, 32 + maxTopWithCard + 16);
 
                           return (
                             <div
@@ -1345,8 +1338,8 @@ export default function Home() {
                                     cell.isOtherMonth ? 'bg-slate-50/40 text-slate-300' : cell.isToday ? 'bg-indigo-50/50' : 'bg-white hover:bg-slate-50/80'
                                   } transition-colors rounded`}
                                 >
-                                  <div className="w-full flex justify-between items-center">
-                                    <span className={`text-[11px] font-extrabold ${cell.isToday ? 'bg-indigo-600 text-white px-1.5 rounded shadow-xs' : cell.isOtherMonth ? 'text-slate-300' : 'text-slate-700 ml-0.5'}`}>
+                                  <div className="w-full flex justify-between items-center mb-0.5">
+                                    <span className={`text-sm font-extrabold ${cell.isToday ? 'bg-indigo-600 text-white px-2 py-0.5 rounded shadow-xs' : cell.isOtherMonth ? 'text-slate-300' : 'text-slate-800 ml-0.5'}`}>
                                       {cell.day}
                                     </span>
                                   </div>
@@ -1354,11 +1347,12 @@ export default function Home() {
                               ))}
 
                               {/* 2. 오버레이 노션 스타일 가로 연장 막대(Bar) Layer */}
-                              <div className="absolute inset-x-0 top-[24px] bottom-1 pointer-events-none px-0.5 pb-2">
+                              <div className="absolute inset-x-0 top-[28px] bottom-1 pointer-events-none px-0.5 pb-2">
                                   {allocated.map((seg, sIdx) => {
                                     const sch = seg.sch;
                                     const roundedClass = `${seg.isStartOfSchedule ? 'rounded-l-md' : 'rounded-l-none'} ${seg.isEndOfSchedule ? 'rounded-r-md' : 'rounded-r-none'}`;
                                     const topPos = segTops[sIdx];
+                                    const cardH = segCardHeights[sIdx] || 52;
                                     const leftPct = (seg.startCol / 7) * 100;
                                     const widthPct = (seg.colSpan / 7) * 100;
 
@@ -1370,6 +1364,8 @@ export default function Home() {
                                           top: `${topPos}px`,
                                           left: `calc(${leftPct}% + 2px)`,
                                           width: `calc(${widthPct}% - 4px)`,
+                                          minHeight: `${cardH}px`,
+                                          zIndex: seg.lane + 1,
                                         }}
                                       draggable={canEditSchedule}
                                       onDragStart={(e) => {
@@ -1380,7 +1376,7 @@ export default function Home() {
                                         e.stopPropagation();
                                         handleDragStart(e, sch);
                                       }}
-                                      className={`pointer-events-auto relative h-fit min-h-[26px] py-1 px-2 text-left flex items-start justify-between transition-all group/bar ${canEditSchedule ? "cursor-grab active:cursor-grabbing hover:shadow-md" : "cursor-default"} bg-white/95 border border-slate-200/80 shadow-2xs ${roundedClass}`}
+                                      className={`pointer-events-auto relative py-1.5 px-2.5 text-left flex items-start justify-between transition-all group/bar ${canEditSchedule ? "cursor-grab active:cursor-grabbing hover:shadow-md" : "cursor-default"} bg-white border border-slate-300/90 shadow-sm ${roundedClass}`}
                                       >
                                         <div className="pr-1 w-full min-w-0">
                                           <ScheduleEntryPills schedule={sch} compact />

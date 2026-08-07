@@ -256,7 +256,7 @@ export default function WeeklyPlanView({
               BEANSHEAL 주간계획표
             </h2>
           )}
-          <p className={`text-xs font-bold text-slate-600 ${embedded ? "" : "mt-1"}`}>
+          <p className={`text-sm font-bold text-slate-700 ${embedded ? "" : "mt-1"}`}>
             부서: {department} | 기간: {periodLabel}
             {!canEdit && <span className="ml-2 text-slate-400">(조회 전용)</span>}
           </p>
@@ -266,21 +266,21 @@ export default function WeeklyPlanView({
           <button
             type="button"
             onClick={() => setWeekStart(getMondayOfDate())}
-            className="text-[11px] font-bold px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
+            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
           >
             이번 주
           </button>
           <button
             type="button"
             onClick={() => setWeekStart((w) => shiftMonday(w, -1))}
-            className="text-[11px] font-bold px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
+            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
           >
             ‹ 이전 주
           </button>
           <button
             type="button"
             onClick={() => setWeekStart((w) => shiftMonday(w, 1))}
-            className="text-[11px] font-bold px-2 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
+            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
           >
             다음 주 ›
           </button>
@@ -289,7 +289,7 @@ export default function WeeklyPlanView({
               <button
                 type="button"
                 onClick={handleImportFromSchedules}
-                className="text-[11px] font-bold px-2 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 cursor-pointer"
+                className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 cursor-pointer"
               >
                 일정에서 불러오기
               </button>
@@ -297,7 +297,7 @@ export default function WeeklyPlanView({
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#152a45] cursor-pointer disabled:opacity-50"
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#152a45] cursor-pointer disabled:opacity-50"
               >
                 {saving ? "저장 중…" : dirty ? "저장 *" : "저장"}
               </button>
@@ -306,7 +306,7 @@ export default function WeeklyPlanView({
           <button
             type="button"
             onClick={() => window.print()}
-            className="text-[11px] font-bold px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer"
+            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer"
           >
             인쇄
           </button>
@@ -314,7 +314,7 @@ export default function WeeklyPlanView({
       </div>
 
       {msg && (
-        <p className="text-[11px] font-medium text-emerald-700 mb-2 print:hidden">{msg}</p>
+        <p className="text-xs font-medium text-emerald-700 mb-2 print:hidden">{msg}</p>
       )}
 
       {loading ? (
@@ -324,7 +324,7 @@ export default function WeeklyPlanView({
           <table className="w-full min-w-[720px] border-collapse text-left table-fixed">
             <thead>
               <tr className="bg-[#1e3a5f] text-white">
-                <th className="w-[72px] border border-[#9db4d0] px-2 py-2 text-xs font-extrabold text-center">
+                <th className="w-[80px] border border-[#9db4d0] px-2 py-2.5 text-sm font-extrabold text-center">
                   구분
                 </th>
                 {days.map((day, idx) => {
@@ -333,7 +333,7 @@ export default function WeeklyPlanView({
                   return (
                     <th
                       key={day.dateStr}
-                      className={`border border-[#9db4d0] px-2 py-2 text-[11px] font-extrabold text-center ${
+                      className={`border border-[#9db4d0] px-2 py-2.5 text-xs font-extrabold text-center ${
                         isSun ? "bg-[#5c2b2b] text-red-100" : isSat ? "bg-[#2a4a6f]" : ""
                       }`}
                     >
@@ -346,7 +346,7 @@ export default function WeeklyPlanView({
             <tbody>
               {CATEGORIES.map((cat) => (
                 <tr key={cat}>
-                  <td className="border border-[#9db4d0] bg-[#1e3a5f] text-white text-center text-xs font-extrabold align-middle px-2 py-2">
+                  <td className="border border-[#9db4d0] bg-[#1e3a5f] text-white text-center text-sm font-extrabold align-middle px-2 py-3">
                     {cat}
                   </td>
                   {days.map((day, idx) => {
@@ -363,13 +363,12 @@ export default function WeeklyPlanView({
                     return (
                       <td
                         key={`${cat}-${day.dateStr}`}
-                        className={`border border-[#9db4d0] p-0 align-top min-h-[88px] ${cellBg}`}
+                        className={`border border-[#9db4d0] p-0 align-top min-h-[100px] ${cellBg}`}
                       >
-                        <div className="flex flex-col min-h-[88px]">
-                          {/* 노션 스타일: 업체명 · 타입 · 제품/상세 pill */}
+                        <div className="flex flex-col min-h-[100px]">
                           {cellSchedules.length > 0 && (
-                            <div className="px-1.5 pt-1.5 pb-1 border-b border-slate-100/80">
-                              <ScheduleEntryPillsList schedules={cellSchedules} compact />
+                            <div className="px-2 pt-2 pb-1.5 border-b border-slate-100/80">
+                              <ScheduleEntryPillsList schedules={cellSchedules} />
                             </div>
                           )}
 
@@ -377,15 +376,15 @@ export default function WeeklyPlanView({
                             <textarea
                               value={value}
                               onChange={(e) => handleCellChange(cat, idx, e.target.value)}
-                              className="w-full flex-1 min-h-[48px] px-2 py-1.5 text-[10px] font-medium leading-relaxed resize-none bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-300 text-slate-700 placeholder:text-slate-400"
+                              className="w-full flex-1 min-h-[52px] px-2 py-2 text-xs font-medium leading-relaxed resize-none bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-300 text-slate-800 placeholder:text-slate-400"
                               placeholder={cellSchedules.length ? "추가 메모…" : "입력…"}
                             />
                           ) : value ? (
-                            <div className="px-2 py-1.5 text-[10px] font-medium leading-relaxed whitespace-pre-wrap text-slate-600">
+                            <div className="px-2 py-2 text-xs font-medium leading-relaxed whitespace-pre-wrap text-slate-700">
                               {value}
                             </div>
                           ) : cellSchedules.length === 0 ? (
-                            <div className="px-2 py-2 text-[10px] text-slate-300">—</div>
+                            <div className="px-2 py-2 text-xs text-slate-300">—</div>
                           ) : null}
                         </div>
                       </td>

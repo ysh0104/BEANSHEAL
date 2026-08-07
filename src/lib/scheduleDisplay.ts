@@ -176,3 +176,24 @@ export function parseScheduleEntry(sch: ScheduleLike): ParsedScheduleEntry {
     lot,
   };
 }
+
+/** 캘린더 레인 배치용 카드 높이 추정 (pill UI 기준) */
+export function estimateScheduleCardHeight(sch: ScheduleLike, colSpan = 1): number {
+  const entry = parseScheduleEntry(sch);
+  const padY = 12; // py-1.5 × 2
+  const titleH = 20;
+  let h = padY + titleH;
+
+  const pillCount =
+    (entry.type ? 1 : 0) + entry.products.length + entry.details.length;
+  if (pillCount > 0) {
+    // colSpan 넓을수록 한 줄에 더 많은 pill
+    const pillsPerRow = Math.max(2, Math.min(5, colSpan * 2));
+    const rows = Math.ceil(pillCount / pillsPerRow);
+    h += rows * 24 + 4;
+  }
+  if (entry.quantity) h += 18;
+  if (entry.lot) h += 16;
+
+  return Math.max(52, Math.min(h, 130));
+}
