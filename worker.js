@@ -19,14 +19,13 @@ async function getWorkerIPv4() {
     try {
       const res = await fetch(url, { cache: "no-store" });
       const text = await res.text();
-      // IPv4 정규식 패턴 (xxx.xxx.xxx.xxx) 엄격 추출
       const match = text.match(/\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/);
       if (match && match[0]) {
         return match[0];
       }
     } catch (e) {}
   }
-  return "Cloudflare Outbound IPv4를 수신하지 못했습니다. (네트워크 지연)";
+  return "Cloudflare Outbound IPv4 수신 실패";
 }
 
 async function handleRequest(request) {
@@ -44,7 +43,7 @@ async function handleRequest(request) {
         ecount_whitelist_guide: `이카운트 ERP [셀프커스터마이징 ➔ 정보관리 ➔ API인증서 관리 ➔ 허용 IP 관리] 메뉴에 위 IPv4 주소 [ ${outboundIPv4} ] 를 등록하세요.`,
         usage: {
           ip_check: request.url,
-          oapi_proxy: "이 주소(https://beansheal-ecount.sala0104.workers.dev)를 Vercel 환경변수 ECOUNT_API_BASE_URL 에 등록하세요."
+          oapi_proxy: "이 주소를 Vercel 환경변수 ECOUNT_API_BASE_URL 에 등록하세요."
         }
       }, null, 2),
       {
@@ -64,21 +63,33 @@ async function handleRequest(request) {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, SESSION_ID, COM_CODE, API_CERT_KEY",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, SESSION_ID, COM_CODE, API_CERT_KEY, X-Ecount-Zone, X-Target-Host",
       }
     });
   }
 
-  // 3. 이카운트 OAPI 타겟 URL로 포워딩 (https://oapi.ecount.com)
-  const targetHost = "https://oapi.ecount.com";
+  // 3. 동적 타겟 호스트 결정 (X-Ecount-Zone: AC -> https://oapiac.ecount.com)
+  let targetHost = "https://oapi.ecount.com";
+  const customTargetHost = request.headers.get("X-Target-Host");
+  const ecountZoneHeader = request.headers.get("X-Ecount-Zone");
+
+  if (customTargetHost) {
+    targetHost = customTargetHost.replace(/\/$/, "");
+  } else if (ecountZoneHeader) {
+    const cleanZone = ecountZoneHeader.trim().toLowerCase();
+    targetHost = `https://oapi${cleanZone}.ecount.com`;
+  }
+
   const targetUrl = new URL(url.pathname + url.search, targetHost);
 
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("Host", "oapi.ecount.com");
+  requestHeaders.set("Host", targetUrl.host);
   requestHeaders.delete("cf-connecting-ip");
   requestHeaders.delete("cf-ipcountry");
   requestHeaders.delete("cf-ray");
   requestHeaders.delete("cf-visitor");
+  requestHeaders.delete("x-target-host");
+  requestHeaders.delete("x-ecount-zone");
 
   const init = {
     method: request.method,
@@ -104,7 +115,7 @@ async function handleRequest(request) {
     });
   } catch (error) {
     return new Response(
-      JSON.stringify({ error: "Proxy Forwarding Error", message: error.message }),
+      JSON.stringify({ error: "Proxy Forwarding Error", message: error.message, targetUrl: targetUrl.toString() }),
       { status: 502, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
     );
   }

@@ -82,7 +82,10 @@ export async function POST() {
 
     const loginRes = await fetch(loginUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Ecount-Zone': zone
+      },
       body: JSON.stringify(loginPayload),
       cache: 'no-store'
     });
@@ -130,7 +133,10 @@ export async function POST() {
     const invUrl = `${baseUrl}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${sessionId}`;
     const invRes = await fetch(invUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-Ecount-Zone': zone
+      },
       body: JSON.stringify({
         SESSION_ID: sessionId,
         COM_CODE: comCode,
