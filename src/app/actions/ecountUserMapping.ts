@@ -114,8 +114,9 @@ export async function syncEcountUsersFromApi() {
     const headers = await ecountFetchHeaders();
 
     const candidates = [
-      `${proxyBaseUrl}/OAPI/V2/AccountCommon/GetListEmployee?SESSION_ID=${sessionId}`,
-      `${proxyBaseUrl}/OAPI/V2/CommonBasic/GetListEmployee?SESSION_ID=${sessionId}`,
+      `${proxyBaseUrl}/OAPI/V2/User/GetListUser?SESSION_ID=${sessionId}`,
+      `${proxyBaseUrl}/OAPI/V2/Employee/GetListEmployee?SESSION_ID=${sessionId}`,
+      `${proxyBaseUrl}/OAPI/V2/CommonBasic/GetListUser?SESSION_ID=${sessionId}`,
     ];
 
     let rows: any[] = [];
@@ -144,12 +145,16 @@ export async function syncEcountUsersFromApi() {
           json?.Data?.Datas?.Result ||
           json?.Data?.Details ||
           json?.Result ||
+          json?.Data ||
           [];
         if (Array.isArray(list) && list.length > 0) {
           rows = list;
           break;
         }
-        lastError = json?.Result?.Message || json?.Data?.Message || JSON.stringify(json).slice(0, 200);
+        const errMsg = json?.Errors?.[0]?.Message || json?.Result?.Message || json?.Data?.Message;
+        if (errMsg) {
+          lastError = `이카운트 API: ${errMsg}`;
+        }
       } catch (e: any) {
         lastError = e?.message || "통신 실패";
       }
@@ -158,9 +163,7 @@ export async function syncEcountUsersFromApi() {
     if (!rows.length) {
       return {
         success: false,
-        message:
-          lastError ||
-          "이카운트 사원 API에서 목록을 가져오지 못했습니다. 아래에서 ID를 직접 입력해 매칭하세요.",
+        message: lastError || "이카운트 사용자 API를 찾을 수 없습니다. 아래 수동 매칭을 통해 사용자를 연결해 주세요.",
         count: 0,
       };
     }
