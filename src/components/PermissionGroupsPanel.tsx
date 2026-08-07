@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   FEATURE_CATALOG,
   emptyPermissionMap,
@@ -221,32 +221,51 @@ export default function PermissionGroupsPanel({ canManage, onGroupsChange }: Pro
                       </tr>
                     </thead>
                     <tbody>
-                      {FEATURE_CATALOG.map((f) => (
-                        <tr key={f.key} className="border-t border-slate-100">
-                          <td className="px-3 py-2">
-                            <div className="font-bold text-slate-800">{f.label}</div>
-                            <div className="text-[10px] text-slate-400">{f.description}</div>
-                          </td>
-                          <td className="text-center">
-                            <input
-                              type="checkbox"
-                              checked={!!draftFeatures[f.key]?.can_view}
-                              onChange={() => toggleFeature(f.key, "can_view")}
-                              disabled={!canManage}
-                              className="cursor-pointer"
-                            />
-                          </td>
-                          <td className="text-center">
-                            <input
-                              type="checkbox"
-                              checked={!!draftFeatures[f.key]?.can_edit}
-                              onChange={() => toggleFeature(f.key, "can_edit")}
-                              disabled={!canManage}
-                              className="cursor-pointer"
-                            />
-                          </td>
-                        </tr>
-                      ))}
+                      {(() => {
+                        let lastSection: string | undefined;
+                        return FEATURE_CATALOG.map((f) => {
+                          const showSectionHeader = f.section && f.section !== lastSection;
+                          if (f.section) lastSection = f.section;
+                          return (
+                            <React.Fragment key={f.key}>
+                              {showSectionHeader && (
+                                <tr className="bg-indigo-50/80">
+                                  <td
+                                    colSpan={3}
+                                    className="px-3 py-1.5 text-[10px] font-extrabold text-indigo-800 uppercase tracking-wide"
+                                  >
+                                    {f.section}
+                                  </td>
+                                </tr>
+                              )}
+                              <tr className="border-t border-slate-100">
+                                <td className="px-3 py-2">
+                                  <div className="font-bold text-slate-800">{f.label}</div>
+                                  <div className="text-[10px] text-slate-400">{f.description}</div>
+                                </td>
+                                <td className="text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!draftFeatures[f.key]?.can_view}
+                                    onChange={() => toggleFeature(f.key, "can_view")}
+                                    disabled={!canManage}
+                                    className="cursor-pointer"
+                                  />
+                                </td>
+                                <td className="text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!draftFeatures[f.key]?.can_edit}
+                                    onChange={() => toggleFeature(f.key, "can_edit")}
+                                    disabled={!canManage}
+                                    className="cursor-pointer"
+                                  />
+                                </td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>

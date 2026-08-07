@@ -43,7 +43,10 @@ export function canUserEdit(user: UserProfile | null, group: FeatureGroup): bool
     case "cms":
     case "admin_users":
       return user.role === "ADMIN";
-    case "workspace":
+    case "schedule_mgmt":
+    case "memo":
+    case "work_schedule":
+    case "weekly_plan":
       return true;
     default:
       return false;

@@ -1,13 +1,16 @@
 /** 기능(메뉴/화면) 권한 카탈로그 — 이카운트식 권한 그룹의 feature_key */
 
 export type FeatureKey =
+  | "schedule_mgmt"
+  | "memo"
+  | "work_schedule"
+  | "weekly_plan"
   | "recipes"
   | "production"
   | "inventory"
   | "qa"
   | "cms"
-  | "admin_users"
-  | "workspace";
+  | "admin_users";
 
 export type FeaturePermission = {
   can_view: boolean;
@@ -16,12 +19,44 @@ export type FeaturePermission = {
 
 export type PermissionMap = Record<FeatureKey, FeaturePermission>;
 
+/** 레거시 workspace 키 → 세분화된 4개 키 */
+export const WORKSPACE_FEATURE_KEYS: FeatureKey[] = [
+  "schedule_mgmt",
+  "memo",
+  "work_schedule",
+  "weekly_plan",
+];
+
 export const FEATURE_CATALOG: {
   key: FeatureKey;
   label: string;
   description: string;
+  section?: string;
 }[] = [
-  { key: "workspace", label: "워크스페이스", description: "대시보드 · 메모 · 일정" },
+  {
+    key: "schedule_mgmt",
+    label: "일정관리",
+    description: "월간 생산 계획표 · 노션 일정",
+    section: "워크스페이스",
+  },
+  {
+    key: "memo",
+    label: "메모",
+    description: "실시간 특이사항 · 공유 메모",
+    section: "워크스페이스",
+  },
+  {
+    key: "work_schedule",
+    label: "스케줄표",
+    description: "월간 근무 · 근무조 스케줄표",
+    section: "워크스페이스",
+  },
+  {
+    key: "weekly_plan",
+    label: "주간계획표",
+    description: "주간 생산/입고/출고 계획표",
+    section: "워크스페이스",
+  },
   { key: "recipes", label: "기준정보 (BOM)", description: "제품 레시피 조회/수정" },
   { key: "production", label: "생산/제조", description: "발주계산 · 작업지시 · 제조기록 · 로트" },
   { key: "inventory", label: "자재/물류", description: "재고 · 스캔" },
@@ -43,6 +78,16 @@ export function fullPermissionMap(): PermissionMap {
   return emptyPermissionMap(true, true);
 }
 
+/** 워크스페이스 4기능만 동일 권한으로 설정 */
+export function workspacePermission(view: boolean, edit: boolean): Pick<PermissionMap, "schedule_mgmt" | "memo" | "work_schedule" | "weekly_plan"> {
+  return {
+    schedule_mgmt: { can_view: view, can_edit: edit },
+    memo: { can_view: view, can_edit: edit },
+    work_schedule: { can_view: view, can_edit: edit },
+    weekly_plan: { can_view: view, can_edit: edit },
+  };
+}
+
 /** 메뉴 그룹명 → feature_key */
 export const MENU_FEATURE_MAP: Record<string, FeatureKey> = {
   "기준정보 관리": "recipes",
@@ -62,6 +107,9 @@ export type PermissionGroupRecord = {
   features: PermissionMap;
 };
 
+const wsFull = workspacePermission(true, true);
+const wsViewOnly = workspacePermission(true, false);
+
 /** 시드용 기본 그룹 정의 */
 export const DEFAULT_GROUP_SEEDS: {
   name: string;
@@ -80,7 +128,7 @@ export const DEFAULT_GROUP_SEEDS: {
     description: "BOM · 생산/제조 · 재고 수정, 품질 조회",
     is_system: false,
     features: {
-      workspace: { can_view: true, can_edit: true },
+      ...wsFull,
       recipes: { can_view: true, can_edit: true },
       production: { can_view: true, can_edit: true },
       inventory: { can_view: true, can_edit: true },
@@ -94,7 +142,7 @@ export const DEFAULT_GROUP_SEEDS: {
     description: "품질/감사 수정, 생산·재고 조회",
     is_system: false,
     features: {
-      workspace: { can_view: true, can_edit: true },
+      ...wsFull,
       recipes: { can_view: true, can_edit: false },
       production: { can_view: true, can_edit: false },
       inventory: { can_view: true, can_edit: false },
@@ -114,7 +162,7 @@ export const DEFAULT_GROUP_SEEDS: {
     description: "업무 메뉴 조회만 (수정 불가)",
     is_system: false,
     features: {
-      workspace: { can_view: true, can_edit: true },
+      ...wsViewOnly,
       recipes: { can_view: true, can_edit: false },
       production: { can_view: true, can_edit: false },
       inventory: { can_view: true, can_edit: false },
@@ -137,6 +185,21 @@ export function featuresFromRows(
       can_edit: !!row.can_edit,
     };
   }
+
+  // 레거시 workspace → 4개 워크스페이스 기능으로 폴백
+  const legacy = rows?.find((r) => r.feature_key === "workspace");
+  if (legacy) {
+    for (const key of WORKSPACE_FEATURE_KEYS) {
+      const hasOwn = rows?.some((r) => r.feature_key === key);
+      if (!hasOwn) {
+        map[key] = {
+          can_view: !!legacy.can_view,
+          can_edit: !!legacy.can_edit,
+        };
+      }
+    }
+  }
+
   return map;
 }
 

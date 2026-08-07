@@ -208,7 +208,11 @@ const INITIAL_DEMO_DATA: ScheduleEmployeeRow[] = [
 
 const DEFAULT_TOP_STAMPS_12 = ["A4", "A8", "A3", "A1", "A9", "BE", "AL", "MO", "AO", "SL", "BT", "RW"];
 
-export default function WorkScheduleTable() {
+type WorkScheduleTableProps = {
+  readOnly?: boolean;
+};
+
+export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTableProps) {
   const [currentYear, setCurrentYear] = useState(2026);
   const [currentMonth, setCurrentMonth] = useState(8);
   
@@ -332,6 +336,7 @@ export default function WorkScheduleTable() {
 
   // 🌟 요구사항 2: 사원 명확한 삭제 확인 팝업 안내
   const handleDeleteEmployee = (empId: string, empName: string) => {
+    if (readOnly) return;
     const isConfirmed = confirm(
       `⚠️ [사원 삭제 확인]\n\n정말로 '${empName}' 사원을 스케줄표에서 삭제하시겠습니까?\n\n(삭제 후 상단의 [스케줄 저장] 버튼을 누르면 최종 반영됩니다.)`
     );
@@ -511,6 +516,7 @@ export default function WorkScheduleTable() {
   }, [rows]);
 
   const handleCellClick = (empId: string, day: number, empName: string, code: string) => {
+    if (readOnly) return;
     if (isStampMode) {
       updateCellValue(empId, day, activeStampCode);
     } else {
@@ -519,6 +525,7 @@ export default function WorkScheduleTable() {
   };
 
   const updateCellValue = (empId: string, day: number, code: string) => {
+    if (readOnly) return;
     setRows((prev) =>
       prev.map((r) => {
         if (r.id === empId) {
@@ -661,9 +668,15 @@ export default function WorkScheduleTable() {
           <div>
             <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
               근무 및 근무조 스케줄 대시보드
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-bold border border-blue-200">
-                시각적 드래그앤드롭 강화
-              </span>
+              {readOnly ? (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-bold border border-slate-200">
+                  조회 전용
+                </span>
+              ) : (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-bold border border-blue-200">
+                  시각적 드래그앤드롭 강화
+                </span>
+              )}
             </h1>
             <p className="text-xs text-slate-400 font-medium">생산 · 품질 · 영업 · 경영 지원 인력 통합 스케줄링 시스템</p>
           </div>
@@ -684,19 +697,23 @@ export default function WorkScheduleTable() {
             />
           </div>
 
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
-          >
-            + 사원 등록
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
+              >
+                + 사원 등록
+              </button>
 
-          <button
-            onClick={handleGlobalAutoFill}
-            className="px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all border border-blue-200"
-          >
-            ⚡ 자동 생성
-          </button>
+              <button
+                onClick={handleGlobalAutoFill}
+                className="px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all border border-blue-200"
+              >
+                ⚡ 자동 생성
+              </button>
+            </>
+          )}
 
           <button
             onClick={() => window.print()}
@@ -712,17 +729,20 @@ export default function WorkScheduleTable() {
             엑셀 (CSV) 📥
           </button>
 
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 text-xs font-bold text-white bg-[#0047FF] hover:bg-blue-700 rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-1.5"
-          >
-            {saving ? "저장 중..." : "스케줄 저장 🚀"}
-          </button>
+          {!readOnly && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 text-xs font-bold text-white bg-[#0047FF] hover:bg-blue-700 rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {saving ? "저장 중..." : "스케줄 저장 🚀"}
+            </button>
+          )}
         </div>
       </div>
 
       {/* 🌟 2. 12개 도장 선택 코드 팔레트 */}
+      {!readOnly && (
       <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-3 rounded-2xl border border-slate-800 shadow-md flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center space-x-2">
           <button
@@ -776,6 +796,7 @@ export default function WorkScheduleTable() {
           })}
         </div>
       </div>
+      )}
 
       {/* 🌟 3. 년월 및 주차 이동 컨트롤 바 */}
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -940,10 +961,10 @@ export default function WorkScheduleTable() {
                   return (
                     <tr
                       key={emp.id}
-                      draggable
-                      onDragStart={(e) => handleEmpDragStart(e, idx)}
-                      onDragOver={(e) => handleEmpDragOver(e, idx)}
-                      onDrop={() => handleEmpDrop(idx)}
+                      draggable={!readOnly}
+                      onDragStart={(e) => !readOnly && handleEmpDragStart(e, idx)}
+                      onDragOver={(e) => !readOnly && handleEmpDragOver(e, idx)}
+                      onDrop={() => !readOnly && handleEmpDrop(idx)}
                       onDragEnd={handleEmpDragEnd}
                       className={`border-b border-slate-100 dark:border-slate-800 transition-all ${
                         isBeingDragged
@@ -957,7 +978,7 @@ export default function WorkScheduleTable() {
                     >
                       {/* 🌟 사원 이름 / 부서 셀 (드래그 타겟 하이라이트 인디케이터 포함) */}
                       <td
-                        className={`sticky left-0 z-10 px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-left font-semibold text-slate-800 dark:text-slate-200 shadow-2xs group cursor-grab active:cursor-grabbing ${
+                        className={`sticky left-0 z-10 px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-left font-semibold text-slate-800 dark:text-slate-200 shadow-2xs group ${readOnly ? "cursor-default" : "cursor-grab active:cursor-grabbing"} ${
                           isTargetOver ? "bg-blue-600 text-white font-black" : "bg-white dark:bg-slate-900"
                         } ${viewMode === "월간" ? "w-[170px] min-w-[170px]" : "w-[130px] min-w-[130px]"}`}
                         title="마우스로 드래그하여 이동할 사원 위치에 놓으세요."
@@ -975,30 +996,32 @@ export default function WorkScheduleTable() {
                                 <span>{emp.name}</span>
                                 {isTargetOver && <span className="text-[10px] bg-white text-blue-700 px-1 rounded font-black">📥 여기에 이동</span>}
 
-                                {/* 사원 이름/부서 수정 아이콘 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingEmpInfo(emp);
-                                    setEditEmpName(emp.name);
-                                    setEditEmpGroup(emp.group);
-                                  }}
-                                  className="text-slate-400 hover:text-blue-600 opacity-60 group-hover:opacity-100 text-[10px]"
-                                  title="사원 이름/부서 수정"
-                                >
-                                  ✏️
-                                </button>
-                                {/* 🌟 요구사항 2: 빠른 🗑️ 사원 삭제 버튼 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteEmployee(emp.id, emp.name);
-                                  }}
-                                  className="text-slate-400 hover:text-red-600 opacity-60 group-hover:opacity-100 text-[10px]"
-                                  title="사원 삭제"
-                                >
-                                  🗑️
-                                </button>
+                                {!readOnly && (
+                                  <>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingEmpInfo(emp);
+                                        setEditEmpName(emp.name);
+                                        setEditEmpGroup(emp.group);
+                                      }}
+                                      className="text-slate-400 hover:text-blue-600 opacity-60 group-hover:opacity-100 text-[10px]"
+                                      title="사원 이름/부서 수정"
+                                    >
+                                      ✏️
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteEmployee(emp.id, emp.name);
+                                      }}
+                                      className="text-slate-400 hover:text-red-600 opacity-60 group-hover:opacity-100 text-[10px]"
+                                      title="사원 삭제"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </>
+                                )}
                               </div>
                               <div className="text-[10px] text-slate-400 font-medium truncate">{emp.group}</div>
                             </div>

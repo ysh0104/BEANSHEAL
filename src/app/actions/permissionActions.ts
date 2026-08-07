@@ -4,10 +4,10 @@ import { createClient } from '@supabase/supabase-js';
 import {
   ALL_FEATURE_KEYS,
   DEFAULT_GROUP_SEEDS,
+  WORKSPACE_FEATURE_KEYS,
   featuresFromRows,
   fullPermissionMap,
   inferGroupNameFromProfile,
-  type FeatureKey,
   type PermissionGroupRecord,
   type PermissionMap,
 } from '@/lib/permissions';
@@ -36,9 +36,41 @@ async function loadGroupFeatures(groupId: string): Promise<PermissionMap> {
   return featuresFromRows(data || []);
 }
 
+/** 레거시 workspace 권한 → 4개 세분화 키로 DB 마이그레이션 */
+async function migrateLegacyWorkspaceFeatures() {
+  const { data: legacyRows } = await supabase
+    .from('permission_group_features')
+    .select('group_id, can_view, can_edit')
+    .eq('feature_key', 'workspace');
+
+  if (!legacyRows?.length) return;
+
+  for (const legacy of legacyRows) {
+    for (const key of WORKSPACE_FEATURE_KEYS) {
+      const { data: existing } = await supabase
+        .from('permission_group_features')
+        .select('feature_key')
+        .eq('group_id', legacy.group_id)
+        .eq('feature_key', key)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase.from('permission_group_features').upsert({
+          group_id: legacy.group_id,
+          feature_key: key,
+          can_view: legacy.can_view,
+          can_edit: legacy.can_edit,
+        });
+      }
+    }
+  }
+}
+
 /** 기본 그룹이 없으면 시드 */
 export async function ensureDefaultPermissionGroups() {
   try {
+    await migrateLegacyWorkspaceFeatures();
+
     const { data: existing, error } = await supabase.from('permission_groups').select('id, name');
     if (error) {
       return { success: false as const, message: error.message };

@@ -45,6 +45,7 @@ import {
   saveMemoPresetsToSupabase,
 } from "@/app/actions/memoPresetsActions";
 import WorkScheduleTable from "@/components/WorkScheduleTable";
+import { useCanEdit, useCanView } from "@/hooks/useCanEdit";
 
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
@@ -130,6 +131,13 @@ const getNotionScheduleColorClass = (tagName?: string, tagColor?: string, produc
 
 export default function Home() {
   const { user } = useAuth();
+  const { canView: canViewSchedule } = useCanView("schedule_mgmt");
+  const { canEdit: canEditSchedule } = useCanEdit("schedule_mgmt");
+  const { canView: canViewMemo } = useCanView("memo");
+  const { canEdit: canEditMemo } = useCanEdit("memo");
+  const { canView: canViewWorkSchedule } = useCanView("work_schedule");
+  const { canEdit: canEditWorkSchedule } = useCanEdit("work_schedule");
+  const { canView: canViewWeeklyPlan } = useCanView("weekly_plan");
   const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
 
   // 달력 및 메모장용 State
@@ -946,6 +954,12 @@ export default function Home() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
+  const visibleWidgetConfigs = widgetConfigs.filter((w) => {
+    if (w.id === "calendar") return canViewSchedule;
+    if (w.id === "memo") return canViewMemo;
+    return true;
+  });
+
   const firstDayIndex = new Date(year, month, 1).getDay();
   const totalDays = new Date(year, month + 1, 0).getDate();
 
@@ -1009,7 +1023,7 @@ export default function Home() {
             : undefined
         }
       >
-        {widgetConfigs.map((widget) => {
+        {visibleWidgetConfigs.map((widget) => {
           const isDraggingThis = draggedWidgetId === widget.id;
           const isDragOverThis = dragOverWidgetId === widget.id;
           const isResizingThis = resizingWidgetId === widget.id;
@@ -1107,6 +1121,9 @@ export default function Home() {
                   ›
                 </button>
                 <span className="ml-1 text-slate-900 font-extrabold text-xs">일정관리</span>
+                {!canEditSchedule && (
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">조회 전용</span>
+                )}
 
                 {/* 🌟 노션 수신 성공했으나 2025년 일정이 많은 경우 연도 이동 바로가기 버튼 */}
                 {schedules.length > 0 && latestYear && latestYear !== year && (
@@ -1164,12 +1181,14 @@ export default function Home() {
                     <div className="flex-1 flex flex-col h-full min-h-0">
                       {/* 요일 헤더 (+ 주간계획표 화살표 열) */}
                       <div className="flex gap-0.5 mb-1 bg-slate-50 py-1.5 border-b border-slate-200 rounded-t shrink-0">
-                        <div
-                          className="w-6 shrink-0 flex items-center justify-center"
-                          title="각 주 화살표 → 주간계획표"
-                        >
-                          <span className="text-[9px] font-black text-slate-400">주</span>
-                        </div>
+                        {canViewWeeklyPlan && (
+                          <div
+                            className="w-6 shrink-0 flex items-center justify-center"
+                            title="각 주 화살표 → 주간계획표"
+                          >
+                            <span className="text-[9px] font-black text-slate-400">주</span>
+                          </div>
+                        )}
                         <div className="flex-1 grid grid-cols-7 gap-1 text-center">
                           {['일', '월', '화', '수', '목', '금', '토'].map(day => (
                             <div key={day} className={`text-[11px] font-extrabold ${day === '일' ? 'text-red-500' : day === '토' ? 'text-blue-500' : 'text-slate-600'}`}>
@@ -1312,25 +1331,27 @@ export default function Home() {
                               className="flex gap-0.5 relative border-b border-slate-100 last:border-0 pb-1"
                             >
                               {/* 주간계획표 진입 화살표 */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setWeeklyPlanWeek(week);
-                                }}
-                                className="w-6 shrink-0 flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 hover:bg-[#1e3a5f] hover:border-[#1e3a5f] hover:text-white text-slate-500 transition-colors cursor-pointer group/week-arrow"
-                                title={`${week[1]?.dateStr || week[0].dateStr} 주 주간계획표 보기`}
-                              >
-                                <svg
-                                  className="w-3.5 h-3.5 group-hover/week-arrow:translate-x-0.5 transition-transform"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth={2.5}
+                              {canViewWeeklyPlan && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setWeeklyPlanWeek(week);
+                                  }}
+                                  className="w-6 shrink-0 flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 hover:bg-[#1e3a5f] hover:border-[#1e3a5f] hover:text-white text-slate-500 transition-colors cursor-pointer group/week-arrow"
+                                  title={`${week[1]?.dateStr || week[0].dateStr} 주 주간계획표 보기`}
                                 >
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                </svg>
-                              </button>
+                                  <svg
+                                    className="w-3.5 h-3.5 group-hover/week-arrow:translate-x-0.5 transition-transform"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2.5}
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </button>
+                              )}
 
                               <div className="flex-1 grid grid-cols-7 gap-1 relative min-w-0">
                                 {/* 1. 배경 날짜 셀 Layer */}
@@ -1338,10 +1359,10 @@ export default function Home() {
                                   <div
                                     key={cIdx}
                                     onDragOver={(e) => {
-                                      if (draggedSchedule) e.preventDefault();
+                                      if (canEditSchedule && draggedSchedule) e.preventDefault();
                                     }}
                                     onDrop={(e) => {
-                                      if (draggedSchedule && cell.dateStr) {
+                                      if (canEditSchedule && draggedSchedule && cell.dateStr) {
                                         e.preventDefault();
                                         e.stopPropagation();
                                         handleDropOnCell(e, cell.dateStr);
@@ -1378,12 +1399,16 @@ export default function Home() {
                                           left: `calc(${leftPct}% + 2px)`,
                                           width: `calc(${widthPct}% - 4px)`,
                                         }}
-                                        draggable={true}
-                                        onDragStart={(e) => {
-                                          e.stopPropagation();
-                                          handleDragStart(e, sch);
-                                        }}
-                                        className={`pointer-events-auto relative h-fit min-h-[26px] py-0.5 px-2.5 text-left flex items-start justify-between cursor-grab active:cursor-grabbing transition-all hover:shadow-md group/bar ${tagStyle} ${roundedClass}`}
+                                      draggable={canEditSchedule}
+                                      onDragStart={(e) => {
+                                        if (!canEditSchedule) {
+                                          e.preventDefault();
+                                          return;
+                                        }
+                                        e.stopPropagation();
+                                        handleDragStart(e, sch);
+                                      }}
+                                      className={`pointer-events-auto relative h-fit min-h-[26px] py-0.5 px-2.5 text-left flex items-start justify-between transition-all group/bar ${canEditSchedule ? "cursor-grab active:cursor-grabbing hover:shadow-md" : "cursor-default"} ${tagStyle} ${roundedClass}`}
                                       >
                                         <div className="text-[11px] font-extrabold leading-[1.35] text-slate-950 pr-1 w-full break-normal">
                                           {sch.tag_name && (
@@ -1401,6 +1426,7 @@ export default function Home() {
                                           )}
                                         </div>
 
+                                      {canEditSchedule && (
                                         <button
                                           type="button"
                                           onClick={(e) => {
@@ -1414,6 +1440,7 @@ export default function Home() {
                                         >
                                           ×
                                         </button>
+                                      )}
                                       </div>
                                     );
                                   })}
@@ -1454,14 +1481,21 @@ export default function Home() {
             );
 
             const memoHeaderRight = (
-              <button
-                type="button"
-                onClick={() => setIsMemoPresetsOpen(true)}
-                className="text-[10px] font-bold text-slate-600 hover:text-indigo-600 cursor-pointer px-1.5 py-0.5 rounded hover:bg-indigo-50"
-                title="템플릿/태그/멘션 관리"
-              >
-                빠른입력 관리
-              </button>
+              <div className="flex items-center gap-2">
+                {!canEditMemo && (
+                  <span className="text-[10px] font-bold text-slate-400">조회 전용</span>
+                )}
+                {canEditMemo && (
+                  <button
+                    type="button"
+                    onClick={() => setIsMemoPresetsOpen(true)}
+                    className="text-[10px] font-bold text-slate-600 hover:text-indigo-600 cursor-pointer px-1.5 py-0.5 rounded hover:bg-indigo-50"
+                    title="템플릿/태그/멘션 관리"
+                  >
+                    빠른입력 관리
+                  </button>
+                )}
+              </div>
             );
 
             return (
@@ -1529,13 +1563,15 @@ export default function Home() {
                         return (
                           <div 
                             key={memo.id} 
-                            draggable={editingMemoId === null}
-                            onDragStart={(e) => handleMemoCardDragStart(e, memo.id)}
-                            onDragOver={(e) => handleMemoCardDragOver(e, memo.id)}
-                            onDrop={(e) => handleMemoCardDrop(e, memo.id)}
+                            draggable={canEditMemo && editingMemoId === null}
+                            onDragStart={(e) => canEditMemo && handleMemoCardDragStart(e, memo.id)}
+                            onDragOver={(e) => canEditMemo && handleMemoCardDragOver(e, memo.id)}
+                            onDrop={(e) => canEditMemo && handleMemoCardDrop(e, memo.id)}
                             onDragEnd={handleMemoCardDragEnd}
-                            onDoubleClick={(e) => handleToggleLike(memo.id, e)}
-                            className={`p-3 border rounded-xl shadow-xs relative group transition-all select-none cursor-grab active:cursor-grabbing inline-flex flex-col justify-between w-fit max-w-full min-w-[200px] flex-grow-0 flex-shrink-0 ${
+                            onDoubleClick={(e) => {
+                              if (canEditMemo) handleToggleLike(memo.id, e);
+                            }}
+                            className={`p-3 border rounded-xl shadow-xs relative group transition-all select-none ${canEditMemo ? "cursor-grab active:cursor-grabbing" : "cursor-default"} inline-flex flex-col justify-between w-fit max-w-full min-w-[200px] flex-grow-0 flex-shrink-0 ${
                               isBeingDragged
                                 ? "opacity-30 border-dashed border-2 border-indigo-400 scale-95"
                                 : isTargetOver
@@ -1544,7 +1580,7 @@ export default function Home() {
                                 ? "border-amber-300 bg-amber-50/80 hover:bg-amber-50 shadow-sm"
                                 : "border-gray-200/90 bg-slate-50/90 hover:bg-white hover:border-indigo-200 hover:shadow-md"
                             }`}
-                            title="마우스로 드래그하여 메모 위치 순서를 자유롭게 바꿀 수 있습니다."
+                            title={canEditMemo ? "마우스로 드래그하여 메모 위치 순서를 자유롭게 바꿀 수 있습니다." : undefined}
                           >
                             {/* 🌟 드래그 핸들 (⋮⋮) & 고정 핀 아이콘 */}
                             <div className="absolute top-2 left-2 flex items-center gap-1">
@@ -1647,31 +1683,35 @@ export default function Home() {
                                 </div>
 
                                 <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                                  <button 
-                                    onClick={() => handleTogglePin(memo)} 
-                                    className={`transition-colors cursor-pointer p-0.5 ${memo.pinned ? "text-amber-500 opacity-100" : "text-gray-400 hover:text-amber-500"}`}
-                                    title={memo.pinned ? "핀 해제" : "상단 고정"}
-                                  >
-                                    <span className="text-xs">📌</span>
-                                  </button>
-                                  <button 
-                                    onClick={() => handleStartEditMemo(memo)} 
-                                    className="text-gray-400 hover:text-indigo-600 transition-colors cursor-pointer p-0.5" 
-                                    title="메모 수정"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                                    </svg>
-                                  </button>
-                                  <button 
-                                    onClick={() => handleDeleteMemo(memo.id)} 
-                                    className="text-gray-400 hover:text-red-600 transition-colors cursor-pointer p-0.5" 
-                                    title="메모 삭제"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                                    </svg>
-                                  </button>
+                                  {canEditMemo && (
+                                    <>
+                                      <button 
+                                        onClick={() => handleTogglePin(memo)} 
+                                        className={`transition-colors cursor-pointer p-0.5 ${memo.pinned ? "text-amber-500 opacity-100" : "text-gray-400 hover:text-amber-500"}`}
+                                        title={memo.pinned ? "핀 해제" : "상단 고정"}
+                                      >
+                                        <span className="text-xs">📌</span>
+                                      </button>
+                                      <button 
+                                        onClick={() => handleStartEditMemo(memo)} 
+                                        className="text-gray-400 hover:text-indigo-600 transition-colors cursor-pointer p-0.5" 
+                                        title="메모 수정"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                        </svg>
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDeleteMemo(memo.id)} 
+                                        className="text-gray-400 hover:text-red-600 transition-colors cursor-pointer p-0.5" 
+                                        title="메모 삭제"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               </>
                             )}
@@ -1689,43 +1729,49 @@ export default function Home() {
                       )}
                     </div>
 
-                    <form onSubmit={handleAddMemo} className="pt-2 border-t border-gray-200 flex flex-col gap-2">
-                      <MemoRichEditor
-                        key={memoEditorKey}
-                        value={newMemo}
-                        onChange={setNewMemo}
-                        onSubmit={() => handleAddMemo()}
-                        onManagePresets={() => setIsMemoPresetsOpen(true)}
-                        placeholder="공유할 메모 (서식·태그·멘션·이미지·Ctrl+Enter)"
-                        minHeight={72}
-                        templates={memoPresets.templates}
-                        tags={memoPresets.tags}
-                        mentions={mentionList}
-                      />
-                      <div className="flex flex-wrap items-center gap-2 justify-between">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={newMemoPinned}
-                              onChange={(e) => setNewMemoPinned(e.target.checked)}
-                              className="rounded border-gray-300"
-                            />
-                            📌 상단 고정
-                          </label>
-                          <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-600">
-                            ⏰
-                            <input
-                              type="datetime-local"
-                              value={newMemoReminder}
-                              onChange={(e) => setNewMemoReminder(e.target.value)}
-                              className="text-[10px] border border-gray-300 rounded px-1 py-0.5 bg-white"
-                            />
-                          </label>
+                    {canEditMemo ? (
+                      <form onSubmit={handleAddMemo} className="pt-2 border-t border-gray-200 flex flex-col gap-2">
+                        <MemoRichEditor
+                          key={memoEditorKey}
+                          value={newMemo}
+                          onChange={setNewMemo}
+                          onSubmit={() => handleAddMemo()}
+                          onManagePresets={() => setIsMemoPresetsOpen(true)}
+                          placeholder="공유할 메모 (서식·태그·멘션·이미지·Ctrl+Enter)"
+                          minHeight={72}
+                          templates={memoPresets.templates}
+                          tags={memoPresets.tags}
+                          mentions={mentionList}
+                        />
+                        <div className="flex flex-wrap items-center gap-2 justify-between">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={newMemoPinned}
+                                onChange={(e) => setNewMemoPinned(e.target.checked)}
+                                className="rounded border-gray-300"
+                              />
+                              📌 상단 고정
+                            </label>
+                            <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-600">
+                              ⏰
+                              <input
+                                type="datetime-local"
+                                value={newMemoReminder}
+                                onChange={(e) => setNewMemoReminder(e.target.value)}
+                                className="text-[10px] border border-gray-300 rounded px-1 py-0.5 bg-white"
+                              />
+                            </label>
+                          </div>
+                          <button type="submit" className="bg-slate-800 text-white px-3 py-1.5 text-xs font-bold rounded shadow-xs hover:bg-slate-700 transition-colors cursor-pointer">등록</button>
                         </div>
-                        <button type="submit" className="bg-slate-800 text-white px-3 py-1.5 text-xs font-bold rounded shadow-xs hover:bg-slate-700 transition-colors cursor-pointer">등록</button>
+                      </form>
+                    ) : (
+                      <div className="pt-2 border-t border-gray-200 text-center text-[11px] text-slate-400 font-medium py-3">
+                        메모 작성 권한이 없습니다 (조회 전용)
                       </div>
-                    </form>
+                    )}
                   </div>
                   {renderCornerResizeHandles()}
                 </div>
@@ -1738,9 +1784,11 @@ export default function Home() {
       </div>
 
       {/* 🌟 월간 근무 & 근무조 스케줄표 (엑셀 이미지 기준 편집 기능 탑재) */}
-      <div className="w-full mt-8">
-        <WorkScheduleTable />
-      </div>
+      {canViewWorkSchedule && (
+        <div className="w-full mt-8">
+          <WorkScheduleTable readOnly={!canEditWorkSchedule} />
+        </div>
+      )}
 
       <MemoPresetsManager
         open={isMemoPresetsOpen}
@@ -1866,7 +1914,7 @@ export default function Home() {
       )}
 
       {/* 주간계획표 모달 */}
-      {weeklyPlanWeek && (
+      {weeklyPlanWeek && canViewWeeklyPlan && (
         <div
           className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-xs p-3 md:p-6 overflow-y-auto animate-fadeIn print:bg-white print:p-0"
           onClick={() => setWeeklyPlanWeek(null)}
