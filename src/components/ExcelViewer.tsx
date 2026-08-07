@@ -149,13 +149,17 @@ export default function ExcelViewer({
         <head>
           <title>${activeSheet} - 인쇄</title>
           <style>
-            @page { size: A4 portrait; margin: 5mm; }
-            body { font-family: 'Malgun Gothic', '맑은 고딕', Dotum, sans-serif; margin: 0; padding: 0; background: white; }
-            table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 0 auto; }
-            td, th { border: 1px solid #000; padding: 4px 6px; font-size: 11px; text-align: center; vertical-align: middle; word-break: break-all; }
+            @page { size: A4 portrait; margin: 8mm; }
+            *, *::before, *::after {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+            body { font-family: 'Malgun Gothic', '맑은 고딕', Dotum, sans-serif; margin: 0; padding: 0; background: #fff; color: #000; }
+            table { border-collapse: collapse !important; width: 100% !important; border: 2px solid #000000 !important; table-layout: fixed; margin: 0 auto; }
+            td, th { border: 1px solid #000000 !important; padding: 4px 6px !important; font-size: 11px !important; text-align: center; vertical-align: middle; word-break: break-all; color: #000 !important; }
             tr { height: 26px; }
-            input, textarea { border: none; outline: none; background: transparent; text-align: center; width: 100%; font-family: inherit; font-size: inherit; }
-            .excel-live-table { border: 2px solid #000; }
+            input, textarea { border: none !important; outline: none !important; background: transparent !important; text-align: center; width: 100%; font-family: inherit; font-size: inherit; color: #000 !important; }
           </style>
         </head>
         <body>
