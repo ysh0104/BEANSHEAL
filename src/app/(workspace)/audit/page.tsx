@@ -35,8 +35,8 @@ const analyzeItemTemplate = (productName: string) => {
   } 
   else if (productName.startsWith('원)')) {
     mainType = "원료";
-    if (productName.includes('액상') || productName.includes('농축액') || productName.includes('유기농')) subType = "액상";
-    else if (productName.includes('분말') || productName.includes('덱스트린') || productName.includes('추출물') || productName.includes('비타민') || productName.includes('파우더')) subType = "분말";
+    if (productName.includes('분말') || productName.includes('파우더') || productName.includes('원두') || productName.includes('생두') || productName.includes('커피') || productName.includes('덱스트린') || productName.includes('비타민')) subType = "분말";
+    else if (productName.includes('액상') || productName.includes('농축액') || productName.includes('유기농')) subType = "액상";
     else subType = "기본";
   }
   else if (productName.startsWith('반)')) {

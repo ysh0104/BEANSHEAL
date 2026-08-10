@@ -63,7 +63,7 @@ function resolveTemplateKey(productName: string, templateKey?: string): string {
 
   // 2순위: 원료 (원) 접두사 또는 원료 키워드)
   if (name.startsWith("원)") || name.includes("원료")) {
-    if (name.includes("분말") || name.includes("파우더") || name.includes("고체")) {
+    if (name.includes("분말") || name.includes("파우더") || name.includes("고체") || name.includes("원두") || name.includes("생두") || name.includes("커피") || name.includes("곡물")) {
       return "원료_분말";
     }
     if (name.includes("유기농")) {
