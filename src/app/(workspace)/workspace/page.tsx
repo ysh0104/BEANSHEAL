@@ -24,6 +24,8 @@ import {
 } from "@/app/actions/memoActions";
 import { DEFAULT_CALIBRATION_ITEMS } from "@/lib/calibrationData";
 import { getCalibrationItemsFromSupabase } from "@/app/actions/calibrationActions";
+import { DEFAULT_HEALTH_CHECK_ITEMS } from "@/lib/healthCheckData";
+import { getHealthCheckItemsFromSupabase } from "@/app/actions/healthCheckActions";
 import MemoRichEditor from "@/components/MemoRichEditor";
 import MemoRichContent from "@/components/MemoRichContent";
 import MemoPresetsManager from "@/components/MemoPresetsManager";
@@ -178,18 +180,19 @@ export default function Home() {
   const [editingMemoText, setEditingMemoText] = useState<string>("");
   const [heartAnim, setHeartAnim] = useState<{ id: number | string; x: number; y: number } | null>(null);
   const [calibrationAlertStats, setCalibrationAlertStats] = useState({ overdue: 0, upcoming: 0 });
+  const [healthCheckAlertStats, setHealthCheckAlertStats] = useState({ overdue: 0, upcoming: 0 });
 
   useEffect(() => {
-    const checkCalibration = async () => {
+    const checkAlerts = async () => {
       try {
-        const res = await getCalibrationItemsFromSupabase();
-        const items = res.data && res.data.length > 0 ? res.data : DEFAULT_CALIBRATION_ITEMS;
-        let overdue = 0;
-        let upcoming = 0;
+        const calRes = await getCalibrationItemsFromSupabase();
+        const calItems = calRes.data && calRes.data.length > 0 ? calRes.data : DEFAULT_CALIBRATION_ITEMS;
+        let calOverdue = 0;
+        let calUpcoming = 0;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        items.forEach((item) => {
+        calItems.forEach((item) => {
           if (item.remark?.includes("폐기") || item.remark?.includes("불용")) return;
           if (!item.next_date) return;
           const cleanDate = item.next_date.replace(/\.\s*/g, "-").trim();
@@ -197,14 +200,30 @@ export default function Home() {
           if (isNaN(target.getTime())) return;
           target.setHours(0, 0, 0, 0);
           const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          if (diffDays < 0) overdue++;
-          else if (diffDays <= 30) upcoming++;
+          if (diffDays < 0) calOverdue++;
+          else if (diffDays <= 30) calUpcoming++;
         });
+        setCalibrationAlertStats({ overdue: calOverdue, upcoming: calUpcoming });
 
-        setCalibrationAlertStats({ overdue, upcoming });
+        const hcRes = await getHealthCheckItemsFromSupabase();
+        const hcItems = hcRes.data && hcRes.data.length > 0 ? hcRes.data : DEFAULT_HEALTH_CHECK_ITEMS;
+        let hcOverdue = 0;
+        let hcUpcoming = 0;
+
+        hcItems.forEach((item) => {
+          if (!item.next_date) return;
+          const cleanDate = item.next_date.replace(/\.\s*/g, "-").trim();
+          const target = new Date(cleanDate);
+          if (isNaN(target.getTime())) return;
+          target.setHours(0, 0, 0, 0);
+          const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays < 0) hcOverdue++;
+          else if (diffDays <= 14) hcUpcoming++;
+        });
+        setHealthCheckAlertStats({ overdue: hcOverdue, upcoming: hcUpcoming });
       } catch {}
     };
-    checkCalibration();
+    checkAlerts();
   }, []);
 
   // 🌟 메모 카드 격자 드래그 앤 드롭 (Drag & Drop) 위치 이동 State 및 핸들러
@@ -1112,7 +1131,42 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 🌟 GMP 기기 검·교정 자동 알림 바너 (도래/기한 경과 기기 존재 시 자동 노출) */}
+      {/* 건강진단결과서 (보건증) 만료/재검진 알림 바너 */}
+      {(healthCheckAlertStats.overdue > 0 || healthCheckAlertStats.upcoming > 0) && (
+        <div className="bg-rose-50 border border-rose-300 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-fadeIn mb-3">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
+            <div>
+              <div className="text-xs font-extrabold text-rose-950 flex items-center gap-2">
+                <span>작업자 건강진단결과서(보건증) 만료 및 재검진 알림</span>
+                {healthCheckAlertStats.overdue > 0 && (
+                  <span className="bg-rose-600 text-white text-[10px] px-2 py-0.2 rounded font-bold">
+                    기한 만료 {healthCheckAlertStats.overdue}명
+                  </span>
+                )}
+                {healthCheckAlertStats.upcoming > 0 && (
+                  <span className="bg-amber-600 text-white text-[10px] px-2 py-0.2 rounded font-bold">
+                    2주(14일) 이내 임박 {healthCheckAlertStats.upcoming}명
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-rose-800 mt-0.5 font-medium">
+                보건증 기한이 지났거나 2주(14일) 이내 재검진이 예정된 작업자가 존재합니다. 대장을 확인하십시오.
+              </p>
+            </div>
+          </div>
+
+          <a
+            href="/audit?tab=health"
+            className="shrink-0 bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+          >
+            <span>보건증 관리대장 이동</span>
+            <span>&rarr;</span>
+          </a>
+        </div>
+      )}
+
+      {/* GMP 기기 검·교정 자동 알림 바너 */}
       {(calibrationAlertStats.overdue > 0 || calibrationAlertStats.upcoming > 0) && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-fadeIn">
           <div className="flex items-center gap-3">
@@ -1139,10 +1193,10 @@ export default function Home() {
 
           <a
             href="/audit?tab=calibration"
-            className="shrink-0 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors shadow-2xs flex items-center gap-1"
+            className="shrink-0 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
           >
             <span>기기 검·교정 대장 이동</span>
-            <span>→</span>
+            <span>&rarr;</span>
           </a>
         </div>
       )}

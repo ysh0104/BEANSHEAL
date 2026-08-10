@@ -83,7 +83,7 @@ export default function HealthCheckManagementView({ canEdit = true }: HealthChec
         label: `검진기한 만료 (D+${Math.abs(diffDays)}일)`,
         badgeClass: "bg-rose-100 text-rose-900 border-rose-300 font-extrabold animate-pulse",
       };
-    } else if (diffDays <= 30) {
+    } else if (diffDays <= 14) {
       return {
         days: diffDays,
         status: "UPCOMING",
@@ -203,7 +203,7 @@ export default function HealthCheckManagementView({ canEdit = true }: HealthChec
       {(stats.overdue > 0 || stats.upcoming > 0) && (
         <div className="bg-gradient-to-r from-amber-50 to-rose-50 border border-amber-200 rounded-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="text-2xl sm:text-3xl animate-bounce">🚨</span>
+            <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping shrink-0" />
             <div>
               <h4 className="text-base sm:text-lg font-extrabold text-amber-950 flex items-center gap-2">
                 보건증 재검진 기한 경과 및 임박 알람
@@ -213,7 +213,7 @@ export default function HealthCheckManagementView({ canEdit = true }: HealthChec
               </h4>
               <p className="text-xs sm:text-sm text-amber-800 font-medium mt-0.5">
                 {stats.overdue > 0 && `기한 만료 작업자 ${stats.overdue}명 `}
-                {stats.upcoming > 0 && `30일 이내 검진 예정자 ${stats.upcoming}명 `}
+                {stats.upcoming > 0 && `2주(14일) 이내 검진 예정자 ${stats.upcoming}명 `}
                 기한 내 보건소 재검진을 통해 GMP 품질기준을 준수해주세요.
               </p>
             </div>
@@ -222,7 +222,7 @@ export default function HealthCheckManagementView({ canEdit = true }: HealthChec
             onClick={() => setStatusFilter(stats.overdue > 0 ? "OVERDUE" : "UPCOMING")}
             className="w-full sm:w-auto bg-amber-900 hover:bg-amber-800 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-xs whitespace-nowrap cursor-pointer"
           >
-            대리 대상자 목록 보기
+            대상자 목록 보기
           </button>
         </div>
       )}
@@ -251,7 +251,7 @@ export default function HealthCheckManagementView({ canEdit = true }: HealthChec
           }`}
         >
           <div className="text-xs font-bold text-rose-700 flex items-center justify-between">
-            기한 만료 🚨
+            기한 만료
             {stats.overdue > 0 && (
               <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
             )}
@@ -268,9 +268,9 @@ export default function HealthCheckManagementView({ canEdit = true }: HealthChec
               : "bg-white border-gray-200 hover:border-gray-300"
           }`}
         >
-          <div className="text-xs font-bold text-amber-700">검진 임박 ⚠️</div>
+          <div className="text-xs font-bold text-amber-700">검진 임박 (2주 이내)</div>
           <div className="text-2xl font-black text-amber-900 mt-1">{stats.upcoming}명</div>
-          <div className="text-[11px] text-amber-700 font-medium mt-1">30일 이내 만료 예정</div>
+          <div className="text-[11px] text-amber-700 font-medium mt-1">14일 이내 만료 예정</div>
         </div>
 
         <div
@@ -281,7 +281,7 @@ export default function HealthCheckManagementView({ canEdit = true }: HealthChec
               : "bg-white border-gray-200 hover:border-gray-300"
           }`}
         >
-          <div className="text-xs font-bold text-emerald-700">정상 🟢</div>
+          <div className="text-xs font-bold text-emerald-700">정상</div>
           <div className="text-2xl font-black text-emerald-900 mt-1">{stats.normal}명</div>
           <div className="text-[11px] text-emerald-700 font-medium mt-1">유효기간 정상 유지</div>
         </div>
@@ -304,9 +304,9 @@ export default function HealthCheckManagementView({ canEdit = true }: HealthChec
             className="px-3 py-2 border border-gray-300 rounded-lg text-xs md:text-sm font-bold bg-white text-gray-700 cursor-pointer"
           >
             <option value="ALL">전체 필터 ({items.length})</option>
-            <option value="OVERDUE">🚨 기한 만료 ({stats.overdue})</option>
-            <option value="UPCOMING">⚠️ 30일 이내 임박 ({stats.upcoming})</option>
-            <option value="NORMAL">🟢 정상 ({stats.normal})</option>
+            <option value="OVERDUE">기한 만료 ({stats.overdue})</option>
+            <option value="UPCOMING">2주 이내 임박 ({stats.upcoming})</option>
+            <option value="NORMAL">정상 ({stats.normal})</option>
           </select>
         </div>
 
