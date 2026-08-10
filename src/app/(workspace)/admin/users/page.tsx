@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -18,11 +18,13 @@ import {
   syncEcountUsersFromApi,
   upsertEcountUserManual,
   bulkUpsertEcountUsersManual,
+  bulkUpsertEcountUserRows,
   updateEcountMapping,
   type EcountUserRecord,
 } from "@/app/actions/ecountUserMapping";
 import { createProfileForSchedule } from "@/app/actions/scheduleRosterActions";
 import { profileDeptToScheduleGroup } from "@/lib/departmentNormalize";
+import { parseEcountUsersExcel } from "@/utils/ecountUsersExcel";
 
 const DEPARTMENT_OPTIONS = [
   "생산팀",
@@ -103,6 +105,8 @@ export default function UserManagementPage() {
   const [ecountBulkOpen, setEcountBulkOpen] = useState(false);
   const [ecountBulkText, setEcountBulkText] = useState("");
   const [ecountBulkSaving, setEcountBulkSaving] = useState(false);
+  const [ecountExcelImporting, setEcountExcelImporting] = useState(false);
+  const ecountExcelInputRef = useRef<HTMLInputElement>(null);
   const [permPanelOpen, setPermPanelOpen] = useState(false);
 
   const canManagePerms =
@@ -329,6 +333,34 @@ export default function UserManagementPage() {
     setEcountSyncMsg(res.message || "일괄 등록 완료");
     setEcountBulkText("");
     setEcountBulkOpen(false);
+  };
+
+  const handleEcountExcelUpload = async (file: File | null) => {
+    if (!file) return;
+    setEcountExcelImporting(true);
+    setEcountSyncMsg(null);
+    try {
+      const { rows, sheetName } = await parseEcountUsersExcel(file);
+      const res = await bulkUpsertEcountUserRows(rows);
+      if (!res.success) {
+        alert(res.message || "엑셀 등록 실패");
+        setEcountSyncMsg(res.message || "엑셀 등록 실패");
+        return;
+      }
+      await loadEcountUsers();
+      setEcountSyncMsg(
+        res.message ||
+          `「${sheetName}」시트에서 이카운트 사용자 ${res.count}명을 등록했습니다.`
+      );
+      setEcountBulkOpen(false);
+    } catch (e: any) {
+      const msg = e?.message || "엑셀을 읽지 못했습니다.";
+      alert(msg);
+      setEcountSyncMsg(msg);
+    } finally {
+      setEcountExcelImporting(false);
+      if (ecountExcelInputRef.current) ecountExcelInputRef.current.value = "";
+    }
   };
 
   const handleAddEmployee = async () => {
@@ -608,17 +640,33 @@ export default function UserManagementPage() {
               <h2 className="font-bold text-sm text-slate-800">가입 사원 · 이카운트 매칭</h2>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 Google 계정 ↔ 이카운트 로그인 ID 연결. OpenAPI는 사원 목록 조회를 지원하지 않아{" "}
-                <span className="font-semibold text-slate-700">일괄/수동 등록</span> 후 드롭다운·직접입력으로 매칭합니다.
+                <span className="font-semibold text-slate-700">EMM001M 엑셀 업로드·붙여넣기·수동 등록</span> 후
+                드롭다운·직접입력으로 매칭합니다.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={ecountExcelInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(e) => handleEcountExcelUpload(e.target.files?.[0] || null)}
+              />
+              <button
+                type="button"
+                onClick={() => ecountExcelInputRef.current?.click()}
+                disabled={!canManagePerms || ecountExcelImporting}
+                className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-emerald-400 bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer disabled:opacity-50"
+              >
+                {ecountExcelImporting ? "엑셀 등록 중…" : "엑셀 업로드"}
+              </button>
               <button
                 type="button"
                 onClick={() => setEcountBulkOpen((v) => !v)}
                 disabled={!canManagePerms}
                 className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 cursor-pointer disabled:opacity-50"
               >
-                {ecountBulkOpen ? "일괄 등록 닫기" : "일괄 등록"}
+                {ecountBulkOpen ? "붙여넣기 닫기" : "붙여넣기 등록"}
               </button>
               <button
                 type="button"
@@ -648,7 +696,9 @@ export default function UserManagementPage() {
           {ecountBulkOpen && (
             <div className="px-5 py-3 border-b border-slate-100 bg-emerald-50/60 space-y-2">
               <p className="text-[11px] text-emerald-900">
-                이카운트 ERP → 사용자관리에서 ID·이름을 복사해 붙여넣으세요. 한 줄에{" "}
+                이카운트 「사용자등록(EMM001M)」 엑셀은 위{" "}
+                <span className="font-semibold">엑셀 업로드</span>로 바로 등록할 수 있습니다.
+                또는 ID·이름을 복사해 붙여넣으세요. 한 줄에{" "}
                 <code className="font-mono bg-white/80 px-1 rounded">ID, 이름, 부서(선택)</code> — 탭·쉼표 구분.
               </p>
               <textarea

@@ -119,21 +119,61 @@ export async function bulkUpsertEcountUsersManual(rawText: string) {
       return { success: false, message: "등록할 ID가 없습니다. 한 줄에 `ID, 이름` 형식으로 입력하세요.", count: 0 };
     }
 
-    const upserts = parsed.map((row) => ({
-      user_id: row.user_id,
-      emp_cd: row.user_id,
-      user_name: row.user_name,
-      dept_name: row.dept_name,
-      updated_at: new Date().toISOString(),
-    }));
+    return bulkUpsertEcountUserRows(
+      parsed.map((row) => ({
+        user_id: row.user_id,
+        emp_cd: row.user_id,
+        user_name: row.user_name,
+        dept_name: row.dept_name,
+      }))
+    );
+  } catch (e: any) {
+    return { success: false, message: e?.message || "일괄 등록 실패", count: 0 };
+  }
+}
 
-    const { error } = await supabase.from("ecount_users").upsert(upserts, { onConflict: "user_id" });
+/** 파싱된 행(EMM001M 엑셀 등)을 ecount_users에 일괄 upsert */
+export async function bulkUpsertEcountUserRows(
+  rows: Array<{
+    user_id: string;
+    emp_cd?: string;
+    user_name?: string;
+    dept_name?: string;
+    raw?: Record<string, unknown>;
+  }>
+) {
+  try {
+    const upserts = (rows || [])
+      .map((row) => {
+        const user_id = String(row.user_id || "").trim();
+        if (!user_id) return null;
+        return {
+          user_id,
+          emp_cd: String(row.emp_cd || user_id).trim() || user_id,
+          user_name: String(row.user_name || user_id).trim() || user_id,
+          dept_name: String(row.dept_name || "").trim(),
+          raw: row.raw && typeof row.raw === "object" ? row.raw : {},
+          updated_at: new Date().toISOString(),
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => !!row);
+
+    if (!upserts.length) {
+      return { success: false, message: "등록할 ID가 없습니다.", count: 0 };
+    }
+
+    // user_id 중복 제거 (마지막 행 우선)
+    const byId = new Map<string, (typeof upserts)[number]>();
+    for (const row of upserts) byId.set(row.user_id, row);
+    const unique = Array.from(byId.values());
+
+    const { error } = await supabase.from("ecount_users").upsert(unique, { onConflict: "user_id" });
     if (error) return { success: false, message: error.message, count: 0 };
 
     return {
       success: true,
-      message: `이카운트 사용자 ${upserts.length}명을 등록했습니다. 아래 드롭다운에서 매칭하세요.`,
-      count: upserts.length,
+      message: `이카운트 사용자 ${unique.length}명을 등록했습니다. 아래 드롭다운에서 매칭하세요.`,
+      count: unique.length,
     };
   } catch (e: any) {
     return { success: false, message: e?.message || "일괄 등록 실패", count: 0 };
