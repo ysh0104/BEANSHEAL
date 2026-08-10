@@ -32,13 +32,13 @@ export default function Sidebar() {
     };
   }, [isMobileMenuOpen]);
 
-  if (pathname === "/login" || pathname === "/") {
+  if (!pathname || pathname === "/login" || pathname === "/") {
     return null;
   }
 
   const isAdmin =
     user?.role === "ADMIN" ||
-    user?.department?.includes("경영") ||
+    !!user?.department?.includes("경영") ||
     user?.position === "대표" ||
     user?.position === "대표이사" ||
     user?.position === "이사" ||
@@ -108,6 +108,7 @@ export default function Sidebar() {
   });
 
   const isActivePath = (path: string) => {
+    if (!pathname) return false;
     const basePath = path.split("?")[0];
     return pathname === basePath || pathname.startsWith(basePath + "/");
   };

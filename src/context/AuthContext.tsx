@@ -65,93 +65,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAutoLogin, setIsAutoLogin] = useState(true);
 
   const loadProfile = async (authUser: User) => {
-    let department = authUser.user_metadata?.department || "생산팀";
-    let position = authUser.user_metadata?.position || "사원";
-    let fullName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
-
-    // 만약 이름이 없으면 이메일 앞자리 또는 기본 한글 이름 사용
-    if (!fullName) {
-      const emailPrefix = authUser.email?.split("@")[0];
-      fullName = emailPrefix && emailPrefix !== "user" ? emailPrefix : "홍길동";
-    }
-
-    let permissionRole: "ADMIN" | "QA" | "WORKER" = 
-      authUser.user_metadata?.permission_role || computePermissionRole(department, position);
-
-    // Supabase DB 'profiles' 테이블 조회
     try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name, department, position, role, permission_group_id")
-        .eq("id", authUser.id)
-        .maybeSingle();
+      let department = authUser.user_metadata?.department || "생산팀";
+      let position = authUser.user_metadata?.position || "사원";
+      let fullName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
 
-      if (data) {
-        if (data.department) department = data.department;
-        if (data.position) position = data.position;
-        if (data.full_name) fullName = data.full_name;
-        if (data.role) permissionRole = data.role as "ADMIN" | "QA" | "WORKER";
+      if (!fullName) {
+        const emailPrefix = authUser.email?.split("@")[0];
+        fullName = emailPrefix && emailPrefix !== "user" ? emailPrefix : "홍길동";
       }
-    } catch (err) {
-      console.warn("profiles 테이블 조회 중 오류 (기본 메타데이터 사용):", err);
-    }
 
-    // 레거시 직급/부서 정규화
-    if (position === "관리자") position = "이사";
-    if (department === "-" || !department.trim()) {
-      department = "생산팀";
-    }
+      let permissionRole: "ADMIN" | "QA" | "WORKER" = 
+        authUser.user_metadata?.permission_role || computePermissionRole(department, position);
 
-    const jobTitle = formatJobTitle(department, position);
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("full_name, department, position, role, permission_group_id")
+          .eq("id", authUser.id)
+          .maybeSingle();
 
-    let permissions = emptyPermissionMap(true, false);
-    let permissionGroupId: string | null = null;
-    let permissionGroupName: string | null = null;
-
-    try {
-      const permRes = await getUserPermissionMap(authUser.id);
-      if (permRes.success) {
-        permissions = permRes.permissions;
-        permissionGroupId = permRes.groupId;
-        permissionGroupName = permRes.groupName;
+        if (data) {
+          if (data.department) department = data.department;
+          if (data.position) position = data.position;
+          if (data.full_name) fullName = data.full_name;
+          if (data.role) permissionRole = data.role as "ADMIN" | "QA" | "WORKER";
+        }
+      } catch (err) {
+        console.warn("profiles 테이블 조회 중 오류:", err);
       }
-    } catch {
-      /* 테이블 미생성 시 레거시 폴백 */
-      if (permissionRole === "ADMIN" || department.includes("경영")) {
+
+      if (position === "관리자") position = "이사";
+      if (department === "-" || !department.trim()) {
+        department = "생산팀";
+      }
+
+      const jobTitle = formatJobTitle(department, position);
+
+      let permissions = emptyPermissionMap(true, false);
+      let permissionGroupId: string | null = null;
+      let permissionGroupName: string | null = null;
+
+      try {
+        const permRes = await getUserPermissionMap(authUser.id);
+        if (permRes.success) {
+          permissions = permRes.permissions;
+          permissionGroupId = permRes.groupId;
+          permissionGroupName = permRes.groupName;
+        }
+      } catch {
+        if (permissionRole === "ADMIN" || (department && department.includes("경영"))) {
+          permissions = fullPermissionMap();
+        }
+      }
+
+      if (permissionRole === "ADMIN") {
         permissions = fullPermissionMap();
       }
+
+      const userProfile: UserProfile = {
+        name: fullName,
+        email: authUser.email || "",
+        department,
+        position,
+        role: permissionRole,
+        jobTitle,
+        provider: authUser.app_metadata?.provider || "google",
+        permissionGroupId,
+        permissionGroupName,
+        permissions,
+      };
+
+      setUser(userProfile);
+      localStorage.setItem("beansheal_auto_login", "true");
+      localStorage.setItem("beansheal_active_user", JSON.stringify(userProfile));
+
+      try {
+        const savedUsers = JSON.parse(localStorage.getItem("beansheal_registered_users") || "{}");
+        if (authUser.email) {
+          savedUsers[authUser.email.toLowerCase()] = userProfile;
+          localStorage.setItem("beansheal_registered_users", JSON.stringify(savedUsers));
+        }
+      } catch (e) {}
+    } catch (e) {
+      console.error("loadProfile error:", e);
     }
-
-    // ADMIN 역할은 항상 전체 권한
-    if (permissionRole === "ADMIN") {
-      permissions = fullPermissionMap();
-    }
-
-    const userProfile: UserProfile = {
-      name: fullName,
-      email: authUser.email || "",
-      department,
-      position,
-      role: permissionRole,
-      jobTitle,
-      provider: authUser.app_metadata?.provider || "google",
-      permissionGroupId,
-      permissionGroupName,
-      permissions,
-    };
-
-    setUser(userProfile);
-    localStorage.setItem("beansheal_auto_login", "true");
-    localStorage.setItem("beansheal_active_user", JSON.stringify(userProfile));
-
-    // 구글 회원가입 및 로컬 로그인 연동을 위해 계정 정보 저장 (브라우저 비밀번호 자동저장 지원)
-    try {
-      const savedUsers = JSON.parse(localStorage.getItem("beansheal_registered_users") || "{}");
-      if (authUser.email) {
-        savedUsers[authUser.email.toLowerCase()] = userProfile;
-        localStorage.setItem("beansheal_registered_users", JSON.stringify(savedUsers));
-      }
-    } catch (e) {}
   };
 
   useEffect(() => {
@@ -160,7 +158,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAutoLogin(isAuto);
     }
 
-    // ⚡ 1. 0.00초 즉시 로그인 유지: 로컬 스토리지에 캐시된 유저가 있으면 즉시 복원하여 새로고침 지연 제거
     const cachedUserJson = localStorage.getItem("beansheal_active_user");
     if (isAuto && cachedUserJson) {
       try {
@@ -170,11 +167,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {}
     }
 
-    // ⚡ 2. 백그라운드 세션 검증 및 DB 최신 프로필 비동기 동기화 (화면 깜빡임 제로)
     supabase.auth.getSession().then((res) => {
       const session = res?.data?.session;
       if (session?.user) {
-        loadProfile(session.user);
+        loadProfile(session.user).catch((e) => console.error("loadProfile error:", e));
       } else {
         if (!cachedUserJson || !isAuto) {
           setUser(null);
@@ -185,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        loadProfile(session.user);
+        loadProfile(session.user).catch((e) => console.error("loadProfile error:", e));
       } else if (_event === 'SIGNED_OUT') {
         setUser(null);
         localStorage.removeItem("beansheal_active_user");
