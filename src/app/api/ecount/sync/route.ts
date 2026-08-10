@@ -165,18 +165,12 @@ export async function POST() {
       throw masterErr;
     }
 
-    const sampleItem = rawList.find((item: any) => item.PROD_CD === 'M0001') || rawList.find((item: any) => Number(item.BAL_QTY) > 0) || rawList[0] || {};
-    const sampleKeys = Object.keys(sampleItem);
-
     return NextResponse.json({
       success: true,
       message: `이카운트 품목/재고 ${masterRows.length}건이 성공적으로 마스터 DB(ecount_items)에 동기화되었습니다.`,
       count: masterRows.length,
       synced_at: new Date().toISOString(),
-      is_fixie_active: isFixieActive,
-      sample_item_keys: sampleKeys,
-      sample_item_raw: sampleItem,
-      sample_items_top5: rawList.filter((item: any) => Number(item.BAL_QTY) > 0).slice(0, 5)
+      is_fixie_active: isFixieActive
     });
 
   } catch (error: any) {
