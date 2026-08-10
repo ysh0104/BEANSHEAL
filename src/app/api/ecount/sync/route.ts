@@ -155,6 +155,31 @@ export async function POST() {
       );
     }
 
+    // 🌟 3.5. 이카운트 품목 마스터 API (/OAPI/V2/InventoryBasic/GetListItem) 호출하여 PROD_CD ➔ PROD_DES (품목명) 1:1 매핑 맵 구축
+    const itemMasterMap = new Map<string, string>();
+    try {
+      const itemMasterEp = `${targetHost}/OAPI/V2/InventoryBasic/GetListItem?SESSION_ID=${sessionId}`;
+      const masterRes = await fetchWithEgressProxy(itemMasterEp, {
+        SESSION_ID: sessionId,
+        COM_CODE: comCode,
+        DATA: { PROD_CD: '' }
+      }, { 'X-Ecount-Zone': zone });
+
+      const masterList = masterRes.Data?.Result || masterRes.Data?.List || masterRes.Data || [];
+      if (Array.isArray(masterList)) {
+        masterList.forEach((mItem: any) => {
+          const mCd = String(mItem.PROD_CD || mItem.CODE || '').trim();
+          const mNm = String(mItem.PROD_DES || mItem.PROD_NM || mItem.ITEM_DES || '').trim();
+          if (mCd && mNm) {
+            itemMasterMap.set(mCd, mNm);
+          }
+        });
+        console.log(`[Ecount Item Master] Successfully mapped ${itemMasterMap.size} item names.`);
+      }
+    } catch (e) {
+      console.warn('[Ecount Item Master Fetch Warning]:', e);
+    }
+
     // 4. 품목별 정밀 소수점 재고 합산 (Grouping & Summing with exact float precision)
     const productQtyMap = new Map<string, { prodNm: string; totalQty: number }>();
 
@@ -162,8 +187,13 @@ export async function POST() {
       // 1. 품목코드 및 품목명 다중 필드 바인딩 (이카운트 API 규격별 호환성 극대화)
       const rawCd = String(item.PROD_CD || item.PROD_NO || item.CODE || item.ITEM_CD || item.item_code || '').trim();
       let rawNm = String(item.PROD_DES || item.PROD_NM || item.PROD_NAME || item.ITEM_DES || item.item_name || '').trim();
-      const sizeDes = String(item.SIZE_DES || item.SIZE || '').trim();
 
+      // 만약 재고 API 응답에 PROD_DES가 누락되었을 경우 마스터(GetListItem)에서 PROD_DES 보완
+      if (!rawNm && rawCd && itemMasterMap.has(rawCd)) {
+        rawNm = itemMasterMap.get(rawCd)!;
+      }
+
+      const sizeDes = String(item.SIZE_DES || item.SIZE || '').trim();
       if (sizeDes && !rawNm.includes(sizeDes)) {
         rawNm = `${rawNm} [${sizeDes}]`;
       }
