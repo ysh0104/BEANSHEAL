@@ -268,12 +268,12 @@ export async function POST(req: Request) {
     let content: Buffer | null = null;
     const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_product_default';
     
-    // 요청된 파일 확장자(hwp, hwpx, docx) 순서에 맞춰 템플릿 탐색 우선순위 지정
-    let searchExtensions: string[] = [];
+    // XML 기반 템플릿(.docx, .hwpx)을 최우선 탐색하여 100% 무잘림 데이터 바인딩 및 한글 에러 팝업 근본 방지
+    let searchExtensions: string[] = ['.docx', '.hwpx', '.hwp'];
     if (fileExt === 'hwp') {
-      searchExtensions = ['.hwp', '.hwpx', '.docx'];
+      searchExtensions = ['.docx', '.hwpx', '.hwp'];
     } else if (fileExt === 'hwpx') {
-      searchExtensions = ['.hwpx', '.hwp', '.docx'];
+      searchExtensions = ['.hwpx', '.docx', '.hwp'];
     } else {
       searchExtensions = ['.docx', '.hwpx', '.hwp'];
     }
