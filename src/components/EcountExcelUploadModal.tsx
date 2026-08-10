@@ -45,41 +45,68 @@ export default function EcountExcelUploadModal({ isOpen, onClose, onSuccess }: P
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
-        const jsonRows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-        if (jsonRows.length === 0) {
+        // 전체 행을 배열로 읽기 (header:1 옵션으로 첫 행을 헤더로 쓰지 않음)
+        const allRows: any[][] = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          defval: "",
+        });
+
+        if (allRows.length === 0) {
           setErrorMsg("엑셀 파일에 읽을 데이터가 없습니다.");
           return;
         }
 
-        const rawHeaders = Object.keys(jsonRows[0] || {});
+        // 헤더 행 자동 탐색: "품목코드" 또는 "품목명" 이 포함된 행을 헤더로 인식
+        let headerRowIdx = -1;
+        for (let i = 0; i < Math.min(allRows.length, 10); i++) {
+          const rowStr = allRows[i].map((c: any) => String(c || "")).join("|");
+          if (/품목코드|PROD_CD|Item Code/i.test(rowStr)) {
+            headerRowIdx = i;
+            break;
+          }
+        }
+
+        if (headerRowIdx === -1) {
+          setErrorMsg("엑셀에서 '품목코드' 헤더를 찾을 수 없습니다. 이카운트 재고현황 엑셀인지 확인하세요.");
+          return;
+        }
+
+        const rawHeaders = allRows[headerRowIdx].map((c: any) => String(c || "").trim());
         setHeaders(rawHeaders);
 
-        // 컬럼 헤더 자동 감지 (유연한 매칭)
-        const codeKey = rawHeaders.find((h) =>
+        // 컬럼 인덱스 자동 감지
+        const codeIdx = rawHeaders.findIndex((h) =>
           /품목코드|코드|PROD_CD|ITEM_CD|Item Code/i.test(h.replace(/\s+/g, ""))
-        ) || rawHeaders[0];
-
-        const nameKey = rawHeaders.find((h) =>
+        );
+        const nameIdx = rawHeaders.findIndex((h) =>
           /품목명|명칭|PROD_DES|PROD_NM|Item Name/i.test(h.replace(/\s+/g, ""))
-        ) || rawHeaders[1] || rawHeaders[0];
-
-        const qtyKey = rawHeaders.find((h) =>
+        );
+        const qtyIdx = rawHeaders.findIndex((h) =>
           /재고수량|수량|재고|BAL_QTY|QTY|Quantity|실재고/i.test(h.replace(/\s+/g, ""))
-        ) || rawHeaders[2] || rawHeaders[1];
+        );
+
+        // 감지 못한 경우 순서대로 대입
+        const finalCodeIdx = codeIdx >= 0 ? codeIdx : 0;
+        const finalNameIdx = nameIdx >= 0 ? nameIdx : 1;
+        const finalQtyIdx = qtyIdx >= 0 ? qtyIdx : 2;
 
         const validRows: ExcelMasterRow[] = [];
+        const dataRows = allRows.slice(headerRowIdx + 1);
 
-        jsonRows.forEach((r) => {
-          const rawCd = String(r[codeKey] || "").trim();
-          const rawNm = String(r[nameKey] || "").trim();
-          const rawQty = r[qtyKey];
+        dataRows.forEach((row) => {
+          const rawCd = String(row[finalCodeIdx] ?? "").trim();
+          const rawNm = String(row[finalNameIdx] ?? "").trim();
+          const rawQtyRaw = row[finalQtyIdx];
 
+          // 빈 행 스킵
           if (!rawCd && !rawNm) return;
 
           const prodCd = rawCd || rawNm;
           const prodNm = rawNm || rawCd;
-          const qtyStr = String(rawQty).replace(/,/g, "").trim();
-          const qty = Number(qtyStr);
+
+          // 숫자 변환 (콤마 제거, 빈값 → 0)
+          const qtyStr = String(rawQtyRaw ?? "").replace(/,/g, "").trim();
+          const qty = qtyStr === "" ? 0 : Number(qtyStr);
           const safeQty = isNaN(qty) ? 0 : qty;
 
           validRows.push({
@@ -170,10 +197,18 @@ export default function EcountExcelUploadModal({ isOpen, onClose, onSuccess }: P
                 {file ? `선택된 파일: ${file.name}` : "이카운트 엑셀 파일 (.xlsx, .xls)을 여기에 드래그하거나 클릭하여 선택"}
               </p>
               <p className="text-xs text-blue-600 font-medium">
-                품목코드, 품목명[규격], 재고수량 칼럼이 자동 추출됩니다.
+                품목코드, 품목명[규격], 재고수량 칼럼이 자동 추출됩니다. (제목 행 자동 건너뜀)
               </p>
             </div>
           </div>
+
+          {/* 감지된 헤더 표시 */}
+          {headers.length > 0 && (
+            <div className="text-[11px] text-gray-500 bg-gray-50 rounded-lg p-2 border border-gray-200">
+              <span className="font-bold text-gray-700">감지된 컬럼: </span>
+              {headers.filter(Boolean).join(" | ")}
+            </div>
+          )}
 
           {errorMsg && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg font-bold">
@@ -197,9 +232,9 @@ export default function EcountExcelUploadModal({ isOpen, onClose, onSuccess }: P
                 <table className="w-full text-xs text-left">
                   <thead className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200">
                     <tr>
-                      <th className="p-2 border-r border-gray-200">품목코드 (PROD_CD)</th>
-                      <th className="p-2 border-r border-gray-200">품목명 (PROD_DES)</th>
-                      <th className="p-2 text-right">정밀 재고수량</th>
+                      <th className="p-2 border-r border-gray-200">품목코드</th>
+                      <th className="p-2 border-r border-gray-200">품목명[규격]</th>
+                      <th className="p-2 text-right">재고수량</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white font-medium text-gray-800">
