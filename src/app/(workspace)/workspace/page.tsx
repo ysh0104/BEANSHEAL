@@ -1131,7 +1131,42 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 건강진단결과서 (보건증) 만료/재검진 알림 바너 */}
+      {/* 1. GMP 기기 검·교정 자동 알림 바너 */}
+      {(calibrationAlertStats.overdue > 0 || calibrationAlertStats.upcoming > 0) && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-fadeIn mb-3">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />
+            <div>
+              <div className="text-xs font-extrabold text-amber-900 flex items-center gap-2">
+                <span>GMP 기기 검·교정 점검 알림</span>
+                {calibrationAlertStats.overdue > 0 && (
+                  <span className="bg-red-600 text-white text-[10px] px-2 py-0.2 rounded font-bold">
+                    기한 경과 {calibrationAlertStats.overdue}건
+                  </span>
+                )}
+                {calibrationAlertStats.upcoming > 0 && (
+                  <span className="bg-amber-600 text-white text-[10px] px-2 py-0.2 rounded font-bold">
+                    30일 이내 임박 {calibrationAlertStats.upcoming}건
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-amber-800 mt-0.5 font-medium">
+                검교정 기한이 지나거나 30일 이내 예정된 실험/생산 기기가 존재합니다. 검교정 대장을 확인하십시오.
+              </p>
+            </div>
+          </div>
+
+          <a
+            href="/audit?tab=calibration"
+            className="shrink-0 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+          >
+            <span>기기 검·교정 대장 이동</span>
+            <span>&rarr;</span>
+          </a>
+        </div>
+      )}
+
+      {/* 2. 작업자 건강진단결과서 (보건증) 만료 및 재검진 알림 바너 (GMP 기기 알람 밑에 노출) */}
       {(healthCheckAlertStats.overdue > 0 || healthCheckAlertStats.upcoming > 0) && (
         <div className="bg-rose-50 border border-rose-300 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-fadeIn mb-3">
           <div className="flex items-center gap-3">
@@ -1161,41 +1196,6 @@ export default function Home() {
             className="shrink-0 bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
           >
             <span>보건증 관리대장 이동</span>
-            <span>&rarr;</span>
-          </a>
-        </div>
-      )}
-
-      {/* GMP 기기 검·교정 자동 알림 바너 */}
-      {(calibrationAlertStats.overdue > 0 || calibrationAlertStats.upcoming > 0) && (
-        <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-fadeIn">
-          <div className="flex items-center gap-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />
-            <div>
-              <div className="text-xs font-extrabold text-amber-900 flex items-center gap-2">
-                <span>GMP 기기 검·교정 점검 알림</span>
-                {calibrationAlertStats.overdue > 0 && (
-                  <span className="bg-red-600 text-white text-[10px] px-2 py-0.2 rounded font-bold">
-                    기한 경과 {calibrationAlertStats.overdue}건
-                  </span>
-                )}
-                {calibrationAlertStats.upcoming > 0 && (
-                  <span className="bg-amber-600 text-white text-[10px] px-2 py-0.2 rounded font-bold">
-                    30일 이내 임박 {calibrationAlertStats.upcoming}건
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-amber-800 mt-0.5 font-medium">
-                검교정 기한이 지나거나 30일 이내 예정된 실험/생산 기기가 존재합니다. 검교정 대장을 확인하십시오.
-              </p>
-            </div>
-          </div>
-
-          <a
-            href="/audit?tab=calibration"
-            className="shrink-0 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
-          >
-            <span>기기 검·교정 대장 이동</span>
             <span>&rarr;</span>
           </a>
         </div>
