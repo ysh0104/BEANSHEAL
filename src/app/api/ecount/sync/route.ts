@@ -169,18 +169,43 @@ export async function POST() {
     const itemMasterMap = new Map<string, string>();
     try {
       const itemMasterEp = `${targetHost}/OAPI/V2/InventoryBasic/GetListItem?SESSION_ID=${sessionId}`;
-      const pageSize = 5000; // 최대 페이지 사이즈
+      const pageSize = 5000;
       let pageNo = 1;
       while (true) {
-        const masterRes = await fetchWithEgressProxy(itemMasterEp, {
-          SESSION_ID: sessionId,
-          COM_CODE: comCode,
-          PAGE_NO: String(pageNo),
-          PAGE_SIZE: String(pageSize),
-          DATA: { PROD_CD: '' },
-        }, { 'X-Ecount-Zone': zone });
+        let masterRes: any;
+        try {
+          // 1) Fixie/Egress proxy 시도
+          masterRes = await fetchWithEgressProxy(itemMasterEp, {
+            SESSION_ID: sessionId,
+            COM_CODE: comCode,
+            PAGE_NO: String(pageNo),
+            PAGE_SIZE: String(pageSize),
+            DATA: { PROD_CD: '' },
+          }, { 'X-Ecount-Zone': zone });
+        } catch (e) {
+          console.warn('[Ecount Item Master] Proxy fetch failed, fallback to direct fetch:', e);
+          // 2) Direct fetch fallback (no proxy)
+          const fallbackBody = {
+            SESSION_ID: sessionId,
+            COM_CODE: comCode,
+            PAGE_NO: String(pageNo),
+            PAGE_SIZE: String(pageSize),
+            DATA: { PROD_CD: '' },
+          };
+          const raw = await fetch(itemMasterEp, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Ecount-Zone': zone,
+            },
+            body: JSON.stringify(fallbackBody),
+          });
+          masterRes = await raw.json();
+        }
+
         const masterList = masterRes.Data?.Result || masterRes.Data?.List || masterRes.Data || [];
         if (!Array.isArray(masterList) || masterList.length === 0) break;
+
         masterList.forEach((mItem: any) => {
           const mCd = String(mItem.PROD_CD || mItem.PROD_NO || mItem.CODE || mItem.ITEM_CD || '').trim();
           const mNm = String(mItem.PROD_DES || mItem.PROD_NM || mItem.PROD_NAME || mItem.ITEM_DES || mItem.DES || mItem.REMARKS || '').trim();
