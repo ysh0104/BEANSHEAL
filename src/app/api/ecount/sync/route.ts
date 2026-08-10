@@ -101,57 +101,56 @@ export async function POST() {
       );
     }
 
-    // 3. 재고 현황 정밀 조회 (/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusLocation 우선, 실패 시 GetListInventoryBalanceStatus)
+    // 3. 재고 현황 정밀 조회 (ByLot -> ByLocation -> Location -> Default 순 차례로 탐색)
     const today = new Date();
     const kstTime = new Date(today.getTime() + 9 * 60 * 60 * 1000);
     const baseDate = `${kstTime.getUTCFullYear()}${String(kstTime.getUTCMonth() + 1).padStart(2, '0')}${String(kstTime.getUTCDate()).padStart(2, '0')}`;
 
     let rawList: any[] = [];
-    const locationInvUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusLocation?SESSION_ID=${sessionId}`;
-    const defaultInvUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${sessionId}`;
+    let usedEndpoint = '';
 
-    try {
-      const locData = await fetchWithEgressProxy(locationInvUrl, {
-        SESSION_ID: sessionId,
-        COM_CODE: comCode,
-        BASE_DATE: baseDate,
-        DATA: {
+    const candidateEndpoints = [
+      '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLot',
+      '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLocation',
+      '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusLocation',
+      '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus'
+    ];
+
+    const payloadData = {
+      BASE_DATE: baseDate,
+      WH_CD: '',
+      PROD_CD: '',
+      ZERO_INCL_YN: 'Y',
+      USE_DECIMAL_YN: 'Y',
+      DECIMAL_PRECISION: '4',
+      UNIT_TYPE: '1'
+    };
+
+    for (const ep of candidateEndpoints) {
+      try {
+        const epUrl = `${targetHost}${ep}?SESSION_ID=${sessionId}`;
+        const resData = await fetchWithEgressProxy(epUrl, {
+          SESSION_ID: sessionId,
+          COM_CODE: comCode,
           BASE_DATE: baseDate,
-          WH_CD: '',
-          PROD_CD: '',
-          ZERO_INCL_YN: 'Y',
-          USE_DECIMAL_YN: 'Y'
-        },
-      }, { 'X-Ecount-Zone': zone });
+          DATA: payloadData,
+        }, { 'X-Ecount-Zone': zone });
 
-      const locList = locData.Data?.Result || locData.Data?.List || locData.Data || [];
-      if (Array.isArray(locList) && locList.length > 0) {
-        rawList = locList;
+        const list = resData.Data?.Result || resData.Data?.List || resData.Data || [];
+        if (Array.isArray(list) && list.length > 0) {
+          rawList = list;
+          usedEndpoint = ep;
+          console.log(`[Ecount Sync] Successfully fetched ${list.length} rows using endpoint: ${ep}`);
+          break;
+        }
+      } catch (e) {
+        console.warn(`[Ecount Sync] Endpoint ${ep} failed:`, e);
       }
-    } catch (e) {
-      console.warn('[Ecount Sync Vercel] Location API fallback:', e);
     }
 
-    if (rawList.length === 0) {
-      const invData = await fetchWithEgressProxy(defaultInvUrl, {
-        SESSION_ID: sessionId,
-        COM_CODE: comCode,
-        BASE_DATE: baseDate,
-        DATA: {
-          BASE_DATE: baseDate,
-          WH_CD: '',
-          PROD_CD: '',
-          ZERO_INCL_YN: 'Y',
-          USE_DECIMAL_YN: 'Y'
-        },
-      }, { 'X-Ecount-Zone': zone });
-
-      rawList = invData.Data?.Result || invData.Data?.List || invData.Data || [];
-    }
-
-    if (!Array.isArray(rawList)) {
+    if (!Array.isArray(rawList) || rawList.length === 0) {
       return NextResponse.json(
-        { success: false, error: '이카운트에서 올바른 재고 목록 데이터를 받지 못했습니다.' },
+        { success: false, error: '이카운트 정밀 재고 API에서 목록 데이터를 수집하지 못했습니다.' },
         { status: 500 }
       );
     }
@@ -215,7 +214,8 @@ export async function POST() {
       message: `이카운트 품목/재고 ${masterRows.length}건이 성공적으로 마스터 DB(ecount_items)에 동기화되었습니다.`,
       count: masterRows.length,
       synced_at: new Date().toISOString(),
-      is_fixie_active: isFixieActive
+      is_fixie_active: isFixieActive,
+      used_endpoint: usedEndpoint
     });
 
   } catch (error: any) {
