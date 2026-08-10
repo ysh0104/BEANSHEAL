@@ -10,11 +10,16 @@ import qcTemplateConfig from '@/config/qcTemplateMap.json';
 function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>): Buffer {
   const result = Buffer.from(buffer);
 
-  // 1. Zlib 인플레이트 가능 오프셋 탐색 (한글 HWP 5.0 OLE CFBF 섹션)
+  // 1. Zlib 인플레이트 가능 오프셋 감지 (zlib 헤더 + 헤더 없는 Raw deflate 오프셋 전수 감지)
   const magicOffsets: number[] = [];
   for (let i = 0; i < result.length - 2; i++) {
     if (result[i] === 0x78 && (result[i+1] === 0x9c || result[i+1] === 0x01 || result[i+1] === 0xda)) {
       magicOffsets.push(i);
+    }
+  }
+  for (let offset = 512; offset < result.length; offset += 128) {
+    if (!magicOffsets.includes(offset)) {
+      magicOffsets.push(offset);
     }
   }
 
@@ -36,7 +41,7 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
 
       if (!inflated || inflated.length < 20) continue;
 
-      const inflatedBuf = Buffer.from(inflated);
+      let inflatedBuf = Buffer.from(inflated);
       let modified = false;
 
       for (const [key, val] of Object.entries(renderData)) {
@@ -48,20 +53,22 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
           let sIdx = 0;
 
           while ((sIdx = inflatedBuf.indexOf(pBuf, sIdx)) !== -1) {
-            let vBuf = Buffer.from(valStr, 'utf16le');
+            const vBuf = Buffer.from(valStr, 'utf16le');
 
-            // 🌟 HWP OLE CFBF 파일 구조 무손상 보장: 원본 치환자 바이트 길이(pBuf.length) 100% 엄격 고정 유지!
-            if (vBuf.length > pBuf.length) {
-              vBuf = vBuf.subarray(0, pBuf.length);
+            // 자름 없이 품목 풀네임(가르시니아65% 등) 100% 통째로 보존 삽입
+            if (vBuf.length <= pBuf.length) {
+              const diff = pBuf.length - vBuf.length;
+              const padSpaces = ' '.repeat(Math.floor(diff / 2));
+              const padBuf = Buffer.from(padSpaces, 'utf16le');
+              const replacement = Buffer.concat([vBuf, padBuf]);
+              replacement.subarray(0, pBuf.length).copy(inflatedBuf, sIdx);
+            } else {
+              const before = inflatedBuf.subarray(0, sIdx);
+              const after = inflatedBuf.subarray(sIdx + pBuf.length);
+              inflatedBuf = Buffer.concat([before, vBuf, after]);
             }
 
-            const diff = pBuf.length - vBuf.length;
-            const padSpaces = ' '.repeat(Math.floor(diff / 2));
-            const padBuf = Buffer.from(padSpaces, 'utf16le');
-            const replacement = Buffer.concat([vBuf, padBuf]);
-
-            replacement.subarray(0, pBuf.length).copy(inflatedBuf, sIdx);
-            sIdx += pBuf.length;
+            sIdx += vBuf.length;
             modified = true;
           }
         }
@@ -69,6 +76,7 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
 
       if (modified) {
         const deflated = isRaw ? zlib.deflateRawSync(inflatedBuf) : zlib.deflateSync(inflatedBuf);
+        // OLE CFBF 섹터 주소 오버라이트 방지: 압축 후 스트림 바이트가 원래 할당 슬라이스 크기 이내일 때만 안전 복사
         if (deflated.length <= slice.length) {
           deflated.copy(result, offset);
         }
@@ -76,7 +84,7 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
     } catch (e) {}
   }
 
-  // 2. 비압축 영역 내 치환 (엄격한 바이트 길이 유지)
+  // 2. 비압축 헤더 영역 내 치환
   for (const [key, val] of Object.entries(renderData)) {
     const valStr = String(val ?? '');
     const patterns = [`{{${key}}}`, `{${key}}`];
@@ -85,14 +93,15 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
       const pBuf = Buffer.from(p, 'utf16le');
       let searchIdx = 0;
       while ((searchIdx = result.indexOf(pBuf, searchIdx)) !== -1) {
-        let vBuf = Buffer.from(valStr, 'utf16le');
-        if (vBuf.length > pBuf.length) {
-          vBuf = vBuf.subarray(0, pBuf.length);
+        const vBuf = Buffer.from(valStr, 'utf16le');
+        if (vBuf.length <= pBuf.length) {
+          const diff = pBuf.length - vBuf.length;
+          const padBuf = Buffer.from(' '.repeat(Math.floor(diff / 2)), 'utf16le');
+          const replacement = Buffer.concat([vBuf, padBuf]);
+          replacement.subarray(0, pBuf.length).copy(result, searchIdx);
+        } else {
+          vBuf.subarray(0, pBuf.length).copy(result, searchIdx);
         }
-        const diff = pBuf.length - vBuf.length;
-        const padBuf = Buffer.from(' '.repeat(Math.floor(diff / 2)), 'utf16le');
-        const replacement = Buffer.concat([vBuf, padBuf]);
-        replacement.subarray(0, pBuf.length).copy(result, searchIdx);
         searchIdx += pBuf.length;
       }
     }
