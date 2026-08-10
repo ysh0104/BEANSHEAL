@@ -122,12 +122,20 @@ export default function InventoryPage() {
     try {
       const res = await syncEcountMasterToDb();
       if (res.success) {
+        setRawLogModalData({
+          title: "이카운트 API 수신 원본 JSON 필드 검증 로그",
+          usedEndpoint: res.usedEndpoint,
+          rawResponse: res.rawSample || res,
+          parsedSample: res.parsedSample,
+          count: res.count,
+          error: `성공적으로 ${res.count}건 동기화되었습니다. 아래 원본 JSON을 통해 이카운트 서버의 PROD_CD / PROD_DES 값을 확인하십시오.`
+        });
         alert(res.message);
         fetchInventory();
       } else {
         setRawLogModalData({
-          title: "이카운트 API 수신 원본 JSON 로그 (고객센터 전달용)",
-          error: res.error,
+          title: "이카운트 API 수신 원본 JSON 로그",
+          error: res.error || "동기화 실패",
           rawResponse: res.rawResponse || res,
           proxyBaseUrl: (res as any).proxyBaseUrl || "https://oapiac.ecount.com",
         });
@@ -343,9 +351,9 @@ export default function InventoryPage() {
             <button
               onClick={handleSyncMaster}
               disabled={syncingMaster}
-              className="text-sm text-gray-700 bg-white border border-gray-300 px-4 py-1.5 hover:bg-gray-50 cursor-pointer disabled:opacity-50"
+              className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-1.5 hover:bg-blue-100 cursor-pointer disabled:opacity-50 shadow-2xs"
             >
-              {syncingMaster ? "동기화중..." : "이카운트 동기화"}
+              {syncingMaster ? "동기화중..." : "이카운트 동기화 & 원본JSON 수신검증"}
             </button>
 
             <button

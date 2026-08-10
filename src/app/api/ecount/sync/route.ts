@@ -209,8 +209,13 @@ export async function POST() {
 
     const supabase = getSupabaseClient();
     
-    // 🌟 이카운트 API 동기화는 오직 ecount_items (마스터 재고)만 갱신합니다.
-    // (품질서류 및 로트 관리용 ecount_inventory 테이블은 절대로 수정하거나 건드리지 않습니다.)
+    // 🌟 1. 기존 마스터 재고 테이블(ecount_items)의 구형/중복 데이터 완전히 삭제 (상기 품목코드 중복 잔재 원천 제거)
+    const { error: delErr } = await supabase.from('ecount_items').delete().neq('prod_cd', '___IMPOSSIBLE_CD___');
+    if (delErr) {
+      console.warn('[ecount_items clear warning]:', delErr.message);
+    }
+
+    // 🌟 2. 신규 동기화 데이터 업서트
     const { error: masterErr } = await supabase
       .from('ecount_items')
       .upsert(masterRows, { onConflict: 'prod_cd' });
@@ -223,9 +228,11 @@ export async function POST() {
       success: true,
       message: `이카운트 품목/재고 ${masterRows.length}건이 성공적으로 마스터 DB(ecount_items)에 동기화되었습니다.`,
       count: masterRows.length,
+      usedEndpoint,
+      rawSample: rawList.slice(0, 10), // 이카운트 API 원본 데이터 첫 10건 반환 (검증용)
+      parsedSample: masterRows.slice(0, 10),
       synced_at: new Date().toISOString(),
-      is_fixie_active: isFixieActive,
-      used_endpoint: usedEndpoint
+      is_fixie_active: isFixieActive
     });
 
   } catch (error: any) {
