@@ -101,16 +101,17 @@ export async function POST() {
       );
     }
 
-    // 3. 재고 현황 정밀 조회 (위치/창고별 정밀 API 시도 ➔ 기본 API 폴백)
+    // 3. 재고 현황 정밀 조회 (/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusLocation 우선, 실패 시 GetListInventoryBalanceStatus)
     const today = new Date();
     const kstTime = new Date(today.getTime() + 9 * 60 * 60 * 1000);
     const baseDate = `${kstTime.getUTCFullYear()}${String(kstTime.getUTCMonth() + 1).padStart(2, '0')}${String(kstTime.getUTCDate()).padStart(2, '0')}`;
 
     let rawList: any[] = [];
-    const locationUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLocation?SESSION_ID=${sessionId}`;
-    
+    const locationInvUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusLocation?SESSION_ID=${sessionId}`;
+    const defaultInvUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${sessionId}`;
+
     try {
-      const locRes = await fetchWithEgressProxy(locationUrl, {
+      const locData = await fetchWithEgressProxy(locationInvUrl, {
         SESSION_ID: sessionId,
         COM_CODE: comCode,
         BASE_DATE: baseDate,
@@ -118,48 +119,21 @@ export async function POST() {
           BASE_DATE: baseDate,
           WH_CD: '',
           PROD_CD: '',
-          // 소수점 수량 데이터를 원본 그대로 응답받기 위한 파라미터 추가
-          // (이카운트 API 버전에 따라 정확한 명칭이 다를 수 있으나, 일반적으로 아래와 같은 파라미터를 사용합니다)
-          INC_DECIMAL: 'Y', 
-          DEC_YN: 'Y'
+          ZERO_INCL_YN: 'Y',
+          USE_DECIMAL_YN: 'Y'
         },
       }, { 'X-Ecount-Zone': zone });
 
-      const locList = locRes.Data?.Result || locRes.Data?.List || locRes.Data || [];
+      const locList = locData.Data?.Result || locData.Data?.List || locData.Data || [];
       if (Array.isArray(locList) && locList.length > 0) {
-        // 창고별 정밀 재고 데이터를 품목코드(PROD_CD) 단위로 정밀 합산
-        const aggregatedMap = new Map<string, { prodCd: string; prodNm: string; totalQty: number }>();
-        
-        locList.forEach((item: any) => {
-          const prodCd = String(item.PROD_CD || item.item_code || '').trim();
-          if (!prodCd) return;
-          const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
-          const rawQtyVal = item.CS_QTY ?? item.BAL_QTY_DEC ?? item.DEC_QTY ?? item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? '0';
-          const qtyNum = Number(String(rawQtyVal).replace(/,/g, '').trim());
-          const safeQty = isNaN(qtyNum) ? 0 : qtyNum;
-
-          if (!aggregatedMap.has(prodCd)) {
-            aggregatedMap.set(prodCd, { prodCd, prodNm, totalQty: safeQty });
-          } else {
-            const existing = aggregatedMap.get(prodCd)!;
-            existing.totalQty = Math.round((existing.totalQty + safeQty) * 10000) / 10000;
-          }
-        });
-
-        rawList = Array.from(aggregatedMap.values()).map(row => ({
-          PROD_CD: row.prodCd,
-          PROD_DES: row.prodNm,
-          BAL_QTY: row.totalQty
-        }));
+        rawList = locList;
       }
-    } catch (locErr) {
-      console.warn('[Ecount Sync] Location balance API warning, falling back to standard API:', locErr);
+    } catch (e) {
+      console.warn('[Ecount Sync Vercel] Location API fallback:', e);
     }
 
-    // 창고별 정밀 API 미지원 시 기본 재고 현황 API 폴백
     if (rawList.length === 0) {
-      const invUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${sessionId}`;
-      const invData = await fetchWithEgressProxy(invUrl, {
+      const invData = await fetchWithEgressProxy(defaultInvUrl, {
         SESSION_ID: sessionId,
         COM_CODE: comCode,
         BASE_DATE: baseDate,
@@ -167,9 +141,8 @@ export async function POST() {
           BASE_DATE: baseDate,
           WH_CD: '',
           PROD_CD: '',
-          // 기본 API 호출 시에도 소수점 데이터를 받기 위한 파라미터 추가
-          INC_DECIMAL: 'Y', 
-          DEC_YN: 'Y'
+          ZERO_INCL_YN: 'Y',
+          USE_DECIMAL_YN: 'Y'
         },
       }, { 'X-Ecount-Zone': zone });
 
@@ -183,23 +156,39 @@ export async function POST() {
       );
     }
 
-    // 4. Supabase ecount_items 및 ecount_inventory 병렬(Parallel) Upsert 수행
-    const masterRows = rawList
-      .map((item: any) => {
-        const prodCd = String(item.PROD_CD || item.item_code || '').trim();
-        const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
-        const rawQtyVal = item.CS_QTY ?? item.BAL_QTY_DEC ?? item.DEC_QTY ?? item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? '0';
-        const rawQtyStr = String(rawQtyVal).replace(/,/g, '').trim();
-        const qty = Number(rawQtyStr);
+    // 4. 품목별 정밀 소수점 재고 합산 (Grouping & Summing with exact float precision)
+    const productQtyMap = new Map<string, { prodNm: string; totalQty: number }>();
 
-        return {
-          prod_cd: prodCd,
-          prod_nm: prodNm,
-          total_qty: isNaN(qty) ? 0 : qty,
-          last_synced_at: new Date().toISOString(),
-        };
-      })
-      .filter((row) => !!row.prod_cd);
+    for (const item of rawList) {
+      const prodCd = String(item.PROD_CD || item.item_code || '').trim();
+      if (!prodCd) continue;
+
+      const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
+      const rawQtyVal = item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? '0';
+      const rawQtyStr = String(rawQtyVal).replace(/,/g, '').trim();
+      const qty = Number(rawQtyStr);
+      const safeQty = isNaN(qty) ? 0 : qty;
+
+      if (productQtyMap.has(prodCd)) {
+        const prev = productQtyMap.get(prodCd)!;
+        productQtyMap.set(prodCd, {
+          prodNm: prev.prodNm || prodNm,
+          totalQty: Number((prev.totalQty + safeQty).toFixed(4))
+        });
+      } else {
+        productQtyMap.set(prodCd, {
+          prodNm,
+          totalQty: safeQty
+        });
+      }
+    }
+
+    const masterRows = Array.from(productQtyMap.entries()).map(([prodCd, info]) => ({
+      prod_cd: prodCd,
+      prod_nm: info.prodNm,
+      total_qty: info.totalQty,
+      last_synced_at: new Date().toISOString(),
+    }));
 
     if (masterRows.length === 0) {
       return NextResponse.json({
