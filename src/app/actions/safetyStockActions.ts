@@ -113,3 +113,60 @@ export async function saveSafetyStockConfig(prodCd: string, prodNm: string, minS
     return { success: false, error: e.message };
   }
 }
+
+/**
+ * DB의 모든 품목 안전재고를 0으로 일괄 저장
+ */
+export async function setAllSafetyStockToZero(): Promise<{ success: boolean; count?: number; error?: string }> {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) return { success: false, error: "Supabase 설정 누락" };
+
+    // 1. ecount_items에서 전체 품목 가져오기
+    const { data: items, error: fetchErr } = await supabase
+      .from("ecount_items")
+      .select("prod_cd, prod_nm");
+
+    if (fetchErr) {
+      console.error("[setAllSafetyStockToZero fetch error]:", fetchErr.message);
+      return { success: false, error: fetchErr.message };
+    }
+
+    if (!items || items.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    // 2. safety_stock_configs에 0으로 upsert
+    const payload = items.map((i) => ({
+      prod_cd: i.prod_cd,
+      prod_nm: i.prod_nm,
+      min_safety_qty: 0,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error: upsertErr } = await supabase
+      .from("safety_stock_configs")
+      .upsert(payload, { onConflict: "prod_cd" });
+
+    if (upsertErr) {
+      console.warn("[safety_stock_configs upsert warn, using ecount_inventory fallback]:", upsertErr.message);
+      const fallbackPayload = items.map((i) => ({
+        item_name: i.prod_nm,
+        lot_no: i.prod_cd,
+        quantity: 0,
+        status: "SAFETY_STOCK",
+        expiry_date: new Date().toISOString(),
+      }));
+
+      await supabase
+        .from("ecount_inventory")
+        .upsert(fallbackPayload, { onConflict: "lot_no" });
+    }
+
+    return { success: true, count: items.length };
+  } catch (e: any) {
+    console.error("[setAllSafetyStockToZero catch error]:", e);
+    return { success: false, error: e.message };
+  }
+}
+

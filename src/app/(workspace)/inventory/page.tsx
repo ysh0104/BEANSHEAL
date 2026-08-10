@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { saveProductionInboundToEcount, syncEcountMasterToDb } from "@/app/actions/ecount";
-import { getSafetyStockConfigs, saveSafetyStockConfig } from "@/app/actions/safetyStockActions";
+import { getSafetyStockConfigs, saveSafetyStockConfig, setAllSafetyStockToZero } from "@/app/actions/safetyStockActions";
 import { getDefaultSafetyQty, checkIsLowStock } from "@/lib/safetyStockHelper";
 import { saveItemMasterMapping } from "@/app/actions/itemMasterActions";
 import EcountExcelUploadModal from "@/components/EcountExcelUploadModal";
@@ -63,6 +63,28 @@ export default function InventoryPage() {
       alert(`[${prodNm}] 안전재고 기준 수량이 ${num} (으)로 클라우드 DB에 성공적으로 영구 저장되었습니다.`);
     } else {
       alert(`[안내] 브라우저 로컬 캐시에 안전재고 기준이 보존되었습니다.`);
+    }
+  };
+
+  const handleResetAllSafetyStockToZero = async () => {
+    if (!confirm("모든 품목의 안전재고 기준을 0으로 일괄 저장하시겠습니까?")) return;
+    setLoadingInv(true);
+    try {
+      const res = await setAllSafetyStockToZero();
+      if (res.success) {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("beansheal_safety_configs");
+        }
+        setSafetyConfigs({});
+        alert(`총 ${res.count || 0}개 품목의 안전재고 기준이 성공적으로 0으로 일괄 변경되었습니다!`);
+        fetchInventory();
+      } else {
+        alert(`일괄 변경 실패: ${res.error}`);
+      }
+    } catch (e: any) {
+      alert(`오류 발생: ${e.message}`);
+    } finally {
+      setLoadingInv(false);
     }
   };
 
@@ -391,6 +413,15 @@ export default function InventoryPage() {
               className="text-sm font-semibold text-white bg-blue-600 border border-blue-700 px-4 py-1.5 hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
             >
               생산입고 전표
+            </button>
+
+            <button
+              onClick={handleResetAllSafetyStockToZero}
+              disabled={loadingInv}
+              className="text-sm font-bold text-amber-800 bg-amber-50 border border-amber-300 px-4 py-1.5 hover:bg-amber-100 cursor-pointer shadow-2xs"
+              title="모든 품목의 안전재고 기준 수량을 0으로 일괄 저장합니다"
+            >
+              안전재고 전체 0 설정
             </button>
             
             <span className="text-sm text-gray-800 font-mono sm:ml-2 w-full sm:w-auto">{currentDate}</span>
