@@ -17,42 +17,43 @@ export interface SafetyStockConfig {
 }
 
 /**
- * 기본 안전재고 임계값 (설정되지 않은 품목 기본값)
- * 원료 계열: 50 kg / 부자재 계열: 100 EA / 기본: 30
- */
-export async function getDefaultSafetyQty(prodNm: string): Promise<number> {
-  if (!prodNm) return 30;
-  if (prodNm.startsWith("원)") || prodNm.includes("농축액") || prodNm.includes("추출물") || prodNm.includes("분말") || prodNm.includes("원두")) {
-    return 50;
-  }
-  if (prodNm.startsWith("부)") || prodNm.includes("포장") || prodNm.includes("스틱") || prodNm.includes("박스") || prodNm.includes("파우치")) {
-    return 100;
-  }
-  return 30;
-}
-
-/**
- * Supabase에서 안전재고 설정 조회
+ * Supabase에서 안전재고 설정 전체 조회 (1차: safety_stock_configs, 2차 폴백: ecount_inventory status='SAFETY_STOCK')
  */
 export async function getSafetyStockConfigs(): Promise<{ success: boolean; data?: Record<string, number>; error?: string }> {
   try {
     const supabase = getSupabase();
     if (!supabase) return { success: true, data: {} };
 
-    const { data, error } = await supabase
+    // 1차: safety_stock_configs 시도
+    const { data: primaryData, error: primaryErr } = await supabase
       .from("safety_stock_configs")
       .select("prod_cd, min_safety_qty");
 
-    if (error || !data) {
-      return { success: true, data: {} };
+    if (!primaryErr && primaryData && primaryData.length > 0) {
+      const map: Record<string, number> = {};
+      primaryData.forEach((row) => {
+        map[row.prod_cd] = row.min_safety_qty;
+      });
+      return { success: true, data: map };
     }
 
-    const map: Record<string, number> = {};
-    data.forEach((row) => {
-      map[row.prod_cd] = row.min_safety_qty;
-    });
+    // 2차 폴백: ecount_inventory 내 SAFETY_STOCK status 조회
+    const { data: fallbackData, error: fallbackErr } = await supabase
+      .from("ecount_inventory")
+      .select("lot_no, quantity")
+      .eq("status", "SAFETY_STOCK");
 
-    return { success: true, data: map };
+    if (!fallbackErr && fallbackData && fallbackData.length > 0) {
+      const map: Record<string, number> = {};
+      fallbackData.forEach((row) => {
+        if (row.lot_no) {
+          map[row.lot_no] = Number(row.quantity || 0);
+        }
+      });
+      return { success: true, data: map };
+    }
+
+    return { success: true, data: {} };
   } catch (e: any) {
     console.error("[getSafetyStockConfigs error]:", e);
     return { success: true, data: {} };
@@ -60,14 +61,15 @@ export async function getSafetyStockConfigs(): Promise<{ success: boolean; data?
 }
 
 /**
- * Supabase에 특정 품목 안전재고 설정 저장
+ * Supabase에 특정 품목 안전재고 설정 영구 저장 (1차: safety_stock_configs, 2차 폴백: ecount_inventory status='SAFETY_STOCK')
  */
 export async function saveSafetyStockConfig(prodCd: string, prodNm: string, minSafetyQty: number): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = getSupabase();
     if (!supabase) return { success: true };
 
-    const { error } = await supabase
+    // 1차: safety_stock_configs 테이블에 저장 시도
+    const { error: upsertErr } = await supabase
       .from("safety_stock_configs")
       .upsert({
         prod_cd: prodCd,
@@ -76,8 +78,33 @@ export async function saveSafetyStockConfig(prodCd: string, prodNm: string, minS
         updated_at: new Date().toISOString(),
       }, { onConflict: "prod_cd" });
 
-    if (error) {
-      console.warn("[saveSafetyStockConfig error]:", error.message);
+    if (!upsertErr) {
+      return { success: true };
+    }
+
+    console.warn("[safety_stock_configs table missing or error, using ecount_inventory fallback]:", upsertErr.message);
+
+    // 2차 폴백: ecount_inventory 테이블에 SAFETY_STOCK 전표 항목으로 보존
+    const { error: invErr } = await supabase
+      .from("ecount_inventory")
+      .upsert({
+        item_name: prodNm,
+        lot_no: prodCd,
+        quantity: minSafetyQty,
+        status: "SAFETY_STOCK",
+        expiry_date: new Date().toISOString(),
+      }, { onConflict: "lot_no" });
+
+    if (invErr) {
+      // onConflict 키 제약이 없으면 기존 항목 삭제 후 재입력
+      await supabase.from("ecount_inventory").delete().eq("status", "SAFETY_STOCK").eq("lot_no", prodCd);
+      await supabase.from("ecount_inventory").insert({
+        item_name: prodNm,
+        lot_no: prodCd,
+        quantity: minSafetyQty,
+        status: "SAFETY_STOCK",
+        expiry_date: new Date().toISOString(),
+      });
     }
 
     return { success: true };

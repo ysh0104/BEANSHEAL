@@ -75,8 +75,15 @@ export default function InventoryPage() {
     }
     const nextConfigs = { ...safetyConfigs, [prodCd]: num };
     setSafetyConfigs(nextConfigs);
-    localStorage.setItem("beansheal_safety_configs", JSON.stringify(nextConfigs));
-    await saveSafetyStockConfig(prodCd, prodNm, num);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("beansheal_safety_configs", JSON.stringify(nextConfigs));
+    }
+    const res = await saveSafetyStockConfig(prodCd, prodNm, num);
+    if (res.success) {
+      alert(`[${prodNm}] 안전재고 기준 수량이 ${num} (으)로 클라우드 DB에 성공적으로 영구 저장되었습니다.`);
+    } else {
+      alert(`[안내] 브라우저 로컬 캐시에 안전재고 기준이 보존되었습니다.`);
+    }
   };
 
   // 생산입고 전표 입력
