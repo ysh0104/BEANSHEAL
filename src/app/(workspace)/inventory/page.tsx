@@ -30,6 +30,28 @@ function formatQty(value: number | string) {
   return `${intPart}.${decimalPart}`;
 }
 
+/** 품목코드와 품목명이 동일하거나 명칭인 경우 깔끔하고 구분되는 품목코드 반환 */
+function getDisplayProdCd(prodCd: string, prodNm: string, idx: number): string {
+  const cd = String(prodCd || "").trim();
+  const nm = String(prodNm || "").trim();
+
+  if (cd && cd !== nm && !cd.startsWith("[")) {
+    return cd;
+  }
+
+  let categoryPrefix = "P";
+  if (nm.startsWith("원)") || nm.includes("원두") || nm.includes("분말") || nm.includes("농축액") || nm.includes("추출물")) {
+    categoryPrefix = "RAW";
+  } else if (nm.startsWith("부)") || nm.includes("포장") || nm.includes("스틱") || nm.includes("박스") || nm.includes("파우치")) {
+    categoryPrefix = "MAT";
+  } else if (nm.startsWith("완)") || nm.includes("세트")) {
+    categoryPrefix = "PROD";
+  }
+
+  const codeNum = String(idx + 1).padStart(3, "0");
+  return `${categoryPrefix}-${codeNum}`;
+}
+
 export default function InventoryPage() {
   const { canEdit } = useCanEdit("inventory");
   const [inventory, setInventory] = useState<any[]>([]);
@@ -394,7 +416,7 @@ export default function InventoryPage() {
                       className="cursor-pointer hover:underline hover:text-blue-600 flex items-center justify-center gap-1.5"
                       title="클릭하여 생산입고 전표 입력"
                     >
-                      {item.prodCd}
+                      {getDisplayProdCd(item.prodCd, item.prodNm, idx)}
                       <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1 py-0.5 rounded border border-emerald-200 font-bold tracking-tight scale-90">입고</span>
                     </span>
                   </td>

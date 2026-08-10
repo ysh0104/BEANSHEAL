@@ -159,10 +159,20 @@ export async function POST() {
     const productQtyMap = new Map<string, { prodNm: string; totalQty: number }>();
 
     for (const item of rawList) {
-      const prodCd = String(item.PROD_CD || item.item_code || '').trim();
-      if (!prodCd) continue;
+      // 1. 품목코드 및 품목명 다중 필드 바인딩 (이카운트 API 규격별 호환성 극대화)
+      const rawCd = String(item.PROD_CD || item.PROD_NO || item.CODE || item.ITEM_CD || item.item_code || '').trim();
+      let rawNm = String(item.PROD_DES || item.PROD_NM || item.PROD_NAME || item.ITEM_DES || item.item_name || '').trim();
+      const sizeDes = String(item.SIZE_DES || item.SIZE || '').trim();
 
-      const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
+      if (sizeDes && !rawNm.includes(sizeDes)) {
+        rawNm = `${rawNm} [${sizeDes}]`;
+      }
+
+      if (!rawCd && !rawNm) continue;
+
+      const prodCd = rawCd || rawNm;
+      const prodNm = rawNm || rawCd;
+
       const rawQtyVal = item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? '0';
       const rawQtyStr = String(rawQtyVal).replace(/,/g, '').trim();
       const qty = Number(rawQtyStr);
