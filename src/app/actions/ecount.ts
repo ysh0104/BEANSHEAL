@@ -163,22 +163,16 @@ export async function getRecentPurchases(sessionObj: any) {
     };
 
     const requestUrl = await ecountApiUrl(`/OAPI/V2/Purchases/GetListPurchases?SESSION_ID=${actualSessionId}`);
-    const headers = await ecountFetchHeaders();
-
-    const response = await fetch(requestUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        SESSION_ID: actualSessionId, 
-        COM_CODE: COM_CODE,
-        DATA: {
-          FROM_DATE: formatDate(oneMonthAgo), 
-          TO_DATE: formatDate(today),      
-        }
-      }),
+    const ecountRes = await ecountPost(requestUrl, {
+      SESSION_ID: actualSessionId, 
+      COM_CODE: COM_CODE,
+      DATA: {
+        FROM_DATE: formatDate(oneMonthAgo), 
+        TO_DATE: formatDate(today),      
+      }
     });
 
-    const textData = await response.text();
+    const textData = ecountRes.text || "";
 
     // ===================================================================
     // 원본 데이터를 무조건 터미널에 강제로 출력하는 디버깅 코드입니다.
@@ -290,21 +284,15 @@ export async function getListProductDetailed(sessionObj: any): Promise<{ data: a
     const actualSessionId = sessionObj?.Datas?.SESSION_ID || sessionObj?.SESSION_ID;
 
     const requestUrl = await ecountApiUrl(`/OAPI/V2/InventoryBasic/GetBasicProductsList?SESSION_ID=${actualSessionId}`);
-    const headers = await ecountFetchHeaders();
-
-    const response = await fetch(requestUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        SESSION_ID: actualSessionId,
-        COM_CODE: COM_CODE,
-        DATA: {
-          PROD_CD: "",
-        } 
-      })
+    const ecountRes = await ecountPost(requestUrl, {
+      SESSION_ID: actualSessionId,
+      COM_CODE: COM_CODE,
+      DATA: {
+        PROD_CD: "",
+      } 
     });
 
-    const textData = await response.text();
+    const textData = ecountRes.text || "";
 
     if (textData.includes("시간당 연속 오류") || textData.includes("QUANTITY_INFO")) {
       return {
@@ -313,13 +301,15 @@ export async function getListProductDetailed(sessionObj: any): Promise<{ data: a
       };
     }
 
-    let result: any = {};
-    try {
-      const cleanText = textData.replace(/^\uFEFF/, "").trim();
-      result = JSON.parse(cleanText);
-    } catch (e) {
-      console.error("JSON 파싱 에러:", textData.substring(0, 200));
-      return { data: [], error: `응답 파싱 실패: ${textData.substring(0, 100)}` };
+    let result: any = ecountRes.data || {};
+    if (!ecountRes.data && textData) {
+      try {
+        const cleanText = textData.replace(/^\uFEFF/, "").trim();
+        result = JSON.parse(cleanText);
+      } catch (e) {
+        console.error("JSON 파싱 에러:", textData.substring(0, 200));
+        return { data: [], error: `응답 파싱 실패: ${textData.substring(0, 100)}` };
+      }
     }
 
     if (result?.Data?.QUANTITY_INFO && String(result.Data.QUANTITY_INFO).includes("연속 오류")) {
@@ -365,24 +355,18 @@ export async function getInventoryStatusDetailed(sessionObj: any): Promise<{ dat
     const baseDateString = `${y}${m}${d}`; 
 
     const requestUrl = await ecountApiUrl(`/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${actualSessionId}`);
-    const headers = await ecountFetchHeaders();
-
-    const response = await fetch(requestUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        SESSION_ID: actualSessionId,
-        COM_CODE: COM_CODE,
-        BASE_DATE: baseDateString, 
-        DATA: {
-          BASE_DATE: baseDateString,
-          WH_CD: "",   
-          PROD_CD: ""  
-        }
-      }),
+    const ecountRes = await ecountPost(requestUrl, {
+      SESSION_ID: actualSessionId,
+      COM_CODE: COM_CODE,
+      BASE_DATE: baseDateString, 
+      DATA: {
+        BASE_DATE: baseDateString,
+        WH_CD: "",   
+        PROD_CD: ""  
+      }
     });
 
-    const textData = await response.text(); 
+    const textData = ecountRes.text || ""; 
 
     if (textData.includes("시간당 연속 오류") || textData.includes("QUANTITY_INFO")) {
       return {
@@ -391,13 +375,15 @@ export async function getInventoryStatusDetailed(sessionObj: any): Promise<{ dat
       };
     }
 
-    let result: any = {};
-    try {
-      const cleanText = textData.replace(/^\uFEFF/, "").trim();
-      result = JSON.parse(cleanText);
-    } catch (e) {
-      console.error("이카운트 응답 파싱 에러:", textData.substring(0, 500));
-      return { data: [], error: `재고응답 파싱 실패: ${textData.substring(0, 100)}` };
+    let result: any = ecountRes.data || {};
+    if (!ecountRes.data && textData) {
+      try {
+        const cleanText = textData.replace(/^\uFEFF/, "").trim();
+        result = JSON.parse(cleanText);
+      } catch (e) {
+        console.error("이카운트 응답 파싱 에러:", textData.substring(0, 500));
+        return { data: [], error: `재고응답 파싱 실패: ${textData.substring(0, 100)}` };
+      }
     }
 
     if (result?.Data?.QUANTITY_INFO && String(result.Data.QUANTITY_INFO).includes("연속 오류")) {
@@ -483,23 +469,18 @@ export async function debugEcountAPI() {
 
     // 확실하게 열려있는 '재고 현황 조회' API 호출
     const requestUrl = await ecountApiUrl(`/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${actualSessionId}`);
-    const headers = await ecountFetchHeaders();
-    const response = await fetch(requestUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        SESSION_ID: actualSessionId,
-        COM_CODE: COM_CODE,
+    const ecountRes = await ecountPost(requestUrl, {
+      SESSION_ID: actualSessionId,
+      COM_CODE: COM_CODE,
+      BASE_DATE: baseDateString,
+      DATA: {
         BASE_DATE: baseDateString,
-        DATA: {
-          BASE_DATE: baseDateString,
-          WH_CD: "",   
-          PROD_CD: ""  
-        }
-      }),
+        WH_CD: "",   
+        PROD_CD: ""  
+      }
     });
 
-    return await response.text();
+    return ecountRes.text || JSON.stringify(ecountRes.data);
   } catch (e: any) {
     return "통신 중 에러 발생: " + e.message;
   }
@@ -538,7 +519,6 @@ export async function saveProductionInboundToEcount(productionData: EcountProduc
     const slipDate = `${y}${m}${d}`; // YYYYMMDD 포맷
 
     const requestUrl = await ecountApiUrl(`/OAPI/V2/GoodsReceipt/SaveGoodsReceipt?SESSION_ID=${actualSessionId}`);
-    const headers = await ecountFetchHeaders();
 
     const payload = {
       SESSION_ID: actualSessionId,
@@ -560,21 +540,18 @@ export async function saveProductionInboundToEcount(productionData: EcountProduc
     console.log("=== 이카운트 생산입고 전송 요청 데이터 ===");
     console.log(JSON.stringify(payload, null, 2));
 
-    const response = await fetch(requestUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload)
-    });
-
-    const textData = await response.text();
+    const ecountRes = await ecountPost(requestUrl, payload);
+    const textData = ecountRes.text || "";
     console.log("=== 이카운트 생산입고 응답 데이터 ===");
     console.log(textData);
 
-    let result;
-    try {
-      result = JSON.parse(textData);
-    } catch (parseError) {
-      return { success: false, error: "이카운트 응답 분석 실패: " + textData.substring(0, 200) };
+    let result: any = ecountRes.data || {};
+    if (!ecountRes.data && textData) {
+      try {
+        result = JSON.parse(textData);
+      } catch (parseError) {
+        return { success: false, error: "이카운트 응답 분석 실패: " + textData.substring(0, 200) };
+      }
     }
 
     if (result.Status !== "200" || result.Error || result.Errors || result.Data?.FailCnt > 0) {
@@ -622,7 +599,6 @@ export async function savePurchasesToEcount(lines: EcountPurchaseLine[], whCd = 
     const slipDate = `${kstTime.getUTCFullYear()}${String(kstTime.getUTCMonth() + 1).padStart(2, "0")}${String(kstTime.getUTCDate()).padStart(2, "0")}`;
 
     const requestUrl = await ecountApiUrl(`/OAPI/V2/Purchases/SavePurchases?SESSION_ID=${actualSessionId}`);
-    const headers = await ecountFetchHeaders();
 
     const PurchasesList = lines.map((line, index) => ({
       Line: String(index),
@@ -644,21 +620,18 @@ export async function savePurchasesToEcount(lines: EcountPurchaseLine[], whCd = 
     console.log("=== 이카운트 구매입고 전송 ===");
     console.log(JSON.stringify(payload, null, 2));
 
-    const response = await fetch(requestUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-    });
-
-    const textData = await response.text();
+    const ecountRes = await ecountPost(requestUrl, payload);
+    const textData = ecountRes.text || "";
     console.log("=== 이카운트 구매입고 응답 ===");
     console.log(textData);
 
-    let result;
-    try {
-      result = JSON.parse(textData);
-    } catch {
-      return { success: false, error: "이카운트 응답 분석 실패: " + textData.substring(0, 200) };
+    let result: any = ecountRes.data || {};
+    if (!ecountRes.data && textData) {
+      try {
+        result = JSON.parse(textData);
+      } catch {
+        return { success: false, error: "이카운트 응답 분석 실패: " + textData.substring(0, 200) };
+      }
     }
 
     if (result.Status !== "200" || result.Error || result.Errors || result.Data?.FailCnt > 0) {
