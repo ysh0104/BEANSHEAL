@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { memoPlainText } from "@/lib/memoHtml";
 import type { MemoTemplate } from "@/lib/memoPresets";
 
@@ -56,6 +56,7 @@ export default function MemoRichEditor({
   const editorRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const lastEmitted = useRef(value);
+  const [showToolbar, setShowToolbar] = useState(false);
 
   useEffect(() => {
     const el = editorRef.current;
@@ -245,140 +246,174 @@ export default function MemoRichEditor({
     <div
       className={`border border-gray-300 rounded bg-white overflow-hidden focus-within:ring-1 focus-within:ring-indigo-500 focus-within:border-indigo-400 ${className}`}
     >
-      <div className="flex flex-wrap items-center gap-0.5 px-1.5 py-1 border-b border-gray-200 bg-gray-50">
-        <ToolbarBtn title="굵게 (Ctrl+B)" onClick={() => run("bold")} className="font-extrabold">
-          B
-        </ToolbarBtn>
-        <ToolbarBtn title="기울임 (Ctrl+I)" onClick={() => run("italic")} className="italic font-bold">
-          I
-        </ToolbarBtn>
-        <ToolbarBtn title="밑줄 (Ctrl+U)" onClick={() => run("underline")} className="underline font-bold">
-          U
-        </ToolbarBtn>
-        <ToolbarBtn title="취소선" onClick={() => run("strikeThrough")} className="line-through font-bold">
-          S
-        </ToolbarBtn>
-        <span className="w-px h-4 bg-gray-300 mx-0.5" />
-        {FONT_SIZES.map((s) => (
-          <ToolbarBtn key={s.label} title={s.title} onClick={() => applyFontSize(s.value)}>
-            {s.label}
-          </ToolbarBtn>
-        ))}
-        <span className="w-px h-4 bg-gray-300 mx-0.5" />
-        {COLORS.map((c) => (
+      {/* 서식도구 툴바 토글 헤더 바 */}
+      <div className="flex items-center justify-between px-2 py-1 bg-slate-50 border-b border-gray-200 text-[11px]">
+        <div className="flex items-center gap-1">
           <button
-            key={c.value}
             type="button"
-            title={`글자 ${c.label}`}
+            title="이미지 첨부"
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => run("foreColor", c.value)}
-            className="w-4 h-4 rounded-sm border border-gray-300 hover:scale-110 transition-transform cursor-pointer"
-            style={{ backgroundColor: c.value }}
+            onClick={() => fileRef.current?.click()}
+            className="p-1 rounded hover:bg-gray-200 text-gray-600 transition-colors cursor-pointer"
+          >
+            🖼️
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={onPickImage}
           />
-        ))}
-        <span className="w-px h-4 bg-gray-300 mx-0.5" />
-        {HIGHLIGHTS.map((h) => (
-          <button
-            key={h.value}
-            type="button"
-            title={`형광펜 ${h.label}`}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => applyHighlight(h.value)}
-            className="w-4 h-4 rounded-sm border border-gray-300 hover:scale-110 transition-transform cursor-pointer"
-            style={{ backgroundColor: h.value }}
-          />
-        ))}
-        <span className="w-px h-4 bg-gray-300 mx-0.5" />
-        <ToolbarBtn title="왼쪽 정렬" onClick={() => run("justifyLeft")}>
-          왼
-        </ToolbarBtn>
-        <ToolbarBtn title="가운데 정렬" onClick={() => run("justifyCenter")}>
-          중
-        </ToolbarBtn>
-        <ToolbarBtn title="글머리 기호" onClick={() => run("insertUnorderedList")}>
-          •
-        </ToolbarBtn>
-        <ToolbarBtn title="번호 목록" onClick={() => run("insertOrderedList")}>
-          1.
-        </ToolbarBtn>
-        <ToolbarBtn title="체크 삽입/토글" onClick={toggleChecksInSelection}>
-          ☐
-        </ToolbarBtn>
-        <span className="w-px h-4 bg-gray-300 mx-0.5" />
-        <ToolbarBtn title="이미지 첨부" onClick={() => fileRef.current?.click()}>
-          🖼
-        </ToolbarBtn>
-        <ToolbarBtn title="서식 지우기" onClick={() => run("removeFormat")}>
-          Tx
-        </ToolbarBtn>
-        {onManagePresets && (
-          <ToolbarBtn title="템플릿/태그/멘션 관리" onClick={onManagePresets}>
-            ⚙
-          </ToolbarBtn>
-        )}
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={onPickImage}
-        />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowToolbar(!showToolbar)}
+          className={`px-2 py-0.5 rounded text-[10px] font-extrabold transition-all cursor-pointer flex items-center gap-1 border ${
+            showToolbar
+              ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+              : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+          }`}
+          title="서식, 색상, 템플릿, 태그 툴바 열기/닫기"
+        >
+          <span>🎨 서식·템플릿·태그 도구</span>
+          <span>{showToolbar ? "▲" : "▼"}</span>
+        </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1 px-1.5 py-1 border-b border-gray-100 bg-white">
-        <span className="text-[10px] text-gray-400 font-bold mr-0.5">템플릿</span>
-        {templates.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => applyTemplate(t.html)}
-            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer font-medium"
-          >
-            {t.label}
-          </button>
-        ))}
-        {templates.length === 0 && (
-          <span className="text-[10px] text-gray-400">없음 — ⚙에서 등록</span>
-        )}
-        {onManagePresets && (
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={onManagePresets}
-            className="text-[10px] px-1.5 py-0.5 rounded border border-dashed border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 cursor-pointer"
-          >
-            관리
-          </button>
-        )}
-      </div>
+      {/* 펼침 시에만 출력되는 서식 & 템플릿 & 태그 도구 모음 */}
+      {showToolbar && (
+        <div className="bg-slate-50/90 border-b border-gray-200 animate-fadeIn">
+          {/* 서식 도구 모음 */}
+          <div className="flex flex-wrap items-center gap-0.5 px-1.5 py-1 border-b border-gray-200">
+            <ToolbarBtn title="굵게 (Ctrl+B)" onClick={() => run("bold")} className="font-extrabold">
+              B
+            </ToolbarBtn>
+            <ToolbarBtn title="기울임 (Ctrl+I)" onClick={() => run("italic")} className="italic font-bold">
+              I
+            </ToolbarBtn>
+            <ToolbarBtn title="밑줄 (Ctrl+U)" onClick={() => run("underline")} className="underline font-bold">
+              U
+            </ToolbarBtn>
+            <ToolbarBtn title="취소선" onClick={() => run("strikeThrough")} className="line-through font-bold">
+              S
+            </ToolbarBtn>
+            <span className="w-px h-4 bg-gray-300 mx-0.5" />
+            {FONT_SIZES.map((s) => (
+              <ToolbarBtn key={s.label} title={s.title} onClick={() => applyFontSize(s.value)}>
+                {s.label}
+              </ToolbarBtn>
+            ))}
+            <span className="w-px h-4 bg-gray-300 mx-0.5" />
+            {COLORS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                title={`글자 ${c.label}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => run("foreColor", c.value)}
+                className="w-4 h-4 rounded-sm border border-gray-300 hover:scale-110 transition-transform cursor-pointer"
+                style={{ backgroundColor: c.value }}
+              />
+            ))}
+            <span className="w-px h-4 bg-gray-300 mx-0.5" />
+            {HIGHLIGHTS.map((h) => (
+              <button
+                key={h.value}
+                type="button"
+                title={`형광펜 ${h.label}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => applyHighlight(h.value)}
+                className="w-4 h-4 rounded-sm border border-gray-300 hover:scale-110 transition-transform cursor-pointer"
+                style={{ backgroundColor: h.value }}
+              />
+            ))}
+            <span className="w-px h-4 bg-gray-300 mx-0.5" />
+            <ToolbarBtn title="왼쪽 정렬" onClick={() => run("justifyLeft")}>
+              왼
+            </ToolbarBtn>
+            <ToolbarBtn title="가운데 정렬" onClick={() => run("justifyCenter")}>
+              중
+            </ToolbarBtn>
+            <ToolbarBtn title="글머리 기호" onClick={() => run("insertUnorderedList")}>
+              •
+            </ToolbarBtn>
+            <ToolbarBtn title="번호 목록" onClick={() => run("insertOrderedList")}>
+              1.
+            </ToolbarBtn>
+            <ToolbarBtn title="체크 삽입/토글" onClick={toggleChecksInSelection}>
+              ☐
+            </ToolbarBtn>
+            <span className="w-px h-4 bg-gray-300 mx-0.5" />
+            <ToolbarBtn title="서식 지우기" onClick={() => run("removeFormat")}>
+              Tx
+            </ToolbarBtn>
+            {onManagePresets && (
+              <ToolbarBtn title="템플릿/태그/멘션 관리" onClick={onManagePresets}>
+                ⚙
+              </ToolbarBtn>
+            )}
+          </div>
 
-      <div className="flex flex-wrap items-center gap-1 px-1.5 py-1 border-b border-gray-100 bg-white">
-        <span className="text-[10px] text-gray-400 font-bold mr-0.5">태그</span>
-        {tags.map((tag) => (
-          <button
-            key={tag}
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => insertTag(tag)}
-            className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 hover:bg-amber-100 cursor-pointer font-bold"
-          >
-            {tag}
-          </button>
-        ))}
-        <span className="text-[10px] text-gray-400 font-bold ml-1 mr-0.5">멘션</span>
-        {mentions.map((m) => (
-          <button
-            key={m}
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => insertMention(m)}
-            className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer font-bold"
-          >
-            {m}
-          </button>
-        ))}
-      </div>
+          {/* 템플릿 선택 바 */}
+          <div className="flex flex-wrap items-center gap-1 px-1.5 py-1 border-b border-gray-200 bg-white">
+            <span className="text-[10px] text-gray-400 font-bold mr-0.5">템플릿</span>
+            {templates.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => applyTemplate(t.html)}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer font-medium"
+              >
+                {t.label}
+              </button>
+            ))}
+            {templates.length === 0 && (
+              <span className="text-[10px] text-gray-400">없음 — ⚙에서 등록</span>
+            )}
+            {onManagePresets && (
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={onManagePresets}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-dashed border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 cursor-pointer"
+              >
+                관리
+              </button>
+            )}
+          </div>
+
+          {/* 태그 & 멘션 선택 바 */}
+          <div className="flex flex-wrap items-center gap-1 px-1.5 py-1 bg-white">
+            <span className="text-[10px] text-gray-400 font-bold mr-0.5">태그</span>
+            {tags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => insertTag(tag)}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 hover:bg-amber-100 cursor-pointer font-bold"
+              >
+                {tag}
+              </button>
+            ))}
+            <span className="text-[10px] text-gray-400 font-bold ml-1 mr-0.5">멘션</span>
+            {mentions.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => insertMention(m)}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer font-bold"
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="relative">
         {empty && (
