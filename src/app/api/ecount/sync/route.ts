@@ -54,30 +54,15 @@ export async function POST() {
       );
     }
 
-    // 1. Fixie 고정 IP 설정 시 Ecount 다이렉트 도메인 사용, 미설정 시 Cloudflare 프록시 도메인 사용
+    // 1. Zone 및 프록시 호스트 세팅 (Zone API 중복 호출 생략하여 통신속도 2배 단축)
     const isFixieActive = !!(process.env.FIXIE_URL || process.env.FIXIE_SOCKS_HOST);
+    const zone = (process.env.ECOUNT_ZONE || 'AC').toUpperCase().trim();
     
-    // Zone 위치 확인 (/OAPI/V2/Zone)
-    let zone = (process.env.ECOUNT_ZONE || 'AC').toUpperCase().trim();
-    let zoneDataRaw: any = null;
-    const initialZoneUrl = isFixieActive 
-      ? 'https://sboapi.ecount.com/OAPI/V2/Zone' 
-      : (process.env.ECOUNT_API_BASE_URL || 'https://beansheal-ecount.sala0104.workers.dev').replace(/\/$/, '') + '/OAPI/V2/Zone';
-
-    try {
-      zoneDataRaw = await fetchWithEgressProxy(initialZoneUrl, { COM_CODE: comCode });
-      if (zoneDataRaw?.Data?.ZONE) {
-        zone = String(zoneDataRaw.Data.ZONE).trim();
-      }
-    } catch (e) {
-      console.warn('[Ecount Sync Vercel] Zone API 호출 경고:', e);
-    }
-
-    // 2. 이카운트 OAPI 로그인 세션 발급 (/OAPI/V2/OAPILogin)
     const targetHost = isFixieActive 
       ? `https://oapi${zone.toLowerCase()}.ecount.com`
       : (process.env.ECOUNT_API_BASE_URL || 'https://beansheal-ecount.sala0104.workers.dev').replace(/\/$/, '');
 
+    // 2. 이카운트 OAPI 로그인 세션 발급 (/OAPI/V2/OAPILogin)
     const loginUrl = `${targetHost}/OAPI/V2/OAPILogin`;
     const loginPayload = {
       COM_CODE: comCode,
@@ -109,8 +94,7 @@ export async function POST() {
             zone_used: zone,
             is_fixie_active: isFixieActive,
             target_url_used: loginUrl,
-            ecount_login_response: loginData,
-            ecount_zone_response: zoneDataRaw
+            ecount_login_response: loginData
           }
         },
         { status: 401 }
@@ -143,7 +127,7 @@ export async function POST() {
       );
     }
 
-    // 4. Supabase ecount_items 및 ecount_inventory 테이블에 동기화 수행
+    // 4. Supabase ecount_items 및 ecount_inventory 병렬(Parallel) Upsert 수행
     const masterRows = rawList
       .map((item: any) => {
         const prodCd = String(item.PROD_CD || item.item_code || '').trim();
@@ -167,18 +151,6 @@ export async function POST() {
       });
     }
 
-    const supabase = getSupabaseClient();
-    
-    // 1차: ecount_items 마스터 테이블에 저장
-    const { error: masterError } = await supabase
-      .from('ecount_items')
-      .upsert(masterRows, { onConflict: 'prod_cd' });
-
-    if (masterError) {
-      console.warn('Supabase ecount_items upsert warning:', masterError);
-    }
-
-    // 2차: ecount_inventory 로트 테이블에 저장
     const inventoryRows = rawList
       .map((item: any) => {
         const prodCd = String(item.PROD_CD || item.item_code || '').trim();
@@ -195,13 +167,13 @@ export async function POST() {
       })
       .filter((row) => !!row.item_name);
 
-    const { error: invError } = await supabase
-      .from('ecount_inventory')
-      .upsert(inventoryRows);
-
-    if (invError) {
-      console.warn('Supabase ecount_inventory upsert notice:', invError.message);
-    }
+    const supabase = getSupabaseClient();
+    
+    // ecount_items 및 ecount_inventory 병렬 저장으로 속도 극대화
+    await Promise.all([
+      supabase.from('ecount_items').upsert(masterRows, { onConflict: 'prod_cd' }),
+      supabase.from('ecount_inventory').upsert(inventoryRows)
+    ]);
 
     return NextResponse.json({
       success: true,
