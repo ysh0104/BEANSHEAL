@@ -28,17 +28,49 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Login failed', loginRes });
     }
 
-    // 2. Fetch Location Stock API
-    const locUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLocation?SESSION_ID=${sessionId}`;
     const today = new Date();
     const baseDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
-    
-    const locRes = await ecountPost(locUrl, {
-      SESSION_ID: sessionId,
-      COM_CODE: comCode,
-      BASE_DATE: baseDate,
-      DATA: { BASE_DATE: baseDate, WH_CD: '', PROD_CD: '', ZERO_INCL_YN: 'Y', USE_DECIMAL_YN: 'Y', DECIMAL_PRECISION: '4', UNIT_TYPE: '1' }
-    }, { 'X-Ecount-Zone': zone });
+
+    // 2. Fetch Stock APIs with max page size and combined parameters
+    const stockEndpoints = [
+      '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus',
+      '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLocation',
+      '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLot',
+      '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusLocation'
+    ];
+
+    const stockCounts: Record<string, any> = {};
+
+    for (const ep of stockEndpoints) {
+      try {
+        const url = `${targetHost}${ep}?SESSION_ID=${sessionId}`;
+        const res = await ecountPost(url, {
+          SESSION_ID: sessionId,
+          COM_CODE: comCode,
+          BASE_DATE: baseDate,
+          DATA: {
+            BASE_DATE: baseDate,
+            WH_CD: '',
+            PROD_CD: '',
+            ZERO_INCL_YN: 'Y',
+            USE_DECIMAL_YN: 'Y',
+            DECIMAL_PRECISION: '4',
+            UNIT_TYPE: '1',
+            PAGE_SIZE: '5000',
+            PAGE_NO: '1'
+          }
+        }, { 'X-Ecount-Zone': zone });
+
+        const list = res.data?.Data?.Result || res.data?.Data?.List || res.data?.Data || [];
+        stockCounts[ep] = {
+          count: Array.isArray(list) ? list.length : 0,
+          sample: Array.isArray(list) ? list.slice(0, 3) : null,
+          resMsg: res.data?.Result?.Message || res.data?.Message
+        };
+      } catch (e: any) {
+        stockCounts[ep] = { error: e.message };
+      }
+    }
 
     // 3. Test multiple Item Master Endpoints and Payloads
     const testCases = [
@@ -78,6 +110,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       sessionId,
+      stockCounts,
       masterResults,
     });
 

@@ -123,8 +123,12 @@ export async function POST() {
       ZERO_INCL_YN: 'Y',
       USE_DECIMAL_YN: 'Y',
       DECIMAL_PRECISION: '4',
-      UNIT_TYPE: '1'
+      UNIT_TYPE: '1',
+      PAGE_SIZE: '5000',
+      PAGE_NO: '1'
     };
+
+    const combinedListMap = new Map<string, any>();
 
     for (const ep of candidateEndpoints) {
       try {
@@ -138,15 +142,21 @@ export async function POST() {
 
         const list = resData.Data?.Result || resData.Data?.List || resData.Data || [];
         if (Array.isArray(list) && list.length > 0) {
-          rawList = list;
-          usedEndpoint = ep;
-          console.log(`[Ecount Sync] Successfully fetched ${list.length} rows using endpoint: ${ep}`);
-          break;
+          list.forEach((row: any) => {
+            const key = String(row.PROD_CD || row.PROD_NO || row.CODE || row.ITEM_CD || '').trim();
+            if (key && !combinedListMap.has(key)) {
+              combinedListMap.set(key, row);
+            }
+          });
+          usedEndpoint = usedEndpoint ? `${usedEndpoint}, ${ep}` : ep;
+          console.log(`[Ecount Sync] Fetched ${list.length} rows using endpoint: ${ep}`);
         }
       } catch (e) {
         console.warn(`[Ecount Sync] Endpoint ${ep} failed:`, e);
       }
     }
+
+    rawList = Array.from(combinedListMap.values());
 
     if (!Array.isArray(rawList) || rawList.length === 0) {
       return NextResponse.json(
