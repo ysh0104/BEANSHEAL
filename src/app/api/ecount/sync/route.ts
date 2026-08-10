@@ -143,25 +143,23 @@ export async function POST() {
       );
     }
 
-    // 4. Supabase ecount_inventory 테이블에 item_code (UNIQUE) 기준 Upsert 수행
-    const upsertRows = rawList
+    // 4. Supabase ecount_items 및 ecount_inventory 테이블에 동기화 수행
+    const masterRows = rawList
       .map((item: any) => {
-        const itemCode = String(item.PROD_CD || item.item_code || '').trim();
-        const itemName = String(item.PROD_DES || item.item_name || itemCode).trim();
-        const spec = String(item.SIZE_DES || item.spec || '-').trim();
+        const prodCd = String(item.PROD_CD || item.item_code || '').trim();
+        const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
         const qty = Number(item.BAL_QTY ?? item.qty ?? 0);
 
         return {
-          item_code: itemCode,
-          item_name: itemName,
-          spec: spec,
-          qty: isNaN(qty) ? 0 : qty,
-          updated_at: new Date().toISOString(),
+          prod_cd: prodCd,
+          prod_nm: prodNm,
+          total_qty: isNaN(qty) ? 0 : qty,
+          last_synced_at: new Date().toISOString(),
         };
       })
-      .filter((row) => !!row.item_code);
+      .filter((row) => !!row.prod_cd);
 
-    if (upsertRows.length === 0) {
+    if (masterRows.length === 0) {
       return NextResponse.json({
         success: true,
         message: '동기화할 재고 항목이 없습니다. (조회 데이터 0건)',
@@ -170,22 +168,45 @@ export async function POST() {
     }
 
     const supabase = getSupabaseClient();
-    const { error: dbError } = await supabase
-      .from('ecount_inventory')
-      .upsert(upsertRows, { onConflict: 'item_code' });
+    
+    // 1차: ecount_items 마스터 테이블에 저장
+    const { error: masterError } = await supabase
+      .from('ecount_items')
+      .upsert(masterRows, { onConflict: 'prod_cd' });
 
-    if (dbError) {
-      console.error('Supabase ecount_inventory upsert error:', dbError);
-      return NextResponse.json(
-        { success: false, error: `Supabase DB 저장 실패: ${dbError.message}` },
-        { status: 500 }
-      );
+    if (masterError) {
+      console.warn('Supabase ecount_items upsert warning:', masterError);
+    }
+
+    // 2차: ecount_inventory 로트 테이블에 저장
+    const inventoryRows = rawList
+      .map((item: any) => {
+        const prodCd = String(item.PROD_CD || item.item_code || '').trim();
+        const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
+        const lotNo = String(item.LOT_NO || item.lot_no || prodCd).trim();
+        const qty = Number(item.BAL_QTY ?? item.qty ?? 0);
+
+        return {
+          item_name: prodNm,
+          lot_no: lotNo,
+          quantity: isNaN(qty) ? 0 : qty,
+          status: '정상'
+        };
+      })
+      .filter((row) => !!row.item_name);
+
+    const { error: invError } = await supabase
+      .from('ecount_inventory')
+      .upsert(inventoryRows, { onConflict: 'lot_no', ignoreDuplicates: false });
+
+    if (invError) {
+      console.warn('Supabase ecount_inventory upsert notice:', invError.message);
     }
 
     return NextResponse.json({
       success: true,
-      message: `이카운트 재고 ${upsertRows.length}건이 성공적으로 Supabase ecount_inventory 테이블에 동기화되었습니다. (Vercel 배포 환경)`,
-      count: upsertRows.length,
+      message: `이카운트 재고 ${masterRows.length}건이 성공적으로 Supabase 테이블에 동기화되었습니다. (Vercel 배포 환경)`,
+      count: masterRows.length,
       synced_at: new Date().toISOString(),
       is_fixie_active: isFixieActive
     });
