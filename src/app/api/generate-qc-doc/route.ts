@@ -281,14 +281,13 @@ export async function POST(req: Request) {
     }
     if (!docType) docType = 'log';
 
-    // 파일 포맷 결정 (기본값: 'hwpx' - 한글 서식 우선)
+    // 파일 포맷 결정 (.hwpx 및 .docx 100% XML 표준 기반)
     const reqFormat = (body.format || body.fileFormat || 'hwpx').toLowerCase();
-    let fileExt = reqFormat === 'docx' ? 'docx' : reqFormat === 'hwp' ? 'hwp' : 'hwpx';
+    const fileExt = reqFormat === 'docx' ? 'docx' : 'hwpx';
 
     const contentTypeMap: Record<string, string> = {
       docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      hwpx: 'application/vnd.hancom.hwpx',
-      hwp: 'application/x-hwp'
+      hwpx: 'application/vnd.hancom.hwpx'
     };
 
     // 품목명 접두사 (원), 부), 반), 완)) 기반 자동 템플릿 키 추론
@@ -298,15 +297,8 @@ export async function POST(req: Request) {
     let content: Buffer | null = null;
     const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_product_default';
     
-    // 요청된 포맷에 맞추어 사용자가 템플릿 폴더에 배치한 서식을 100% 우선 로드 (여백/레이아웃 밀림 무조건 방지)
-    let searchExtensions: string[] = [];
-    if (fileExt === 'hwp') {
-      searchExtensions = ['.hwp', '.hwpx', '.docx'];
-    } else if (fileExt === 'hwpx') {
-      searchExtensions = ['.hwpx', '.docx', '.hwp'];
-    } else {
-      searchExtensions = ['.docx', '.hwpx', '.hwp'];
-    }
+    // XML 템플릿(.hwpx, .docx) 전용 100% 우선 로드
+    const searchExtensions: string[] = fileExt === 'hwpx' ? ['.hwpx', '.docx'] : ['.docx', '.hwpx'];
 
     // 1) 품목/카테고리 전용 양식 탐색
     for (const ext of searchExtensions) {
@@ -316,13 +308,13 @@ export async function POST(req: Request) {
 
     // 2) templateName이 명시된 경우 2차 로딩 탐색
     if (!content && templateName) {
-      const fileNameWithExt = templateName.endsWith('.docx') || templateName.endsWith('.hwpx') || templateName.endsWith('.hwp')
+      const fileNameWithExt = templateName.endsWith('.docx') || templateName.endsWith('.hwpx')
         ? templateName 
         : `${templateName}.${fileExt}`;
       content = readTemplateFile(fileNameWithExt);
     }
 
-    // 3) Fallback 공통 양식 탐색 (qc_label.hwp 등 사용자가 올린 한글 양식 우선)
+    // 3) Fallback 공통 양식 탐색 (qc_label.hwpx, qc_label.docx 등)
     if (!content) {
       console.warn(`[알림] 전용 양식이 없어 공통 양식(${docType})으로 대체합니다.`);
       for (const ext of searchExtensions) {
@@ -396,23 +388,15 @@ export async function POST(req: Request) {
       완료예정일: dueDateStr
     };
 
-    let buf: Buffer;
-
-    // Docxtemplater XML 렌더링 시도 (100% 데이터 바인딩 & 무잘림 보장)
-    try {
-      const zip = new PizZip(content);
-      const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-      doc.render(renderData);
-      buf = doc.getZip().generate({ type: 'nodebuffer' });
-    } catch (e) {
-      // HWP 바이너리 양식 파일인 경우 fallback 바이트 처리
-      buf = replaceHwpPlaceholders(content, renderData);
-    }
+    // XML 템플릿 100% 무손상 데이터 주입 및 바이너리 손상 근본 차단
+    const zip = new PizZip(content);
+    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+    doc.render(renderData);
+    const buf = doc.getZip().generate({ type: 'nodebuffer' });
     
-    const targetExt = reqFormat === 'docx' ? 'docx' : reqFormat === 'hwp' ? 'hwp' : 'hwpx';
-    const mimeType = contentTypeMap[targetExt] || contentTypeMap['hwp'];
-    const safeAsciiFileName = `QC_${docType}_${testNo}.${targetExt}`;
-    const encodedFileName = encodeURIComponent(`${outputName}_${testNo}.${targetExt}`);
+    const mimeType = contentTypeMap[fileExt] || contentTypeMap['hwpx'];
+    const safeAsciiFileName = `QC_${docType}_${testNo}.${fileExt}`;
+    const encodedFileName = encodeURIComponent(`${outputName}_${testNo}.${fileExt}`);
 
     // Buffer Pool 공유에 의한 메모리 오염 방지를 위해 정확한 Byte Array 범위 지정
     const responseArray = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
