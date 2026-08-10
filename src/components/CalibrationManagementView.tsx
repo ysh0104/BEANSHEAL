@@ -226,20 +226,20 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
 
   return (
     <div className="space-y-5 font-sans">
-      {/* 🌟 서식 양식 헤더 정보 바 */}
-      <div className="bg-slate-900 text-white p-4 sm:p-5 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-3">
+      {/* 🌟 서식 양식 헤더 정보 바 (화이트 모던 룩) */}
+      <div className="bg-white border border-gray-200 text-slate-900 p-4 sm:p-5 rounded-xl shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-lg bg-indigo-600 flex items-center justify-center font-extrabold text-white text-xl shadow-2xs">
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-black text-xl shadow-2xs">
             GMP
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-lg sm:text-xl tracking-tight">기기 검·교정 관리대장</h3>
-              <span className="text-xs bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded font-mono font-bold">
+              <h3 className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-900">기기 검·교정 관리대장</h3>
+              <span className="text-xs bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-0.5 rounded font-mono font-bold">
                 양식번호: G-05-07-01
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-300 mt-1">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 font-medium">
               기록주기: 발생 시 | 보관 부서: 품질관리부 | 보존 년한: 3년
             </p>
           </div>
@@ -250,7 +250,7 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
             <button
               type="button"
               onClick={handleOpenAddModal}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
             >
               <span>+ 신규 기기 등록</span>
             </button>
@@ -258,7 +258,7 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
           <button
             type="button"
             onClick={() => window.print()}
-            className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-colors cursor-pointer"
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-gray-300 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-colors shadow-2xs cursor-pointer"
           >
             인쇄 / 서식 출력
           </button>
@@ -456,14 +456,14 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden">
-            <div className="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
-              <h3 className="font-bold text-sm">
+            <div className="bg-white border-b border-gray-200 text-slate-900 px-5 py-3.5 flex justify-between items-center">
+              <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
                 {editingItem ? `NO.${editingItem.no} 기기 검·교정 정보 수정` : "신규 검·교정 기기 등록"}
               </h3>
               <button
                 type="button"
                 onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-white font-bold text-base cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 font-bold text-base cursor-pointer"
               >
                 ✕
               </button>
