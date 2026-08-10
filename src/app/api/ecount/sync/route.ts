@@ -165,18 +165,22 @@ export async function POST() {
       );
     }
 
-    // 🌟 3.5. 이카운트 품목 마스터 API (/OAPI/V2/InventoryBasic/GetListItem) 호출하여 PROD_CD ➔ PROD_DES (품목명) 1:1 매핑 맵 구축
+    // 🌟 3.5. 이카운트 품목 마스터 API (/OAPI/V2/InventoryBasic/GetListItem) 호출하여 PROD_CD ➔ PROD_DES (품목명) 1:1 매핑 맵 구축 (전체 페이지 순회)
     const itemMasterMap = new Map<string, string>();
     try {
       const itemMasterEp = `${targetHost}/OAPI/V2/InventoryBasic/GetListItem?SESSION_ID=${sessionId}`;
-      const masterRes = await fetchWithEgressProxy(itemMasterEp, {
-        SESSION_ID: sessionId,
-        COM_CODE: comCode,
-        DATA: { PROD_CD: '' }
-      }, { 'X-Ecount-Zone': zone });
-
-      const masterList = masterRes.Data?.Result || masterRes.Data?.List || masterRes.Data || [];
-      if (Array.isArray(masterList)) {
+      const pageSize = 5000; // 최대 페이지 사이즈
+      let pageNo = 1;
+      while (true) {
+        const masterRes = await fetchWithEgressProxy(itemMasterEp, {
+          SESSION_ID: sessionId,
+          COM_CODE: comCode,
+          PAGE_NO: String(pageNo),
+          PAGE_SIZE: String(pageSize),
+          DATA: { PROD_CD: '' },
+        }, { 'X-Ecount-Zone': zone });
+        const masterList = masterRes.Data?.Result || masterRes.Data?.List || masterRes.Data || [];
+        if (!Array.isArray(masterList) || masterList.length === 0) break;
         masterList.forEach((mItem: any) => {
           const mCd = String(mItem.PROD_CD || mItem.PROD_NO || mItem.CODE || mItem.ITEM_CD || '').trim();
           const mNm = String(mItem.PROD_DES || mItem.PROD_NM || mItem.PROD_NAME || mItem.ITEM_DES || mItem.DES || mItem.REMARKS || '').trim();
@@ -184,8 +188,11 @@ export async function POST() {
             itemMasterMap.set(mCd, mNm);
           }
         });
-        console.log(`[Ecount Item Master] Successfully mapped ${itemMasterMap.size} item names.`);
+        console.log(`[Ecount Item Master] page ${pageNo} mapped ${masterList.length} items.`);
+        if (masterList.length < pageSize) break; // 마지막 페이지
+        pageNo++;
       }
+      console.log(`[Ecount Item Master] 전체 매핑된 품목명 수: ${itemMasterMap.size}`);
     } catch (e) {
       console.warn('[Ecount Item Master Fetch Warning]:', e);
     }
@@ -193,7 +200,7 @@ export async function POST() {
     // 🌟 3.6. ecount_inventory (로트 수집 데이터)에서 item_name ➔ lot_no 매핑 보완
     try {
       const supabase = getSupabaseClient();
-      const { data: invData } = await supabase.from('ecount_inventory').select('item_name, lot_no').limit(2000);
+      const { data: invData } = await supabase.from('ecount_inventory').select('item_name, lot_no').limit(10000);
       if (invData) {
         invData.forEach((row: any) => {
           if (row.item_name && row.lot_no) {
