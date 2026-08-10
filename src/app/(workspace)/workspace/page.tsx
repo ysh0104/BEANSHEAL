@@ -169,9 +169,8 @@ export default function Home() {
   const [isMemoPresetsOpen, setIsMemoPresetsOpen] = useState(false);
   const [showMemoTools, setShowMemoTools] = useState(false);
   const [showHiddenMemosModal, setShowHiddenMemosModal] = useState(false);
-  const [archiveSearchQuery, setArchiveSearchQuery] = useState("");
-  const [archiveDateFilter, setArchiveDateFilter] = useState("");
-  const [archiveSortOrder, setArchiveSortOrder] = useState<"desc" | "asc">("desc");
+  const [hiddenMemoSearchText, setHiddenMemoSearchText] = useState("");
+  const [hiddenMemoSearchDate, setHiddenMemoSearchDate] = useState("");
   const [editingMemoId, setEditingMemoId] = useState<number | string | null>(null);
   const [editingMemoText, setEditingMemoText] = useState<string>("");
   const [heartAnim, setHeartAnim] = useState<{ id: number | string; x: number; y: number } | null>(null);
@@ -2010,8 +2009,8 @@ export default function Home() {
       {/* 🌟 숨겨진 메모 보관함 모달 (데이터는 DB에 100% 저장되어 있으며 필요 시 복원 가능) */}
       {showHiddenMemosModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shrink-0">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-white">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2020,7 +2019,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="font-bold text-base">숨겨진 메모 보관함</h3>
-                  <p className="text-xs text-slate-300">화면에서 숨긴 메모들을 일자별·내용별로 조회하고 화면에 다시 복원할 수 있습니다.</p>
+                  <p className="text-xs text-slate-300">화면에서 숨긴 메모들은 데이터베이스에 안전하게 보관되어 있습니다.</p>
                 </div>
               </div>
               <button
@@ -2032,157 +2031,125 @@ export default function Home() {
               </button>
             </div>
 
-            {/* 🔍 일자별 및 내용별 검색 필터 바 */}
-            <div className="bg-slate-100 border-b border-gray-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
-              {/* 내용 / 작성자 텍스트 검색 */}
+            {/* 검색 및 일자 필터 바 */}
+            <div className="bg-slate-100 p-3 border-b border-slate-200 flex flex-wrap items-center gap-2">
               <div className="flex-1 min-w-[200px] relative">
                 <input
                   type="text"
-                  value={archiveSearchQuery}
-                  onChange={(e) => setArchiveSearchQuery(e.target.value)}
-                  placeholder="메모 내용 또는 작성자 검색..."
-                  className="w-full text-xs border border-gray-300 rounded-lg pl-8 pr-7 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-800"
+                  placeholder="내용 또는 작성자 검색..."
+                  value={hiddenMemoSearchText}
+                  onChange={(e) => setHiddenMemoSearchText(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
                 />
-                <svg className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                {archiveSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setArchiveSearchQuery("")}
-                    className="absolute right-2.5 top-2 text-xs text-gray-400 hover:text-gray-600 font-bold"
-                  >
-                    ✕
-                  </button>
-                )}
               </div>
 
-              {/* 일자별 검색 (Date Picker) */}
-              <div className="flex items-center gap-1.5 text-xs text-slate-700 bg-white px-2.5 py-1 rounded-lg border border-gray-300">
-                <span className="font-bold text-[11px] text-slate-600 whitespace-nowrap">일자선택:</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-xs font-bold text-slate-600">일자:</span>
                 <input
                   type="date"
-                  value={archiveDateFilter}
-                  onChange={(e) => setArchiveDateFilter(e.target.value)}
-                  className="text-xs bg-transparent focus:outline-none cursor-pointer"
+                  value={hiddenMemoSearchDate}
+                  onChange={(e) => setHiddenMemoSearchDate(e.target.value)}
+                  className="px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
                 />
-                {archiveDateFilter && (
+                {(hiddenMemoSearchText || hiddenMemoSearchDate) && (
                   <button
                     type="button"
-                    onClick={() => setArchiveDateFilter("")}
-                    className="text-[10px] bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-1.5 py-0.5 rounded cursor-pointer ml-1"
+                    onClick={() => {
+                      setHiddenMemoSearchText("");
+                      setHiddenMemoSearchDate("");
+                    }}
+                    className="text-xs font-bold text-slate-600 hover:text-red-600 bg-white border border-slate-300 px-2 py-1 rounded-lg hover:bg-red-50 cursor-pointer transition-colors"
                   >
                     초기화
                   </button>
                 )}
               </div>
-
-              {/* 정렬 순서 (최신순 / 오래된순) */}
-              <select
-                value={archiveSortOrder}
-                onChange={(e) => setArchiveSortOrder(e.target.value as "desc" | "asc")}
-                className="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-800 font-bold text-slate-700 cursor-pointer"
-              >
-                <option value="desc">최신순</option>
-                <option value="asc">오래된순</option>
-              </select>
             </div>
 
-            {/* 📋 숨겨진 메모 필터링 결과 리스트 */}
-            <div className="p-6 overflow-y-auto flex-1 space-y-3 bg-slate-50">
-              {(() => {
-                const filteredHiddenMemos = memos
-                  .filter((m) => !!m.hidden)
-                  .filter((m) => {
-                    // 1) 내용 및 작성자 검색어 필터
-                    if (archiveSearchQuery.trim()) {
-                      const q = archiveSearchQuery.toLowerCase();
-                      const plainText = memoPlainText(m.text || "").toLowerCase();
-                      const author = String(m.author || "").toLowerCase();
-                      if (!plainText.includes(q) && !author.includes(q)) return false;
-                    }
-
-                    // 2) 일자별 필터
-                    if (archiveDateFilter) {
-                      const filterYmd = archiveDateFilter.replace(/-/g, ""); // e.g. 20260810
-                      const memoDateStr = m.date || (m.created_at ? new Date(m.created_at).toLocaleString("ko-KR") : "");
-                      const normalizedMemoNumbers = memoDateStr.replace(/[^\d]/g, "");
-
-                      if (!normalizedMemoNumbers.includes(filterYmd)) {
-                        // ISO Date fallback
-                        if (m.created_at) {
-                          const createdYmd = m.created_at.slice(0, 10);
-                          if (createdYmd !== archiveDateFilter) return false;
-                        } else {
-                          return false;
-                        }
-                      }
-                    }
-
-                    return true;
-                  })
-                  .sort((a, b) => {
-                    const timeA = new Date(a.created_at || a.date || 0).getTime();
-                    const timeB = new Date(b.created_at || b.date || 0).getTime();
-                    return archiveSortOrder === "desc" ? timeB - timeA : timeA - timeB;
-                  });
-
-                if (filteredHiddenMemos.length === 0) {
-                  return (
-                    <div className="text-center py-12 text-slate-400 text-sm font-medium bg-white rounded-xl border border-dashed border-slate-200">
-                      {archiveSearchQuery || archiveDateFilter
-                        ? "검색 조건에 일치하는 숨겨진 메모가 없습니다."
-                        : "숨겨진 메모가 없습니다."}
-                    </div>
-                  );
+            {(() => {
+              const allHidden = memos.filter((m) => !!m.hidden);
+              const filteredHidden = allHidden.filter((m) => {
+                // 내용 / 작성자 검색
+                if (hiddenMemoSearchText.trim()) {
+                  const kw = hiddenMemoSearchText.trim().toLowerCase();
+                  const plain = memoPlainText(m.text || "").toLowerCase();
+                  const author = (m.author || "").toLowerCase();
+                  if (!plain.includes(kw) && !author.includes(kw)) return false;
                 }
+                // 일자별 검색 (YYYY-MM-DD)
+                if (hiddenMemoSearchDate) {
+                  const dateStr = (m.created_at || m.date || "").replace(/\.\s*/g, "-");
+                  if (!dateStr.includes(hiddenMemoSearchDate)) return false;
+                }
+                return true;
+              });
 
-                return filteredHiddenMemos.map((memo) => (
-                  <div
-                    key={`hidden-${memo.id}`}
-                    className="p-4 bg-white border border-slate-200 rounded-xl shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all hover:border-amber-300"
-                  >
-                    <div className="flex-1 min-w-0 pr-2">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
-                          {memo.author}
-                        </span>
-                        <span className="text-[11px] text-slate-400 font-medium">{memo.date}</span>
-                        {memo.pinned && (
-                          <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded">
-                            상단 고정됨
-                          </span>
-                        )}
+              return (
+                <>
+                  <div className="p-6 overflow-y-auto flex-1 space-y-3 bg-slate-50">
+                    {allHidden.length === 0 ? (
+                      <div className="text-center py-12 text-slate-400 text-sm font-medium">
+                        숨겨진 메모가 없습니다.
                       </div>
-                      <MemoRichContent html={memo.text} className="text-xs text-slate-800 leading-relaxed font-medium" />
-                    </div>
+                    ) : filteredHidden.length === 0 ? (
+                      <div className="text-center py-12 text-slate-400 text-sm font-medium">
+                        검색 조건에 맞는 숨겨진 메모가 없습니다.
+                      </div>
+                    ) : (
+                      filteredHidden.map((memo) => (
+                        <div
+                          key={`hidden-${memo.id}`}
+                          className="p-4 bg-white border border-slate-200 rounded-xl shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all hover:border-amber-300"
+                        >
+                          <div className="flex-1 min-w-0 pr-2">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                                {memo.author}
+                              </span>
+                              <span className="text-[11px] text-slate-400">{memo.date}</span>
+                              {memo.pinned && (
+                                <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded">
+                                  상단 고정됨
+                                </span>
+                              )}
+                            </div>
+                            <MemoRichContent html={memo.text} className="text-xs text-slate-800 leading-relaxed font-medium" />
+                          </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleUnhideMemo(memo)}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
-                      >
-                        <span>화면에 복원</span>
-                      </button>
-                    </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleUnhideMemo(memo)}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <span>화면에 복원</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
-                ));
-              })()}
-            </div>
 
-            <div className="bg-gray-100 px-6 py-3 border-t border-gray-200 flex justify-between items-center text-xs text-slate-600 font-medium shrink-0">
-              <span>
-                전체 숨긴 메모 {memos.filter((m) => !!m.hidden).length}개 중 조건 검색 결과
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowHiddenMemosModal(false)}
-                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-1.5 rounded-lg transition-colors cursor-pointer"
-              >
-                닫기
-              </button>
-            </div>
+                  <div className="bg-gray-100 px-6 py-3 border-t border-gray-200 flex justify-between items-center text-xs text-slate-500 font-medium">
+                    <span>
+                      {hiddenMemoSearchText || hiddenMemoSearchDate
+                        ? `검색 결과 ${filteredHidden.length}개 / 전체 ${allHidden.length}개`
+                        : `총 ${allHidden.length}개의 숨겨진 메모`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowHiddenMemosModal(false)}
+                      className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-1.5 rounded-lg transition-colors cursor-pointer"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
