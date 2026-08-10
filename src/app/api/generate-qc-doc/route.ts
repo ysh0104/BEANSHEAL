@@ -6,6 +6,34 @@ import path from 'path';
 import zlib from 'zlib';
 import qcTemplateConfig from '@/config/qcTemplateMap.json';
 
+// HWP zlib 압축 스트림의 원본 정확 바이트 길이 정밀 산출 헬퍼 (OLE 디렉터리 테이블 훼손 방지)
+function getExactCompressedLen(buf: Buffer, offset: number): number {
+  let targetLen = 0;
+  try {
+    const full = zlib.inflateRawSync(buf.subarray(offset));
+    targetLen = full.length;
+  } catch (e) {
+    try {
+      const fullNorm = zlib.inflateSync(buf.subarray(offset));
+      targetLen = fullNorm.length;
+    } catch (e2) {
+      return 0;
+    }
+  }
+
+  for (let len = 10; len <= buf.length - offset; len++) {
+    try {
+      const decomp = zlib.inflateRawSync(buf.subarray(offset, offset + len));
+      if (decomp.length === targetLen) return len;
+    } catch (e) {}
+    try {
+      const decompNorm = zlib.inflateSync(buf.subarray(offset, offset + len));
+      if (decompNorm.length === targetLen) return len;
+    } catch (e2) {}
+  }
+  return buf.length - offset;
+}
+
 // HWP 바이너리 파일 내 {제품명}, {LOT번호} 치환자 치환 헬퍼 (초고속 zlib 오프셋 감지 + 풀네임 무잘림 바이트 스플라이싱)
 function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>): Buffer {
   const result = Buffer.from(buffer);
@@ -32,7 +60,10 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
     }
 
     try {
-      const slice = result.subarray(offset);
+      const origCompLen = getExactCompressedLen(result, offset);
+      if (origCompLen === 0) continue;
+
+      const slice = result.subarray(offset, offset + origCompLen);
       let inflated: Buffer | null = null;
       let isRaw = false;
 
@@ -59,6 +90,7 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
           const pBuf = Buffer.from(p, 'utf16le');
           let sIdx = 0;
 
+          while ((sIdx = inflatedBuf.indexOf(pBuf, sIdx)) !== -1) {
             let vBuf = Buffer.from(valStr, 'utf16le');
 
             // 🌟 HWP Record Header & OLE CFBF 파일 구조 100% 무손상 보장:
@@ -75,23 +107,21 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
             replacement.copy(inflatedBuf, sIdx);
             sIdx += pBuf.length;
             modified = true;
+          }
         }
       }
 
       if (modified) {
         const deflated = isRaw ? zlib.deflateRawSync(inflatedBuf) : zlib.deflateSync(inflatedBuf);
-        // OLE CFBF 섹터 주소 오버라이트 방지: 압축 후 스트림 바이트가 원래 할당 슬라이스 크기 이내일 때만 안전 복사
-        if (deflated.length <= slice.length) {
-          const origStreamLength = slice.length;
+        if (deflated.length <= origCompLen) {
           deflated.copy(result, offset);
 
-          // 🌟 [핵심 파싱 오류 완벽 예방] 재압축 후 남은 이전 스트림의 쓰레기 바이트(Tail Junk) 0x00 소거
-          const junkLength = origStreamLength - deflated.length;
-          if (junkLength > 0) {
-            result.fill(0x00, offset + deflated.length, offset + origStreamLength);
+          // 🌟 [OLE 디렉터리 100% 보호] 압축 스트림 범위 안에서만 잔여 쓰레기 0x00 소거
+          if (deflated.length < origCompLen) {
+            result.fill(0x00, offset + deflated.length, offset + origCompLen);
           }
 
-          processedStreamRanges.push({ start: offset, end: offset + origStreamLength });
+          processedStreamRanges.push({ start: offset, end: offset + origCompLen });
         }
       }
     } catch (e) {}
