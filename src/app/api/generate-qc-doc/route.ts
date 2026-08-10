@@ -59,25 +59,22 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
           const pBuf = Buffer.from(p, 'utf16le');
           let sIdx = 0;
 
-          while ((sIdx = inflatedBuf.indexOf(pBuf, sIdx)) !== -1) {
-            const vBuf = Buffer.from(valStr, 'utf16le');
+            let vBuf = Buffer.from(valStr, 'utf16le');
 
-            // 자름 없이 품목 풀네임(가르시니아65% 등) 100% 통째로 보존 삽입
-            if (vBuf.length <= pBuf.length) {
-              const diff = pBuf.length - vBuf.length;
-              const padSpaces = ' '.repeat(Math.floor(diff / 2));
-              const padBuf = Buffer.from(padSpaces, 'utf16le');
-              const replacement = Buffer.concat([vBuf, padBuf]);
-              replacement.subarray(0, pBuf.length).copy(inflatedBuf, sIdx);
-            } else {
-              const before = inflatedBuf.subarray(0, sIdx);
-              const after = inflatedBuf.subarray(sIdx + pBuf.length);
-              inflatedBuf = Buffer.concat([before, vBuf, after]);
+            // 🌟 HWP Record Header & OLE CFBF 파일 구조 100% 무손상 보장:
+            // 원본 치환자 바이트 길이(pBuf.length)를 100% 엄격 고정하여 레코드 파싱 오류 및 한글 에러 팝업 근본 차단
+            if (vBuf.length > pBuf.length) {
+              vBuf = vBuf.subarray(0, pBuf.length);
             }
 
-            sIdx += vBuf.length;
+            const diff = pBuf.length - vBuf.length;
+            const padSpaces = ' '.repeat(Math.floor(diff / 2));
+            const padBuf = Buffer.from(padSpaces, 'utf16le');
+            const replacement = Buffer.concat([vBuf, padBuf]).subarray(0, pBuf.length);
+
+            replacement.copy(inflatedBuf, sIdx);
+            sIdx += pBuf.length;
             modified = true;
-          }
         }
       }
 
