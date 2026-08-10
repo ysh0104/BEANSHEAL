@@ -63,7 +63,18 @@ const getCleanRecipeName = (rawName: string) => {
 
 export default function AuditPage() {
   const { canEdit } = useCanEdit("qa");
-  const [scrapedItems, setScrapedItems] = useState<any[]>([]);
+  const [scrapedItems, setScrapedItems] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("beansheal_audit_items");
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {}
+      }
+    }
+    return [];
+  });
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lastSyncTime, setLastSyncTime] = useState<string>("기록 없음");
@@ -74,7 +85,18 @@ export default function AuditPage() {
   const [selectedProduct, setSelectedProduct] = useState("");
   const [inputQty, setInputQty] = useState("");
   const [previewLot, setPreviewLot] = useState("");
-  const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
+  const [recipeOptions, setRecipeOptions] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("beansheal_recipe_options");
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {}
+      }
+    }
+    return [];
+  });
 
   const [mfgNo, setMfgNo] = useState("");
   const [mfgDate, setMfgDate] = useState("");
@@ -83,9 +105,9 @@ export default function AuditPage() {
   // Supabase ecount_inventory 데이터 실시간 로드 함수
   const fetchInventoryFromSupabase = async () => {
     try {
-      const res = await getAuditInventoryItems();
-      if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
-        const formatted = res.data.map((item: any) => ({
+      const invRes = await getAuditInventoryItems();
+      if (invRes?.success && Array.isArray(invRes.data) && invRes.data.length > 0) {
+        const formatted = invRes.data.map((item: any) => ({
           scrapedAt: item.created_at 
             ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) 
             : '미상',
@@ -96,6 +118,7 @@ export default function AuditPage() {
           rawItem: item
         }));
         setScrapedItems(formatted);
+        localStorage.setItem("beansheal_audit_items", JSON.stringify(formatted));
         setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
       } else {
         // Fallback to getDashboardItems if ecount_inventory is empty
@@ -110,6 +133,7 @@ export default function AuditPage() {
             rawItem: item
           }));
           setScrapedItems(formatted);
+          localStorage.setItem("beansheal_audit_items", JSON.stringify(formatted));
           setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
         }
       }

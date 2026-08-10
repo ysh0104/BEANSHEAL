@@ -143,7 +143,18 @@ export default function Home() {
   const { canView: canViewWeeklyPlan } = useCanView("weekly_plan");
   const { canEdit: canEditWeeklyPlan } = useCanEdit("weekly_plan");
   const isMobile = useIsMobile();
-  const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
+  const [recipeOptions, setRecipeOptions] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("beansheal_recipe_options");
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {}
+      }
+    }
+    return [];
+  });
 
   // 달력 및 메모장용 State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -206,8 +217,19 @@ export default function Home() {
     setDragOverMemoId(null);
   };
 
-  // 계획(Schedule) 데이터 관리 State
-  const [schedules, setSchedules] = useState<any[]>([]);
+  // ⚡ 0.00초 초고속 하이드레이션: 새로고침(F5) 시 로컬 캐시된 노션 일정을 0초 만에 동기적 복원
+  const [schedules, setSchedules] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("beansheal_cached_schedules");
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch (e) {}
+      }
+    }
+    return [];
+  });
   const [selectedDateForPlan, setSelectedDateForPlan] = useState<string | null>(null);
   const [planEndDate, setPlanEndDate] = useState<string>("");
   const [planProduct, setPlanProduct] = useState("");
@@ -358,7 +380,10 @@ export default function Home() {
           getMemosFromSupabase().catch(() => ({ success: false, data: [] })),
         ]);
 
-        if (recipeRes?.success && recipeRes.data) setRecipeOptions(recipeRes.data);
+        if (recipeRes?.success && recipeRes.data) {
+          setRecipeOptions(recipeRes.data);
+          localStorage.setItem("beansheal_recipe_options", JSON.stringify(recipeRes.data));
+        }
         if (statusRes?.isConfigured) setIsVercelNotionConfigured(true);
 
         if (memoRes?.success && memoRes.data && memoRes.data.length > 0) {
