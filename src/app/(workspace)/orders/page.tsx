@@ -6,6 +6,7 @@ import { useCanEdit } from "@/hooks/useCanEdit";
 import { supabase } from "@/lib/supabase"; 
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe";
 import { saveProductionInboundToEcount } from "@/app/actions/ecount";
+import { findStockForMaterial, StockItem } from "@/lib/stockHelper";
 
 import CoverPage from "@/components/CoverPage";
 import ManufacturingLog from "@/components/ManufacturingLog";
@@ -140,17 +141,17 @@ export default function OrdersPage() {
     setLoadingInventory(true);
     const [recipeResult, invResult] = await Promise.all([
       getRecipeList(),
-      supabase.from('ecount_items').select('prod_nm, total_qty'),
+      supabase.from('ecount_items').select('prod_cd, prod_nm, total_qty'),
     ]);
     if (recipeResult.success) setRecipeList(recipeResult.data);
     if (!invResult.error && invResult.data) {
-      // 품목명 정규화 → 재고량 맵
-      const map: Record<string, number> = {};
-      invResult.data.forEach((item: any) => {
-        const nm = String(item.prod_nm || '').trim();
-        if (nm) map[nm] = Number(item.total_qty || 0);
-      });
-      setInventoryMap(map);
+      setStockItemsList(
+        invResult.data.map((item: any) => ({
+          prod_cd: String(item.prod_cd || '').trim(),
+          prod_nm: String(item.prod_nm || '').trim(),
+          total_qty: Number(item.total_qty || 0),
+        }))
+      );
     }
     setLoadingInventory(false);
   };
@@ -614,11 +615,11 @@ export default function OrdersPage() {
                       </div>
                       {materials.map((mat, idx) => {
                         const needed = Number(calculateInput(mat.input_qty));
-                        // 품목명 유사 매칭 (정규화)
-                        const normalize = (s: string) => s.replace(/^[원부자반]\)\s*/, '').replace(/\[.*?\]/g, '').replace(/\s+/g, '').toLowerCase();
-                        const matKey = normalize(mat.material_name);
-                        const stockEntry = Object.entries(inventoryMap).find(([k]) => normalize(k).includes(matKey) || matKey.includes(normalize(k)));
-                        const currentStock = stockEntry ? stockEntry[1] : null;
+                        const matchRes = findStockForMaterial(
+                          { name: mat.material_name, materialCode: mat.material_code },
+                          stockItemsList
+                        );
+                        const currentStock = matchRes.matched ? matchRes.qty : null;
                         const shortage = currentStock !== null ? needed - currentStock : null;
                         const isShort = shortage !== null && shortage > 0;
                         const isOk = shortage !== null && shortage <= 0;
@@ -658,10 +659,11 @@ export default function OrdersPage() {
                     {/* 재고 부족 원료 요약 */}
                     {materials.some((mat) => {
                       const needed = Number(calculateInput(mat.input_qty));
-                      const normalize = (s: string) => s.replace(/^[원부자반]\)\s*/, '').replace(/\[.*?\]/g, '').replace(/\s+/g, '').toLowerCase();
-                      const matKey = normalize(mat.material_name);
-                      const stockEntry = Object.entries(inventoryMap).find(([k]) => normalize(k).includes(matKey) || matKey.includes(normalize(k)));
-                      const currentStock = stockEntry ? stockEntry[1] : null;
+                      const matchRes = findStockForMaterial(
+                        { name: mat.material_name, materialCode: mat.material_code },
+                        stockItemsList
+                      );
+                      const currentStock = matchRes.matched ? matchRes.qty : null;
                       return currentStock !== null && needed > currentStock;
                     }) && (
                       <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">

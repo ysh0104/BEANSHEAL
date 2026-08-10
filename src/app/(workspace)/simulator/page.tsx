@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe"; 
 import { savePurchasesToEcount } from "@/app/actions/ecount"; 
+import { findStockForMaterial, StockItem } from "@/lib/stockHelper";
 import { useCanEdit } from "@/hooks/useCanEdit";
 
 // 🌟 사전에 정의된 원료별 포장 규격 (이름에 포함된 키워드 기준)
@@ -118,43 +119,50 @@ export default function ProductionSimulator() {
         return;
       }
 
-      // ecount_items(수동 엑셀 업로드 데이터) 및 ecount_inventory(로트별 재고) 모두 조회
-      const [itemsRes, inventoryRes] = await Promise.all([
-        supabase.from('ecount_items').select('prod_nm, total_qty'),
-        supabase.from('ecount_inventory').select('item_name, quantity').gt('quantity', 0)
-      ]);
+      // ecount_items(수동 엑셀 업로드 데이터) 및 ecount_inventory(로트별 재고) 안전 조회
+      const allStockItems: StockItem[] = [];
 
-      if (itemsRes.error || inventoryRes.error) {
-        console.error("재고 조회 에러:", itemsRes.error || inventoryRes.error);
-        throw new Error("재고 데이터를 불러오지 못했습니다.");
+      try {
+        const { data: ecountItems, error: itemsErr } = await supabase
+          .from('ecount_items')
+          .select('prod_cd, prod_nm, total_qty');
+
+        if (itemsErr) console.warn("ecount_items 조회 경고:", itemsErr.message);
+
+        if (ecountItems && ecountItems.length > 0) {
+          ecountItems.forEach(i => {
+            allStockItems.push({
+              prod_cd: String(i.prod_cd || '').trim(),
+              prod_nm: String(i.prod_nm || '').trim(),
+              total_qty: Number(i.total_qty || 0),
+            });
+          });
+        }
+      } catch (e) {
+        console.warn("ecount_items 조회 예외:", e);
       }
 
-      const stockMap = new Map<string, number>();
+      // 보조: ecount_inventory 데이터도 추가
+      try {
+        const { data: invItems } = await supabase
+          .from('ecount_inventory')
+          .select('item_name, quantity')
+          .gt('quantity', 0);
 
-      // 1. 수동 엑셀 업로드 마스터 데이터를 우선 등록 (이름 매핑의 주 원천)
-      if (itemsRes.data && itemsRes.data.length > 0) {
-        itemsRes.data.forEach((item: any) => {
-          const rawName = item.prod_nm;
-          const cleanName = normalizeName(rawName);
-          const rawQty = item.total_qty;
-          const currentQty = Number(String(rawQty || 0).replace(/,/g, ''));
-          if (cleanName && !isNaN(currentQty)) {
-            stockMap.set(cleanName, (stockMap.get(cleanName) || 0) + currentQty);
-          }
-        });
-      }
-
-      // 2. 로트별 재고 데이터를 보조적으로 등록 (ecount_items에 없는 것만 보완)
-      if (inventoryRes.data && inventoryRes.data.length > 0) {
-        inventoryRes.data.forEach((item: any) => {
-          const rawName = item.item_name;
-          const cleanName = normalizeName(rawName);
-          const rawQty = item.quantity;
-          const currentQty = Number(String(rawQty || 0).replace(/,/g, ''));
-          if (cleanName && !isNaN(currentQty) && !stockMap.has(cleanName)) {
-            stockMap.set(cleanName, currentQty);
-          }
-        });
+        if (invItems && invItems.length > 0) {
+          invItems.forEach(inv => {
+            const nm = String(inv.item_name || '').trim();
+            if (nm && !allStockItems.some(a => a.prod_nm === nm)) {
+              allStockItems.push({
+                prod_cd: '',
+                prod_nm: nm,
+                total_qty: Number(String(inv.quantity).replace(/,/g, '')) || 0,
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("ecount_inventory 조회 예외:", e);
       }
 
       const c_loss = Math.min(Number(processLossRate) || 0, 99); 
@@ -187,8 +195,6 @@ export default function ProductionSimulator() {
       // 3-1. 원料 계산
       rawMaterials.forEach(mat => {
         const requiredQty = grossQtyKg * (mat.ratio / 100);
-        const cleanMatName = normalizeName(mat.name);
-        
         const isExtractMat = mat.name.includes("커피") && mat.name.includes("추출액");
         let currentStock: number | string;
         let shortage: number;
@@ -197,7 +203,8 @@ export default function ProductionSimulator() {
           currentStock = "자가생산";
           shortage = 0;
         } else {
-          currentStock = stockMap.get(cleanMatName) || 0;
+          const matchResult = findStockForMaterial(mat, allStockItems);
+          currentStock = matchResult.qty;
           const netRequirement = currentStock - requiredQty;
           shortage = netRequirement < 0 ? Math.ceil(Math.abs(netRequirement)) : 0;
         }
@@ -237,8 +244,8 @@ export default function ProductionSimulator() {
         }
 
         const finalReqEA = Math.ceil(baseReqEA * (1 + (c_packLoss / 100)));
-        const cleanMatName = normalizeName(mat.name);
-        const currentStock = stockMap.get(cleanMatName) || 0;
+        const matchResult = findStockForMaterial(mat, allStockItems);
+        const currentStock = matchResult.qty;
         
         const netRequirement = currentStock - finalReqEA;
         const shortage = netRequirement < 0 ? Math.ceil(Math.abs(netRequirement)) : 0;
