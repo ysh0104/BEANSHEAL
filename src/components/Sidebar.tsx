@@ -109,8 +109,19 @@ export default function Sidebar() {
 
   const isActivePath = (path: string) => {
     if (!pathname) return false;
-    const basePath = path.split("?")[0];
-    return pathname === basePath || pathname.startsWith(basePath + "/");
+    if (path.includes("?")) {
+      const [basePath, queryStr] = path.split("?");
+      if (pathname !== basePath) return false;
+      if (typeof window !== "undefined") {
+        return window.location.search.includes(queryStr);
+      }
+      return false;
+    } else {
+      if (typeof window !== "undefined" && window.location.search.includes("tab=calibration") && path === "/audit") {
+        return false;
+      }
+      return pathname === path || pathname.startsWith(path + "/");
+    }
   };
 
   return (

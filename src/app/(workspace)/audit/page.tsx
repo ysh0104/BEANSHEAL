@@ -369,7 +369,7 @@ function AuditPageContent() {
   };
 
   return (
-    <div className="space-y-6 max-w-[1920px] mx-auto w-full pb-20 mt-2 px-1 sm:px-2 font-sans">
+    <div className="space-y-6 max-w-[1280px] mx-auto w-full pb-20 mt-2 px-1 sm:px-2 font-sans">
       
       {/* 상단 헤더 및 양식 포맷 선택 버튼 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
