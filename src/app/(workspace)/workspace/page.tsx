@@ -22,9 +22,9 @@ import {
   toggleMemoPinInSupabase,
   toggleMemoHideInSupabase,
 } from "@/app/actions/memoActions";
-import { DEFAULT_CALIBRATION_ITEMS } from "@/lib/calibrationData";
+import { CalibrationItem, DEFAULT_CALIBRATION_ITEMS } from "@/lib/calibrationData";
 import { getCalibrationItemsFromSupabase } from "@/app/actions/calibrationActions";
-import { DEFAULT_HEALTH_CHECK_ITEMS } from "@/lib/healthCheckData";
+import { HealthCheckItem, DEFAULT_HEALTH_CHECK_ITEMS } from "@/lib/healthCheckData";
 import { getHealthCheckItemsFromSupabase } from "@/app/actions/healthCheckActions";
 import MemoRichEditor from "@/components/MemoRichEditor";
 import MemoRichContent from "@/components/MemoRichContent";
@@ -183,47 +183,88 @@ export default function Home() {
   const [healthCheckAlertStats, setHealthCheckAlertStats] = useState({ overdue: 0, upcoming: 0 });
 
   useEffect(() => {
-    const checkAlerts = async () => {
+    const calcHcStats = (items: HealthCheckItem[]) => {
+      let overdue = 0;
+      let upcoming = 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      items.forEach((item) => {
+        if (!item.next_date) return;
+        const cleanDate = item.next_date.replace(/\.\s*/g, "-").trim();
+        const target = new Date(cleanDate);
+        if (isNaN(target.getTime())) return;
+        target.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays < 0) overdue++;
+        else if (diffDays <= 14) upcoming++;
+      });
+      return { overdue, upcoming };
+    };
+
+    const calcCalStats = (items: CalibrationItem[]) => {
+      let overdue = 0;
+      let upcoming = 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      items.forEach((item) => {
+        if (item.remark?.includes("폐기") || item.remark?.includes("불용")) return;
+        if (!item.next_date) return;
+        const cleanDate = item.next_date.replace(/\.\s*/g, "-").trim();
+        const target = new Date(cleanDate);
+        if (isNaN(target.getTime())) return;
+        target.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays < 0) overdue++;
+        else if (diffDays <= 30) upcoming++;
+      });
+      return { overdue, upcoming };
+    };
+
+    // 1. ⚡ 0초 즉시 노출: 로컬 캐시/기본 데이터로 동기 계산하여 알림 바너 0ms 즉시 표시
+    if (typeof window !== "undefined") {
       try {
-        const calRes = await getCalibrationItemsFromSupabase();
-        const calItems = calRes.data && calRes.data.length > 0 ? calRes.data : DEFAULT_CALIBRATION_ITEMS;
-        let calOverdue = 0;
-        let calUpcoming = 0;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const cachedHc = localStorage.getItem("beansheal_health_check_items");
+        const cachedHcItems: HealthCheckItem[] = cachedHc ? JSON.parse(cachedHc) : DEFAULT_HEALTH_CHECK_ITEMS;
+        setHealthCheckAlertStats(calcHcStats(cachedHcItems));
+      } catch {
+        setHealthCheckAlertStats(calcHcStats(DEFAULT_HEALTH_CHECK_ITEMS));
+      }
 
-        calItems.forEach((item) => {
-          if (item.remark?.includes("폐기") || item.remark?.includes("불용")) return;
-          if (!item.next_date) return;
-          const cleanDate = item.next_date.replace(/\.\s*/g, "-").trim();
-          const target = new Date(cleanDate);
-          if (isNaN(target.getTime())) return;
-          target.setHours(0, 0, 0, 0);
-          const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          if (diffDays < 0) calOverdue++;
-          else if (diffDays <= 30) calUpcoming++;
-        });
-        setCalibrationAlertStats({ overdue: calOverdue, upcoming: calUpcoming });
+      try {
+        const cachedCal = localStorage.getItem("beansheal_calibration_items");
+        const cachedCalItems: CalibrationItem[] = cachedCal ? JSON.parse(cachedCal) : DEFAULT_CALIBRATION_ITEMS;
+        setCalibrationAlertStats(calcCalStats(cachedCalItems));
+      } catch {
+        setCalibrationAlertStats(calcCalStats(DEFAULT_CALIBRATION_ITEMS));
+      }
+    } else {
+      setHealthCheckAlertStats(calcHcStats(DEFAULT_HEALTH_CHECK_ITEMS));
+      setCalibrationAlertStats(calcCalStats(DEFAULT_CALIBRATION_ITEMS));
+    }
 
-        const hcRes = await getHealthCheckItemsFromSupabase();
-        const hcItems = hcRes.data && hcRes.data.length > 0 ? hcRes.data : DEFAULT_HEALTH_CHECK_ITEMS;
-        let hcOverdue = 0;
-        let hcUpcoming = 0;
+    // 2. 🚀 병렬 클라우드 동기화 (Promise.all): 초고속 동시 수집 후 상태 갱신
+    const syncAlertsFromCloud = async () => {
+      try {
+        const [calRes, hcRes] = await Promise.all([
+          getCalibrationItemsFromSupabase(),
+          getHealthCheckItemsFromSupabase()
+        ]);
 
-        hcItems.forEach((item) => {
-          if (!item.next_date) return;
-          const cleanDate = item.next_date.replace(/\.\s*/g, "-").trim();
-          const target = new Date(cleanDate);
-          if (isNaN(target.getTime())) return;
-          target.setHours(0, 0, 0, 0);
-          const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          if (diffDays < 0) hcOverdue++;
-          else if (diffDays <= 14) hcUpcoming++;
-        });
-        setHealthCheckAlertStats({ overdue: hcOverdue, upcoming: hcUpcoming });
+        if (calRes?.data && calRes.data.length > 0) {
+          setCalibrationAlertStats(calcCalStats(calRes.data));
+          localStorage.setItem("beansheal_calibration_items", JSON.stringify(calRes.data));
+        }
+
+        if (hcRes?.data && hcRes.data.length > 0) {
+          setHealthCheckAlertStats(calcHcStats(hcRes.data));
+          localStorage.setItem("beansheal_health_check_items", JSON.stringify(hcRes.data));
+        }
       } catch {}
     };
-    checkAlerts();
+
+    syncAlertsFromCloud();
   }, []);
 
   // 🌟 메모 카드 격자 드래그 앤 드롭 (Drag & Drop) 위치 이동 State 및 핸들러
