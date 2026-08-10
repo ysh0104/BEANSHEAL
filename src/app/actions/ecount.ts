@@ -676,51 +676,48 @@ export async function syncEcountMasterToDb() {
     // getListProduct / getInventoryStatus 는 Datas 또는 평면 SESSION_ID 모두 허용
     const sessionObj = sessionData.Datas ? sessionData : { Datas: sessionData, ...sessionData };
 
-    const productListRes = await getListProductDetailed(sessionObj);
+    // 1순위: 100% 작동 검증된 재고 현황 API(GetListInventoryBalanceStatus) 호출
     const inventoryRes = await getInventoryStatusDetailed(sessionObj);
+    const inventory = inventoryRes.data || [];
 
-    const productList = productListRes.data;
-    const inventory = inventoryRes.data;
+    let source: any[] = [];
 
-    const qtyMap = new Map<string, number>();
-    if (Array.isArray(inventory)) {
-      inventory.forEach((item: any) => {
-        qtyMap.set(item.prodCd, Number(String(item.qty).replace(/,/g, "")) || 0);
-      });
-    }
-
-    const source = Array.isArray(productList) && productList.length > 0
-      ? productList
-      : (inventory || []).map((i: any) => ({
-          PROD_CD: i.prodCd,
-          PROD_DES: i.prodNm,
+    if (inventory.length > 0) {
+      source = inventory.map((i: any) => ({
+        PROD_CD: i.prodCd || i.PROD_CD,
+        PROD_DES: i.prodNm || i.PROD_DES,
+        total_qty: Number(String(i.qty || 0).replace(/,/g, "")) || 0
+      }));
+    } else {
+      // 2순위: 재고 현황 0건일 시 품목 마스터 API 호출
+      const productListRes = await getListProductDetailed(sessionObj);
+      const productList = productListRes.data || [];
+      if (productList.length > 0) {
+        source = productList.map((p: any) => ({
+          PROD_CD: p.PROD_CD || p.prodCd,
+          PROD_DES: p.PROD_DES || p.prodNm,
+          total_qty: 0
         }));
-
-    if (!source.length) {
-      const prodErr = productListRes.error || "응답 0건";
-      const invErr = inventoryRes.error || "응답 0건";
-      return {
-        success: false,
-        error: `이카운트 품목/재고 데이터 가져오기 실패 [품목API: ${prodErr} | 재고API: ${invErr}]`,
-        rawResponse: {
-          productListResponse: productListRes,
-          inventoryResponse: inventoryRes,
-        },
-        proxyBaseUrl: await getEcountProxyBaseUrl()
-      };
+      } else {
+        const invErr = inventoryRes.error || "재고 응답 0건";
+        const prodErr = productListRes.error || "품목 응답 0건";
+        return {
+          success: false,
+          error: `이카운트 데이터 가져오기 실패 [재고API: ${invErr} | 품목API: ${prodErr}]`,
+          rawResponse: { inventoryRes, productListRes },
+          proxyBaseUrl: await getEcountProxyBaseUrl()
+        };
+      }
     }
 
     const rows = source
-      .filter((p: any) => p.PROD_CD || p.prodCd)
-      .map((p: any) => {
-        const prodCd = p.PROD_CD || p.prodCd;
-        return {
-          prod_cd: prodCd,
-          prod_nm: p.PROD_DES || p.prodNm || prodCd,
-          total_qty: qtyMap.get(prodCd) ?? 0,
-          last_synced_at: new Date().toISOString(),
-        };
-      });
+      .filter((p: any) => p.PROD_CD)
+      .map((p: any) => ({
+        prod_cd: p.PROD_CD,
+        prod_nm: p.PROD_DES || p.PROD_CD,
+        total_qty: p.total_qty ?? 0,
+        last_synced_at: new Date().toISOString(),
+      }));
 
     const { error } = await supabase.from("ecount_items").upsert(rows, { onConflict: "prod_cd" });
     if (error) throw error;
