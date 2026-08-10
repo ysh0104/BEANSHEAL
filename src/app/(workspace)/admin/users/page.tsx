@@ -99,6 +99,7 @@ export default function UserManagementPage() {
   const [ecountUsers, setEcountUsers] = useState<EcountUserRecord[]>([]);
   const [ecountSyncMsg, setEcountSyncMsg] = useState<string | null>(null);
   const [ecountSyncing, setEcountSyncing] = useState(false);
+  const [permPanelOpen, setPermPanelOpen] = useState(false);
 
   const canManagePerms =
     canUserEdit(user, "admin_users") ||
@@ -569,8 +570,6 @@ export default function UserManagementPage() {
 
       {/* 메인 데이터 테이블 */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 mt-6 space-y-6">
-        <PermissionGroupsPanel canManage={canManagePerms} onGroupsChange={setPermGroups} />
-
         {/* 무채색 깔끔한 알림 메시지 토스트 */}
         {statusMsg && (
           <div className="mb-4 p-3.5 rounded-xl border border-slate-300 bg-slate-900 text-white text-xs font-medium flex items-center justify-between shadow-xs animate-fadeIn">
@@ -788,6 +787,34 @@ export default function UserManagementPage() {
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* 권한 그룹 설정 — 접기/펼치기 */}
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setPermPanelOpen((v) => !v)}
+            className="w-full px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3 text-left hover:bg-slate-100/80 transition-colors cursor-pointer"
+            aria-expanded={permPanelOpen}
+          >
+            <div>
+              <h2 className="font-bold text-sm text-slate-800">권한 그룹 설정</h2>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                메뉴별 조회/수정 권한을 그룹 단위로 만들고 편집합니다. ({permGroups.length}개 그룹)
+              </p>
+            </div>
+            <span
+              className={`shrink-0 text-slate-500 text-xs font-bold transition-transform ${permPanelOpen ? "rotate-180" : ""}`}
+              aria-hidden
+            >
+              ▼
+            </span>
+          </button>
+          {permPanelOpen && (
+            <div className="p-4 md:p-5 border-t border-slate-100">
+              <PermissionGroupsPanel canManage={canManagePerms} onGroupsChange={setPermGroups} />
+            </div>
+          )}
         </div>
       </div>
     </div>
