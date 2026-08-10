@@ -40,19 +40,41 @@ export async function GET() {
       DATA: { BASE_DATE: baseDate, WH_CD: '', PROD_CD: '', ZERO_INCL_YN: 'Y', USE_DECIMAL_YN: 'Y', DECIMAL_PRECISION: '4', UNIT_TYPE: '1' }
     }, { 'X-Ecount-Zone': zone });
 
-    // 3. Fetch Basic Item Master API
-    const itemMasterUrl = `${targetHost}/OAPI/V2/InventoryBasic/GetListItem?SESSION_ID=${sessionId}`;
-    const itemRes = await ecountPost(itemMasterUrl, {
-      SESSION_ID: sessionId,
-      COM_CODE: comCode,
-      DATA: { PROD_CD: '' }
-    }, { 'X-Ecount-Zone': zone });
+    // 3. Test multiple Item Master Endpoints
+    const masterEndpoints = [
+      '/OAPI/V2/InventoryBasic/GetListItem',
+      '/OAPI/V2/InventoryBasic/GetListBasicItem',
+      '/OAPI/V2/Item/GetList',
+      '/OAPI/V2/Product/GetList',
+      '/OAPI/V2/Master/GetListProduct'
+    ];
+
+    const masterResults: Record<string, any> = {};
+
+    for (const ep of masterEndpoints) {
+      try {
+        const url = `${targetHost}${ep}?SESSION_ID=${sessionId}`;
+        const res = await ecountPost(url, {
+          SESSION_ID: sessionId,
+          COM_CODE: comCode,
+          DATA: { PROD_CD: '' }
+        }, { 'X-Ecount-Zone': zone });
+
+        const list = res.data?.Data?.Result || res.data?.Data?.List || res.data?.Data || [];
+        if (Array.isArray(list) && list.length > 0) {
+          masterResults[ep] = { count: list.length, sample: list.slice(0, 5) };
+        } else {
+          masterResults[ep] = { error: res.data?.Result?.Message || res.data?.Message || 'Empty or error', res: res.data };
+        }
+      } catch (e: any) {
+        masterResults[ep] = { error: e.message };
+      }
+    }
 
     return NextResponse.json({
       success: true,
       sessionId,
-      locationStockRawSample: (locRes.data?.Data?.Result || locRes.data?.Data?.List || locRes.data?.Data || []).slice(0, 10),
-      itemMasterRawSample: (itemRes.data?.Data?.Result || itemRes.data?.Data?.List || itemRes.data?.Data || []).slice(0, 10),
+      masterResults,
     });
 
   } catch (e: any) {
