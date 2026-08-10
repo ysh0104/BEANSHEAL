@@ -349,7 +349,7 @@ export default function ProductionSimulator() {
   };
 
   return (
-    <div className="flex flex-col items-center gap-6 font-sans w-full p-8 bg-[#f4f5f7] min-h-screen">
+    <div className="flex flex-col items-center gap-6 font-sans w-full p-4 sm:p-6 md:p-8 bg-[#f4f5f7] min-h-screen">
       
       <style>{`
         @media print {
@@ -360,17 +360,17 @@ export default function ProductionSimulator() {
       `}</style>
 
       {/* 컨트롤 패널 */}
-      <div className="no-print w-full max-w-[1200px] bg-[#f8f9fa] border border-[#e5e7eb] rounded-xl p-7 shadow-sm">
+      <div className="no-print w-full max-w-[1200px] bg-[#f8f9fa] border border-[#e5e7eb] rounded-xl p-4 sm:p-7 shadow-sm">
         
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-[22px] font-black text-[#1e293b] tracking-tight">원부자재 소요량 산출 시뮬레이터 (MRP)</h2>
-            <p className="text-[14px] font-semibold text-[#64748b] mt-1.5">생산 배합량(kg) 또는 목표 포장수량(포)을 기준으로 필요한 모든 자재의 정밀 발주량을 산출합니다.</p>
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-[22px] font-black text-[#1e293b] tracking-tight">원부자재 소요량 산출 시뮬레이터 (MRP)</h2>
+            <p className="text-[13px] sm:text-[14px] font-semibold text-[#64748b] mt-1.5">생산 배합량(kg) 또는 목표 포장수량(포)을 기준으로 필요한 모든 자재의 정밀 발주량을 산출합니다.</p>
           </div>
           <button 
             onClick={handleCalculate}
             disabled={isCalculating}
-            className="bg-[#8b98d2] text-white px-7 py-3 rounded-md font-bold text-[15px] hover:bg-[#7a86c1] transition-colors disabled:opacity-50 shadow-sm"
+            className="bg-[#8b98d2] text-white px-5 sm:px-7 py-3 rounded-md font-bold text-[14px] sm:text-[15px] hover:bg-[#7a86c1] transition-colors disabled:opacity-50 shadow-sm shrink-0 w-full sm:w-auto"
           >
             {isCalculating ? "데이터 연동 중..." : "소요량 자동 산출"}
           </button>
@@ -378,7 +378,7 @@ export default function ProductionSimulator() {
 
         <div className="w-full h-px bg-[#e2e8f0] my-5"></div>
 
-        <div className="grid grid-cols-7 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
           <div>
             <label className="block text-[12px] font-bold text-[#475569] mb-2">생산 품목 선택</label>
             <select 
@@ -466,9 +466,9 @@ export default function ProductionSimulator() {
 
       {/* 산출 결과 리포트 */}
       {results.length > 0 && (
-        <div className="w-full max-w-[1200px] bg-white border border-gray-300 rounded p-8 shadow-sm">
-          <div className="flex justify-between items-end border-b-2 border-black pb-3 mb-4">
-            <div>
+        <div className="w-full max-w-[1200px] bg-white border border-gray-300 rounded p-4 sm:p-8 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 border-b-2 border-black pb-3 mb-4">
+            <div className="min-w-0">
               <h3 className="text-[20px] font-extrabold tracking-tight text-gray-900">원부자재 소요량 및 결품 리포트</h3>
               
               <div className="flex items-center gap-4 mt-2">
@@ -490,7 +490,7 @@ export default function ProductionSimulator() {
               </p>
             </div>
             
-            <div className="no-print flex items-center gap-2">
+            <div className="no-print flex flex-wrap items-center gap-2 shrink-0">
               <label className="text-[12px] font-bold text-gray-600 flex items-center gap-1">
                 창고
                 <input
@@ -516,7 +516,8 @@ export default function ProductionSimulator() {
             </div>
           </div>
 
-          <table className="w-full border-collapse border-2 border-black text-center text-[13px]">
+          <div className="overflow-x-auto -mx-1 px-1">
+          <table className="w-full min-w-[720px] border-collapse border-2 border-black text-center text-[13px]">
             <colgroup>
               <col className="w-[8%]" />
               <col className="w-[28%]" />
@@ -575,6 +576,7 @@ export default function ProductionSimulator() {
               })}
             </tbody>
           </table>
+          </div>
 
           <div className="mt-4 text-[12px] font-bold text-gray-500 text-right">
             ※ 발주 필요 수량은 올림(Ceil) 기준입니다. 붉은 결품은 [결품 → 이카운트 구매전송]으로 구매입고 전표를 생성할 수 있습니다.

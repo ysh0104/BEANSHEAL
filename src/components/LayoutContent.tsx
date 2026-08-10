@@ -22,9 +22,9 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
   // 사내 업무 ERP 관련 페이지(/workspace, /inventory 등)인 경우:
   // 원래의 화사한 라이트 슬레이트 배경(bg-slate-100 text-slate-900) 적용
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col antialiased">
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col antialiased overflow-x-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 max-w-7xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 max-w-7xl mx-auto w-full min-w-0">
         {children}
       </main>
     </div>

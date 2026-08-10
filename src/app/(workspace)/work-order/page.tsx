@@ -213,7 +213,7 @@ export default function WorkOrder() {
   if (!isMounted) return null;
 
   return (
-    <div className="max-w-5xl mx-auto py-10 font-sans print:py-0">
+    <div className="max-w-5xl mx-auto py-6 sm:py-10 px-2 sm:px-4 font-sans print:py-0">
       <style>{`
         @media print {
           @page { size: A4 portrait; margin: 5mm; }
@@ -239,13 +239,13 @@ export default function WorkOrder() {
       `}</style>
 
       {/* 조작 패널 */}
-      <div className="no-print bg-gray-100 border border-gray-300 rounded-lg p-6 mb-8 shadow-sm">
-        <div className="flex justify-between items-end mb-4 border-b border-gray-300 pb-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">작업지시서 발행기</h2>
+      <div className="no-print bg-gray-100 border border-gray-300 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mb-4 border-b border-gray-300 pb-4">
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">작업지시서 발행기</h2>
             <p className="text-sm text-gray-600 mt-1">제품과 수량, 중량, 로스율을 입력하면 정밀한 불출 지시서가 자동 생성됩니다.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 shrink-0">
             {isInvLoading && <span className="text-sm font-bold text-blue-600 self-center mr-2">이카운트 연동 중...</span>}
             <button 
               onClick={() => window.print()}
@@ -257,8 +257,7 @@ export default function WorkOrder() {
           </div>
         </div>
 
-        {/* 🌟 5칸으로 분할 (grid-cols-5) */}
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">생산 품목 선택</label>
             <select

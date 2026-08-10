@@ -27,6 +27,7 @@ import MemoPresetsManager from "@/components/MemoPresetsManager";
 import WeeklyPlanView from "@/components/WeeklyPlanView";
 import ScheduleEntryPills from "@/components/ScheduleEntryPills";
 import { estimateScheduleCardHeight } from "@/lib/scheduleDisplay";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import {
   memoPlainText,
   sanitizeMemoHtml,
@@ -141,6 +142,7 @@ export default function Home() {
   const { canEdit: canEditWorkSchedule } = useCanEdit("work_schedule");
   const { canView: canViewWeeklyPlan } = useCanView("weekly_plan");
   const { canEdit: canEditWeeklyPlan } = useCanEdit("weekly_plan");
+  const isMobile = useIsMobile();
   const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
 
   // 달력 및 메모장용 State
@@ -983,16 +985,16 @@ export default function Home() {
     <div className="space-y-6 max-w-7xl mx-auto w-full pb-20 mt-2 px-2 font-sans text-sm">
       
       {/* 대시보드 상단 타이틀 & 그리드 스냅 토글 */}
-      <div className="flex justify-between items-center pb-4 border-b border-gray-200">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 pb-4 border-b border-gray-200">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight flex flex-wrap items-center gap-2">
             <span>BEANSHEAL 대시보드</span>
             <span className="text-xs bg-blue-100 text-blue-800 font-extrabold px-2.5 py-0.5 rounded border border-blue-200">ERP 그리드 커스텀</span>
           </h2>
-          <p className="text-sm text-gray-500 mt-1">상단 <strong>⣿ 핸들</strong>로 순서를 변경하고, 우측 하단 <strong>⤡ 코너</strong>를 끌어 가로/세로 크기를 커스텀하세요.</p>
+          <p className="text-sm text-gray-500 mt-1 hidden sm:block">상단 <strong>⣿ 핸들</strong>로 순서를 변경하고, 우측 하단 <strong>⤡ 코너</strong>를 끌어 가로/세로 크기를 커스텀하세요.</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             onClick={() => setIsGridSnapEnabled(!isGridSnapEnabled)}
             className={`px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
@@ -1036,13 +1038,21 @@ export default function Home() {
           const isDragOverThis = dragOverWidgetId === widget.id;
           const isResizingThis = resizingWidgetId === widget.id;
 
-          const cardStyle: React.CSSProperties = {
-            width: `calc(${widget.widthPct}% - 12px)`,
-            minWidth: '280px',
-            height: `${widget.heightPx}px`,
-            flexGrow: 0,
-            flexShrink: 0
-          };
+          const cardStyle: React.CSSProperties = isMobile
+            ? {
+                width: "100%",
+                minWidth: "unset",
+                height: `${widget.heightPx}px`,
+                flexGrow: 0,
+                flexShrink: 0,
+              }
+            : {
+                width: `calc(${widget.widthPct}% - 12px)`,
+                minWidth: "280px",
+                height: `${widget.heightPx}px`,
+                flexGrow: 0,
+                flexShrink: 0,
+              };
 
           const dragVisualClass = isDraggingThis
             ? 'opacity-40 scale-95 border-2 border-dashed border-blue-500 shadow-2xl'
@@ -1068,12 +1078,13 @@ export default function Home() {
             </div>
           );
 
-          const renderCornerResizeHandles = () => (
+          const renderCornerResizeHandles = () =>
+            isMobile ? null : (
             <>
               {/* 우측 하단 모서리 리사이즈 핸들 (Bottom-Right) */}
               <div 
                 onMouseDown={(e) => startCornerResize(e, widget.id, false)}
-                className="absolute bottom-0 right-0 w-7 h-7 flex items-end justify-end text-slate-400 hover:text-indigo-600 cursor-nwse-resize select-none p-1 group/corner-br z-20"
+                className="absolute bottom-0 right-0 w-7 h-7 hidden md:flex items-end justify-end text-slate-400 hover:text-indigo-600 cursor-nwse-resize select-none p-1 group/corner-br z-20"
                 title="우측 하단으로 끌어 크기를 조절하세요"
               >
                 {isResizingThis && (
@@ -1087,7 +1098,7 @@ export default function Home() {
               {/* 좌측 하단 모서리 리사이즈 핸들 (Bottom-Left) */}
               <div 
                 onMouseDown={(e) => startCornerResize(e, widget.id, true)}
-                className="absolute bottom-0 left-0 w-7 h-7 flex items-end justify-start text-slate-400 hover:text-indigo-600 cursor-nesw-resize select-none p-1 group/corner-bl z-20"
+                className="absolute bottom-0 left-0 w-7 h-7 hidden md:flex items-end justify-start text-slate-400 hover:text-indigo-600 cursor-nesw-resize select-none p-1 group/corner-bl z-20"
                 title="좌측 하단으로 끌어 크기를 조절하세요"
               >
                 {isResizingThis && (
@@ -1186,7 +1197,8 @@ export default function Home() {
                 <div className="bg-white border border-gray-200 rounded-lg shadow-xs flex flex-col h-full overflow-hidden relative">
                   {renderWidgetHeader(calendarHeaderLeft, calendarHeaderRight)}
                   <div className="p-3 flex flex-col flex-1 overflow-hidden">
-                    <div className="flex-1 flex flex-col h-full min-h-0">
+                    <div className="flex-1 flex flex-col h-full min-h-0 overflow-x-auto">
+                      <div className="min-w-[640px] flex flex-col h-full min-h-0">
                       {/* 요일 헤더 */}
                       <div className="grid grid-cols-7 gap-1.5 text-center mb-1.5 bg-slate-50 py-2 border-b border-slate-200 rounded-t shrink-0">
                         {['일', '월', '화', '수', '목', '금', '토'].map(day => (
@@ -1384,6 +1396,7 @@ export default function Home() {
                           );
                         })}
                       </div>
+                      </div>
                     </div>
                   </div>
                   {renderCornerResizeHandles()}
@@ -1505,7 +1518,7 @@ export default function Home() {
                             onDoubleClick={(e) => {
                               if (canEditMemo) handleToggleLike(memo.id, e);
                             }}
-                            className={`p-3 border rounded-xl shadow-xs relative group transition-all select-none ${canEditMemo ? "cursor-grab active:cursor-grabbing" : "cursor-default"} inline-flex flex-col justify-between w-fit max-w-full min-w-[200px] flex-grow-0 flex-shrink-0 ${
+                            className={`p-3 border rounded-xl shadow-xs relative group transition-all select-none ${canEditMemo ? "cursor-grab active:cursor-grabbing" : "cursor-default"} inline-flex flex-col justify-between w-full sm:w-fit max-w-full min-w-0 sm:min-w-[200px] flex-grow-0 flex-shrink-0 ${
                               isBeingDragged
                                 ? "opacity-30 border-dashed border-2 border-indigo-400 scale-95"
                                 : isTargetOver
@@ -1544,7 +1557,7 @@ export default function Home() {
                             )}
 
                             {editingMemoId != null && String(editingMemoId) === String(memo.id) ? (
-                              <div className="space-y-1.5 w-full min-w-[260px]" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+                              <div className="space-y-1.5 w-full min-w-0 sm:min-w-[260px]" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
                                 <MemoRichEditor
                                   key={`edit-${memo.id}`}
                                   value={editingMemoText}

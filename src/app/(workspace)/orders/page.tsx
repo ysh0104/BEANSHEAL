@@ -427,14 +427,14 @@ export default function OrdersPage() {
     <div className="relative min-h-screen bg-gray-50">
 
       {/* 평소 화면 UI 시작 */}
-      <div className="max-w-7xl mx-auto space-y-6 p-8 no-print">
+      <div className="max-w-7xl mx-auto space-y-6 p-4 sm:p-6 md:p-8 no-print">
         
-        <div className="flex justify-between items-end pb-4 border-b border-gray-200">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 tracking-tight">제조지시기록서 관리</h2>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 pb-4 border-b border-gray-200">
+          <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">제조지시기록서 관리</h2>
             <p className="text-sm text-gray-500 mt-1">HACCP/GMP 규격에 맞춘 공정 기록 및 전자서명을 관리합니다.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 shrink-0">
             <button onClick={fetchOrders} className="bg-white border border-gray-300 text-gray-700 text-sm px-4 py-2.5 font-bold shadow-sm hover:bg-gray-50 flex items-center gap-1">
               새로고침
             </button>
@@ -444,7 +444,7 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="bg-white border border-gray-300 p-5 shadow-sm border-l-4 border-l-gray-400">
             <p className="text-sm font-semibold text-gray-500">대기중인 지시 (내일 이후)</p>
             <p className="text-2xl font-extrabold text-gray-900 mt-1">
@@ -465,13 +465,13 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-gray-300 shadow-sm overflow-hidden min-h-[200px] relative">
+        <div className="bg-white border border-gray-300 shadow-sm overflow-hidden min-h-[200px] relative overflow-x-auto">
           {isLoading && (
             <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
               <span className="text-gray-500 font-bold">데이터 불러오는 중...</span>
             </div>
           )}
-          <table className="w-full text-left text-sm whitespace-nowrap">
+          <table className="w-full text-left text-sm min-w-[640px]">
             <thead className="bg-gray-100 border-b border-gray-300 text-gray-700">
               <tr>
                 <th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">지시 번호 (Lot)</th>
@@ -524,8 +524,8 @@ export default function OrdersPage() {
 
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-6">
-                <div className="flex items-start gap-6 border-b border-gray-100 pb-6">
-                   <div className="w-1/3">
+                <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6 border-b border-gray-100 pb-6">
+                   <div className="w-full md:w-1/3">
                     <label className="block text-sm font-bold text-gray-800 mb-2">지시 일자 (생산 예정일)</label>
                     <input 
                       type="date" 
@@ -547,8 +547,8 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-6">
-                  <div className="flex-1">
+                <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
+                  <div className="flex-1 min-w-0">
                     <label className="block text-sm font-bold text-gray-800 mb-2">생산 제품 (레시피 선택)</label>
                     <select 
                       className="w-full border border-gray-300 rounded-md px-3 py-2.5 text-sm font-bold text-gray-800 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
@@ -564,7 +564,7 @@ export default function OrdersPage() {
                     </select>
                   </div>
                   {selectedRecipe && (
-                    <div className="w-1/3">
+                    <div className="w-full md:w-1/3">
                       <label className="block text-sm font-bold text-blue-600 mb-2">목표 생산량 ({selectedRecipe.base_unit})</label>
                       <input 
                         type="number" 
@@ -578,7 +578,7 @@ export default function OrdersPage() {
               </div>
 
               {selectedRecipe && (
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                     <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">필요 원료 칭량 (자동계산)</h3>
                     <div className="space-y-2 max-h-60 overflow-y-auto">

@@ -213,7 +213,7 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto py-10 px-4 bg-[#f8f9fb] min-h-screen">
+    <div className="max-w-7xl mx-auto py-6 sm:py-8 md:py-10 px-2 sm:px-4 bg-[#f8f9fb] min-h-screen">
       
       <div className="mb-8">
         <div className="flex items-center justify-center gap-3 mb-6">
@@ -225,7 +225,7 @@ export default function InventoryPage() {
           )}
         </div>
         
-        <div className="flex justify-between items-end mb-2">
+        <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end mb-2">
           
           {/* [신규 UI] 수량 0 숨기기 체크박스 영역 (좌측 배치) */}
           <div className="flex items-center">
@@ -242,14 +242,14 @@ export default function InventoryPage() {
             </label>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <div className="relative w-full sm:w-auto">
               <input
                 type="text"
                 placeholder="품목명/코드 검색"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="border-2 border-blue-500 text-gray-900 bg-white placeholder-gray-300 px-3 py-1.5 text-sm w-64 focus:outline-none focus:border-blue-600 shadow-sm"
+                className="border-2 border-blue-500 text-gray-900 bg-white placeholder-gray-300 px-3 py-1.5 text-sm w-full sm:w-64 focus:outline-none focus:border-blue-600 shadow-sm"
               />
             </div>
             
@@ -276,7 +276,7 @@ export default function InventoryPage() {
               생산입고 전표
             </button>
             
-            <span className="text-sm text-gray-800 font-mono ml-4">{currentDate}</span>
+            <span className="text-sm text-gray-800 font-mono sm:ml-2 w-full sm:w-auto">{currentDate}</span>
           </div>
         </div>
       </div>
@@ -413,7 +413,7 @@ export default function InventoryPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">
                     생산 수량 <span className="text-red-500">*</span>

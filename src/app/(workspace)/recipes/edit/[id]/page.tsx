@@ -290,8 +290,8 @@ export default function RecipeEditPage() {
           제품 기본 정보
         </h3>
         
-        <div className="grid grid-cols-4 gap-6 mb-6">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+          <div className="sm:col-span-2">
             <label className="block text-sm font-bold text-gray-700 mb-2">완제품명 (BOM 헤더)</label>
             <div className="relative">
               <input type="text" className="w-full border border-gray-300 rounded-lg p-3 pr-12 text-sm text-gray-900 focus:ring-1 focus:ring-gray-900 focus:border-gray-900 outline-none transition-all bg-gray-50 focus:bg-white" 
@@ -324,7 +324,7 @@ export default function RecipeEditPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-6 border-t border-gray-100 pt-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 border-t border-gray-100 pt-6">
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-2">식품 유형 (기록서 표기용)</label>
             <select className="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-900 focus:ring-1 focus:ring-gray-900 focus:border-gray-900 outline-none transition-all bg-gray-50 focus:bg-white"
@@ -521,7 +521,7 @@ export default function RecipeEditPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {AVAILABLE_FORMS.map((form) => (
             <label key={form.id} className={`flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all ${
               selectedForms.includes(form.id) 

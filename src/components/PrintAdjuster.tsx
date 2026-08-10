@@ -82,7 +82,7 @@ export default function PrintAdjuster({ children, formId }: Props) {
   }, [isMoving, isResizing, handleMouseMove, handleMouseUp]);
 
   return (
-    <div className="relative w-full min-h-screen bg-gray-100 py-10 print:py-0 print:bg-white flex flex-col items-center overflow-x-hidden">
+    <div className="relative w-full min-h-screen bg-gray-100 py-4 sm:py-10 print:py-0 print:bg-white flex flex-col items-center overflow-x-auto sm:overflow-x-hidden px-3 sm:px-4">
       
       {/* 🌟 핵심 해결책: 화면에서 조절한 값을 인쇄(PDF)할 때도 강제로 주입하는 스타일 */}
       <style>{`
@@ -99,7 +99,7 @@ export default function PrintAdjuster({ children, formId }: Props) {
       `}</style>
 
       {/* 상단 안내 및 초기화 패널 (인쇄 시 숨김 처리) */}
-      <div className="mb-6 text-sm text-slate-700 font-bold bg-white p-4 rounded border border-slate-300 shadow-sm print:hidden z-10 w-[794px]">
+      <div className="mb-6 text-sm text-slate-700 font-bold bg-white p-4 rounded border border-slate-300 shadow-sm print:hidden z-10 w-full max-w-[794px]">
         상단 빈 공간을 드래그하여 위아래 위치를 조절하고, 우측 하단 모서리를 당겨 크기(비율)를 조절하십시오. 설정은 자동으로 저장됩니다.
         <div className="mt-3 flex items-center space-x-3">
           <button 
@@ -124,7 +124,7 @@ export default function PrintAdjuster({ children, formId }: Props) {
           cursor: isMoving ? "grabbing" : "grab"
         }}
         onMouseDown={handleMouseDownMove}
-        className="relative shadow-2xl print:shadow-none print:m-0 printable-wrapper"
+        className="relative shadow-2xl print:shadow-none print:m-0 printable-wrapper inline-block max-w-full"
       >
         {/* 실제 양식 내용이 렌더링될 위치 */}
         <div className="bg-white pointer-events-auto">

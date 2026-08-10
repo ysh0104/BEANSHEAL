@@ -325,8 +325,8 @@ export default function RecipeListPage() {
         />
       </div>
 
-      <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-        <table className="w-full text-left border-collapse">
+      <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-[720px]">
           <thead>
             <tr className="bg-slate-100 border-b border-slate-200 text-slate-700">
               <th className="px-8 py-5 text-xs font-black uppercase tracking-widest leading-none">NO.</th>
