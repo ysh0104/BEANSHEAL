@@ -197,7 +197,7 @@ export async function POST() {
 
     const { error: invError } = await supabase
       .from('ecount_inventory')
-      .upsert(inventoryRows, { onConflict: 'lot_no', ignoreDuplicates: false });
+      .upsert(inventoryRows);
 
     if (invError) {
       console.warn('Supabase ecount_inventory upsert notice:', invError.message);
