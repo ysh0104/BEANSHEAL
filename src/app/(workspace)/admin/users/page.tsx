@@ -31,14 +31,8 @@ const DEPARTMENT_OPTIONS = [
   "경영진",
 ] as const;
 
-const TOP_POSITIONS = ["대표이사", "대표", "이사"] as const;
-
-function isTopPosition(position: string): boolean {
-  return (TOP_POSITIONS as readonly string[]).includes(position);
-}
-
-function computeRoleLocal(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
-  if (isTopPosition(position) || department.includes("경영")) return "ADMIN";
+function computeRoleLocal(department: string, _position: string): "ADMIN" | "QA" | "WORKER" {
+  if (department.includes("경영")) return "ADMIN";
   if (department.includes("품질")) return "QA";
   return "WORKER";
 }
@@ -145,11 +139,8 @@ export default function UserManagementPage() {
         dbMsg = `Supabase DB 'profiles' 테이블 연동 성공 (${data.length}건 수신됨)`;
         loadedData = data.map((p: any) => {
           const pos = normalizePosition(p.position || "사원");
-          const isTopPos = isTopPosition(pos);
-          const dept = isTopPos
-            ? "경영진"
-            : normalizeDepartment(p.department || "생산팀");
-          const r = isTopPos ? "ADMIN" : (p.role || computeRoleLocal(dept, pos));
+          const dept = normalizeDepartment(p.department || "생산팀");
+          const r = (p.role as "ADMIN" | "QA" | "WORKER") || computeRoleLocal(dept, pos);
 
           return {
             id: p.id,
@@ -188,9 +179,8 @@ export default function UserManagementPage() {
       const userExistsInDb = loadedData.some((p) => p.email.toLowerCase() === user.email.toLowerCase());
       if (!userExistsInDb) {
         const selfPos = normalizePosition(user.position || "팀장");
-        const isTopPos = isTopPosition(selfPos);
-        const selfDept = isTopPos ? "경영진" : normalizeDepartment(user.department || "생산팀");
-        const selfRole = isTopPos ? "ADMIN" : (user.role || "ADMIN");
+        const selfDept = normalizeDepartment(user.department || "생산팀");
+        const selfRole = (user.role as "ADMIN" | "QA" | "WORKER") || computeRoleLocal(selfDept, selfPos);
 
         const selfProfile: ProfileItem = {
           id: user.email,
@@ -269,12 +259,8 @@ export default function UserManagementPage() {
 
       if (field === "position") {
         newPos = normalizePosition(value);
-        if (isTopPosition(newPos)) {
-          newDept = "경영진";
-          newRole = "ADMIN";
-        }
       } else if (field === "department") {
-        newDept = value;
+        newDept = normalizeDepartment(value);
       } else if (field === "role") {
         newRole = value as "ADMIN" | "QA" | "WORKER";
       } else if (field === "permission_group_id") {
@@ -354,16 +340,9 @@ export default function UserManagementPage() {
     setSavingId(targetUser.id);
     setStatusMsg(null);
 
-    // 대표/이사 직급이면 부서 경영진 & ADMIN 권한 고정
     const savePos = normalizePosition(edit.position);
-    let saveDept = edit.department;
-    let saveRole = edit.role;
-    if (isTopPosition(savePos)) {
-      saveDept = "경영진";
-      saveRole = "ADMIN";
-    } else {
-      saveDept = normalizeDepartment(saveDept);
-    }
+    const saveDept = normalizeDepartment(edit.department);
+    const saveRole = edit.role;
 
     const newJobTitle = formatJobTitle(saveDept, savePos);
 
@@ -675,15 +654,13 @@ export default function UserManagementPage() {
                       permission_group_id: p.permission_group_id || null,
                       ecount_user_id: p.ecount_user_id || "",
                     };
-                    const isTopPos = isTopPosition(normalizePosition(currentEdit.position));
-                    const displayDept = isTopPos ? "경영진" : currentEdit.department;
                     const isChanged =
                       currentEdit.department !== p.department ||
                       currentEdit.position !== p.position ||
                       currentEdit.role !== p.role ||
                       (currentEdit.permission_group_id || null) !== (p.permission_group_id || null) ||
                       (currentEdit.ecount_user_id || "") !== (p.ecount_user_id || "");
-                    const previewJobTitle = formatJobTitle(displayDept, currentEdit.position);
+                    const previewJobTitle = formatJobTitle(currentEdit.department, currentEdit.position);
                     const isSelf = user?.email === p.email;
                     const ecountFreeText =
                       currentEdit.ecount_user_id &&
@@ -713,10 +690,9 @@ export default function UserManagementPage() {
 
                         <td className="py-3.5 px-4">
                           <select
-                            value={displayDept}
+                            value={currentEdit.department}
                             onChange={(e) => handleSelectChange(p.id, "department", e.target.value)}
-                            disabled={isTopPos}
-                            className="w-full text-xs font-normal border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer disabled:bg-slate-100 disabled:text-slate-500"
+                            className="w-full text-xs font-normal border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer"
                           >
                             {DEPARTMENT_OPTIONS.map((dept) => (
                               <option key={dept} value={dept}>

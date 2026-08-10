@@ -52,12 +52,8 @@ export function formatJobTitle(department: string, position: string): string {
   return `${dept} ${pos}`;
 }
 
-// 부서 + 직급 조합으로 실제 권한을 자동 계산
-function computePermissionRole(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
-  if (position === "대표" || position === "대표이사" || position === "이사") {
-    return "ADMIN";
-  }
-  // 경영진·경영지원팀 → ADMIN, 품질관리팀 → QA
+// 부서 기준으로 기본 권한 역할 제안 (직급과 무관하게 부서·저장된 role 우선)
+function computePermissionRole(department: string, _position: string): "ADMIN" | "QA" | "WORKER" {
   if (department.includes("경영")) return "ADMIN";
   if (department.includes("품질")) return "QA";
   return "WORKER";
@@ -103,14 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 레거시 직급/부서 정규화
     if (position === "관리자") position = "이사";
     if (department === "-" || !department.trim()) {
-      department =
-        position === "대표이사" || position === "대표" || position === "이사"
-          ? "경영진"
-          : "생산팀";
-    }
-    if (position === "대표이사" || position === "대표" || position === "이사") {
-      department = "경영진";
-      permissionRole = "ADMIN";
+      department = "생산팀";
     }
 
     const jobTitle = formatJobTitle(department, position);

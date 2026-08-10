@@ -20,8 +20,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
 
 import type { RosterProfile } from "@/lib/scheduleRosterTypes";
 
-function computeRole(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
-  if (position === "대표" || position === "대표이사" || position === "이사") return "ADMIN";
+function computeRole(department: string, _position: string): "ADMIN" | "QA" | "WORKER" {
   if (department.includes("경영")) return "ADMIN";
   if (department.includes("품질")) return "QA";
   return "WORKER";

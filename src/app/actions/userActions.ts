@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { formatJobTitle } from "@/context/AuthContext";
+import { normalizeAdminDepartment } from "@/lib/departmentNormalize";
 
 export interface ProfileItem {
   id: string;
@@ -19,10 +20,8 @@ export interface ProfileItem {
   ecount_user_name?: string | null;
 }
 
-function computeRoleHelper(department: string, position: string): "ADMIN" | "QA" | "WORKER" {
-  if (position === "대표이사" || position === "대표" || position === "이사" || department.includes("경영")) {
-    return "ADMIN";
-  }
+function computeRoleHelper(department: string, _position: string): "ADMIN" | "QA" | "WORKER" {
+  if (department.includes("경영")) return "ADMIN";
   if (department.includes("품질")) return "QA";
   return "WORKER";
 }
@@ -48,20 +47,11 @@ export async function getAllUserProfiles() {
     }
 
     const profiles: ProfileItem[] = (data || []).map((p: any) => {
-      let department = p.department || "생산팀";
-      let position = p.position || "사원";
+      let department = normalizeAdminDepartment(p.department || "생산팀");
+      let position = (p.position || "사원").trim();
       if (position === "관리자") position = "이사";
-      if (department === "-" || !department.trim()) {
-        department =
-          position === "대표이사" || position === "대표" || position === "이사"
-            ? "경영진"
-            : "생산팀";
-      }
-      if (position === "대표이사" || position === "대표" || position === "이사") {
-        department = "경영진";
-      }
       const role =
-        p.role || computeRoleHelper(department, position);
+        (p.role as "ADMIN" | "QA" | "WORKER") || computeRoleHelper(department, position);
 
       return {
         id: p.id,
@@ -96,23 +86,18 @@ export async function updateUserProfile(
   customRole?: "ADMIN" | "QA" | "WORKER"
 ) {
   try {
-    let role = customRole || computeRoleHelper(department, position);
-    // 레거시 '관리자' 직급 정리
-    if (position === "관리자") position = "이사";
-    if (position === "대표이사" || position === "대표" || position === "이사") {
-      department = "경영진";
-      role = "ADMIN";
-    }
-    if (department === "-" || !department) {
-      department = position === "이사" || position === "대표" || position === "대표이사" ? "경영진" : "생산팀";
-    }
+    const normalizedPosition = position === "관리자" ? "이사" : position;
+    const normalizedDepartment = normalizeAdminDepartment(
+      department === "-" || !department?.trim() ? "생산팀" : department
+    );
+    const role = customRole || computeRoleHelper(normalizedDepartment, normalizedPosition);
     const updatedAt = new Date().toISOString();
 
     const { error } = await supabase
       .from("profiles")
       .update({
-        department,
-        position,
+        department: normalizedDepartment,
+        position: normalizedPosition,
         role,
         updated_at: updatedAt,
       })
@@ -126,7 +111,7 @@ export async function updateUserProfile(
     return {
       success: true,
       message: "사용자 직책 및 권한이 성공적으로 수정되었습니다.",
-      updated: { department, position, role, updatedAt },
+      updated: { department: normalizedDepartment, position: normalizedPosition, role, updatedAt },
     };
   } catch (err: any) {
     console.error("updateUserProfile exception:", err);
