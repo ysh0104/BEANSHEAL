@@ -40,34 +40,38 @@ export async function GET() {
       DATA: { BASE_DATE: baseDate, WH_CD: '', PROD_CD: '', ZERO_INCL_YN: 'Y', USE_DECIMAL_YN: 'Y', DECIMAL_PRECISION: '4', UNIT_TYPE: '1' }
     }, { 'X-Ecount-Zone': zone });
 
-    // 3. Test multiple Item Master Endpoints
-    const masterEndpoints = [
-      '/OAPI/V2/InventoryBasic/GetListItem',
-      '/OAPI/V2/InventoryBasic/GetListBasicItem',
-      '/OAPI/V2/Item/GetList',
-      '/OAPI/V2/Product/GetList',
-      '/OAPI/V2/Master/GetListProduct'
+    // 3. Test multiple Item Master Endpoints and Payloads
+    const testCases = [
+      { ep: '/OAPI/V2/InventoryBasic/GetListItem', body: { PROD_CD: '' } },
+      { ep: '/OAPI/V2/InventoryBasic/GetListItem', body: { PROD_CD: '', USE_YN: 'Y' } },
+      { ep: '/OAPI/V2/InventoryBasic/GetListItem', body: { PROD_CD: '', DEL_YN: 'N' } },
+      { ep: '/OAPI/V2/InventoryBasic/GetListBasicItem', body: { PROD_CD: '' } },
+      { ep: '/OAPI/V2/Item/GetList', body: { PROD_CD: '' } },
+      { ep: '/OAPI/V2/InventoryBasic/GetListProductMaster', body: { PROD_CD: '' } },
+      { ep: '/OAPI/V2/Product/GetList', body: { PROD_CD: '' } },
     ];
 
     const masterResults: Record<string, any> = {};
 
-    for (const ep of masterEndpoints) {
+    for (let i = 0; i < testCases.length; i++) {
+      const tc = testCases[i];
+      const key = `${i + 1}. ${tc.ep} (${JSON.stringify(tc.body)})`;
       try {
-        const url = `${targetHost}${ep}?SESSION_ID=${sessionId}`;
+        const url = `${targetHost}${tc.ep}?SESSION_ID=${sessionId}`;
         const res = await ecountPost(url, {
           SESSION_ID: sessionId,
           COM_CODE: comCode,
-          DATA: { PROD_CD: '' }
+          DATA: tc.body
         }, { 'X-Ecount-Zone': zone });
 
         const list = res.data?.Data?.Result || res.data?.Data?.List || res.data?.Data || [];
         if (Array.isArray(list) && list.length > 0) {
-          masterResults[ep] = { count: list.length, sample: list.slice(0, 5) };
+          masterResults[key] = { success: true, count: list.length, sample: list.slice(0, 5) };
         } else {
-          masterResults[ep] = { error: res.data?.Result?.Message || res.data?.Message || 'Empty or error', res: res.data };
+          masterResults[key] = { success: false, msg: res.data?.Result?.Message || res.data?.Message || 'Empty or Error', raw: res.data };
         }
       } catch (e: any) {
-        masterResults[ep] = { error: e.message };
+        masterResults[key] = { success: false, error: e.message };
       }
     }
 
