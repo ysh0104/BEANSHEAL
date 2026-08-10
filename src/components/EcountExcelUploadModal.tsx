@@ -93,13 +93,33 @@ export default function EcountExcelUploadModal({ isOpen, onClose, onSuccess }: P
         const validRows: ExcelMasterRow[] = [];
         const dataRows = allRows.slice(headerRowIdx + 1);
 
+        // 유효하지 않은 행 필터링 함수
+        // 날짜/시간 패턴, 합계행, 머리글/바닥글 텍스트 등을 걸러냄
+        const isInvalidRow = (cd: string, nm: string): boolean => {
+          const combined = `${cd} ${nm}`.trim();
+          // 빈 행
+          if (!cd && !nm) return true;
+          // 날짜 패턴 (예: 2026/08/10, 2026-08-10, 2026.08.10)
+          if (/\d{4}[\/.\-]\d{1,2}[\/.\-]\d{1,2}/.test(combined)) return true;
+          // 시간 패턴 (예: 오전 4:58:46, 오후 4:58:46, 16:58:46)
+          if (/(오전|오후)\s*\d{1,2}:\d{2}/.test(combined)) return true;
+          if (/\d{2}:\d{2}:\d{2}/.test(combined)) return true;
+          // 합계·소계·총계 행
+          if (/^(합계|소계|총계|계|total|sum)$/i.test(cd.replace(/\s/g, ""))) return true;
+          // 회사명·인쇄일 등 머리글/바닥글 ("회사명" 포함 또는 "재고현황" 포함)
+          if (/(회사명|인쇄일|출력일|재고현황|페이지|Page)/i.test(combined)) return true;
+          // 품목코드가 너무 길면(30자 초과) 유효한 코드가 아님
+          if (cd.length > 30) return true;
+          return false;
+        };
+
         dataRows.forEach((row) => {
           const rawCd = String(row[finalCodeIdx] ?? "").trim();
           const rawNm = String(row[finalNameIdx] ?? "").trim();
           const rawQtyRaw = row[finalQtyIdx];
 
-          // 빈 행 스킵
-          if (!rawCd && !rawNm) return;
+          // 유효하지 않은 행 스킵
+          if (isInvalidRow(rawCd, rawNm)) return;
 
           const prodCd = rawCd || rawNm;
           const prodNm = rawNm || rawCd;
