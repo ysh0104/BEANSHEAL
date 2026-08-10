@@ -17,6 +17,7 @@ import {
   listEcountUsers,
   syncEcountUsersFromApi,
   upsertEcountUserManual,
+  bulkUpsertEcountUsersManual,
   updateEcountMapping,
   type EcountUserRecord,
 } from "@/app/actions/ecountUserMapping";
@@ -99,6 +100,9 @@ export default function UserManagementPage() {
   const [ecountUsers, setEcountUsers] = useState<EcountUserRecord[]>([]);
   const [ecountSyncMsg, setEcountSyncMsg] = useState<string | null>(null);
   const [ecountSyncing, setEcountSyncing] = useState(false);
+  const [ecountBulkOpen, setEcountBulkOpen] = useState(false);
+  const [ecountBulkText, setEcountBulkText] = useState("");
+  const [ecountBulkSaving, setEcountBulkSaving] = useState(false);
   const [permPanelOpen, setPermPanelOpen] = useState(false);
 
   const canManagePerms =
@@ -307,6 +311,24 @@ export default function UserManagementPage() {
     }
     await loadEcountUsers();
     setEcountSyncMsg(`이카운트 사용자 '${userId.trim()}' 등록됨`);
+  };
+
+  const handleBulkEcountUsers = async () => {
+    if (!ecountBulkText.trim()) {
+      alert("등록할 ID 목록을 입력하세요.");
+      return;
+    }
+    setEcountBulkSaving(true);
+    const res = await bulkUpsertEcountUsersManual(ecountBulkText);
+    setEcountBulkSaving(false);
+    if (!res.success) {
+      alert(res.message || "일괄 등록 실패");
+      return;
+    }
+    await loadEcountUsers();
+    setEcountSyncMsg(res.message || "일괄 등록 완료");
+    setEcountBulkText("");
+    setEcountBulkOpen(false);
   };
 
   const handleAddEmployee = async () => {
@@ -585,25 +607,35 @@ export default function UserManagementPage() {
             <div>
               <h2 className="font-bold text-sm text-slate-800">가입 사원 · 이카운트 매칭</h2>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Google 로그인 계정에 이카운트 사용자 ID를 연결합니다. API 동기화가 안 되면 「수동 등록」으로 ID를 넣으세요.
+                Google 계정 ↔ 이카운트 로그인 ID 연결. OpenAPI는 사원 목록 조회를 지원하지 않아{" "}
+                <span className="font-semibold text-slate-700">일괄/수동 등록</span> 후 드롭다운·직접입력으로 매칭합니다.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEcountBulkOpen((v) => !v)}
+                disabled={!canManagePerms}
+                className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 cursor-pointer disabled:opacity-50"
+              >
+                {ecountBulkOpen ? "일괄 등록 닫기" : "일괄 등록"}
+              </button>
               <button
                 type="button"
                 onClick={handleAddEcountUserManual}
                 disabled={!canManagePerms}
                 className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-white cursor-pointer disabled:opacity-50"
               >
-                + 이카운트 ID 수동 등록
+                + ID 수동 등록
               </button>
               <button
                 type="button"
                 onClick={handleSyncEcountUsers}
                 disabled={!canManagePerms || ecountSyncing}
-                className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-700 cursor-pointer disabled:opacity-50"
+                title="이카운트 OpenAPI는 사원 목록 API 미제공 — 대부분 EXP00001로 실패합니다"
+                className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 cursor-pointer disabled:opacity-50"
               >
-                {ecountSyncing ? "동기화 중…" : "이카운트 사원 동기화"}
+                {ecountSyncing ? "시도 중…" : "OpenAPI 동기화 시도"}
               </button>
               <span className="text-xs text-slate-500 font-normal">총 {profiles.length} 건</span>
             </div>
@@ -611,6 +643,35 @@ export default function UserManagementPage() {
           {ecountSyncMsg && (
             <div className="px-5 py-2 text-[11px] border-b border-slate-100 bg-amber-50 text-amber-900">
               {ecountSyncMsg}
+            </div>
+          )}
+          {ecountBulkOpen && (
+            <div className="px-5 py-3 border-b border-slate-100 bg-emerald-50/60 space-y-2">
+              <p className="text-[11px] text-emerald-900">
+                이카운트 ERP → 사용자관리에서 ID·이름을 복사해 붙여넣으세요. 한 줄에{" "}
+                <code className="font-mono bg-white/80 px-1 rounded">ID, 이름, 부서(선택)</code> — 탭·쉼표 구분.
+              </p>
+              <textarea
+                value={ecountBulkText}
+                onChange={(e) => setEcountBulkText(e.target.value)}
+                disabled={!canManagePerms || ecountBulkSaving}
+                rows={5}
+                placeholder={"hwalang, 임화랑, 경영지원\nsyeeun, 성예은\njsun4you, 정선영, 영업"}
+                className="w-full text-xs font-mono border border-emerald-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-60"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleBulkEcountUsers}
+                  disabled={!canManagePerms || ecountBulkSaving}
+                  className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 cursor-pointer disabled:opacity-50"
+                >
+                  {ecountBulkSaving ? "등록 중…" : "목록에 등록"}
+                </button>
+                <span className="text-[11px] text-emerald-800 self-center">
+                  등록 후 각 사원 행의 「이카운트 매칭」에서 선택 → 저장
+                </span>
+              </div>
             </div>
           )}
 

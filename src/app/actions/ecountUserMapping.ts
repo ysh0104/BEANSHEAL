@@ -59,6 +59,27 @@ export async function listEcountUsers(): Promise<{
   }
 }
 
+function parseEcountUserLine(line: string): {
+  user_id: string;
+  user_name: string;
+  dept_name: string;
+} | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) return null;
+
+  const parts = trimmed.split(/[\t,|]/).map((p) => p.trim()).filter(Boolean);
+  if (!parts.length) return null;
+
+  const user_id = parts[0];
+  if (!user_id) return null;
+
+  return {
+    user_id,
+    user_name: parts[1] || user_id,
+    dept_name: parts[2] || "",
+  };
+}
+
 /** 관리자가 이카운트 사용자를 수동 등록 */
 export async function upsertEcountUserManual(input: {
   user_id: string;
@@ -83,6 +104,39 @@ export async function upsertEcountUserManual(input: {
     return { success: true, data: row };
   } catch (e: any) {
     return { success: false, message: e?.message || "등록 실패" };
+  }
+}
+
+/** 엑셀/메모에서 복사한 여러 줄을 한 번에 등록 (구분: 탭·쉼표·|) */
+export async function bulkUpsertEcountUsersManual(rawText: string) {
+  try {
+    const parsed = (rawText || "")
+      .split(/\r?\n/)
+      .map(parseEcountUserLine)
+      .filter((row): row is NonNullable<typeof row> => !!row);
+
+    if (!parsed.length) {
+      return { success: false, message: "등록할 ID가 없습니다. 한 줄에 `ID, 이름` 형식으로 입력하세요.", count: 0 };
+    }
+
+    const upserts = parsed.map((row) => ({
+      user_id: row.user_id,
+      emp_cd: row.user_id,
+      user_name: row.user_name,
+      dept_name: row.dept_name,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase.from("ecount_users").upsert(upserts, { onConflict: "user_id" });
+    if (error) return { success: false, message: error.message, count: 0 };
+
+    return {
+      success: true,
+      message: `이카운트 사용자 ${upserts.length}명을 등록했습니다. 아래 드롭다운에서 매칭하세요.`,
+      count: upserts.length,
+    };
+  } catch (e: any) {
+    return { success: false, message: e?.message || "일괄 등록 실패", count: 0 };
   }
 }
 
@@ -147,7 +201,9 @@ export async function syncEcountUsersFromApi() {
         const errMsg = json?.Errors?.[0]?.Message || json?.Result?.Message || json?.Data?.Message;
         
         if (errCode === "EXP00001" || errMsg === "Not Found" || json?.Status === "500") {
-          lastError = "이카운트 OpenAPI V2 규격에서는 사원 목록 자동 조회를 지원하지 않습니다. (EXP00001 Not Found) 아래 수동 등록/매칭 기능을 사용해 주세요.";
+          lastError =
+            "이카운트 OpenAPI는 사원·로그인 사용자 목록 조회 API를 제공하지 않습니다 (EXP00001). " +
+            "연결·프록시는 정상입니다. 「일괄 등록」 또는 각 행의 ID 직접 입력으로 매칭해 주세요.";
         } else if (errMsg) {
           lastError = `이카운트 API 응답: ${errMsg}`;
         }
