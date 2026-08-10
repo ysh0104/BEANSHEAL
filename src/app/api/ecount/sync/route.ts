@@ -165,13 +165,17 @@ export async function POST() {
       throw masterErr;
     }
 
+    const sampleItem = rawList[0] || {};
+    const sampleKeys = Object.keys(sampleItem);
+
     return NextResponse.json({
       success: true,
       message: `이카운트 품목/재고 ${masterRows.length}건이 성공적으로 마스터 DB(ecount_items)에 동기화되었습니다.`,
       count: masterRows.length,
       synced_at: new Date().toISOString(),
       is_fixie_active: isFixieActive,
-      sample_raw_items: rawList.slice(0, 5)
+      sample_item_keys: sampleKeys,
+      sample_item_raw: sampleItem
     });
 
   } catch (error: any) {
