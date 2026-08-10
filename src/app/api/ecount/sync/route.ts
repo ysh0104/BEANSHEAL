@@ -168,8 +168,8 @@ export async function POST() {
       const masterList = masterRes.Data?.Result || masterRes.Data?.List || masterRes.Data || [];
       if (Array.isArray(masterList)) {
         masterList.forEach((mItem: any) => {
-          const mCd = String(mItem.PROD_CD || mItem.CODE || '').trim();
-          const mNm = String(mItem.PROD_DES || mItem.PROD_NM || mItem.ITEM_DES || '').trim();
+          const mCd = String(mItem.PROD_CD || mItem.PROD_NO || mItem.CODE || mItem.ITEM_CD || '').trim();
+          const mNm = String(mItem.PROD_DES || mItem.PROD_NM || mItem.PROD_NAME || mItem.ITEM_DES || mItem.DES || mItem.REMARKS || '').trim();
           if (mCd && mNm) {
             itemMasterMap.set(mCd, mNm);
           }
@@ -180,15 +180,32 @@ export async function POST() {
       console.warn('[Ecount Item Master Fetch Warning]:', e);
     }
 
+    // 🌟 3.6. ecount_inventory (로트 수집 데이터)에서 item_name ➔ lot_no 매핑 보완
+    try {
+      const supabase = getSupabaseClient();
+      const { data: invData } = await supabase.from('ecount_inventory').select('item_name, lot_no').limit(2000);
+      if (invData) {
+        invData.forEach((row: any) => {
+          if (row.item_name && row.lot_no) {
+            const cleanLot = String(row.lot_no).trim();
+            const cleanNm = String(row.item_name).trim();
+            if (cleanLot && cleanNm && !itemMasterMap.has(cleanLot)) {
+              itemMasterMap.set(cleanLot, cleanNm);
+            }
+          }
+        });
+      }
+    } catch (e) {}
+
     // 4. 품목별 정밀 소수점 재고 합산 (Grouping & Summing with exact float precision)
     const productQtyMap = new Map<string, { prodNm: string; totalQty: number }>();
 
     for (const item of rawList) {
       // 1. 품목코드 및 품목명 다중 필드 바인딩 (이카운트 API 규격별 호환성 극대화)
       const rawCd = String(item.PROD_CD || item.PROD_NO || item.CODE || item.ITEM_CD || item.item_code || '').trim();
-      let rawNm = String(item.PROD_DES || item.PROD_NM || item.PROD_NAME || item.ITEM_DES || item.item_name || '').trim();
+      let rawNm = String(item.PROD_DES || item.PROD_NM || item.PROD_NAME || item.ITEM_DES || item.DES || item.item_name || '').trim();
 
-      // 만약 재고 API 응답에 PROD_DES가 누락되었을 경우 마스터(GetListItem)에서 PROD_DES 보완
+      // 만약 재고 API 응답에 PROD_DES가 누락되었을 경우 마스터(GetListItem) 및 로트 테이블에서 PROD_DES 보완
       if (!rawNm && rawCd && itemMasterMap.has(rawCd)) {
         rawNm = itemMasterMap.get(rawCd)!;
       }
