@@ -171,7 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // ⚡ 2. 백그라운드 세션 검증 및 DB 최신 프로필 비동기 동기화 (화면 깜빡임 제로)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then((res) => {
+      const session = res?.data?.session;
       if (session?.user) {
         loadProfile(session.user);
       } else {
@@ -191,7 +192,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
   }, []);
 
   const loginWithGoogle = async () => {

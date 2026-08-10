@@ -67,7 +67,7 @@ export function canUserView(user: UserProfile | null, group: FeatureGroup): bool
   if (key === "cms" || key === "admin_users") {
     return (
       user.role === "ADMIN" ||
-      user.department.includes("경영") ||
+      !!user.department?.includes("경영") ||
       !!user.permissions?.[key]?.can_view
     );
   }
