@@ -134,7 +134,7 @@ export async function POST() {
           const prodCd = String(item.PROD_CD || item.item_code || '').trim();
           if (!prodCd) return;
           const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
-          const rawQtyVal = item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? '0';
+          const rawQtyVal = item.CS_QTY ?? item.BAL_QTY_DEC ?? item.DEC_QTY ?? item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? '0';
           const qtyNum = Number(String(rawQtyVal).replace(/,/g, '').trim());
           const safeQty = isNaN(qtyNum) ? 0 : qtyNum;
 
@@ -188,7 +188,7 @@ export async function POST() {
       .map((item: any) => {
         const prodCd = String(item.PROD_CD || item.item_code || '').trim();
         const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
-        const rawQtyVal = item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? '0';
+        const rawQtyVal = item.CS_QTY ?? item.BAL_QTY_DEC ?? item.DEC_QTY ?? item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? '0';
         const rawQtyStr = String(rawQtyVal).replace(/,/g, '').trim();
         const qty = Number(rawQtyStr);
 
