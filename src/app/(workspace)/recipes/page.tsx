@@ -246,7 +246,7 @@ export default function RecipeListPage() {
             <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">제품 BOM (레시피)</h2>
           </div>
           <p className="text-slate-500 mt-2 font-medium ml-5">
-            이카운트 BOM(소요량)현황 엑셀로 동기화 · 완제품·원부자재 코드 매핑
+            {/* 이카운트 BOM(소요량)현황 엑셀로 동기화 · 완제품·원부자재 코드 매핑 */}
           </p>
         </div>
 

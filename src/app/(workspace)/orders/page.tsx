@@ -60,6 +60,10 @@ export default function OrdersPage() {
   const [targetQty, setTargetQty] = useState<number>(0);
   const [materials, setMaterials] = useState<any[]>([]);
   const [routings, setRoutings] = useState<any[]>([]);
+
+  // 🌟 재고 현황 맵 (품목명 → 현재 재고수량)
+  const [inventoryMap, setInventoryMap] = useState<Record<string, number>>({});
+  const [loadingInventory, setLoadingInventory] = useState(false);
   
   const [orderDate, setOrderDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [customOrderNumber, setCustomOrderNumber] = useState<string>("");
@@ -132,8 +136,23 @@ export default function OrdersPage() {
   const openCreateModal = async () => {
     setIsCreateModalOpen(true);
     setOrderDate(new Date().toISOString().split('T')[0]);
-    const result = await getRecipeList();
-    if (result.success) setRecipeList(result.data);
+    // 레시피 목록 + 재고 현황 병렬 로드
+    setLoadingInventory(true);
+    const [recipeResult, invResult] = await Promise.all([
+      getRecipeList(),
+      supabase.from('ecount_items').select('prod_nm, total_qty'),
+    ]);
+    if (recipeResult.success) setRecipeList(recipeResult.data);
+    if (!invResult.error && invResult.data) {
+      // 품목명 정규화 → 재고량 맵
+      const map: Record<string, number> = {};
+      invResult.data.forEach((item: any) => {
+        const nm = String(item.prod_nm || '').trim();
+        if (nm) map[nm] = Number(item.total_qty || 0);
+      });
+      setInventoryMap(map);
+    }
+    setLoadingInventory(false);
   };
 
   const closeCreateModal = () => {
@@ -579,23 +598,80 @@ export default function OrdersPage() {
 
               {selectedRecipe && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* 왼쪽: 필요 원료 칭량 + 재고 현황 연동 */}
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">필요 원료 칭량 (자동계산)</h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {materials.map((mat, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-md border border-gray-100">
-                          <span className="font-bold text-gray-700">{mat.material_name}</span>
-                          <div>
-                            <span className="text-xl font-black text-green-600">{calculateInput(mat.input_qty)}</span>
-                            <span className="text-sm font-bold text-gray-500 ml-1">{mat.input_unit}</span>
+                    <h3 className="text-sm font-bold text-gray-800 mb-1 flex items-center gap-2">필요 원료 칭량 (자동계산)</h3>
+                    <p className="text-xs text-gray-400 mb-3 font-medium">
+                      {loadingInventory ? '재고 현황 불러오는 중...' : '현재 재고 기준 부족 수량 자동 표시'}
+                    </p>
+                    <div className="space-y-2 max-h-72 overflow-y-auto">
+                      {/* 헤더 */}
+                      <div className="grid grid-cols-4 gap-1 px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                        <span className="col-span-1">원료명</span>
+                        <span className="text-right">필요량</span>
+                        <span className="text-right">현재재고</span>
+                        <span className="text-right">부족수량</span>
+                      </div>
+                      {materials.map((mat, idx) => {
+                        const needed = Number(calculateInput(mat.input_qty));
+                        // 품목명 유사 매칭 (정규화)
+                        const normalize = (s: string) => s.replace(/^[원부자반]\)\s*/, '').replace(/\[.*?\]/g, '').replace(/\s+/g, '').toLowerCase();
+                        const matKey = normalize(mat.material_name);
+                        const stockEntry = Object.entries(inventoryMap).find(([k]) => normalize(k).includes(matKey) || matKey.includes(normalize(k)));
+                        const currentStock = stockEntry ? stockEntry[1] : null;
+                        const shortage = currentStock !== null ? needed - currentStock : null;
+                        const isShort = shortage !== null && shortage > 0;
+                        const isOk = shortage !== null && shortage <= 0;
+                        return (
+                          <div key={idx} className={`grid grid-cols-4 gap-1 items-center p-3 rounded-md border ${
+                            isShort ? 'bg-red-50 border-red-200' : isOk ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-100'
+                          }`}>
+                            <span className="col-span-1 font-bold text-gray-700 text-xs leading-tight">{mat.material_name}</span>
+                            <div className="text-right">
+                              <span className="text-base font-black text-blue-700">{calculateInput(mat.input_qty)}</span>
+                              <span className="text-[10px] font-bold text-gray-400 ml-0.5">{mat.input_unit}</span>
+                            </div>
+                            <div className="text-right">
+                              {currentStock !== null ? (
+                                <span className={`text-sm font-bold ${isOk ? 'text-emerald-600' : 'text-orange-500'}`}>
+                                  {currentStock.toLocaleString('ko-KR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-300 font-medium">미연동</span>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              {shortage !== null ? (
+                                isShort ? (
+                                  <span className="text-sm font-black text-red-600">▲ {shortage.toLocaleString('ko-KR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}</span>
+                                ) : (
+                                  <span className="text-sm font-bold text-emerald-500">✓ 충분</span>
+                                )
+                              ) : (
+                                <span className="text-xs text-gray-300">-</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
+                    {/* 재고 부족 원료 요약 */}
+                    {materials.some((mat) => {
+                      const needed = Number(calculateInput(mat.input_qty));
+                      const normalize = (s: string) => s.replace(/^[원부자반]\)\s*/, '').replace(/\[.*?\]/g, '').replace(/\s+/g, '').toLowerCase();
+                      const matKey = normalize(mat.material_name);
+                      const stockEntry = Object.entries(inventoryMap).find(([k]) => normalize(k).includes(matKey) || matKey.includes(normalize(k)));
+                      const currentStock = stockEntry ? stockEntry[1] : null;
+                      return currentStock !== null && needed > currentStock;
+                    }) && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-xs font-bold text-red-700">⚠ 재고 부족 원료가 있습니다. 발주가 필요합니다.</p>
+                      </div>
+                    )}
                   </div>
                   <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                     <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">출력 예정 지시서 폼</h3>
-                    <div className="space-y-3 max-h-60 overflow-y-auto">
+                    <div className="space-y-3 max-h-72 overflow-y-auto">
                       {routings.map((route, idx) => (
                         <div key={idx} className="flex items-center gap-4 border border-gray-100 p-3 rounded-md">
                           <div className="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs shrink-0">{idx + 1}</div>
