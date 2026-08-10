@@ -573,24 +573,24 @@ export default function AuditPage() {
                         <td className="p-3 text-blue-700 font-mono font-bold">{item.lotNo}</td>
                         <td className="p-3 text-gray-600">{item.expDate}</td>
                         <td className="p-3 text-center">
-                          <span className={`px-2.5 py-1 rounded text-xs font-bold border ${isPending ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>
-                            {isPending ? "문서대기" : "승인 및 발급완료"}
+                          <span className={`px-2.5 py-1 rounded text-xs font-bold border ${item.status === '문서대기' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
+                            {item.status}
                           </span>
                         </td>
                         <td className="p-3 text-center">
-                          {isPending ? (
+                          {item.status === '문서대기' ? (
                             <button 
                               onClick={() => handleDownloadQCBatch(item)} 
                               className="bg-blue-600 text-white text-xs px-4 py-2 font-bold rounded shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
                             >
-                              📋 검토 및 서류 발급
+                              검토 및 서류 발급
                             </button>
                           ) : (
                             <button 
                               onClick={() => handleDownloadQCBatch(item)} 
-                              className="bg-slate-700 text-white text-xs px-4 py-2 font-bold rounded shadow-xs hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="bg-gray-200 text-gray-500 text-xs px-4 py-2 font-bold rounded hover:bg-gray-300 transition-colors cursor-pointer"
                             >
-                              🔄 서류 재발급
+                              서류 재발급
                             </button>
                           )}
                         </td>
