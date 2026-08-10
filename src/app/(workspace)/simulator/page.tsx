@@ -194,6 +194,11 @@ export default function ProductionSimulator() {
 
       // 3-1. 원料 계산
       rawMaterials.forEach(mat => {
+        // 🌟 정제수(물)는 단순 용수이므로 발주 계산 대상에서 제외
+        if (mat.name && mat.name.includes("정제수")) {
+          return;
+        }
+
         const requiredQty = grossQtyKg * (mat.ratio / 100);
         const isExtractMat = mat.name.includes("커피") && mat.name.includes("추출액");
         let currentStock: number | string;

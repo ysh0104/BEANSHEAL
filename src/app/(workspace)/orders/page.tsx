@@ -614,15 +614,16 @@ export default function OrdersPage() {
                         <span className="text-right">부족수량</span>
                       </div>
                       {materials.map((mat, idx) => {
+                        const isWater = mat.material_name && mat.material_name.includes("정제수");
                         const needed = Number(calculateInput(mat.input_qty));
                         const matchRes = findStockForMaterial(
                           { name: mat.material_name, materialCode: mat.material_code },
                           stockItemsList
                         );
-                        const currentStock = matchRes.matched ? matchRes.qty : null;
-                        const shortage = currentStock !== null ? needed - currentStock : null;
+                        const currentStock = isWater ? "자가수급" : (matchRes.matched ? matchRes.qty : null);
+                        const shortage = isWater ? 0 : (typeof currentStock === 'number' ? needed - currentStock : null);
                         const isShort = shortage !== null && shortage > 0;
-                        const isOk = shortage !== null && shortage <= 0;
+                        const isOk = isWater || (shortage !== null && shortage <= 0);
                         return (
                           <div key={idx} className={`grid grid-cols-4 gap-1 items-center p-3 rounded-md border ${
                             isShort ? 'bg-red-50 border-red-200' : isOk ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-100'
@@ -633,12 +634,12 @@ export default function OrdersPage() {
                               <span className="text-[10px] font-bold text-gray-400 ml-0.5">{mat.input_unit}</span>
                             </div>
                             <div className="text-right">
-                              {currentStock !== null ? (
+                              {typeof currentStock === 'number' ? (
                                 <span className={`text-sm font-bold ${isOk ? 'text-emerald-600' : 'text-orange-500'}`}>
                                   {currentStock.toLocaleString('ko-KR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
                                 </span>
                               ) : (
-                                <span className="text-xs text-gray-300 font-medium">미연동</span>
+                                <span className="text-xs font-bold text-blue-600">{currentStock || "미연동"}</span>
                               )}
                             </div>
                             <div className="text-right">
@@ -658,6 +659,7 @@ export default function OrdersPage() {
                     </div>
                     {/* 재고 부족 원료 요약 */}
                     {materials.some((mat) => {
+                      if (mat.material_name && mat.material_name.includes("정제수")) return false;
                       const needed = Number(calculateInput(mat.input_qty));
                       const matchRes = findStockForMaterial(
                         { name: mat.material_name, materialCode: mat.material_code },
