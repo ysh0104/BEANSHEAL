@@ -5,17 +5,27 @@ import { supabase } from "@/lib/supabase";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { saveProductionInboundToEcount, syncEcountMasterToDb } from "@/app/actions/ecount";
 
-/** 재고수량: 반올림 없이 있는 그대로 100% 원본 표시 (정수부 천단위 콤마, 소수부 원본 유지) */
+/** 재고수량: 반올림/올림 절대 없음! 최소 3자리 고정 표시 및 4자리 이상 원본 100% 표시 */
 function formatQty(value: number | string) {
-  if (value === null || value === undefined || value === "") return "0";
+  if (value === null || value === undefined || value === "") return "0.000";
   const str = String(value).trim().replace(/,/g, "");
-  if (!str || str === "NaN") return "0";
+  if (!str || str === "NaN") return "0.000";
   const num = Number(str);
-  if (!Number.isFinite(num)) return "0";
+  if (!Number.isFinite(num)) return "0.000";
 
   const parts = str.split(".");
   const intPart = Number(parts[0]).toLocaleString("ko-KR");
-  return parts.length > 1 ? `${intPart}.${parts[1]}` : intPart;
+  
+  if (parts.length === 1) {
+    return `${intPart}.000`;
+  }
+  
+  const decimalPart = parts[1];
+  if (decimalPart.length < 3) {
+    return `${intPart}.${decimalPart.padEnd(3, "0")}`;
+  }
+  
+  return `${intPart}.${decimalPart}`;
 }
 
 export default function InventoryPage() {

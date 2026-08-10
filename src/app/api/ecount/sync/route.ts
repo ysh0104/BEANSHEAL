@@ -132,7 +132,8 @@ export async function POST() {
       .map((item: any) => {
         const prodCd = String(item.PROD_CD || item.item_code || '').trim();
         const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
-        const qty = Number(item.BAL_QTY ?? item.qty ?? 0);
+        const rawQtyStr = String(item.BAL_QTY ?? item.qty ?? '0').replace(/,/g, '').trim();
+        const qty = Number(rawQtyStr);
 
         return {
           prod_cd: prodCd,
@@ -156,7 +157,8 @@ export async function POST() {
         const prodCd = String(item.PROD_CD || item.item_code || '').trim();
         const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
         const lotNo = String(item.LOT_NO || item.lot_no || prodCd).trim();
-        const qty = Number(item.BAL_QTY ?? item.qty ?? 0);
+        const rawQtyStr = String(item.BAL_QTY ?? item.qty ?? '0').replace(/,/g, '').trim();
+        const qty = Number(rawQtyStr);
 
         return {
           item_name: prodNm,

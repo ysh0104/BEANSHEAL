@@ -1,18 +1,12 @@
 const https = require('https');
 
-https.get('https://beansheal.vercel.app/api/ecount/sync', (res) => {
+// ECOUNT OAPILogin & GetListInventoryBalanceStatus 직접 호출하여 원본 BAL_QTY 값 대조
+const fixieUrl = process.env.FIXIE_URL || '';
+
+https.get('https://beansheal.vercel.app/api/debug-fixie', (res) => {
   let body = '';
   res.on('data', chunk => body += chunk);
   res.on('end', () => {
-    console.log(`=== LIVE VERCEL /api/ecount/sync TEST ===`);
-    console.log(`HTTP Status: ${res.statusCode}`);
-    console.log(`Response Body:`);
-    try {
-      console.log(JSON.stringify(JSON.parse(body), null, 2));
-    } catch {
-      console.log(body);
-    }
+    console.log("Fixie Debug Output:", body);
   });
-}).on('error', err => {
-  console.error("HTTP fetch error:", err.message);
 });
