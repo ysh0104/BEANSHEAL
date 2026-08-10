@@ -23,7 +23,14 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
     }
   }
 
+  const processedStreamRanges: { start: number; end: number }[] = [];
+
   for (const offset of magicOffsets) {
+    // 🌟 이미 치환 및 압축을 마친 스트림 내부 sub-offset이면 중복 수정(파일 손상 원인)을 방지하고 패스!
+    if (processedStreamRanges.some(r => offset >= r.start && offset < r.end)) {
+      continue;
+    }
+
     try {
       const slice = result.subarray(offset);
       let inflated: Buffer | null = null;
@@ -79,6 +86,7 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
         // OLE CFBF 섹터 주소 오버라이트 방지: 압축 후 스트림 바이트가 원래 할당 슬라이스 크기 이내일 때만 안전 복사
         if (deflated.length <= slice.length) {
           deflated.copy(result, offset);
+          processedStreamRanges.push({ start: offset, end: offset + deflated.length });
         }
       }
     } catch (e) {}
