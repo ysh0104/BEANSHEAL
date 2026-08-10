@@ -166,6 +166,7 @@ export default function Home() {
   const [memoTagFilter, setMemoTagFilter] = useState<string | null>(null);
   const [memoPresets, setMemoPresets] = useState<MemoPresets>(DEFAULT_MEMO_PRESETS);
   const [isMemoPresetsOpen, setIsMemoPresetsOpen] = useState(false);
+  const [showMemoTools, setShowMemoTools] = useState(false);
   const [editingMemoId, setEditingMemoId] = useState<number | string | null>(null);
   const [editingMemoText, setEditingMemoText] = useState<string>("");
   const [heartAnim, setHeartAnim] = useState<{ id: number | string; x: number; y: number } | null>(null);
@@ -1448,7 +1449,7 @@ export default function Home() {
             ];
 
             const memoHeaderLeft = (
-              <span className="text-xs font-bold text-slate-900">Memo</span>
+              <span className="text-xs font-bold text-slate-900">Memo (실시간 채팅)</span>
             );
 
             const memoHeaderRight = (
@@ -1456,16 +1457,19 @@ export default function Home() {
                 {!canEditMemo && (
                   <span className="text-[10px] font-bold text-slate-400">조회 전용</span>
                 )}
-                {canEditMemo && (
-                  <button
-                    type="button"
-                    onClick={() => setIsMemoPresetsOpen(true)}
-                    className="text-[10px] font-bold text-slate-600 hover:text-indigo-600 cursor-pointer px-1.5 py-0.5 rounded hover:bg-indigo-50"
-                    title="템플릿/태그/멘션 관리"
-                  >
-                    빠른입력 관리
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setShowMemoTools(!showMemoTools)}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 border ${
+                    showMemoTools
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-indigo-600"
+                  }`}
+                  title="상세기능 (태그 필터, 상단고정, 알림, 템플릿 관리)"
+                >
+                  <span>⚙️ 상세기능</span>
+                  <span className="text-[9px]">{showMemoTools ? "▲" : "▼"}</span>
+                </button>
               </div>
             );
 
@@ -1482,8 +1486,9 @@ export default function Home() {
                 <div className="bg-white border border-gray-200 rounded-lg shadow-xs flex flex-col h-full overflow-hidden relative">
                   {renderWidgetHeader(memoHeaderLeft, memoHeaderRight)}
                   <div className="p-4 flex flex-col flex-1 overflow-hidden">
-                    {(allTags.length > 0 || memoTagFilter) && (
-                      <div className="flex flex-wrap items-center gap-1 mb-2">
+                    {/* 상세기능이 열렸거나 태그 필터가 활성화된 경우만 태그 바 노출 */}
+                    {(showMemoTools || memoTagFilter) && (allTags.length > 0 || memoTagFilter) && (
+                      <div className="flex flex-wrap items-center gap-1 mb-2 bg-slate-50 p-1.5 rounded-md border border-slate-100 animate-fadeIn">
                         <button
                           type="button"
                           onClick={() => setMemoTagFilter(null)}
@@ -1715,27 +1720,52 @@ export default function Home() {
                           mentions={mentionList}
                         />
                         <div className="flex flex-wrap items-center gap-2 justify-between">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={newMemoPinned}
-                                onChange={(e) => setNewMemoPinned(e.target.checked)}
-                                className="rounded border-gray-300"
-                              />
-                              📌 상단 고정
-                            </label>
-                            <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-600">
-                              ⏰
-                              <input
-                                type="datetime-local"
-                                value={newMemoReminder}
-                                onChange={(e) => setNewMemoReminder(e.target.value)}
-                                className="text-[10px] border border-gray-300 rounded px-1 py-0.5 bg-white"
-                              />
-                            </label>
+                          {showMemoTools ? (
+                            <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-1.5 rounded-md border border-slate-200/80 w-full justify-between animate-fadeIn">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-700 cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={newMemoPinned}
+                                    onChange={(e) => setNewMemoPinned(e.target.checked)}
+                                    className="rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                                  />
+                                  📌 상단 고정
+                                </label>
+                                <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-700">
+                                  ⏰
+                                  <input
+                                    type="datetime-local"
+                                    value={newMemoReminder}
+                                    onChange={(e) => setNewMemoReminder(e.target.value)}
+                                    className="text-[10px] border border-gray-300 rounded px-1.5 py-0.5 bg-white shadow-2xs"
+                                  />
+                                </label>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setIsMemoPresetsOpen(true)}
+                                className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded cursor-pointer border border-indigo-100 hover:bg-indigo-100"
+                              >
+                                ⚡ 빠른입력/템플릿 관리
+                              </button>
+                            </div>
+                          ) : null}
+
+                          <div className="flex items-center justify-between w-full mt-1">
+                            <button
+                              type="button"
+                              onClick={() => setShowMemoTools(!showMemoTools)}
+                              className="text-[11px] font-bold text-slate-500 hover:text-indigo-600 cursor-pointer flex items-center gap-1 px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
+                            >
+                              <span>{showMemoTools ? "⚙️ 상세옵션 닫기 ▲" : "⚙️ 상세옵션 열기 (태그·핀·알림) ▼"}</span>
+                            </button>
+
+                            <button type="submit" className="bg-slate-800 text-white px-4 py-1.5 text-xs font-bold rounded shadow-xs hover:bg-indigo-700 transition-colors cursor-pointer flex items-center gap-1">
+                              <span>전송</span>
+                              <span className="text-[10px] opacity-75">↵</span>
+                            </button>
                           </div>
-                          <button type="submit" className="bg-slate-800 text-white px-3 py-1.5 text-xs font-bold rounded shadow-xs hover:bg-slate-700 transition-colors cursor-pointer">등록</button>
                         </div>
                       </form>
                     ) : (
