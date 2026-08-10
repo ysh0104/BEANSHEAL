@@ -268,10 +268,10 @@ export async function POST(req: Request) {
     let content: Buffer | null = null;
     const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_product_default';
     
-    // XML 기반 템플릿(.docx, .hwpx)을 최우선 탐색하여 100% 무잘림 데이터 바인딩 및 한글 에러 팝업 근본 방지
-    let searchExtensions: string[] = ['.docx', '.hwpx', '.hwp'];
+    // 요청된 포맷에 맞추어 사용자가 템플릿 폴더에 배치한 서식을 100% 우선 로드 (여백/레이아웃 밀림 무조건 방지)
+    let searchExtensions: string[] = [];
     if (fileExt === 'hwp') {
-      searchExtensions = ['.docx', '.hwpx', '.hwp'];
+      searchExtensions = ['.hwp', '.hwpx', '.docx'];
     } else if (fileExt === 'hwpx') {
       searchExtensions = ['.hwpx', '.docx', '.hwp'];
     } else {
@@ -292,7 +292,7 @@ export async function POST(req: Request) {
       content = readTemplateFile(fileNameWithExt);
     }
 
-    // 3) Fallback 공통 양식 탐색 (qc_label.hwp 등)
+    // 3) Fallback 공통 양식 탐색 (qc_label.hwp 등 사용자가 올린 한글 양식 우선)
     if (!content) {
       console.warn(`[알림] 전용 양식이 없어 공통 양식(${docType})으로 대체합니다.`);
       for (const ext of searchExtensions) {
@@ -384,7 +384,10 @@ export async function POST(req: Request) {
     const safeAsciiFileName = `QC_${docType}_${testNo}.${targetExt}`;
     const encodedFileName = encodeURIComponent(`${outputName}_${testNo}.${targetExt}`);
 
-    return new NextResponse(new Uint8Array(buf), {
+    // Buffer Pool 공유에 의한 메모리 오염 방지를 위해 정확한 Byte Array 범위 지정
+    const responseArray = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+
+    return new NextResponse(responseArray as any, {
       status: 200,
       headers: {
         'Content-Disposition': `attachment; filename="${safeAsciiFileName}"; filename*=UTF-8''${encodedFileName}`,
