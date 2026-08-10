@@ -1,62 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import https from 'https';
-import { HttpsProxyAgent } from 'https-proxy-agent';
+import { ecountPost } from '@/lib/ecountClient';
 
 // Fixie 고정 IP 프록시 지원 HTTP POST 함수 (Vercel -> Fixie Static IPv4 -> Ecount 다이렉트 통신)
 async function fetchWithEgressProxy(url: string, body: any, headersExtra: Record<string, string> = {}) {
-  const fixieUrl = process.env.FIXIE_URL || process.env.FIXIE_SOCKS_HOST;
-
-  if (fixieUrl) {
-    const agent = new HttpsProxyAgent(fixieUrl);
-    return new Promise<any>((resolve, reject) => {
-      const parsedUrl = new URL(url);
-      const postData = JSON.stringify(body);
-
-      const options = {
-        hostname: parsedUrl.hostname,
-        port: parsedUrl.port || 443,
-        path: parsedUrl.pathname + parsedUrl.search,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData),
-          ...headersExtra,
-        },
-        agent: agent,
-      };
-
-      const req = https.request(options, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            resolve({ rawText: data });
-          }
-        });
-      });
-
-      req.on('error', (e) => reject(e));
-      req.write(postData);
-      req.end();
-    });
-  }
-
-  // FIXIE_URL 미설정 시 일반 fetch (Cloudflare 프록시 도메인 경유 가능)
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headersExtra },
-    body: JSON.stringify(body),
-    cache: 'no-store',
-  });
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    return { rawText: text, error: "이카운트 응답이 올바른 JSON 형식이 아닙니다." };
-  }
+  const res = await ecountPost(url, body, headersExtra);
+  if (res.data) return res.data;
+  return { rawText: res.text, error: "이카운트 응답이 올바른 JSON 형식이 아닙니다." };
 }
 
 // Supabase Service Role Client (RLS 우회 저장용)

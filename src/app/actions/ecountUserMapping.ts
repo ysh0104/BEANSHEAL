@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { getSessionId, getEcountProxyBaseUrl, ecountFetchHeaders } from "@/app/actions/ecount";
+import { ecountPost } from "@/lib/ecountClient";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
 const supabaseServiceKey =
@@ -124,23 +125,12 @@ export async function syncEcountUsersFromApi() {
 
     for (const url of candidates) {
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            SESSION_ID: sessionId,
-            COM_CODE,
-          }),
-          cache: "no-store",
+        const res = await ecountPost(url, {
+          SESSION_ID: sessionId,
+          COM_CODE,
         });
-        const text = await res.text();
-        let json: any = {};
-        try {
-          const cleanText = text.replace(/^\uFEFF/, "").trim();
-          json = JSON.parse(cleanText);
-        } catch {
-          json = { Result: { Message: text.slice(0, 100) } };
-        }
+        const json = res.data || {};
+        const text = res.text || "";
         const list =
           json?.Data?.Result ||
           json?.Data?.Datas?.Result ||

@@ -1,25 +1,9 @@
 "use server"
 
 import { supabase } from "@/lib/supabase"; 
+import { ecountPost, getEcountProxyBaseUrl, ecountFetchHeaders } from "@/lib/ecountClient";
 
-/** Vercel → 사무실 프록시(또는 Worker) 베이스 URL */
-export async function getEcountProxyBaseUrl() {
-  return (
-    process.env.ECOUNT_API_BASE_URL ||
-    process.env.ECOUNT_PROXY_URL ||
-    "https://beansheal-ecount.sala0104.workers.dev"
-  ).replace(/\/$/, "");
-}
-
-export async function ecountFetchHeaders(extra: Record<string, string> = {}) {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...extra,
-  };
-  const secret = process.env.ECOUNT_PROXY_SECRET || process.env.PROXY_SECRET;
-  if (secret) headers["X-Beansheal-Proxy-Secret"] = secret;
-  return headers;
-}
+export { getEcountProxyBaseUrl, ecountFetchHeaders };
 
 /** 세션 HOST_URL 대신 항상 프록시로 호출 (사무실 고정 IP 관문) */
 async function ecountApiUrl(pathWithQuery: string) {
@@ -50,47 +34,30 @@ export async function getSessionId() {
   }
 
   try {
-    const headers = await ecountFetchHeaders();
-    const zoneResponse = await fetch(`${proxyBaseUrl}/OAPI/V2/Zone`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ COM_CODE: COM_CODE }),
-      cache: "no-store",
-    });
+    const zoneRes = await ecountPost(`${proxyBaseUrl}/OAPI/V2/Zone`, { COM_CODE: COM_CODE });
+    const zoneData = zoneRes.data || {};
     
-    const zoneText = await zoneResponse.text();
-    let zoneData: any = {};
-    try {
-      zoneData = JSON.parse(zoneText);
-    } catch {
-      return { error: `프록시 통신 오류 (사무실 PC의 start-proxy.bat 이 켜져 있는지 확인하세요): ${zoneText.substring(0, 100)}` };
+    if (!zoneData.Data && zoneRes.text) {
+      return { error: `이카운트 API 통신 오류: ${zoneRes.text.substring(0, 150)}` };
     }
     
     console.log("=== [DEBUG] ZONE API Response ===");
     console.log(JSON.stringify(zoneData, null, 2));
     
     const ZONE = zoneData.Data?.ZONE || process.env.ECOUNT_ZONE || "AC";
-    
     const loginUrl = `${proxyBaseUrl}/OAPI/V2/OAPILogin`;
 
-    const response = await fetch(loginUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        COM_CODE: COM_CODE,
-        USER_ID: USER_ID,
-        API_CERT_KEY: API_KEY,
-        LAN_TYPE: "ko-KR",
-        ZONE: ZONE
-      }),
+    const loginRes = await ecountPost(loginUrl, {
+      COM_CODE: COM_CODE,
+      USER_ID: USER_ID,
+      API_CERT_KEY: API_KEY,
+      LAN_TYPE: "ko-KR",
+      ZONE: ZONE
     });
 
-    const loginText = await response.text();
-    let data: any = {};
-    try {
-      data = JSON.parse(loginText);
-    } catch {
-      return { error: `이카운트 로그인 응답 분석 실패: ${loginText.substring(0, 100)}` };
+    const data = loginRes.data || {};
+    if (!data.Status && loginRes.text) {
+      return { error: `이카운트 로그인 응답 오류: ${loginRes.text.substring(0, 150)}` };
     }
 
     console.log("=== [DEBUG] OAPILogin API Response ===");
