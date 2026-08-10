@@ -152,34 +152,21 @@ export async function POST() {
       });
     }
 
-    const inventoryRows = rawList
-      .map((item: any) => {
-        const prodCd = String(item.PROD_CD || item.item_code || '').trim();
-        const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
-        const lotNo = String(item.LOT_NO || item.lot_no || prodCd).trim();
-        const rawQtyStr = String(item.BAL_QTY ?? item.qty ?? '0').replace(/,/g, '').trim();
-        const qty = Number(rawQtyStr);
-
-        return {
-          item_name: prodNm,
-          lot_no: lotNo,
-          quantity: isNaN(qty) ? 0 : qty,
-          status: '정상'
-        };
-      })
-      .filter((row) => !!row.item_name);
-
     const supabase = getSupabaseClient();
     
-    // ecount_items 및 ecount_inventory 병렬 저장으로 속도 극대화
-    await Promise.all([
-      supabase.from('ecount_items').upsert(masterRows, { onConflict: 'prod_cd' }),
-      supabase.from('ecount_inventory').upsert(inventoryRows)
-    ]);
+    // 🌟 이카운트 API 동기화는 오직 ecount_items (마스터 재고)만 갱신합니다.
+    // (품질서류 및 로트 관리용 ecount_inventory 테이블은 절대로 수정하거나 건드리지 않습니다.)
+    const { error: masterErr } = await supabase
+      .from('ecount_items')
+      .upsert(masterRows, { onConflict: 'prod_cd' });
+
+    if (masterErr) {
+      throw masterErr;
+    }
 
     return NextResponse.json({
       success: true,
-      message: `이카운트 재고 ${masterRows.length}건이 성공적으로 Supabase 테이블에 동기화되었습니다. (Vercel 배포 환경)`,
+      message: `이카운트 품목/재고 ${masterRows.length}건이 성공적으로 마스터 DB(ecount_items)에 동기화되었습니다.`,
       count: masterRows.length,
       synced_at: new Date().toISOString(),
       is_fixie_active: isFixieActive
