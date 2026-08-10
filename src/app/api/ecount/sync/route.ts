@@ -101,28 +101,84 @@ export async function POST() {
       );
     }
 
-    // 3. 재고 현황 조회 (/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus)
+    // 3. 재고 현황 정밀 조회 (위치/창고별 정밀 API 시도 ➔ 기본 API 폴백)
     const today = new Date();
     const kstTime = new Date(today.getTime() + 9 * 60 * 60 * 1000);
     const baseDate = `${kstTime.getUTCFullYear()}${String(kstTime.getUTCMonth() + 1).padStart(2, '0')}${String(kstTime.getUTCDate()).padStart(2, '0')}`;
 
-    const invUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${sessionId}`;
-    const invData = await fetchWithEgressProxy(invUrl, {
-      SESSION_ID: sessionId,
-      COM_CODE: comCode,
-      BASE_DATE: baseDate,
-      DATA: {
+    let rawList: any[] = [];
+    const locationUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLocation?SESSION_ID=${sessionId}`;
+    
+    try {
+      const locRes = await fetchWithEgressProxy(locationUrl, {
+        SESSION_ID: sessionId,
+        COM_CODE: comCode,
         BASE_DATE: baseDate,
-        WH_CD: '',
-        PROD_CD: '',
-      },
-    }, { 'X-Ecount-Zone': zone });
+        DATA: {
+          BASE_DATE: baseDate,
+          WH_CD: '',
+          PROD_CD: '',
+          // 소수점 수량 데이터를 원본 그대로 응답받기 위한 파라미터 추가
+          // (이카운트 API 버전에 따라 정확한 명칭이 다를 수 있으나, 일반적으로 아래와 같은 파라미터를 사용합니다)
+          INC_DECIMAL: 'Y', 
+          DEC_YN: 'Y'
+        },
+      }, { 'X-Ecount-Zone': zone });
 
-    const rawList = invData.Data?.Result || invData.Data?.List || invData.Data || [];
+      const locList = locRes.Data?.Result || locRes.Data?.List || locRes.Data || [];
+      if (Array.isArray(locList) && locList.length > 0) {
+        // 창고별 정밀 재고 데이터를 품목코드(PROD_CD) 단위로 정밀 합산
+        const aggregatedMap = new Map<string, { prodCd: string; prodNm: string; totalQty: number }>();
+        
+        locList.forEach((item: any) => {
+          const prodCd = String(item.PROD_CD || item.item_code || '').trim();
+          if (!prodCd) return;
+          const prodNm = String(item.PROD_DES || item.item_name || prodCd).trim();
+          const rawQtyVal = item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? '0';
+          const qtyNum = Number(String(rawQtyVal).replace(/,/g, '').trim());
+          const safeQty = isNaN(qtyNum) ? 0 : qtyNum;
+
+          if (!aggregatedMap.has(prodCd)) {
+            aggregatedMap.set(prodCd, { prodCd, prodNm, totalQty: safeQty });
+          } else {
+            const existing = aggregatedMap.get(prodCd)!;
+            existing.totalQty = Math.round((existing.totalQty + safeQty) * 10000) / 10000;
+          }
+        });
+
+        rawList = Array.from(aggregatedMap.values()).map(row => ({
+          PROD_CD: row.prodCd,
+          PROD_DES: row.prodNm,
+          BAL_QTY: row.totalQty
+        }));
+      }
+    } catch (locErr) {
+      console.warn('[Ecount Sync] Location balance API warning, falling back to standard API:', locErr);
+    }
+
+    // 창고별 정밀 API 미지원 시 기본 재고 현황 API 폴백
+    if (rawList.length === 0) {
+      const invUrl = `${targetHost}/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus?SESSION_ID=${sessionId}`;
+      const invData = await fetchWithEgressProxy(invUrl, {
+        SESSION_ID: sessionId,
+        COM_CODE: comCode,
+        BASE_DATE: baseDate,
+        DATA: {
+          BASE_DATE: baseDate,
+          WH_CD: '',
+          PROD_CD: '',
+          // 기본 API 호출 시에도 소수점 데이터를 받기 위한 파라미터 추가
+          INC_DECIMAL: 'Y', 
+          DEC_YN: 'Y'
+        },
+      }, { 'X-Ecount-Zone': zone });
+
+      rawList = invData.Data?.Result || invData.Data?.List || invData.Data || [];
+    }
 
     if (!Array.isArray(rawList)) {
       return NextResponse.json(
-        { success: false, error: '이카운트에서 올바른 재고 목록 데이터를 받지 못했습니다.', rawResponse: invData },
+        { success: false, error: '이카운트에서 올바른 재고 목록 데이터를 받지 못했습니다.' },
         { status: 500 }
       );
     }
