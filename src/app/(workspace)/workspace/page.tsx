@@ -254,18 +254,19 @@ export default function Home() {
   };
 
   // ⚡ 0.00초 초고속 하이드레이션: 새로고침(F5) 시 로컬 캐시된 노션 일정을 0초 만에 동기적 복원
-  const [schedules, setSchedules] = useState<any[]>(() => {
+  const [schedules, setSchedules] = useState<any[]>([]);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const cached = localStorage.getItem("beansheal_cached_schedules");
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) setSchedules(parsed);
         } catch (e) {}
       }
     }
-    return [];
-  });
+  }, []);
   const [selectedDateForPlan, setSelectedDateForPlan] = useState<string | null>(null);
   const [planEndDate, setPlanEndDate] = useState<string>("");
   const [planProduct, setPlanProduct] = useState("");
