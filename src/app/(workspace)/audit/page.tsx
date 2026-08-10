@@ -382,14 +382,14 @@ function AuditPageContent() {
         </div>
 
         {/* 한글 / 워드 문서 포맷 선택 토글 버튼 */}
-        <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 self-start sm:self-auto gap-1">
+        <div className="flex items-center bg-gray-100 p-1.5 rounded-xl border border-gray-200 self-start sm:self-auto gap-1">
           <button
             type="button"
             onClick={() => setDocFormat("hwp")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
               docFormat === "hwp"
                 ? "bg-blue-600 text-white shadow-xs"
-                : "text-gray-500 hover:text-gray-900"
+                : "text-gray-600 hover:text-gray-900"
             }`}
           >
             한컴 한글 (.hwp)
@@ -397,10 +397,10 @@ function AuditPageContent() {
           <button
             type="button"
             onClick={() => setDocFormat("hwpx")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
               docFormat === "hwpx"
                 ? "bg-blue-600 text-white shadow-xs"
-                : "text-gray-500 hover:text-gray-900"
+                : "text-gray-600 hover:text-gray-900"
             }`}
           >
             한글 (.hwpx)
@@ -408,10 +408,10 @@ function AuditPageContent() {
           <button
             type="button"
             onClick={() => setDocFormat("docx")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
               docFormat === "docx"
                 ? "bg-white text-slate-900 shadow-xs border border-gray-200"
-                : "text-gray-500 hover:text-gray-900"
+                : "text-gray-600 hover:text-gray-900"
             }`}
           >
             MS 워드 (.docx)
@@ -424,7 +424,7 @@ function AuditPageContent() {
         <button
           type="button"
           onClick={() => setActiveTab("documents")}
-          className={`px-4 py-2 text-sm font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x ${
+          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x ${
             activeTab === "documents"
               ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
               : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
@@ -436,14 +436,14 @@ function AuditPageContent() {
         <button
           type="button"
           onClick={() => setActiveTab("calibration")}
-          className={`px-4 py-2 text-sm font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x flex items-center gap-2 ${
+          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x flex items-center gap-2 ${
             activeTab === "calibration"
               ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
               : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
           }`}
         >
           <span>기기 검·교정 관리대장 (GMP G-05-07-01)</span>
-          <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+          <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-mono font-bold">
             37종
           </span>
         </button>

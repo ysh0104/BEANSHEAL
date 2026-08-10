@@ -227,19 +227,19 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
   return (
     <div className="space-y-5 font-sans">
       {/* 🌟 서식 양식 헤더 정보 바 */}
-      <div className="bg-slate-900 text-white p-4 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-slate-900 text-white p-4 sm:p-5 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center font-extrabold text-white text-lg shadow-2xs">
+          <div className="w-11 h-11 rounded-lg bg-indigo-600 flex items-center justify-center font-extrabold text-white text-xl shadow-2xs">
             GMP
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-lg tracking-tight">기기 검·교정 관리대장</h3>
-              <span className="text-[11px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
+              <h3 className="font-extrabold text-lg sm:text-xl tracking-tight">기기 검·교정 관리대장</h3>
+              <span className="text-xs bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded font-mono font-bold">
                 양식번호: G-05-07-01
               </span>
             </div>
-            <p className="text-xs text-slate-300 mt-0.5">
+            <p className="text-xs sm:text-sm text-slate-300 mt-1">
               기록주기: 발생 시 | 보관 부서: 품질관리부 | 보존 년한: 3년
             </p>
           </div>
@@ -250,7 +250,7 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
             <button
               type="button"
               onClick={handleOpenAddModal}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
             >
               <span>+ 신규 기기 등록</span>
             </button>
@@ -258,7 +258,7 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
           <button
             type="button"
             onClick={() => window.print()}
-            className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+            className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-extrabold transition-colors cursor-pointer"
           >
             인쇄 / 서식 출력
           </button>
@@ -276,9 +276,9 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
               : "bg-red-50 text-red-900 border-red-200 hover:bg-red-100"
           }`}
         >
-          <div className="text-xs font-bold opacity-90">교정 기한 경과 (점검 필요)</div>
-          <div className="text-2xl font-extrabold mt-1">{stats.overdue}건</div>
-          <div className="text-[10px] mt-1 opacity-75">클릭 시 즉시 조치대상 조회</div>
+          <div className="text-xs sm:text-sm font-extrabold opacity-90">교정 기한 경과 (점검 필요)</div>
+          <div className="text-2xl sm:text-3xl font-black mt-1">{stats.overdue}건</div>
+          <div className="text-xs mt-1 font-bold opacity-80">클릭 시 즉시 조치대상 조회</div>
         </button>
 
         <button
@@ -290,9 +290,9 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
               : "bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100"
           }`}
         >
-          <div className="text-xs font-bold opacity-90">교정 예정 임박 (30일 이내)</div>
-          <div className="text-2xl font-extrabold mt-1">{stats.upcoming}건</div>
-          <div className="text-[10px] mt-1 opacity-75">사전 일정 수립 필요</div>
+          <div className="text-xs sm:text-sm font-extrabold opacity-90">교정 예정 임박 (30일 이내)</div>
+          <div className="text-2xl sm:text-3xl font-black mt-1">{stats.upcoming}건</div>
+          <div className="text-xs mt-1 font-bold opacity-80">사전 일정 수립 필요</div>
         </button>
 
         <button
@@ -304,9 +304,9 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
               : "bg-emerald-50 text-emerald-900 border-emerald-200 hover:bg-emerald-100"
           }`}
         >
-          <div className="text-xs font-bold opacity-90">정상 관리 기기</div>
-          <div className="text-2xl font-extrabold mt-1">{stats.normal}건</div>
-          <div className="text-[10px] mt-1 opacity-75">유효기간 상태 정상</div>
+          <div className="text-xs sm:text-sm font-extrabold opacity-90">정상 관리 기기</div>
+          <div className="text-2xl sm:text-3xl font-black mt-1">{stats.normal}건</div>
+          <div className="text-xs mt-1 font-bold opacity-80">유효기간 상태 정상</div>
         </button>
 
         <button
@@ -318,24 +318,24 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
               : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
           }`}
         >
-          <div className="text-xs font-bold opacity-90">폐기 / 불용 기기</div>
-          <div className="text-2xl font-extrabold mt-1">{stats.discarded}건</div>
-          <div className="text-[10px] mt-1 opacity-75">사용 중단 보관 기기</div>
+          <div className="text-xs sm:text-sm font-extrabold opacity-90">폐기 / 불용 기기</div>
+          <div className="text-2xl sm:text-3xl font-black mt-1">{stats.discarded}건</div>
+          <div className="text-xs mt-1 font-bold opacity-80">사용 중단 보관 기기</div>
         </button>
       </div>
 
       {/* 🌟 검색 및 필터 컨트롤 바 */}
-      <div className="bg-white border border-gray-200 p-3 rounded-xl shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+      <div className="bg-white border border-gray-200 p-3.5 rounded-xl shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-[260px]">
           <div className="relative flex-1">
             <input
               type="text"
               placeholder="기기명, 관리번호(BH-Q-...), 비고 검색..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+              className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-bold"
             />
-            <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
@@ -343,19 +343,19 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
             <button
               type="button"
               onClick={() => setSearchTerm("")}
-              className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 bg-gray-100 rounded cursor-pointer"
+              className="text-xs sm:text-sm text-gray-500 hover:text-gray-700 px-2.5 py-1.5 bg-gray-100 font-bold rounded cursor-pointer"
             >
               지우기
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
+        <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-gray-700">
           <span>필터:</span>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white text-xs font-bold text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-2xs cursor-pointer"
+            className="border border-gray-300 rounded-lg px-3 py-1.5 bg-white text-xs sm:text-sm font-extrabold text-gray-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-2xs cursor-pointer"
           >
             <option value="ALL">전체 보기 ({items.length}건)</option>
             <option value="OVERDUE">교정 기한 경과 ({stats.overdue}건)</option>
@@ -369,19 +369,19 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
       {/* 🌟 검교정 관리대장 데이터 테이블 */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap border-collapse">
-            <thead className="bg-slate-100 text-slate-800 border-b border-slate-200">
+          <table className="w-full text-left text-xs sm:text-sm whitespace-nowrap border-collapse">
+            <thead className="bg-slate-100 text-slate-900 border-b border-slate-200">
               <tr>
-                <th className="p-3 font-extrabold text-center w-12 border-r border-slate-200">NO</th>
-                <th className="p-3 font-extrabold min-w-[150px] border-r border-slate-200">기기명</th>
-                <th className="p-3 font-extrabold min-w-[110px] border-r border-slate-200">관리번호</th>
-                <th className="p-3 font-extrabold min-w-[120px] text-center border-r border-slate-200">공인기관 검·교정 일자</th>
-                <th className="p-3 font-extrabold min-w-[120px] text-center border-r border-slate-200">자체 검·교정 일자</th>
-                <th className="p-3 font-extrabold min-w-[130px] text-center border-r border-slate-200">차기 검·교정 예정 일자</th>
-                <th className="p-3 font-extrabold text-center w-20 border-r border-slate-200">교정 주기</th>
-                <th className="p-3 font-extrabold text-center min-w-[140px] border-r border-slate-200">자동 알람 상태</th>
-                <th className="p-3 font-extrabold min-w-[110px] border-r border-slate-200">비고</th>
-                {canEdit && <th className="p-3 font-extrabold text-center w-24">관리</th>}
+                <th className="p-3.5 font-black text-center w-14 border-r border-slate-200">NO</th>
+                <th className="p-3.5 font-black min-w-[160px] border-r border-slate-200">기기명</th>
+                <th className="p-3.5 font-black min-w-[120px] border-r border-slate-200">관리번호</th>
+                <th className="p-3.5 font-black min-w-[130px] text-center border-r border-slate-200">공인기관 검·교정 일자</th>
+                <th className="p-3.5 font-black min-w-[130px] text-center border-r border-slate-200">자체 검·교정 일자</th>
+                <th className="p-3.5 font-black min-w-[140px] text-center border-r border-slate-200">차기 검·교정 예정 일자</th>
+                <th className="p-3.5 font-black text-center w-24 border-r border-slate-200">교정 주기</th>
+                <th className="p-3.5 font-black text-center min-w-[150px] border-r border-slate-200">자동 알람 상태</th>
+                <th className="p-3.5 font-black min-w-[120px] border-r border-slate-200">비고</th>
+                {canEdit && <th className="p-3.5 font-black text-center w-24">관리</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -389,47 +389,47 @@ export default function CalibrationManagementView({ canEdit = true }: Calibratio
                 const info = getDDayInfo(item.next_date, item.remark);
                 return (
                   <tr key={item.no} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-3 font-mono font-bold text-center text-slate-600 border-r border-gray-100">
+                    <td className="p-3.5 font-mono font-bold text-center text-slate-700 border-r border-gray-100">
                       {item.no}
                     </td>
-                    <td className="p-3 font-bold text-slate-900 border-r border-gray-100">{item.name}</td>
-                    <td className="p-3 font-mono font-extrabold text-indigo-700 border-r border-gray-100">
+                    <td className="p-3.5 font-extrabold text-slate-900 border-r border-gray-100 text-sm">{item.name}</td>
+                    <td className="p-3.5 font-mono font-black text-indigo-700 border-r border-gray-100 text-sm">
                       {item.code}
                     </td>
-                    <td className="p-3 text-center font-mono text-slate-700 border-r border-gray-100">
+                    <td className="p-3.5 text-center font-mono font-bold text-slate-800 border-r border-gray-100">
                       {item.external_date || "-"}
                     </td>
-                    <td className="p-3 text-center font-mono text-slate-700 border-r border-gray-100">
+                    <td className="p-3.5 text-center font-mono font-bold text-slate-800 border-r border-gray-100">
                       {item.internal_date || "-"}
                     </td>
-                    <td className="p-3 text-center font-mono font-bold text-slate-900 border-r border-gray-100">
+                    <td className="p-3.5 text-center font-mono font-black text-slate-900 border-r border-gray-100 text-sm">
                       {item.next_date || "-"}
                     </td>
-                    <td className="p-3 text-center font-bold text-slate-700 border-r border-gray-100">
+                    <td className="p-3.5 text-center font-black text-slate-800 border-r border-gray-100">
                       {item.cycle || "1년"}
                     </td>
-                    <td className="p-3 text-center border-r border-gray-100">
-                      <span className={`px-2.5 py-1 rounded-md text-[11px] border inline-block ${info.badgeClass}`}>
+                    <td className="p-3.5 text-center border-r border-gray-100">
+                      <span className={`px-3 py-1 rounded-md text-xs border inline-block font-extrabold ${info.badgeClass}`}>
                         {info.label}
                       </span>
                     </td>
-                    <td className="p-3 text-slate-600 border-r border-gray-100 font-medium">
+                    <td className="p-3.5 text-slate-800 border-r border-gray-100 font-bold text-xs sm:text-sm">
                       {item.remark || "-"}
                     </td>
                     {canEdit && (
-                      <td className="p-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
+                      <td className="p-3.5 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(item)}
-                            className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-bold rounded border border-gray-200 text-[10px] cursor-pointer transition-colors"
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-800 font-extrabold rounded border border-gray-300 text-xs cursor-pointer transition-colors"
                           >
                             수정
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteItem(item.no)}
-                            className="px-1.5 py-1 text-gray-400 hover:text-red-600 text-[10px] font-bold cursor-pointer transition-colors"
+                            className="px-2 py-1 text-gray-400 hover:text-red-600 text-xs font-bold cursor-pointer transition-colors"
                             title="삭제"
                           >
                             ✕
