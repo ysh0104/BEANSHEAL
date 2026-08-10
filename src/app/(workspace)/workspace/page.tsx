@@ -26,6 +26,8 @@ import { CalibrationItem, DEFAULT_CALIBRATION_ITEMS } from "@/lib/calibrationDat
 import { getCalibrationItemsFromSupabase } from "@/app/actions/calibrationActions";
 import { HealthCheckItem, DEFAULT_HEALTH_CHECK_ITEMS } from "@/lib/healthCheckData";
 import { getHealthCheckItemsFromSupabase } from "@/app/actions/healthCheckActions";
+import { getSafetyStockConfigs } from "@/app/actions/safetyStockActions";
+import { getDefaultSafetyQty } from "@/lib/safetyStockHelper";
 import MemoRichEditor from "@/components/MemoRichEditor";
 import MemoRichContent from "@/components/MemoRichContent";
 import MemoPresetsManager from "@/components/MemoPresetsManager";
@@ -181,6 +183,7 @@ export default function Home() {
   const [heartAnim, setHeartAnim] = useState<{ id: number | string; x: number; y: number } | null>(null);
   const [calibrationAlertStats, setCalibrationAlertStats] = useState({ overdue: 0, upcoming: 0 });
   const [healthCheckAlertStats, setHealthCheckAlertStats] = useState({ overdue: 0, upcoming: 0 });
+  const [lowStockAlertStats, setLowStockAlertStats] = useState<{ count: number; items: any[] }>({ count: 0, items: [] });
 
   useEffect(() => {
     const calcHcStats = (items: HealthCheckItem[]) => {
@@ -247,9 +250,11 @@ export default function Home() {
     // 2. 🚀 병렬 클라우드 동기화 (Promise.all): 초고속 동시 수집 후 상태 갱신
     const syncAlertsFromCloud = async () => {
       try {
-        const [calRes, hcRes] = await Promise.all([
+        const [calRes, hcRes, safetyRes, ecountRes] = await Promise.all([
           getCalibrationItemsFromSupabase(),
-          getHealthCheckItemsFromSupabase()
+          getHealthCheckItemsFromSupabase(),
+          getSafetyStockConfigs(),
+          supabase.from("ecount_items").select("prod_cd, prod_nm, total_qty").order("prod_cd", { ascending: true })
         ]);
 
         if (calRes?.data && calRes.data.length > 0) {
@@ -260,6 +265,26 @@ export default function Home() {
         if (hcRes?.data && hcRes.data.length > 0) {
           setHealthCheckAlertStats(calcHcStats(hcRes.data));
           localStorage.setItem("beansheal_health_check_items", JSON.stringify(hcRes.data));
+        }
+
+        if (ecountRes?.data && ecountRes.data.length > 0) {
+          const safetyMap = safetyRes?.data || {};
+          const lowStockItems: any[] = [];
+
+          ecountRes.data.forEach((item: any) => {
+            const minQty = safetyMap[item.prod_cd] ?? getDefaultSafetyQty(item.prod_nm);
+            const totalQty = Number(item.total_qty || 0);
+            if (totalQty <= minQty) {
+              lowStockItems.push({
+                prod_cd: item.prod_cd,
+                prod_nm: item.prod_nm,
+                total_qty: totalQty,
+                min_qty: minQty,
+              });
+            }
+          });
+
+          setLowStockAlertStats({ count: lowStockItems.length, items: lowStockItems });
         }
       } catch {}
     };
@@ -1237,6 +1262,35 @@ export default function Home() {
             className="shrink-0 bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
           >
             <span>보건증 관리대장 이동</span>
+            <span>&rarr;</span>
+          </a>
+        </div>
+      )}
+
+      {/* 3. 원자재 및 부자재 안전재고 부족 및 조기 발주 알림 바너 */}
+      {lowStockAlertStats.count > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-fadeIn mb-3">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-ping shrink-0" />
+            <div>
+              <div className="text-xs font-extrabold text-amber-950 flex items-center gap-2">
+                <span>원자재 및 부자재 안전재고 부족 및 조기 발주 알림</span>
+                <span className="bg-amber-600 text-white text-[10px] px-2 py-0.2 rounded font-bold">
+                  안전재고 미달 {lowStockAlertStats.count}건
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800 mt-0.5 font-medium">
+                {lowStockAlertStats.items.slice(0, 3).map(i => `${i.prod_nm}(현재 ${i.total_qty} / 기준 ${i.min_qty})`).join(", ")}
+                {lowStockAlertStats.count > 3 && ` 외 ${lowStockAlertStats.count - 3}건`} 품목이 안전재고 기준에 미달했습니다. 조기 발주를 실행하십시오.
+              </p>
+            </div>
+          </div>
+
+          <a
+            href="/inventory?filter=low_stock"
+            className="shrink-0 bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+          >
+            <span>미달 품목 발주 확인</span>
             <span>&rarr;</span>
           </a>
         </div>

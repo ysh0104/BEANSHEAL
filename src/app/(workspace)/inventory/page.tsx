@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { saveProductionInboundToEcount, syncEcountMasterToDb } from "@/app/actions/ecount";
+import { getSafetyStockConfigs, saveSafetyStockConfig } from "@/app/actions/safetyStockActions";
+import { getDefaultSafetyQty } from "@/lib/safetyStockHelper";
 
 /** 재고수량: 반올림/올림 절대 없음! 최소 3자리 고정 표시 및 4자리 이상 원본 100% 표시 */
 function formatQty(value: number | string) {
@@ -38,6 +40,22 @@ export default function InventoryPage() {
   
   // [신규 상태] 수량 0 숨기기 체크박스 상태 관리 (기본값: 체크됨)
   const [hideZeroQty, setHideZeroQty] = useState(true);
+  const [showOnlyLowStock, setShowOnlyLowStock] = useState(false);
+  const [safetyConfigs, setSafetyConfigs] = useState<Record<string, number>>({});
+
+  const handleEditSafetyStock = async (prodCd: string, prodNm: string, currentMinQty: number) => {
+    const newVal = prompt(`[${prodNm}] 의 최소 안전재고 수량을 입력하십시오:`, String(currentMinQty));
+    if (newVal === null) return;
+    const num = Number(newVal);
+    if (isNaN(num) || num < 0) {
+      alert("올바른 수량을 입력하십시오.");
+      return;
+    }
+    const nextConfigs = { ...safetyConfigs, [prodCd]: num };
+    setSafetyConfigs(nextConfigs);
+    localStorage.setItem("beansheal_safety_configs", JSON.stringify(nextConfigs));
+    await saveSafetyStockConfig(prodCd, prodNm, num);
+  };
 
   // 생산입고 전표 입력
   const [isInboundModalOpen, setIsInboundModalOpen] = useState(false);
@@ -130,10 +148,25 @@ export default function InventoryPage() {
   const fetchInventory = async () => {
     setLoadingInv(true);
     try {
+      if (typeof window !== "undefined") {
+        const cached = localStorage.getItem("beansheal_safety_configs");
+        if (cached) {
+          try { setSafetyConfigs(JSON.parse(cached)); } catch {}
+        }
+      }
+
+      getSafetyStockConfigs().then((res) => {
+        if (res.success && res.data) {
+          setSafetyConfigs(res.data);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("beansheal_safety_configs", JSON.stringify(res.data));
+          }
+        }
+      });
+
       const { data, error } = await supabase
         .from('ecount_items')
         .select('prod_cd, prod_nm, total_qty')
-        // [수정] 품목명(prod_nm) 정렬에서 품목코드(prod_cd) 오름차순 정렬로 변경
         .order('prod_cd', { ascending: true });
 
       if (error) throw error;
@@ -175,15 +208,18 @@ export default function InventoryPage() {
     }
   };
 
-  // [수정] 검색어 필터링과 '수량 0 숨기기' 필터링 동시 적용
+  // [수정] 검색어, 수량 0 숨기기, 안전재고 미달 필터링 동시 적용
   const filteredInventory = inventory.filter(item => {
     const matchesSearch = item.prodNm.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           item.prodCd.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // hideZeroQty가 true일 때는 수량이 0 초과인 것만 통과시킴
     const matchesQty = hideZeroQty ? item.qty > 0 : true;
 
-    return matchesSearch && matchesQty;
+    const minQty = safetyConfigs[item.prodCd] ?? getDefaultSafetyQty(item.prodNm);
+    const isLowStock = item.qty <= minQty;
+    const matchesLowStock = showOnlyLowStock ? isLowStock : true;
+
+    return matchesSearch && matchesQty && matchesLowStock;
   });
 
   const normalizeName = (name: string) => {
@@ -251,8 +287,8 @@ export default function InventoryPage() {
         
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end mb-2">
           
-          {/* [신규 UI] 수량 0 숨기기 체크박스 영역 (좌측 배치) */}
-          <div className="flex items-center">
+          {/* [신규 UI] 수량 0 숨기기 & 안전재고 미달만 보기 체크박스 영역 */}
+          <div className="flex items-center gap-4">
             <label className="flex items-center cursor-pointer hover:opacity-80 transition-opacity">
               <input 
                 type="checkbox" 
@@ -262,6 +298,18 @@ export default function InventoryPage() {
               />
               <span className="ml-2 text-sm font-medium text-gray-700 select-none">
                 수량 0 숨기기
+              </span>
+            </label>
+
+            <label className="flex items-center cursor-pointer hover:opacity-80 transition-opacity">
+              <input 
+                type="checkbox" 
+                checked={showOnlyLowStock}
+                onChange={(e) => setShowOnlyLowStock(e.target.checked)}
+                className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500 cursor-pointer"
+              />
+              <span className="ml-2 text-sm font-bold text-amber-800 select-none">
+                안전재고 미달만 보기
               </span>
             </label>
           </div>
@@ -310,8 +358,9 @@ export default function InventoryPage() {
           
           <colgroup>
             <col className="w-[15%]" />
-            <col className="w-[60%]" />
-            <col className="w-[25%]" />
+            <col className="w-[45%]" />
+            <col className="w-[20%]" />
+            <col className="w-[20%]" />
           </colgroup>
 
           <thead>
@@ -325,15 +374,20 @@ export default function InventoryPage() {
               <th className="border border-gray-300 py-2 text-center text-[#203366] font-bold text-[13px]">
                 재고수량 <span className="text-[10px]">▼</span>
               </th>
+              <th className="border border-gray-300 py-2 text-center text-[#203366] font-bold text-[13px]">
+                안전재고 기준 / 상태
+              </th>
             </tr>
           </thead>
           <tbody>
             {filteredInventory.flatMap((item, idx) => {
               const breakdown = getInventoryBreakdown(item.prodNm, item.qty);
+              const minQty = safetyConfigs[item.prodCd] ?? getDefaultSafetyQty(item.prodNm);
+              const isLowStock = breakdown.totalQty <= minQty;
               const rows = [];
 
               rows.push(
-                <tr key={`parent-${idx}`} className="bg-[#f8f9fb] hover:bg-yellow-50 transition-colors">
+                <tr key={`parent-${idx}`} className={`bg-[#f8f9fb] transition-colors ${isLowStock ? 'bg-amber-50/70 hover:bg-amber-100/80' : 'hover:bg-yellow-50'}`}>
                   <td className="border border-gray-300 px-2 py-1.5 text-[#203366] font-medium text-[13px] whitespace-nowrap overflow-hidden text-ellipsis text-center">
                     <span 
                       onClick={() => openInboundModal(item.prodCd)}
@@ -344,11 +398,28 @@ export default function InventoryPage() {
                       <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1 py-0.5 rounded border border-emerald-200 font-bold tracking-tight scale-90">입고</span>
                     </span>
                   </td>
-                  <td className="border border-gray-300 px-2 py-1.5 text-gray-900 text-[13px] whitespace-nowrap overflow-hidden text-ellipsis">
+                  <td className="border border-gray-300 px-2 py-1.5 text-gray-900 text-[13px] whitespace-nowrap overflow-hidden text-ellipsis font-bold">
                     {item.prodNm}
                   </td>
-                  <td className="border border-gray-300 px-2 py-1.5 text-right font-medium text-[13px] text-gray-900">
+                  <td className="border border-gray-300 px-2 py-1.5 text-right font-bold text-[13px] text-gray-900">
                     {formatQty(breakdown.totalQty)}
+                  </td>
+                  <td className="border border-gray-300 px-2 py-1.5 text-center text-xs font-medium">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span className="font-mono font-bold text-gray-700">{formatQty(minQty)}</span>
+                      <button
+                        onClick={() => handleEditSafetyStock(item.prodCd, item.prodNm, minQty)}
+                        className="px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-[10px] font-bold transition-colors cursor-pointer border border-gray-300"
+                        title="안전재고 임계값 변경"
+                      >
+                        설정
+                      </button>
+                      {isLowStock && (
+                        <span className="px-1.5 py-0.5 bg-amber-600 text-white rounded text-[10px] font-extrabold animate-pulse">
+                          미달
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
