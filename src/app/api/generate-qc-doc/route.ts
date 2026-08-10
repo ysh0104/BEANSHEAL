@@ -254,34 +254,46 @@ export async function POST(req: Request) {
     let content: Buffer | null = null;
     const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_product_default';
     
-    // .docx 템플릿 탐색 (가장 높은 서식 정확도 & 무잘림 데이터 주입 보장)
-    content = readTemplateFile(`${prefix}_${docType}.docx`);
-
-    // .hwpx 템플릿 탐색
-    if (!content) {
-      content = readTemplateFile(`${prefix}_${docType}.hwpx`);
+    // 요청된 파일 확장자(hwp, hwpx, docx) 순서에 맞춰 템플릿 탐색 우선순위 지정
+    let searchExtensions: string[] = [];
+    if (fileExt === 'hwp') {
+      searchExtensions = ['.hwp', '.hwpx', '.docx'];
+    } else if (fileExt === 'hwpx') {
+      searchExtensions = ['.hwpx', '.hwp', '.docx'];
+    } else {
+      searchExtensions = ['.docx', '.hwpx', '.hwp'];
     }
 
-    // .hwp 바이너리 템플릿 탐색
-    if (!content) {
-      content = readTemplateFile(`${prefix}_${docType}.hwp`);
+    // 1) 품목/카테고리 전용 양식 탐색
+    for (const ext of searchExtensions) {
+      content = readTemplateFile(`${prefix}_${docType}${ext}`);
+      if (content) {
+        if (ext === '.hwp') fileExt = 'hwp';
+        else if (ext === '.hwpx') fileExt = 'hwpx';
+        else if (ext === '.docx') fileExt = 'docx';
+        break;
+      }
     }
 
     // 2) templateName이 명시된 경우 2차 로딩 탐색
     if (!content && templateName) {
       const fileNameWithExt = templateName.endsWith('.docx') || templateName.endsWith('.hwpx') || templateName.endsWith('.hwp')
         ? templateName 
-        : `${templateName}.docx`;
+        : `${templateName}.${fileExt}`;
       content = readTemplateFile(fileNameWithExt);
     }
 
-    // 3) Fallback 공통 양식 탐색
+    // 3) Fallback 공통 양식 탐색 (qc_label.hwp 등)
     if (!content) {
-      console.warn(`[알림] 전용 양식이 없어 공통 양식으로 대체합니다.`);
-      content = readTemplateFile(`qc_${docType}.docx`) || readTemplateFile(`qc_${docType}.hwpx`) || readTemplateFile(`qc_${docType}.hwp`);
-
-      if (!content) {
-        content = readTemplateFile(`qc_product_default_${docType}.docx`) || readTemplateFile(`qc_product_default_${docType}.hwpx`);
+      console.warn(`[알림] 전용 양식이 없어 공통 양식(${docType})으로 대체합니다.`);
+      for (const ext of searchExtensions) {
+        content = readTemplateFile(`qc_${docType}${ext}`) || readTemplateFile(`qc_product_default_${docType}${ext}`);
+        if (content) {
+          if (ext === '.hwp') fileExt = 'hwp';
+          else if (ext === '.hwpx') fileExt = 'hwpx';
+          else if (ext === '.docx') fileExt = 'docx';
+          break;
+        }
       }
 
       if (!content) {
