@@ -155,24 +155,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    const savedAutoLogin = localStorage.getItem("beansheal_auto_login");
-    if (savedAutoLogin !== null) {
-      setIsAutoLogin(savedAutoLogin === "true");
+    const isAuto = localStorage.getItem("beansheal_auto_login") !== "false";
+    if (localStorage.getItem("beansheal_auto_login") !== null) {
+      setIsAutoLogin(isAuto);
     }
 
+    // ⚡ 1. 0.00초 즉시 로그인 유지: 로컬 스토리지에 캐시된 유저가 있으면 즉시 복원하여 새로고침 지연 제거
+    const cachedUserJson = localStorage.getItem("beansheal_active_user");
+    if (isAuto && cachedUserJson) {
+      try {
+        const cachedUser = JSON.parse(cachedUserJson);
+        setUser(cachedUser);
+        setLoading(false);
+      } catch (e) {}
+    }
+
+    // ⚡ 2. 백그라운드 세션 검증 및 DB 최신 프로필 비동기 동기화 (화면 깜빡임 제로)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         loadProfile(session.user);
       } else {
-        // 자동로그인 설정이 켜져있고 로컬 저장 유저가 있으면 자동로그인 적용
-        const isAuto = localStorage.getItem("beansheal_auto_login") !== "false";
-        const localUserJson = localStorage.getItem("beansheal_active_user");
-        if (isAuto && localUserJson) {
-          try {
-            setUser(JSON.parse(localUserJson));
-          } catch (e) {
-            setUser(null);
-          }
+        if (!cachedUserJson || !isAuto) {
+          setUser(null);
         }
       }
       setLoading(false);
@@ -181,6 +185,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         loadProfile(session.user);
+      } else if (_event === 'SIGNED_OUT') {
+        setUser(null);
+        localStorage.removeItem("beansheal_active_user");
       }
     });
 
