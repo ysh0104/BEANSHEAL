@@ -66,13 +66,14 @@ const getCleanRecipeName = (rawName: string) => {
 
 function AuditPageContent() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") === "calibration" ? "calibration" : "health";
-  const [activeTab, setActiveTab] = useState<"health" | "calibration">(initialTab);
+  const initialTab = searchParams.get("tab") === "calibration" ? "calibration" : searchParams.get("tab") === "health" ? "health" : "documents";
+  const [activeTab, setActiveTab] = useState<"documents" | "health" | "calibration">(initialTab);
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
     if (tabParam === "calibration") setActiveTab("calibration");
     else if (tabParam === "health") setActiveTab("health");
+    else if (tabParam === "documents") setActiveTab("documents");
   }, [searchParams]);
 
   const { canEdit } = useCanEdit("qa");
@@ -421,8 +422,20 @@ function AuditPageContent() {
         </div>
       </div>
 
-      {/* 🌟 탭 네비게이션 */}
+      {/* 🌟 탭 네비게이션 (HACCP 품질서류 발급 vs 건강진단결과서 보건증 대장 vs GMP 기기 검·교정 관리대장) */}
       <div className="flex items-center gap-2 border-b border-gray-200 pb-1 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setActiveTab("documents")}
+          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x whitespace-nowrap ${
+            activeTab === "documents"
+              ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
+              : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
+          }`}
+        >
+          <span>HACCP 품질검사 서류 발급</span>
+        </button>
+
         <button
           type="button"
           onClick={() => setActiveTab("health")}
@@ -433,6 +446,9 @@ function AuditPageContent() {
           }`}
         >
           <span>건강진단결과서 (보건증) 관리대장</span>
+          <span className="bg-emerald-600 text-white text-xs px-2 py-0.5 rounded-full font-mono font-bold">
+            14명
+          </span>
         </button>
 
         <button
@@ -453,8 +469,231 @@ function AuditPageContent() {
 
       {activeTab === "calibration" ? (
         <CalibrationManagementView canEdit={canEdit} />
-      ) : (
+      ) : activeTab === "health" ? (
         <HealthCheckManagementView canEdit={canEdit} />
+      ) : (
+        <>
+
+      {/* 3번: 반제품/완제품 실적 즉시 등록 */}
+      <div className="bg-white border border-gray-200 rounded-lg shadow-xs overflow-hidden">
+        <div className="p-5">
+          <h3 className="text-md font-bold text-gray-900 mb-4 border-b border-gray-200 pb-2">반제품 / 완제품 실적 즉시 등록 (주간 제조세트 연동)</h3>
+          <form onSubmit={handleQuickProductionSubmit} className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-6 gap-3 items-end">
+            <div className="flex flex-col">
+              <label className="text-xs font-bold text-gray-600 mb-1">품목 선택</label>
+              <select 
+                value={selectedProduct} 
+                onChange={(e) => setSelectedProduct(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-3 py-2 bg-white font-medium text-gray-700 shadow-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">품목을 선택하십시오</option>
+                {recipeOptions.map((recipe) => (
+                  <optgroup key={recipe.id} label={`[ 레시피 ] ${recipe.product_name}`}>
+                    <option value={`반)${recipe.product_name}`}>반) {recipe.product_name} (반제품)</option>
+                    <option value={`완)${recipe.product_name}`}>완) {recipe.product_name} (완제품)</option>
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-xs font-bold text-gray-600 mb-1">LOT 번호 (자동/수정)</label>
+              <input 
+                type="text" 
+                value={previewLot}
+                onChange={(e) => setPreviewLot(e.target.value)}
+                placeholder="직접 수정 가능"
+                className="text-sm border border-gray-300 rounded px-3 py-2 bg-white text-gray-700 shadow-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-xs font-bold text-gray-600 mb-1">제조번호 (선택/입력)</label>
+              <input 
+                type="text" 
+                list="mfg-history-list"
+                value={mfgNo}
+                onChange={(e) => handleMfgNoChange(e.target.value)}
+                placeholder="입력 또는 클릭"
+                className="text-sm border border-gray-300 rounded px-3 py-2 bg-white text-gray-700 shadow-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold"
+              />
+              <datalist id="mfg-history-list">
+                {mfgHistory.map((item, index) => <option key={index} value={item.mfgNo}>{item.mfgNo} ({item.mfgDate})</option>)}
+              </datalist>
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-xs font-bold text-gray-600 mb-1">제조일자</label>
+              <input 
+                type="date" 
+                value={mfgDate}
+                onChange={(e) => setMfgDate(e.target.value)}
+                className="text-sm border border-gray-300 rounded px-3 py-2 bg-white text-gray-700 shadow-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+              />
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-xs font-bold text-gray-600 mb-1">생산 수량</label>
+              <input 
+                type="text" 
+                value={inputQty}
+                onChange={handleQtyChange}
+                placeholder="숫자 (예: 1,500)"
+                className="text-sm border border-gray-300 rounded px-3 py-2 bg-white text-gray-700 shadow-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <button 
+              type="submit"
+              disabled={!canEdit}
+              className={`text-sm px-4 py-2 font-bold rounded shadow-xs transition-colors h-[38px] cursor-pointer ${
+                !canEdit
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
+              title={!canEdit ? "품질관리 부서 또는 QA 권한 사원만 실적 등록이 가능합니다 (조회 전용)" : ""}
+            >
+              {!canEdit ? "등록 권한 없음 (조회 전용)" : "대기열 등록"}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* 4번: 동기화 로트 테이블 */}
+      <div className="bg-white border border-gray-200 rounded-lg shadow-xs overflow-hidden">
+        <div>
+          <div className="bg-white text-gray-900 px-5 py-3 flex justify-between items-center border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-lg">데이터 동기화 및 관리열 (이카운트 엑셀 / 자동 수집)</h3>
+              {!canEdit && (
+                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200">
+                  🔒 품질관리 부서 사원만 수정 가능 (조회 전용)
+                </span>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="text-xs text-gray-500 flex flex-col text-right">
+                <span className="font-bold">마지막 동기화</span>
+                <span className="font-mono text-blue-600">{lastSyncTime}</span>
+              </div>
+              
+              <input 
+                type="file" 
+                accept=".xlsx, .xls" 
+                ref={fileInputRef} 
+                onChange={handleExcelUpload} 
+                className="hidden" 
+              />
+              <button 
+                onClick={handleFileUploadClick} 
+                disabled={isUploading || !canEdit}
+                className={`text-sm px-4 py-2 rounded font-bold border shadow-xs transition-colors flex items-center gap-2 cursor-pointer ${
+                  isUploading || !canEdit
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
+                    : 'bg-gray-800 text-white border-gray-700 hover:bg-gray-700'
+                }`}
+                title={!canEdit ? "품질관리 부서 또는 QA 권한 사원만 엑셀 업로드가 가능합니다" : ""}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                {isUploading ? "데이터 처리 중..." : "이카운트 엑셀 업로드"}
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 px-5 py-3 border-b border-gray-200 flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col">
+                <label className="text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">진행 상태</label>
+                <select 
+                  value={filterStatus} 
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="text-sm border border-gray-300 rounded px-2 py-1.5 bg-white font-medium text-gray-700 shadow-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="ALL">전체 보기</option>
+                  <option value="문서대기">문서대기 (미승인)</option>
+                  <option value="승인/발급완료">승인 및 발급완료</option>
+                </select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">조회 기간</label>
+                <select 
+                  value={filterDate} 
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  className="text-sm border border-gray-300 rounded px-2 py-1.5 bg-white font-medium text-gray-700 shadow-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="ALL">전체 기간</option>
+                  <option value="TODAY">오늘 입고분</option>
+                  <option value="WEEK">최근 1주일</option>
+                  <option value="MONTH">최근 1개월</option>
+                </select>
+              </div>
+            </div>
+            <div className="text-sm text-gray-500">
+              전체 관리 로트 <span className="font-bold text-blue-600">{scrapedItems.length}</span> 건 
+            </div>
+          </div>
+
+          <div className="p-0 overflow-x-auto">
+            <table className="w-full text-left text-sm whitespace-nowrap border-collapse">
+              <thead className="bg-gray-100 text-gray-700">
+                <tr>
+                  <th className="p-3 border-b border-gray-300 font-semibold text-center w-24">수집/동기화 시간</th>
+                  <th className="p-3 border-b border-gray-300 font-semibold">품목명</th>
+                  <th className="p-3 border-b border-gray-300 font-semibold">LOT 번호</th>
+                  <th className="p-3 border-b border-gray-300 font-semibold">소비기한</th>
+                  <th className="p-3 border-b border-gray-300 font-semibold text-center w-28">상태</th>
+                  <th className="p-3 border-b border-gray-300 font-bold text-center w-48">관리자 승인</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {scrapedItems
+                  .filter((item) => {
+                    if (filterStatus === "문서대기") return item.status === "문서대기";
+                    if (filterStatus === "승인/발급완료") return item.status !== "문서대기";
+                    return true;
+                  })
+                  .slice(0, 100)
+                  .map((item, idx) => {
+                    const isPending = item.status === "문서대기";
+                    return (
+                      <tr key={idx} className={`transition-colors ${isPending ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
+                        <td className="p-3 text-gray-500 font-mono text-center text-xs">{item.scrapedAt}</td>
+                        <td className="p-3 font-bold text-gray-900">{item.cleanName}</td>
+                        <td className="p-3 text-blue-700 font-mono font-bold">{item.lotNo}</td>
+                        <td className="p-3 text-gray-600">{item.expDate}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2.5 py-1 rounded text-xs font-bold border ${item.status === '문서대기' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          {item.status === '문서대기' ? (
+                            <button 
+                              onClick={() => handleDownloadQCBatch(item)} 
+                              className="bg-blue-600 text-white text-xs px-4 py-2 font-bold rounded shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
+                            >
+                              검토 및 서류 발급
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => handleDownloadQCBatch(item)} 
+                              className="bg-gray-200 text-gray-500 text-xs px-4 py-2 font-bold rounded hover:bg-gray-300 transition-colors cursor-pointer"
+                            >
+                              서류 재발급
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                {scrapedItems.length === 0 && (<tr><td colSpan={6} className="text-center py-12 text-gray-500 font-medium bg-gray-50">조건에 맞는 로트 데이터가 없습니다.</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+        </>
       )}
     </div>
   );

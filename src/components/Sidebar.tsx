@@ -75,6 +75,7 @@ export default function Sidebar() {
       name: "품질/감사 (QA)",
       items: [
         { name: "감사 대응 (Audit)", path: "/audit" },
+        { name: "건강진단결과서 (보건증)", path: "/audit?tab=health" },
         { name: "기기 검·교정 관리대장", path: "/audit?tab=calibration" },
       ],
     },
