@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { getDashboardItems } from "@/app/actions/database";
 import { parseEcountExcel } from "@/utils/excelParser"; 
 import { 
@@ -11,6 +12,7 @@ import {
 } from "@/app/actions/inventoryActions"; 
 import { getRecipeList } from "@/app/actions/recipe"; 
 import { useCanEdit } from "@/hooks/useCanEdit";
+import CalibrationManagementView from "@/components/CalibrationManagementView";
 
 const analyzeItemTemplate = (productName: string) => {
   let mainType = "완제품";
@@ -61,7 +63,17 @@ const getCleanRecipeName = (rawName: string) => {
     .trim();
 };
 
-export default function AuditPage() {
+function AuditPageContent() {
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "calibration" ? "calibration" : "documents";
+  const [activeTab, setActiveTab] = useState<"documents" | "calibration">(initialTab);
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "calibration") setActiveTab("calibration");
+    else if (tabParam === "documents") setActiveTab("documents");
+  }, [searchParams]);
+
   const { canEdit } = useCanEdit("qa");
   const [scrapedItems, setScrapedItems] = useState<any[]>(() => {
     if (typeof window !== "undefined") {
@@ -367,9 +379,9 @@ export default function AuditPage() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
             <span>품질 / 감사 대응 관리 (QA & Audit)</span>
-            <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded border border-emerald-200">HACCP 서류 발급 시스템</span>
+            <span className="text-xs bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded border border-emerald-200">HACCP & GMP 서류 통합 관리</span>
           </h2>
-          <p className="text-sm text-gray-500 mt-1">반제품 및 완제품 실적 즉시 등록, 이카운트 엑셀 로트 동기화 및 품질검사 서류 일괄 발급을 관리합니다.</p>
+          <p className="text-sm text-gray-500 mt-1">HACCP 검사서류 일괄 발급, 실적 수집 및 GMP 기기 검·교정 관리대장 서식을 한곳에서 관리합니다.</p>
         </div>
 
         {/* 한글 / 워드 문서 포맷 선택 토글 버튼 */}
@@ -383,7 +395,7 @@ export default function AuditPage() {
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            🇰🇷 한컴 한글 (.hwp)
+            한컴 한글 (.hwp)
           </button>
           <button
             type="button"
@@ -394,7 +406,7 @@ export default function AuditPage() {
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            🇰🇷 한글 (.hwpx)
+            한글 (.hwpx)
           </button>
           <button
             type="button"
@@ -405,10 +417,45 @@ export default function AuditPage() {
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            📄 MS 워드 (.docx)
+            MS 워드 (.docx)
           </button>
         </div>
       </div>
+
+      {/* 🌟 탭 네비게이션 (HACCP 품질서류 발급 vs GMP 기기 검·교정 관리대장) */}
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab("documents")}
+          className={`px-4 py-2 text-sm font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x ${
+            activeTab === "documents"
+              ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
+              : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
+          }`}
+        >
+          <span>HACCP 품질검사 서류 발급</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("calibration")}
+          className={`px-4 py-2 text-sm font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x flex items-center gap-2 ${
+            activeTab === "calibration"
+              ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
+              : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
+          }`}
+        >
+          <span>기기 검·교정 관리대장 (GMP G-05-07-01)</span>
+          <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+            37종
+          </span>
+        </button>
+      </div>
+
+      {activeTab === "calibration" ? (
+        <CalibrationManagementView canEdit={canEdit} />
+      ) : (
+        <>
 
       {/* 3번: 반제품/완제품 실적 즉시 등록 */}
       <div className="bg-white border border-gray-200 rounded-lg shadow-xs overflow-hidden">
@@ -629,6 +676,16 @@ export default function AuditPage() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
+  );
+}
+
+export default function AuditPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm font-bold text-slate-500">감사 및 기기 검·교정 관리대장 데이터 로딩 중...</div>}>
+      <AuditPageContent />
+    </Suspense>
   );
 }

@@ -22,6 +22,7 @@ import {
   toggleMemoPinInSupabase,
   toggleMemoHideInSupabase,
 } from "@/app/actions/memoActions";
+import { getCalibrationItemsFromSupabase, DEFAULT_CALIBRATION_ITEMS } from "@/app/actions/calibrationActions";
 import MemoRichEditor from "@/components/MemoRichEditor";
 import MemoRichContent from "@/components/MemoRichContent";
 import MemoPresetsManager from "@/components/MemoPresetsManager";
@@ -174,6 +175,35 @@ export default function Home() {
   const [editingMemoId, setEditingMemoId] = useState<number | string | null>(null);
   const [editingMemoText, setEditingMemoText] = useState<string>("");
   const [heartAnim, setHeartAnim] = useState<{ id: number | string; x: number; y: number } | null>(null);
+  const [calibrationAlertStats, setCalibrationAlertStats] = useState({ overdue: 0, upcoming: 0 });
+
+  useEffect(() => {
+    const checkCalibration = async () => {
+      try {
+        const res = await getCalibrationItemsFromSupabase();
+        const items = res.data && res.data.length > 0 ? res.data : DEFAULT_CALIBRATION_ITEMS;
+        let overdue = 0;
+        let upcoming = 0;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        items.forEach((item) => {
+          if (item.remark?.includes("폐기") || item.remark?.includes("불용")) return;
+          if (!item.next_date) return;
+          const cleanDate = item.next_date.replace(/\.\s*/g, "-").trim();
+          const target = new Date(cleanDate);
+          if (isNaN(target.getTime())) return;
+          target.setHours(0, 0, 0, 0);
+          const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays < 0) overdue++;
+          else if (diffDays <= 30) upcoming++;
+        });
+
+        setCalibrationAlertStats({ overdue, upcoming });
+      } catch {}
+    };
+    checkCalibration();
+  }, []);
 
   // 🌟 메모 카드 격자 드래그 앤 드롭 (Drag & Drop) 위치 이동 State 및 핸들러
   const [draggedMemoId, setDraggedMemoId] = useState<number | string | null>(null);
@@ -1078,6 +1108,41 @@ export default function Home() {
           </button>
         </div>
       </div>
+
+      {/* 🌟 GMP 기기 검·교정 자동 알림 바너 (도래/기한 경과 기기 존재 시 자동 노출) */}
+      {(calibrationAlertStats.overdue > 0 || calibrationAlertStats.upcoming > 0) && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />
+            <div>
+              <div className="text-xs font-extrabold text-amber-900 flex items-center gap-2">
+                <span>GMP 기기 검·교정 점검 알림</span>
+                {calibrationAlertStats.overdue > 0 && (
+                  <span className="bg-red-600 text-white text-[10px] px-2 py-0.2 rounded font-bold">
+                    기한 경과 {calibrationAlertStats.overdue}건
+                  </span>
+                )}
+                {calibrationAlertStats.upcoming > 0 && (
+                  <span className="bg-amber-600 text-white text-[10px] px-2 py-0.2 rounded font-bold">
+                    30일 이내 임박 {calibrationAlertStats.upcoming}건
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-amber-800 mt-0.5 font-medium">
+                검교정 기한이 지나거나 30일 이내 예정된 실험/생산 기기가 존재합니다. 검교정 대장을 확인하십시오.
+              </p>
+            </div>
+          </div>
+
+          <a
+            href="/audit?tab=calibration"
+            className="shrink-0 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors shadow-2xs flex items-center gap-1"
+          >
+            <span>기기 검·교정 대장 이동</span>
+            <span>→</span>
+          </a>
+        </div>
+      )}
 
       {/* 🌟 2D 자유형 드래그 앤 드롭 & 코너 리사이즈 그리드 컨테이너 */}
       <div 

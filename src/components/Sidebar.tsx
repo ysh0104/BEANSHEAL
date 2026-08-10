@@ -73,7 +73,10 @@ export default function Sidebar() {
     },
     {
       name: "품질/감사 (QA)",
-      items: [{ name: "감사 대응 (Audit)", path: "/audit" }],
+      items: [
+        { name: "감사 대응 (Audit)", path: "/audit" },
+        { name: "기기 검·교정 관리대장", path: "/audit?tab=calibration" },
+      ],
     },
     {
       name: "홈페이지 관리",
