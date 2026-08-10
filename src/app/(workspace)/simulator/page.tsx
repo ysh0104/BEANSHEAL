@@ -118,25 +118,41 @@ export default function ProductionSimulator() {
         return;
       }
 
-      const { data: inventoryData, error } = await supabase
-        .from('ecount_inventory')
-        .select('item_name, quantity')
-        .gt('quantity', 0); 
+      // ecount_items(수동 엑셀 업로드 데이터) 및 ecount_inventory(로트별 재고) 모두 조회
+      const [itemsRes, inventoryRes] = await Promise.all([
+        supabase.from('ecount_items').select('prod_nm, total_qty'),
+        supabase.from('ecount_inventory').select('item_name, quantity').gt('quantity', 0)
+      ]);
 
-      if (error) {
-        console.error("Supabase 재고 조회 에러:", error);
+      if (itemsRes.error || inventoryRes.error) {
+        console.error("재고 조회 에러:", itemsRes.error || inventoryRes.error);
         throw new Error("재고 데이터를 불러오지 못했습니다.");
       }
 
       const stockMap = new Map<string, number>();
-      if (inventoryData && inventoryData.length > 0) {
-        inventoryData.forEach((item: any) => {
+
+      // 1. 수동 엑셀 업로드 마스터 데이터를 우선 등록 (이름 매핑의 주 원천)
+      if (itemsRes.data && itemsRes.data.length > 0) {
+        itemsRes.data.forEach((item: any) => {
+          const rawName = item.prod_nm;
+          const cleanName = normalizeName(rawName);
+          const rawQty = item.total_qty;
+          const currentQty = Number(String(rawQty || 0).replace(/,/g, ''));
+          if (cleanName && !isNaN(currentQty)) {
+            stockMap.set(cleanName, (stockMap.get(cleanName) || 0) + currentQty);
+          }
+        });
+      }
+
+      // 2. 로트별 재고 데이터를 보조적으로 등록 (ecount_items에 없는 것만 보완)
+      if (inventoryRes.data && inventoryRes.data.length > 0) {
+        inventoryRes.data.forEach((item: any) => {
           const rawName = item.item_name;
           const cleanName = normalizeName(rawName);
           const rawQty = item.quantity;
-          const currentQty = Number(String(rawQty).replace(/,/g, ''));
-          if (cleanName && !isNaN(currentQty)) {
-            stockMap.set(cleanName, (stockMap.get(cleanName) || 0) + currentQty);
+          const currentQty = Number(String(rawQty || 0).replace(/,/g, ''));
+          if (cleanName && !isNaN(currentQty) && !stockMap.has(cleanName)) {
+            stockMap.set(cleanName, currentQty);
           }
         });
       }
