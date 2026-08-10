@@ -281,12 +281,7 @@ export async function POST(req: Request) {
     // 1) 품목/카테고리 전용 양식 탐색
     for (const ext of searchExtensions) {
       content = readTemplateFile(`${prefix}_${docType}${ext}`);
-      if (content) {
-        if (ext === '.hwp') fileExt = 'hwp';
-        else if (ext === '.hwpx') fileExt = 'hwpx';
-        else if (ext === '.docx') fileExt = 'docx';
-        break;
-      }
+      if (content) break;
     }
 
     // 2) templateName이 명시된 경우 2차 로딩 탐색
@@ -302,12 +297,7 @@ export async function POST(req: Request) {
       console.warn(`[알림] 전용 양식이 없어 공통 양식(${docType})으로 대체합니다.`);
       for (const ext of searchExtensions) {
         content = readTemplateFile(`qc_${docType}${ext}`) || readTemplateFile(`qc_product_default_${docType}${ext}`);
-        if (content) {
-          if (ext === '.hwp') fileExt = 'hwp';
-          else if (ext === '.hwpx') fileExt = 'hwpx';
-          else if (ext === '.docx') fileExt = 'docx';
-          break;
-        }
+        if (content) break;
       }
 
       if (!content) {
@@ -389,13 +379,15 @@ export async function POST(req: Request) {
       buf = replaceHwpPlaceholders(content, renderData);
     }
     
-    const mimeType = contentTypeMap[fileExt] || contentTypeMap['hwp'];
-    const encodedFileName = encodeURIComponent(`${outputName}_${testNo}.${fileExt}`);
+    const targetExt = reqFormat === 'docx' ? 'docx' : reqFormat === 'hwp' ? 'hwp' : 'hwpx';
+    const mimeType = contentTypeMap[targetExt] || contentTypeMap['hwp'];
+    const safeAsciiFileName = `QC_${docType}_${testNo}.${targetExt}`;
+    const encodedFileName = encodeURIComponent(`${outputName}_${testNo}.${targetExt}`);
 
     return new NextResponse(new Uint8Array(buf), {
       status: 200,
       headers: {
-        'Content-Disposition': `attachment; filename*=UTF-8''${encodedFileName}`,
+        'Content-Disposition': `attachment; filename="${safeAsciiFileName}"; filename*=UTF-8''${encodedFileName}`,
         'Content-Type': mimeType,
       },
     });
