@@ -6,6 +6,7 @@ import { useCanEdit } from "@/hooks/useCanEdit";
 import { saveProductionInboundToEcount, syncEcountMasterToDb } from "@/app/actions/ecount";
 import { getSafetyStockConfigs, saveSafetyStockConfig } from "@/app/actions/safetyStockActions";
 import { getDefaultSafetyQty } from "@/lib/safetyStockHelper";
+import { saveItemMasterMapping } from "@/app/actions/itemMasterActions";
 import EcountExcelUploadModal from "@/components/EcountExcelUploadModal";
 
 /** 재고수량: 반올림/올림 절대 없음! 최소 3자리 고정 표시 및 4자리 이상 원본 100% 표시 */
@@ -62,6 +63,29 @@ export default function InventoryPage() {
       alert(`[${prodNm}] 안전재고 기준 수량이 ${num} (으)로 클라우드 DB에 성공적으로 영구 저장되었습니다.`);
     } else {
       alert(`[안내] 브라우저 로컬 캐시에 안전재고 기준이 보존되었습니다.`);
+    }
+  };
+
+  // 🌟 1클릭 품목명 마스터 영구 세팅 (이카운트 API 수량 자동 연동용)
+  const handleEditItemName = async (prodCd: string, currentNm: string) => {
+    const newVal = prompt(`[품목코드: ${prodCd}] 의 지정할 품목명을 입력하십시오:`, currentNm === prodCd ? "" : currentNm);
+    if (newVal === null) return;
+    const cleanNm = newVal.trim();
+    if (!cleanNm) {
+      alert("품목명을 정확히 입력하십시오.");
+      return;
+    }
+
+    setInventory((prev) =>
+      prev.map((i) => (i.prodCd === prodCd ? { ...i, prodNm: cleanNm } : i))
+    );
+
+    const res = await saveItemMasterMapping(prodCd, cleanNm);
+    if (res.success) {
+      alert(`[${prodCd}] ➔ [${cleanNm}] 품목명이 마스터 DB에 영구 세팅되었습니다!\n이후 이카운트 API 동기화 시 수량만 자동 갱신됩니다.`);
+      fetchInventory();
+    } else {
+      alert(`저장 실패: ${res.error}`);
     }
   };
 
@@ -423,7 +447,28 @@ export default function InventoryPage() {
                     </span>
                   </td>
                   <td className="border border-gray-300 px-2 py-1.5 text-gray-900 text-[13px] whitespace-nowrap overflow-hidden text-ellipsis font-bold">
-                    {item.prodNm}
+                    <div className="flex items-center justify-between gap-2">
+                      {item.prodNm && item.prodNm !== item.prodCd ? (
+                        <span>{item.prodNm}</span>
+                      ) : (
+                        <span className="text-amber-800 text-xs font-normal italic">
+                          (품목명 미지정)
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleEditItemName(item.prodCd, item.prodNm)}
+                        className={`px-2 py-0.5 rounded text-[11px] font-extrabold transition-all cursor-pointer border ${
+                          !item.prodNm || item.prodNm === item.prodCd
+                            ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-700 shadow-2xs animate-pulse"
+                            : "bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300"
+                        }`}
+                        title="품목명 영구 지정 세팅"
+                      >
+                        {!item.prodNm || item.prodNm === item.prodCd ? "품목명 등록" : "수정"}
+                      </button>
+                    </div>
                   </td>
                   <td className="border border-gray-300 px-2 py-1.5 text-right font-bold text-[13px] text-gray-900">
                     {formatQty(breakdown.totalQty)}

@@ -197,6 +197,30 @@ export async function POST() {
       }
     } catch (e) {}
 
+    // 🌟 3.7. ecount_items_master 및 ecount_items DB에 등록된 사용자 품목명 맵 결합 (품목명 보존 1순위)
+    try {
+      const supabase = getSupabaseClient();
+      const { data: userMaster } = await supabase.from('ecount_items_master').select('prod_cd, prod_nm');
+      if (userMaster) {
+        userMaster.forEach((u: any) => {
+          if (u.prod_cd && u.prod_nm) {
+            itemMasterMap.set(String(u.prod_cd).trim(), String(u.prod_nm).trim());
+          }
+        });
+      }
+
+      const { data: existingItems } = await supabase.from('ecount_items').select('prod_cd, prod_nm');
+      if (existingItems) {
+        existingItems.forEach((e: any) => {
+          const cd = String(e.prod_cd || '').trim();
+          const nm = String(e.prod_nm || '').trim();
+          if (cd && nm && cd !== nm) {
+            itemMasterMap.set(cd, nm);
+          }
+        });
+      }
+    } catch (e) {}
+
     // 4. 품목별 정밀 소수점 재고 합산 (Grouping & Summing with exact float precision)
     const productQtyMap = new Map<string, { prodNm: string; totalQty: number }>();
 
@@ -214,20 +238,20 @@ export async function POST() {
         ''
       ).trim();
 
-      // 만약 재고 API 응답에 PROD_DES가 누락되었을 경우 마스터(GetListItem) 및 로트 테이블에서 PROD_DES 보완
-      if (!rawNm && rawCd && itemMasterMap.has(rawCd)) {
+      // 품목 마스터(ecount_items_master, GetListItem, 로트 DB)에서 보존된 품목명 결합
+      if (rawCd && itemMasterMap.has(rawCd)) {
         rawNm = itemMasterMap.get(rawCd)!;
       }
 
       const sizeDes = String(item.SIZE_DES || item.SIZE || '').trim();
-      if (sizeDes && !rawNm.includes(sizeDes)) {
+      if (sizeDes && rawNm && !rawNm.includes(sizeDes)) {
         rawNm = `${rawNm} [${sizeDes}]`;
       }
 
       if (!rawCd && !rawNm) continue;
 
       const prodCd = rawCd || rawNm;
-      const prodNm = rawNm || rawCd;
+      const prodNm = rawNm || prodCd;
 
       const rawQtyVal = item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? '0';
       const rawQtyStr = String(rawQtyVal).replace(/,/g, '').trim();
