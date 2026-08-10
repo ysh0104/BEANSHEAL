@@ -1006,7 +1006,7 @@ export default function Home() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto w-full pb-20 mt-2 px-2 font-sans text-sm">
+    <div className="space-y-6 max-w-[1920px] mx-auto w-full pb-20 mt-2 px-1 sm:px-2 font-sans text-sm">
       
       {/* 대시보드 상단 타이틀 & 그리드 스냅 토글 */}
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 pb-4 border-b border-gray-200">

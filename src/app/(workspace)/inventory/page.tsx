@@ -213,7 +213,7 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto py-6 sm:py-8 md:py-10 px-2 sm:px-4 bg-[#f8f9fb] min-h-screen">
+    <div className="max-w-[1920px] mx-auto py-6 sm:py-8 md:py-10 px-2 sm:px-4 bg-[#f8f9fb] min-h-screen">
       
       <div className="mb-8">
         <div className="flex items-center justify-center gap-3 mb-6">

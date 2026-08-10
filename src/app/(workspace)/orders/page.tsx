@@ -427,7 +427,7 @@ export default function OrdersPage() {
     <div className="relative min-h-screen bg-gray-50">
 
       {/* 평소 화면 UI 시작 */}
-      <div className="max-w-7xl mx-auto space-y-6 p-4 sm:p-6 md:p-8 no-print">
+      <div className="max-w-[1920px] mx-auto space-y-6 p-2 sm:p-4 md:p-6 no-print">
         
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 pb-4 border-b border-gray-200">
           <div className="min-w-0">
