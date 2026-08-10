@@ -13,6 +13,7 @@ import {
 import { getRecipeList } from "@/app/actions/recipe"; 
 import { useCanEdit } from "@/hooks/useCanEdit";
 import CalibrationManagementView from "@/components/CalibrationManagementView";
+import HealthCheckManagementView from "@/components/HealthCheckManagementView";
 
 const analyzeItemTemplate = (productName: string) => {
   let mainType = "완제품";
@@ -65,12 +66,13 @@ const getCleanRecipeName = (rawName: string) => {
 
 function AuditPageContent() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") === "calibration" ? "calibration" : "documents";
-  const [activeTab, setActiveTab] = useState<"documents" | "calibration">(initialTab);
+  const initialTab = searchParams.get("tab") === "calibration" ? "calibration" : searchParams.get("tab") === "health" ? "health" : "documents";
+  const [activeTab, setActiveTab] = useState<"documents" | "health" | "calibration">(initialTab);
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
     if (tabParam === "calibration") setActiveTab("calibration");
+    else if (tabParam === "health") setActiveTab("health");
     else if (tabParam === "documents") setActiveTab("documents");
   }, [searchParams]);
 
@@ -420,12 +422,12 @@ function AuditPageContent() {
         </div>
       </div>
 
-      {/* 🌟 탭 네비게이션 (HACCP 품질서류 발급 vs GMP 기기 검·교정 관리대장) */}
-      <div className="flex items-center gap-2 border-b border-gray-200 pb-1">
+      {/* 🌟 탭 네비게이션 (HACCP 품질서류 발급 vs 건강진단결과서 보건증 대장 vs GMP 기기 검·교정 관리대장) */}
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-1 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab("documents")}
-          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x ${
+          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x whitespace-nowrap ${
             activeTab === "documents"
               ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
               : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
@@ -436,8 +438,23 @@ function AuditPageContent() {
 
         <button
           type="button"
+          onClick={() => setActiveTab("health")}
+          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x flex items-center gap-2 whitespace-nowrap ${
+            activeTab === "health"
+              ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
+              : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
+          }`}
+        >
+          <span>건강진단결과서 (보건증) 관리대장</span>
+          <span className="bg-emerald-600 text-white text-xs px-2 py-0.5 rounded-full font-mono font-bold">
+            14명
+          </span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab("calibration")}
-          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x flex items-center gap-2 ${
+          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x flex items-center gap-2 whitespace-nowrap ${
             activeTab === "calibration"
               ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
               : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
@@ -452,6 +469,8 @@ function AuditPageContent() {
 
       {activeTab === "calibration" ? (
         <CalibrationManagementView canEdit={canEdit} />
+      ) : activeTab === "health" ? (
+        <HealthCheckManagementView canEdit={canEdit} />
       ) : (
         <>
 
