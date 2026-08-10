@@ -181,73 +181,70 @@ export default function InventoryPage() {
     const today = new Date();
     const formattedDate = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
     setCurrentDate(formattedDate);
-
-    fetchInventory();
-    fetchScrapedItems();
+    // 로컬 캐시 즉시 반영 (화면 먼저 보여주기)
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("beansheal_safety_configs");
+      if (cached) { try { setSafetyConfigs(JSON.parse(cached)); } catch {} }
+    }
+    fetchAll();
   }, []);
 
-  const fetchInventory = async () => {
+  // 모든 DB 쿼리를 병렬(Promise.all)로 한 번에 요청 → 총 왕복 1회로 단축
+  const fetchAll = async () => {
     setLoadingInv(true);
     try {
-      if (typeof window !== "undefined") {
-        const cached = localStorage.getItem("beansheal_safety_configs");
-        if (cached) {
-          try { setSafetyConfigs(JSON.parse(cached)); } catch {}
-        }
-      }
+      const [
+        inventoryRes,
+        scrapedRes,
+        safetyRes,
+      ] = await Promise.all([
+        supabase
+          .from('ecount_items')
+          .select('prod_cd, prod_nm, total_qty')
+          .order('prod_cd', { ascending: true }),
+        supabase
+          .from('ecount_inventory')
+          .select('item_name, lot_no, expiry_date, quantity')
+          .order('created_at', { ascending: false })
+          .limit(500),  // 3000 → 500 (화면 표시에 충분한 양)
+        getSafetyStockConfigs(),
+      ]);
 
-      getSafetyStockConfigs().then((res) => {
-        if (res.success && res.data) {
-          setSafetyConfigs(res.data);
-          if (typeof window !== "undefined") {
-            localStorage.setItem("beansheal_safety_configs", JSON.stringify(res.data));
-          }
-        }
-      });
-
-      const { data, error } = await supabase
-        .from('ecount_items')
-        .select('prod_cd, prod_nm, total_qty')
-        .order('prod_cd', { ascending: true });
-
-      if (error) throw error;
-
-      if (data) {
-        setInventory(data.map((item: any) => ({
+      // 재고 마스터
+      if (!inventoryRes.error && inventoryRes.data) {
+        setInventory(inventoryRes.data.map((item: any) => ({
           prodCd: item.prod_cd,
           prodNm: item.prod_nm,
-          qty: item.total_qty || 0
+          qty: item.total_qty || 0,
         })));
       }
-    } catch (e) { 
-      console.error("DB 재고 현황 로딩 에러:", e); 
-    } finally { 
-      setLoadingInv(false); 
-    }
-  };
 
-  const fetchScrapedItems = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('ecount_inventory')
-        .select('item_name, lot_no, expiry_date, quantity')
-        .order('created_at', { ascending: false })
-        .limit(3000); 
-
-      if (error) throw error;
-
-      if (data) {
-        setScrapedItems(data.map((item: any) => ({
+      // 로트 데이터
+      if (!scrapedRes.error && scrapedRes.data) {
+        setScrapedItems(scrapedRes.data.map((item: any) => ({
           productName: item.item_name,
           lotNo: item.lot_no,
           expDate: item.expiry_date || "-",
           qty: item.quantity,
         })));
       }
-    } catch (error) {
-      console.error("로트 데이터 로딩 에러:", error);
+
+      // 안전재고 설정
+      if (safetyRes.success && safetyRes.data) {
+        setSafetyConfigs(safetyRes.data);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("beansheal_safety_configs", JSON.stringify(safetyRes.data));
+        }
+      }
+    } catch (e) {
+      console.error("DB 재고 현황 로딩 에러:", e);
+    } finally {
+      setLoadingInv(false);
     }
   };
+
+  // fetchInventory는 외부에서 호출되므로 fetchAll 로 위임
+  const fetchInventory = fetchAll;
 
   // [수정] 검색어, 수량 0 숨기기, 안전재고 미달 필터링 동시 적용
   const filteredInventory = inventory.filter(item => {

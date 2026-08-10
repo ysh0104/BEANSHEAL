@@ -285,7 +285,7 @@ export default function RecipeListPage() {
         <div>
           <h3 className="font-bold text-slate-900">이카운트 BOM(소요량)현황 엑셀 동기화</h3>
           <p className="text-sm text-slate-500 mt-1">
-            재고1 → BOM관리 → BOM현황 → BOM(소요량)현황 다운로드 후 업로드하세요.
+            재고1 → 생산/외주 → BOM(소요량) → BOM(소요량)현황 → 검색 → 다운로드 후 업로드하세요.
             <span className="block text-xs mt-1 font-mono text-slate-400">
               생산품목코드 · 소모품목코드 · 소요량
             </span>
