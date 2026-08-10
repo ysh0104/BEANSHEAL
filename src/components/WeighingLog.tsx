@@ -34,13 +34,16 @@ export default function WeighingLog({ selectedOrder, signatures, openSignModal }
   // 🌟 구버전 캐시 무시하고 즉시 최신 DB를 바라보게 강제 리셋 (v3)
   const storageKey = `order_${selectedOrder?.id || 'temp'}_weighing_v3`;
 
-  const [formData, setFormData] = useState<Record<string, any>>(() => {
+  const [formData, setFormData] = useState<Record<string, any>>({});
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem(storageKey);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        try { setFormData(JSON.parse(saved)); } catch (e) {}
+      }
     }
-    return {};
-  });
+  }, [storageKey]);
 
   const currentTotalWeight = Number(formData.totalBaseWeight || selectedOrder?.qty || 1350);
 

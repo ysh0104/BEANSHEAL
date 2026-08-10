@@ -19,13 +19,16 @@ const [isProcessing, setIsProcessing] = useState(false);
 // 🌟 [핵심 변경] 브라우저 캐시를 강제로 비우기 위해 저장소 이름을 _v2로 바꿨습니다!
 const storageKey = `order_${selectedOrder?.id || 'temp'}_mfg_v2`;
 
-const [formData, setFormData] = useState<Record<string, any>>(() => {
-if (typeof window !== "undefined") {
-const saved = localStorage.getItem(storageKey);
-if (saved) return JSON.parse(saved);
-}
-return {};
-});
+const [formData, setFormData] = useState<Record<string, any>>({});
+
+useEffect(() => {
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try { setFormData(JSON.parse(saved)); } catch (e) {}
+    }
+  }
+}, [storageKey]);
 
 const docNum = selectedOrder?.orderNumber || formData.docNum || `WO-${Date.now().toString().slice(-6)}`;
 const targetDate = selectedOrder?.date || formData.fillDateStr || new Date().toISOString().split('T')[0];

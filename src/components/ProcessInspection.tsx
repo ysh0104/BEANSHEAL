@@ -27,16 +27,21 @@ export default function ProcessInspection({ selectedOrder, signatures, openSignM
 
   const storageKey = `order_${selectedOrder?.id}_process`;
 
-  const [formData, setFormData] = useState<Record<string, any>>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) return JSON.parse(saved);
-    }
-    return {};
-  });
+  const [formData, setFormData] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(formData));
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try { setFormData(JSON.parse(saved)); } catch (e) {}
+      }
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (Object.keys(formData).length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify(formData));
+    }
   }, [formData, storageKey]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {

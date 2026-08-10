@@ -14,16 +14,21 @@ export default function CCPLog({ selectedOrder, signatures, openSignModal }: any
 
   const storageKey = `order_${selectedOrder?.id || 'temp'}_ccp`;
 
-  const [formData, setFormData] = useState<Record<string, any>>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) return JSON.parse(saved);
-    }
-    return {};
-  });
+  const [formData, setFormData] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(formData));
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        try { setFormData(JSON.parse(saved)); } catch (e) {}
+      }
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (Object.keys(formData).length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify(formData));
+    }
   }, [formData, storageKey]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {

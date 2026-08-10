@@ -145,18 +145,19 @@ export default function Home() {
   const { canView: canViewWeeklyPlan } = useCanView("weekly_plan");
   const { canEdit: canEditWeeklyPlan } = useCanEdit("weekly_plan");
   const isMobile = useIsMobile();
-  const [recipeOptions, setRecipeOptions] = useState<any[]>(() => {
+  const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const cached = localStorage.getItem("beansheal_recipe_options");
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) setRecipeOptions(parsed);
         } catch (e) {}
       }
     }
-    return [];
-  });
+  }, []);
 
   // 달력 및 메모장용 State
   const [currentDate, setCurrentDate] = useState(new Date());

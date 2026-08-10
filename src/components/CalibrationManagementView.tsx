@@ -13,18 +13,19 @@ interface CalibrationManagementViewProps {
 }
 
 export default function CalibrationManagementView({ canEdit = true }: CalibrationManagementViewProps) {
-  const [items, setItems] = useState<CalibrationItem[]>(() => {
+  const [items, setItems] = useState<CalibrationItem[]>(DEFAULT_CALIBRATION_ITEMS);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const cached = localStorage.getItem("beansheal_calibration_items");
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) setItems(parsed);
         } catch {}
       }
     }
-    return DEFAULT_CALIBRATION_ITEMS;
-  });
+  }, []);
 
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");

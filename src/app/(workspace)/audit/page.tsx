@@ -75,18 +75,7 @@ function AuditPageContent() {
   }, [searchParams]);
 
   const { canEdit } = useCanEdit("qa");
-  const [scrapedItems, setScrapedItems] = useState<any[]>(() => {
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("beansheal_audit_items");
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        } catch (e) {}
-      }
-    }
-    return [];
-  });
+  const [scrapedItems, setScrapedItems] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lastSyncTime, setLastSyncTime] = useState<string>("기록 없음");
@@ -97,18 +86,26 @@ function AuditPageContent() {
   const [selectedProduct, setSelectedProduct] = useState("");
   const [inputQty, setInputQty] = useState("");
   const [previewLot, setPreviewLot] = useState("");
-  const [recipeOptions, setRecipeOptions] = useState<any[]>(() => {
+  const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("beansheal_recipe_options");
-      if (cached) {
+      const cachedItems = localStorage.getItem("beansheal_audit_items");
+      if (cachedItems) {
         try {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          const parsed = JSON.parse(cachedItems);
+          if (Array.isArray(parsed) && parsed.length > 0) setScrapedItems(parsed);
+        } catch (e) {}
+      }
+      const cachedRecipes = localStorage.getItem("beansheal_recipe_options");
+      if (cachedRecipes) {
+        try {
+          const parsed = JSON.parse(cachedRecipes);
+          if (Array.isArray(parsed) && parsed.length > 0) setRecipeOptions(parsed);
         } catch (e) {}
       }
     }
-    return [];
-  });
+  }, []);
 
   const [mfgNo, setMfgNo] = useState("");
   const [mfgDate, setMfgDate] = useState("");
