@@ -6,6 +6,7 @@ import { useCanEdit } from "@/hooks/useCanEdit";
 import { saveProductionInboundToEcount, syncEcountMasterToDb } from "@/app/actions/ecount";
 import { getSafetyStockConfigs, saveSafetyStockConfig } from "@/app/actions/safetyStockActions";
 import { getDefaultSafetyQty } from "@/lib/safetyStockHelper";
+import EcountExcelUploadModal from "@/components/EcountExcelUploadModal";
 
 /** 재고수량: 반올림/올림 절대 없음! 최소 3자리 고정 표시 및 4자리 이상 원본 100% 표시 */
 function formatQty(value: number | string) {
@@ -64,7 +65,8 @@ export default function InventoryPage() {
     }
   };
 
-  // 생산입고 전표 입력
+  // 생산입고 전표 입력 & 엑셀 모달
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isInboundModalOpen, setIsInboundModalOpen] = useState(false);
   const [inboundProdCd, setInboundProdCd] = useState("");
   const [inboundQty, setInboundQty] = useState(1);
@@ -349,11 +351,18 @@ export default function InventoryPage() {
             </button>
 
             <button
+              onClick={() => setIsExcelModalOpen(true)}
+              className="text-sm font-extrabold text-white bg-emerald-700 hover:bg-emerald-800 border border-emerald-800 px-4 py-1.5 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
+            >
+              <span>이카운트 엑셀 재고 반영 (100% 소수점)</span>
+            </button>
+
+            <button
               onClick={handleSyncMaster}
               disabled={syncingMaster}
               className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-1.5 hover:bg-blue-100 cursor-pointer disabled:opacity-50 shadow-2xs"
             >
-              {syncingMaster ? "동기화중..." : "이카운트 동기화 & 원본JSON 수신검증"}
+              {syncingMaster ? "동기화중..." : "이카운트 API 동기화"}
             </button>
 
             <button
@@ -668,6 +677,12 @@ export default function InventoryPage() {
           </div>
         </div>
       )}
+      {/* 🌟 이카운트 엑셀 무손실 동기화 모달 */}
+      <EcountExcelUploadModal
+        isOpen={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+        onSuccess={fetchInventory}
+      />
     </div>
   );
 }
