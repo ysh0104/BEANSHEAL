@@ -12,9 +12,12 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export type ScheduleEmployeeRow = {
   id: string;
+  /** profiles.id 와 동일 (동기화용) */
+  profileId?: string;
   name: string;
-  group: string; // 팀/구분 명칭 (예: '생산1팀', '품질팀' 등)
-  shifts: Record<string, string>; // { '1': 'BE', '2': 'BE', '3': 'A4', ... }
+  group: string;
+  shifts: Record<string, string>;
+  sortOrder?: number;
 };
 
 export async function getWorkSchedule(yearMonth: string): Promise<{

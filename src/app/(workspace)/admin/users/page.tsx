@@ -20,6 +20,8 @@ import {
   updateEcountMapping,
   type EcountUserRecord,
 } from "@/app/actions/ecountUserMapping";
+import { createProfileForSchedule } from "@/app/actions/scheduleRosterActions";
+import { profileDeptToScheduleGroup } from "@/lib/departmentNormalize";
 
 const DEPARTMENT_OPTIONS = [
   "생산팀",
@@ -320,6 +322,31 @@ export default function UserManagementPage() {
     setEcountSyncMsg(`이카운트 사용자 '${userId.trim()}' 등록됨`);
   };
 
+  const handleAddEmployee = async () => {
+    const name = prompt("등록할 사원 이름을 입력하세요.");
+    if (!name?.trim()) return;
+    const dept = prompt(
+      "부서 (생산팀 / 품질관리팀 / 영업팀 / 경영지원팀 / 경영진)",
+      "생산팀"
+    );
+    if (!dept?.trim()) return;
+    const position = prompt("직급 (예: 사원, 주임, 팀장)", "사원") || "사원";
+    const normalizedDept = normalizeDepartment(dept.trim());
+    const scheduleGroup = profileDeptToScheduleGroup(normalizedDept);
+
+    const res = await createProfileForSchedule(name.trim(), scheduleGroup, position.trim());
+    if (!res.success || !res.profile) {
+      alert(res.message || "사원 등록에 실패했습니다.");
+      return;
+    }
+    await loadProfiles();
+    setStatusMsg({
+      id: res.profile.id,
+      type: "success",
+      text: `'${name.trim()}' 사원이 등록되었습니다. 대시보드 스케줄표에도 자동 반영됩니다.`,
+    });
+  };
+
   const handleSaveProfile = async (targetUser: ProfileItem) => {
     const edit = editStates[targetUser.id];
     if (!edit) return;
@@ -354,6 +381,7 @@ export default function UserManagementPage() {
           role: saveRole,
           permission_group_id: edit.permission_group_id || null,
           ecount_user_id: edit.ecount_user_id || null,
+          include_in_work_schedule: true,
           updated_at: new Date().toISOString(),
         }, { onConflict: "id" });
 
@@ -513,10 +541,18 @@ export default function UserManagementPage() {
                 <span>사용자 · 권한 그룹 관리</span>
               </h1>
               <p className="text-xs text-slate-500 mt-1 font-normal">
-                권한 그룹을 만들고 메뉴별 조회/수정을 설정한 뒤, 사원에게 그룹을 배정하세요. (이카운트식)
+                권한 그룹·이카운트 매칭과 함께 사원 목록이 대시보드 스케줄표와 자동 동기화됩니다.
               </p>
             </div>
 
+            <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+            <button
+              type="button"
+              onClick={handleAddEmployee}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
+            >
+              + 사원 추가
+            </button>
             <button
               onClick={loadProfiles}
               disabled={loading}
@@ -527,6 +563,7 @@ export default function UserManagementPage() {
               </svg>
               <span>목록 새로고침</span>
             </button>
+            </div>
           </div>
 
           {/* 무채색 깔끔한 요약 카운트 카드 */}

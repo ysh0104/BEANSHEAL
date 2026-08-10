@@ -6,6 +6,15 @@ import {
   saveWorkSchedule,
   type ScheduleEmployeeRow,
 } from "@/app/actions/workScheduleActions";
+import {
+  getScheduleRosterProfiles,
+  createProfileForSchedule,
+  updateProfileFromSchedule,
+  excludeProfileFromSchedule,
+  syncScheduleRosterFromRows,
+} from "@/app/actions/scheduleRosterActions";
+import { mergeRosterWithScheduleRows } from "@/lib/scheduleRosterMerge";
+import { profileDeptToScheduleGroup, SCHEDULE_GROUP_OPTIONS } from "@/lib/departmentNormalize";
 
 export type ShiftCodeInfo = {
   code: string;
@@ -220,7 +229,8 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
   const [selectedWeek, setSelectedWeek] = useState<number>(() => getTodayWeekNum(2026, 8));
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>("전체");
   
-  const [rows, setRows] = useState<ScheduleEmployeeRow[]>(INITIAL_DEMO_DATA);
+  const [rows, setRows] = useState<ScheduleEmployeeRow[]>([]);
+  const [loadingRows, setLoadingRows] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -264,33 +274,61 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
 
   const yearMonthKey = `${currentYear}-${String(currentMonth).padStart(2, "0")}`;
 
-  // 데이터 로딩
+  // 데이터 로딩 — profiles(사용자관리)와 월간 shifts 병합
   useEffect(() => {
     (async () => {
+      setLoadingRows(true);
       try {
-        const res = await getWorkSchedule(yearMonthKey);
-        if (res.success && res.data && res.data.length > 0) {
-          setRows(res.data);
+        const [scheduleRes, rosterRes] = await Promise.all([
+          getWorkSchedule(yearMonthKey),
+          getScheduleRosterProfiles(),
+        ]);
+
+        let existingRows: ScheduleEmployeeRow[] = [];
+        if (scheduleRes.success && scheduleRes.data && scheduleRes.data.length > 0) {
+          existingRows = scheduleRes.data;
         } else {
           const localData = localStorage.getItem(`beansheal_work_schedule_${yearMonthKey}`);
-          if (localData) setRows(JSON.parse(localData));
-          else setRows(INITIAL_DEMO_DATA);
+          if (localData) {
+            try {
+              existingRows = JSON.parse(localData);
+            } catch {
+              existingRows = [];
+            }
+          }
+        }
+
+        const profiles = rosterRes.success ? rosterRes.data : [];
+        if (profiles.length > 0) {
+          setRows(
+            mergeRosterWithScheduleRows(profiles, existingRows, currentYear, currentMonth)
+          );
+        } else if (existingRows.length > 0) {
+          setRows(existingRows);
+        } else {
+          setRows(INITIAL_DEMO_DATA);
         }
       } catch {
         setRows(INITIAL_DEMO_DATA);
+      } finally {
+        setLoadingRows(false);
       }
     })();
-  }, [yearMonthKey]);
+  }, [yearMonthKey, currentYear, currentMonth]);
 
   // 저장 실행
   const handleSave = async () => {
     setSaving(true);
     setSaveMsg(null);
     try {
+      await syncScheduleRosterFromRows(rows);
       const res = await saveWorkSchedule(yearMonthKey, rows);
       localStorage.setItem(`beansheal_work_schedule_${yearMonthKey}`, JSON.stringify(rows));
       if (res.success) {
-        setSaveMsg({ type: "success", text: "월간 스케줄이 성공적으로 저장 및 전사 게시되었습니다! 🚀" });
+        setSaveMsg({
+          type: "success",
+          text: "스케줄·사원 목록이 사용자관리와 동기화되어 저장되었습니다.",
+        });
       } else {
         setSaveMsg({ type: "success", text: "로컬 스토리지에 스케줄이 보관되었습니다." });
       }
@@ -320,13 +358,26 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
   };
 
   // 사원 정보 수정 저장
-  const handleSaveEmployeeInfo = (e: React.FormEvent) => {
+  const handleSaveEmployeeInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEmpInfo || !editEmpName.trim()) return;
+
+    const profileId = editingEmpInfo.profileId || editingEmpInfo.id;
+    const res = await updateProfileFromSchedule(profileId, editEmpName.trim(), editEmpGroup);
+    if (!res.success) {
+      alert(res.message || "사용자 정보 동기화에 실패했습니다.");
+    }
+
     setRows((prev) =>
       prev.map((r) => {
         if (r.id === editingEmpInfo.id) {
-          return { ...r, name: editEmpName.trim(), group: editEmpGroup };
+          return {
+            ...r,
+            profileId,
+            id: profileId,
+            name: editEmpName.trim(),
+            group: editEmpGroup,
+          };
         }
         return r;
       })
@@ -335,25 +386,39 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
   };
 
   // 🌟 요구사항 2: 사원 명확한 삭제 확인 팝업 안내
-  const handleDeleteEmployee = (empId: string, empName: string) => {
+  const handleDeleteEmployee = async (empId: string, empName: string) => {
     if (readOnly) return;
     const isConfirmed = confirm(
-      `⚠️ [사원 삭제 확인]\n\n정말로 '${empName}' 사원을 스케줄표에서 삭제하시겠습니까?\n\n(삭제 후 상단의 [스케줄 저장] 버튼을 누르면 최종 반영됩니다.)`
+      `⚠️ [사원 삭제 확인]\n\n'${empName}' 사원을 스케줄표에서 제외하시겠습니까?\n\n(사용자관리 목록에는 유지되며, [스케줄 저장] 시 반영됩니다.)`
     );
     if (!isConfirmed) return;
+
+    const row = rows.find((r) => r.id === empId);
+    const profileId = row?.profileId || (empId.length > 20 ? empId : null);
+    if (profileId) {
+      await excludeProfileFromSchedule(profileId);
+    }
     setRows((prev) => prev.filter((r) => r.id !== empId));
   };
 
   // 사원 등록
-  const handleCreateEmployee = (e: React.FormEvent) => {
+  const handleCreateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEmpName.trim()) return;
-    const newId = String(Date.now());
+
+    const res = await createProfileForSchedule(newEmpName.trim(), newEmpGroup);
+    if (!res.success || !res.profile) {
+      alert(res.message || "사원 등록에 실패했습니다.");
+      return;
+    }
+
+    const p = res.profile;
     const days = new Date(currentYear, currentMonth, 0).getDate();
     const newRow: ScheduleEmployeeRow = {
-      id: newId,
-      name: newEmpName.trim(),
-      group: newEmpGroup,
+      id: p.id,
+      profileId: p.id,
+      name: p.full_name,
+      group: profileDeptToScheduleGroup(p.department),
       shifts: {},
     };
     for (let day = 1; day <= days; day++) {
@@ -659,6 +724,11 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
 
   return (
     <div className="w-full bg-[#F8FAFC] dark:bg-slate-950 p-4 sm:p-6 rounded-[24px] font-sans border border-slate-200/80 dark:border-slate-800 shadow-2xl space-y-6">
+      {loadingRows && (
+        <div className="text-center py-6 text-sm text-slate-500 font-medium">
+          사용자관리와 연동된 사원 목록을 불러오는 중…
+        </div>
+      )}
       {/* 🌟 1. 상단 타이틀 & 글로벌 컨트롤 바 */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center space-x-3">
@@ -678,7 +748,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                 </span>
               )}
             </h1>
-            <p className="text-xs text-slate-400 font-medium">생산 · 품질 · 영업 · 경영 지원 인력 통합 스케줄링 시스템</p>
+            <p className="text-xs text-slate-400 font-medium">사용자관리(profiles)와 연동 · 생산 · 품질 · 영업 · 경영 지원 통합 스케줄</p>
           </div>
         </div>
 
@@ -1325,10 +1395,9 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                   onChange={(e) => setEditEmpGroup(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
                 >
-                  <option value="생산팀">생산팀</option>
-                  <option value="품질팀">품질팀</option>
-                  <option value="영업팀">영업팀</option>
-                  <option value="경영지원팀">경영지원팀</option>
+                  {SCHEDULE_GROUP_OPTIONS.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -1388,10 +1457,9 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                   onChange={(e) => setNewEmpGroup(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
                 >
-                  <option value="생산팀">생산팀</option>
-                  <option value="품질팀">품질팀</option>
-                  <option value="영업팀">영업팀</option>
-                  <option value="경영지원팀">경영지원팀</option>
+                  {SCHEDULE_GROUP_OPTIONS.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
                 </select>
               </div>
             </div>

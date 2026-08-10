@@ -257,6 +257,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             department,
             position,
             role: permissionRole,
+            include_in_work_schedule: true,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "id" }
