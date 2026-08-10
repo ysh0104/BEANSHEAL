@@ -203,7 +203,16 @@ export async function POST() {
     for (const item of rawList) {
       // 1. 품목코드 및 품목명 다중 필드 바인딩 (이카운트 API 규격별 호환성 극대화)
       const rawCd = String(item.PROD_CD || item.PROD_NO || item.CODE || item.ITEM_CD || item.item_code || '').trim();
-      let rawNm = String(item.PROD_DES || item.PROD_NM || item.PROD_NAME || item.ITEM_DES || item.DES || item.item_name || '').trim();
+      let rawNm = String(
+        item.PROD_SIZE_DES || 
+        item.PROD_DES || 
+        item.PROD_NM || 
+        item.PROD_NAME || 
+        item.ITEM_DES || 
+        item.DES || 
+        item.item_name || 
+        ''
+      ).trim();
 
       // 만약 재고 API 응답에 PROD_DES가 누락되었을 경우 마스터(GetListItem) 및 로트 테이블에서 PROD_DES 보완
       if (!rawNm && rawCd && itemMasterMap.has(rawCd)) {
