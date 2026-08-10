@@ -3,15 +3,15 @@ import { HttpsProxyAgent } from "https-proxy-agent";
 
 export async function getEcountProxyBaseUrl(): Promise<string> {
   const fixieUrl = process.env.FIXIE_URL || process.env.FIXIE_SOCKS_HOST;
-  if (fixieUrl && !process.env.ECOUNT_API_BASE_URL) {
+  const envUrl = process.env.ECOUNT_API_BASE_URL || process.env.ECOUNT_PROXY_URL || "";
+
+  // Fixie 프록시 사용 중이거나, 기존 trycloudflare / workers.dev 도메인이 만료된 경우 이카운트 공식 OAPI URL로 우선 자동 변경
+  if (fixieUrl || !envUrl || envUrl.includes("trycloudflare") || envUrl.includes("workers.dev")) {
     const zone = process.env.ECOUNT_ZONE || "AC";
     return `https://oapi${zone.toLowerCase()}.ecount.com`;
   }
-  return (
-    process.env.ECOUNT_API_BASE_URL ||
-    process.env.ECOUNT_PROXY_URL ||
-    "https://oapiac.ecount.com"
-  ).replace(/\/$/, "");
+
+  return envUrl.replace(/\/$/, "");
 }
 
 export async function ecountFetchHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
