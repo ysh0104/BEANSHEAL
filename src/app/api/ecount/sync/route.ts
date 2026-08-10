@@ -110,9 +110,9 @@ export async function POST() {
     let usedEndpoint = '';
 
     const candidateEndpoints = [
-      '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLot',
       '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLocation',
       '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusLocation',
+      '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLot',
       '/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus'
     ];
 
