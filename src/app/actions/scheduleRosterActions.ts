@@ -94,6 +94,12 @@ async function getNextSortOrder(): Promise<number> {
   return Number(data?.schedule_sort_order ?? 0) + 1;
 }
 
+function buildStaffPlaceholderEmail(_fullName: string): string {
+  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  // Supabase Auth는 .internal·한글 local-part 등을 거부 → ASCII + 실제 TLD만 사용
+  return `staff.${id}@beansheal.com`;
+}
+
 /** 스케줄표/사용자관리 공통 — 신규 사원 등록 */
 export async function createProfileForSchedule(
   fullName: string,
@@ -107,8 +113,7 @@ export async function createProfileForSchedule(
     const department = scheduleGroupToProfileDept(scheduleGroup);
     const pos = position || "사원";
     const role = computeRole(department, pos);
-    const slug = name.replace(/\s/g, "").slice(0, 16) || "staff";
-    const email = `schedule.${slug}.${Date.now()}@beansheal.internal`;
+    const email = buildStaffPlaceholderEmail(name);
     const password = `${crypto.randomUUID()}Aa1!`;
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -124,7 +129,14 @@ export async function createProfileForSchedule(
     });
 
     if (authError || !authData.user) {
-      return { success: false, message: authError?.message || "사원 계정 생성 실패" };
+      const msg = authError?.message || "사원 계정 생성 실패";
+      if (msg.toLowerCase().includes("email")) {
+        return {
+          success: false,
+          message: `이메일 형식 오류로 등록에 실패했습니다. (${msg})`,
+        };
+      }
+      return { success: false, message: msg };
     }
 
     const sortOrder = await getNextSortOrder();
