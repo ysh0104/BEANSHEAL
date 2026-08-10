@@ -1485,7 +1485,7 @@ export default function Home() {
             ];
 
             const memoHeaderLeft = (
-              <span className="text-xs font-bold text-slate-900">Memo (실시간 채팅)</span>
+              <span className="text-xs font-bold text-slate-900">특이사항 및 메모</span>
             );
 
             const memoHeaderRight = (
@@ -1503,7 +1503,7 @@ export default function Home() {
                   }`}
                   title="상세기능 (태그 필터, 상단고정, 알림, 템플릿 관리)"
                 >
-                  <span>⚙️ 상세기능</span>
+                  <span>상세 기능</span>
                   <span className="text-[9px]">{showMemoTools ? "▲" : "▼"}</span>
                 </button>
               </div>
@@ -1702,7 +1702,9 @@ export default function Home() {
                                         className={`transition-colors cursor-pointer p-0.5 ${memo.pinned ? "text-amber-500 opacity-100" : "text-gray-400 hover:text-amber-500"}`}
                                         title={memo.pinned ? "핀 해제" : "상단 고정"}
                                       >
-                                        <span className="text-xs">📌</span>
+                                        <svg className="w-3.5 h-3.5" fill={memo.pinned ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                        </svg>
                                       </button>
                                       <button 
                                         onClick={() => handleStartEditMemo(memo)} 
@@ -1766,10 +1768,10 @@ export default function Home() {
                                     onChange={(e) => setNewMemoPinned(e.target.checked)}
                                     className="rounded border-gray-300 text-amber-500 focus:ring-amber-400"
                                   />
-                                  📌 상단 고정
+                                  상단 고정
                                 </label>
                                 <label className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-700">
-                                  ⏰
+                                  <span>알림:</span>
                                   <input
                                     type="datetime-local"
                                     value={newMemoReminder}
@@ -1784,7 +1786,7 @@ export default function Home() {
                                   onClick={() => setShowHiddenMemosModal(true)}
                                   className="text-[10px] font-extrabold text-amber-700 hover:text-amber-900 bg-amber-50 px-2 py-0.5 rounded cursor-pointer border border-amber-200 hover:bg-amber-100 flex items-center gap-1"
                                 >
-                                  <span>📦 숨긴 보관함</span>
+                                  <span>숨겨진 보관함</span>
                                   {hiddenMemosCount > 0 && (
                                     <span className="bg-amber-600 text-white rounded-full px-1.5 py-0.2 text-[9px]">
                                       {hiddenMemosCount}
@@ -1796,7 +1798,7 @@ export default function Home() {
                                   onClick={() => setIsMemoPresetsOpen(true)}
                                   className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded cursor-pointer border border-indigo-100 hover:bg-indigo-100"
                                 >
-                                  ⚡ 템플릿/태그 관리
+                                  템플릿/태그 관리
                                 </button>
                               </div>
                             </div>
@@ -1808,7 +1810,7 @@ export default function Home() {
                               onClick={() => setShowMemoTools(!showMemoTools)}
                               className="text-[11px] font-bold text-slate-500 hover:text-indigo-600 cursor-pointer flex items-center gap-1 px-1 py-0.5 rounded hover:bg-slate-100 transition-colors"
                             >
-                              <span>{showMemoTools ? "⚙️ 상세옵션 닫기 ▲" : "⚙️ 상세옵션 열기 (태그·핀·알림) ▼"}</span>
+                              <span>{showMemoTools ? "상세 옵션 닫기 ▲" : "상세 옵션 열기 (태그·핀·알림) ▼"}</span>
                             </button>
 
                             <button type="submit" className="bg-slate-800 text-white px-4 py-1.5 text-xs font-bold rounded shadow-xs hover:bg-indigo-700 transition-colors cursor-pointer flex items-center gap-1">
@@ -2008,7 +2010,11 @@ export default function Home() {
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
             <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <span className="text-xl">📦</span>
+                <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-white">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                  </svg>
+                </div>
                 <div>
                   <h3 className="font-bold text-base">숨겨진 메모 보관함</h3>
                   <p className="text-xs text-slate-300">화면에서 숨긴 메모들은 데이터베이스에 안전하게 보관되어 있습니다.</p>
@@ -2042,7 +2048,7 @@ export default function Home() {
                         <span className="text-[11px] text-slate-400">{memo.date}</span>
                         {memo.pinned && (
                           <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded">
-                            📌 핀 설정됨
+                            상단 고정됨
                           </span>
                         )}
                       </div>
@@ -2055,8 +2061,7 @@ export default function Home() {
                         onClick={() => handleUnhideMemo(memo)}
                         className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
                       >
-                        <span>🔄</span>
-                        <span>화면에 다시 복원</span>
+                        <span>화면에 복원</span>
                       </button>
                     </div>
                   </div>
