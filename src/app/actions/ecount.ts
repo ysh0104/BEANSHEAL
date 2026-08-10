@@ -70,7 +70,13 @@ export async function getSessionId() {
                            (data.Data?.Code === "00" || data.Data?.Code === "200" || data.Data?.Code === "204" || successData?.SESSION_ID);
 
     if (!isLoginSuccess) {
-      return { error: data.Result?.Message || data.Errors?.[0]?.Message || data.Data?.Message || "이카운트 로그인 거절" };
+      return { 
+        error: data.Result?.Message || data.Errors?.[0]?.Message || data.Data?.Message || "이카운트 로그인 거절",
+        rawResponse: data,
+        rawText: loginRes.text,
+        httpStatus: loginRes.status,
+        proxyBaseUrl
+      };
     }
 
     // 후속 API가 이카운트 직행하지 않도록 HOST_URL을 프록시 호스트로 덮어씀
@@ -642,7 +648,13 @@ export async function syncEcountMasterToDb() {
     const sessionRes: any = await getSessionId();
     const sessionData = sessionRes?.Data;
     if (!sessionData) {
-      return { success: false, error: sessionRes?.error || "이카운트 로그인 실패" };
+      return { 
+        success: false, 
+        error: sessionRes?.error || "이카운트 로그인 실패",
+        rawResponse: sessionRes?.rawResponse || sessionRes,
+        rawText: sessionRes?.rawText,
+        proxyBaseUrl: sessionRes?.proxyBaseUrl
+      };
     }
 
     // getListProduct / getInventoryStatus 는 Datas 또는 평면 SESSION_ID 모두 허용
@@ -673,7 +685,12 @@ export async function syncEcountMasterToDb() {
       const invErr = inventoryRes.error || "응답 0건";
       return {
         success: false,
-        error: `이카운트 품목/재고 데이터 가져오기 실패 [품목API: ${prodErr} | 재고API: ${invErr}] — 이카운트 허용 IP 등록 및 사무실 프록시 PC 상태를 확인해 주세요.`
+        error: `이카운트 품목/재고 데이터 가져오기 실패 [품목API: ${prodErr} | 재고API: ${invErr}]`,
+        rawResponse: {
+          productListResponse: productListRes,
+          inventoryResponse: inventoryRes,
+        },
+        proxyBaseUrl: await getEcountProxyBaseUrl()
       };
     }
 

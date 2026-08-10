@@ -76,6 +76,8 @@ export default function InventoryPage() {
     }
   };
 
+  const [rawLogModalData, setRawLogModalData] = useState<any>(null);
+
   const handleSyncMaster = async () => {
     if (!confirm("이카운트 품목/재고를 DB에 동기화할까요?")) return;
     setSyncingMaster(true);
@@ -85,10 +87,19 @@ export default function InventoryPage() {
         alert(res.message);
         fetchInventory();
       } else {
-        alert("동기화 실패: " + res.error);
+        setRawLogModalData({
+          title: "이카운트 API 수신 원본 JSON 로그 (고객센터 전달용)",
+          error: res.error,
+          rawResponse: res.rawResponse || res,
+          proxyBaseUrl: (res as any).proxyBaseUrl || "https://oapiac.ecount.com",
+        });
       }
     } catch (err: any) {
-      alert(err.message || "동기화 중 오류");
+      setRawLogModalData({
+        title: "이카운트 API 연동 오류 로그",
+        error: err.message || "동기화 중 오류",
+        rawResponse: { error: err.message || "네트워크/서버 통신 실패" }
+      });
     } finally {
       setSyncingMaster(false);
     }
@@ -494,6 +505,67 @@ export default function InventoryPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 이카운트 수신 원본 JSON 로그 모달 (고객센터 전달용) */}
+      {rawLogModalData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center shrink-0">
+              <h3 className="font-extrabold text-sm sm:text-base flex items-center gap-2">
+                <span>{rawLogModalData.title}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setRawLogModalData(null)}
+                className="text-slate-400 hover:text-white font-bold text-base cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs overflow-y-auto flex-1">
+              <div className="bg-red-50 border border-red-200 text-red-900 p-3 rounded-lg font-bold">
+                {rawLogModalData.error}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-extrabold text-slate-700">이카운트 서버 수신 원본 JSON 응답 (Raw Response):</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = JSON.stringify(rawLogModalData.rawResponse, null, 2);
+                      navigator.clipboard.writeText(text);
+                      alert("이카운트 수신 원본 JSON 로그가 클립보드에 복사되었습니다!");
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-xs font-extrabold cursor-pointer transition-colors shadow-2xs"
+                  >
+                    JSON 로그 1클릭 복사
+                  </button>
+                </div>
+
+                <pre className="bg-slate-950 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-[350px] leading-relaxed border border-slate-800 select-all">
+                  {JSON.stringify(rawLogModalData.rawResponse, null, 2)}
+                </pre>
+              </div>
+
+              <div className="text-[11px] text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200 font-medium">
+                💡 <strong>안내:</strong> 상단 <code>JSON 로그 1클릭 복사</code> 버튼을 클릭하신 후, 이카운트 고객센터 문의에 그대로 붙여넣기(Ctrl+V) 하시면 이카운트 기술팀에서 즉시 원인을 분석해 드립니다.
+              </div>
+            </div>
+
+            <div className="bg-gray-50 border-t border-gray-200 px-5 py-3 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setRawLogModalData(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs rounded-lg cursor-pointer"
+              >
+                확인 / 닫기
+              </button>
+            </div>
           </div>
         </div>
       )}
