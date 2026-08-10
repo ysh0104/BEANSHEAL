@@ -15,17 +15,20 @@ export interface WorkspaceMemoItem {
   likes?: string[];
   pinned?: boolean;
   reminder_at?: string | null;
+  hidden?: boolean;
 }
 
 function mapMemoRow(m: any) {
   const text = m.text || m.content || m.item_name || "";
   let pinned = !!m.pinned;
+  let hidden = !!m.hidden;
   let reminder_at = m.reminder_at || null;
 
   // HTML meta 폴백 (컬럼 미적용 환경)
   const metaMatch = String(text).match(/<span[^>]*class="memo-meta"[^>]*>/i);
   if (metaMatch) {
     if (/data-pinned="1"/i.test(metaMatch[0])) pinned = true;
+    if (/data-hidden="1"/i.test(metaMatch[0])) hidden = true;
     const rem = metaMatch[0].match(/data-reminder="([^"]*)"/i);
     if (rem?.[1]) reminder_at = rem[1];
   }
@@ -35,6 +38,7 @@ function mapMemoRow(m: any) {
     try {
       const parsed = JSON.parse(m.expiry_date);
       if (parsed.pinned) pinned = true;
+      if (parsed.hidden) hidden = true;
       if (parsed.reminder_at) reminder_at = parsed.reminder_at;
     } catch { /* ignore */ }
   }
@@ -55,6 +59,7 @@ function mapMemoRow(m: any) {
           return Array.isArray(m.likes) ? m.likes : [];
         })(),
     pinned,
+    hidden,
     reminder_at,
   };
 }
@@ -224,12 +229,13 @@ export async function deleteMemoFromSupabase(id: string | number) {
 export async function updateMemoInSupabase(
   id: string | number,
   text: string,
-  extras?: { pinned?: boolean; reminder_at?: string | null }
+  extras?: { pinned?: boolean; reminder_at?: string | null; hidden?: boolean }
 ) {
   try {
     const withExtras = {
       text,
       ...(extras?.pinned !== undefined ? { pinned: extras.pinned } : {}),
+      ...(extras?.hidden !== undefined ? { hidden: extras.hidden } : {}),
       ...(extras && "reminder_at" in extras ? { reminder_at: extras.reminder_at } : {}),
     };
 
@@ -258,6 +264,11 @@ export async function updateMemoInSupabase(
 /** 핀 토글 */
 export async function toggleMemoPinInSupabase(id: string | number, pinned: boolean, textWithMeta: string) {
   return updateMemoInSupabase(id, textWithMeta, { pinned });
+}
+
+/** 숨김/보관 처리 토글 (데이터는 보존하고 화면에서만 숨김) */
+export async function toggleMemoHideInSupabase(id: string | number, hidden: boolean, textWithMeta: string) {
+  return updateMemoInSupabase(id, textWithMeta, { hidden });
 }
 
 /**

@@ -30,19 +30,22 @@ function escapeAttr(text: string): string {
 
 export type MemoMeta = {
   pinned?: boolean;
+  hidden?: boolean;
   reminder_at?: string | null;
 };
 
-/** 본문 앞 meta 스팬에서 핀/리마인더 읽기 */
+/** 본문 앞 meta 스팬에서 핀/숨김/리마인더 읽기 */
 export function parseMemoMeta(html: string): MemoMeta {
   if (!html) return {};
   const m = html.match(/<span[^>]*class="memo-meta"[^>]*>/i);
   if (!m) return {};
   const tag = m[0];
   const pinned = /data-pinned="1"/i.test(tag);
+  const hidden = /data-hidden="1"/i.test(tag);
   const rem = tag.match(/data-reminder="([^"]*)"/i);
   return {
     pinned,
+    hidden,
     reminder_at: rem?.[1] ? rem[1].replace(/&#39;/g, "'").replace(/&quot;/g, '"') : null,
   };
 }
@@ -51,14 +54,16 @@ export function stripMemoMeta(html: string): string {
   return (html || "").replace(/<span[^>]*class="memo-meta"[^>]*>\s*<\/span>/gi, "");
 }
 
-/** 핀·리마인더를 HTML 앞에 심어 DB 컬럼 없이도 보존 */
+/** 핀·숨김·리마인더를 HTML 앞에 심어 DB 컬럼 없이도 보존 */
 export function wrapMemoMeta(html: string, meta: MemoMeta): string {
   const body = stripMemoMeta(html);
   const pinned = !!meta.pinned;
+  const hidden = !!meta.hidden;
   const reminder = meta.reminder_at || "";
-  if (!pinned && !reminder) return body;
+  if (!pinned && !hidden && !reminder) return body;
   const attrs = [`class="memo-meta"`];
   if (pinned) attrs.push(`data-pinned="1"`);
+  if (hidden) attrs.push(`data-hidden="1"`);
   if (reminder) attrs.push(`data-reminder="${escapeAttr(reminder)}"`);
   return `<span ${attrs.join(" ")} style="display:none"></span>${body}`;
 }
@@ -165,7 +170,7 @@ export function sanitizeMemoHtml(raw: string): string {
           }
 
           if (el.classList.contains("memo-meta")) {
-            if (name === "data-pinned" || name === "data-reminder") {
+            if (name === "data-pinned" || name === "data-hidden" || name === "data-reminder") {
               keepAttrs.push({ name, value: attr.value });
             }
           }

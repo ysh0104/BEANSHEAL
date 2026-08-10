@@ -20,6 +20,7 @@ import {
   updateMemoInSupabase,
   toggleMemoLikeInSupabase,
   toggleMemoPinInSupabase,
+  toggleMemoHideInSupabase,
 } from "@/app/actions/memoActions";
 import MemoRichEditor from "@/components/MemoRichEditor";
 import MemoRichContent from "@/components/MemoRichContent";
@@ -167,6 +168,7 @@ export default function Home() {
   const [memoPresets, setMemoPresets] = useState<MemoPresets>(DEFAULT_MEMO_PRESETS);
   const [isMemoPresetsOpen, setIsMemoPresetsOpen] = useState(false);
   const [showMemoTools, setShowMemoTools] = useState(false);
+  const [showHiddenMemosModal, setShowHiddenMemosModal] = useState(false);
   const [editingMemoId, setEditingMemoId] = useState<number | string | null>(null);
   const [editingMemoText, setEditingMemoText] = useState<string>("");
   const [heartAnim, setHeartAnim] = useState<{ id: number | string; x: number; y: number } | null>(null);
@@ -575,6 +577,38 @@ export default function Home() {
     setMemos(updated);
     localStorage.setItem("beansheal_memos", JSON.stringify(updated));
     await toggleMemoPinInSupabase(memo.id, nextPinned, safeHtml);
+  };
+
+  // 🌟 메모 화면 숨기기 (Soft-delete: DB 데이터 보존하고 화면에서만 숨김)
+  const handleHideMemo = async (memoToHide: any) => {
+    const meta = parseMemoMeta(memoToHide.text || "");
+    const safeHtml = wrapMemoMeta(sanitizeMemoHtml(memoToHide.text), {
+      pinned: memoToHide.pinned ?? meta.pinned ?? false,
+      hidden: true,
+      reminder_at: memoToHide.reminder_at ?? meta.reminder_at ?? null,
+    });
+    const updated = memos.map((m) =>
+      m.id === memoToHide.id ? { ...m, hidden: true, text: safeHtml } : m
+    );
+    setMemos(updated);
+    localStorage.setItem("beansheal_memos", JSON.stringify(updated));
+    await toggleMemoHideInSupabase(memoToHide.id, true, safeHtml);
+  };
+
+  // 🌟 숨겨진 메모 복원 (보관함 ➔ 화면에 다시 복원)
+  const handleUnhideMemo = async (memoToUnhide: any) => {
+    const meta = parseMemoMeta(memoToUnhide.text || "");
+    const safeHtml = wrapMemoMeta(sanitizeMemoHtml(memoToUnhide.text), {
+      pinned: memoToUnhide.pinned ?? meta.pinned ?? false,
+      hidden: false,
+      reminder_at: memoToUnhide.reminder_at ?? meta.reminder_at ?? null,
+    });
+    const updated = memos.map((m) =>
+      m.id === memoToUnhide.id ? { ...m, hidden: false, text: safeHtml } : m
+    );
+    setMemos(updated);
+    localStorage.setItem("beansheal_memos", JSON.stringify(updated));
+    await toggleMemoHideInSupabase(memoToUnhide.id, false, safeHtml);
   };
 
   const handleToggleLike = async (memoId: number | string, e?: React.MouseEvent) => {
@@ -1433,7 +1467,9 @@ export default function Home() {
           /* Widget 2: 실시간 특이사항 및 메모 (Memo) - 이카운트 ERP 룩앤필 */
           if (widget.id === "memo") {
             const allTags = [...new Set(memos.flatMap((m) => extractMemoTags(m.text || "")))];
+            const hiddenMemosCount = memos.filter((m) => !!m.hidden).length;
             const visibleMemos = memos
+              .filter((m) => !m.hidden)
               .filter((m) => {
                 if (!memoTagFilter) return true;
                 return extractMemoTags(m.text || "").includes(memoTagFilter);
@@ -1678,9 +1714,9 @@ export default function Home() {
                                         </svg>
                                       </button>
                                       <button 
-                                        onClick={() => handleDeleteMemo(memo.id)} 
-                                        className="text-gray-400 hover:text-red-600 transition-colors cursor-pointer p-0.5" 
-                                        title="메모 삭제"
+                                        onClick={() => handleHideMemo(memo)} 
+                                        className="text-gray-400 hover:text-amber-600 transition-colors cursor-pointer p-0.5" 
+                                        title="화면에서 숨기기 (보관함에 보존)"
                                       >
                                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -1742,13 +1778,27 @@ export default function Home() {
                                   />
                                 </label>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setIsMemoPresetsOpen(true)}
-                                className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded cursor-pointer border border-indigo-100 hover:bg-indigo-100"
-                              >
-                                ⚡ 빠른입력/템플릿 관리
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowHiddenMemosModal(true)}
+                                  className="text-[10px] font-extrabold text-amber-700 hover:text-amber-900 bg-amber-50 px-2 py-0.5 rounded cursor-pointer border border-amber-200 hover:bg-amber-100 flex items-center gap-1"
+                                >
+                                  <span>📦 숨긴 보관함</span>
+                                  {hiddenMemosCount > 0 && (
+                                    <span className="bg-amber-600 text-white rounded-full px-1.5 py-0.2 text-[9px]">
+                                      {hiddenMemosCount}
+                                    </span>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsMemoPresetsOpen(true)}
+                                  className="text-[10px] font-extrabold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded cursor-pointer border border-indigo-100 hover:bg-indigo-100"
+                                >
+                                  ⚡ 템플릿/태그 관리
+                                </button>
+                              </div>
                             </div>
                           ) : null}
 
@@ -1947,6 +1997,82 @@ export default function Home() {
                   저장하기
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 숨겨진 메모 보관함 모달 (데이터는 DB에 100% 저장되어 있으며 필요 시 복원 가능) */}
+      {showHiddenMemosModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📦</span>
+                <div>
+                  <h3 className="font-bold text-base">숨겨진 메모 보관함</h3>
+                  <p className="text-xs text-slate-300">화면에서 숨긴 메모들은 데이터베이스에 안전하게 보관되어 있습니다.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHiddenMemosModal(false)}
+                className="text-slate-400 hover:text-white text-lg font-bold p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-3 bg-slate-50">
+              {memos.filter((m) => !!m.hidden).length === 0 ? (
+                <div className="text-center py-12 text-slate-400 text-sm font-medium">
+                  숨겨진 메모가 없습니다.
+                </div>
+              ) : (
+                memos.filter((m) => !!m.hidden).map((memo) => (
+                  <div
+                    key={`hidden-${memo.id}`}
+                    className="p-4 bg-white border border-slate-200 rounded-xl shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all hover:border-amber-300"
+                  >
+                    <div className="flex-1 min-w-0 pr-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {memo.author}
+                        </span>
+                        <span className="text-[11px] text-slate-400">{memo.date}</span>
+                        {memo.pinned && (
+                          <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded">
+                            📌 핀 설정됨
+                          </span>
+                        )}
+                      </div>
+                      <MemoRichContent html={memo.text} className="text-xs text-slate-800 leading-relaxed font-medium" />
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleUnhideMemo(memo)}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <span>🔄</span>
+                        <span>화면에 다시 복원</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="bg-gray-100 px-6 py-3 border-t border-gray-200 flex justify-between items-center text-xs text-slate-500 font-medium">
+              <span>총 {memos.filter((m) => !!m.hidden).length}개의 숨겨진 메모</span>
+              <button
+                type="button"
+                onClick={() => setShowHiddenMemosModal(false)}
+                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                닫기
+              </button>
             </div>
           </div>
         </div>
