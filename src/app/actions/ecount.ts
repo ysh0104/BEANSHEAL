@@ -12,11 +12,31 @@ async function ecountApiUrl(pathWithQuery: string) {
   return `${base}${path}`;
 }
 
+let ecountCircuitBreakerUntil = 0;
+let lastEcountLoginErrorMsg = "";
+
+export async function resetEcountCircuitBreaker() {
+  ecountCircuitBreakerUntil = 0;
+  lastEcountLoginErrorMsg = "";
+  return { success: true, message: "이카운트 로그인 오류 방지 서킷 브레이커가 초기화되었습니다." };
+}
+
 // 1. 이카운트 로그인 및 세션 발급
 export async function getSessionId() {
-  const COM_CODE = process.env.ECOUNT_COM_CODE || process.env.ECOUNT_COMPANY_CODE || process.env.ECOUNT_COM_CD;
-  const USER_ID = process.env.ECOUNT_USER_ID || process.env.ECOUNT_USER || process.env.ECOUNT_ID;
-  const API_KEY = process.env.ECOUNT_API_KEY || process.env.ECOUNT_CERT_KEY || process.env.ECOUNT_API_CERT_KEY || process.env.ECOUNT_KEY;
+  // 🔥 이카운트 공식 개발자 지침 준수: 10회 연속 실패로 인한 IP 차단 방지 서킷 브레이커
+  const now = Date.now();
+  if (ecountCircuitBreakerUntil > now) {
+    const remainMin = Math.ceil((ecountCircuitBreakerUntil - now) / 60000);
+    return {
+      error: `[이카운트 IP 차단 방지 서킷 브레이커 작동 중]\n이카운트 로그인 실패가 감지되어 동일 IP 10회 연속 차단을 예방하기 위해 자동 통신을 ${remainMin}분간 일시 중단합니다.\n\n이카운트 ERP에서 API Key 및 허용 IP 상태를 체크 후 재시도하십시오.`,
+      circuitBreakerActive: true,
+      lastError: lastEcountLoginErrorMsg,
+    };
+  }
+
+  const COM_CODE = (process.env.ECOUNT_COM_CODE || process.env.ECOUNT_COMPANY_CODE || process.env.ECOUNT_COM_CD || "").trim();
+  const USER_ID = (process.env.ECOUNT_USER_ID || process.env.ECOUNT_USER || process.env.ECOUNT_ID || "").trim();
+  const API_KEY = (process.env.ECOUNT_API_KEY || process.env.ECOUNT_CERT_KEY || process.env.ECOUNT_API_CERT_KEY || process.env.ECOUNT_KEY || "").trim();
 
   const proxyBaseUrl = await getEcountProxyBaseUrl();
 
@@ -29,7 +49,7 @@ export async function getSessionId() {
 
   if (!COM_CODE || !USER_ID || !API_KEY) {
     return { 
-      error: `Vercel 환경변수가 부족합니다. (COM_CODE: ${!!COM_CODE}, USER_ID: ${!!USER_ID}, API_KEY: ${!!API_KEY}). Vercel Settings -> Environment Variables에서 ECOUNT_COM_CODE, ECOUNT_USER_ID, ECOUNT_API_KEY 환경변수를 확인해주세요.` 
+      error: `이카운트 필수 환경변수가 부족합니다. (COM_CODE: ${!!COM_CODE}, USER_ID: ${!!USER_ID}, API_KEY: ${!!API_KEY}). Vercel Settings -> Environment Variables에서 ECOUNT_COM_CODE, ECOUNT_USER_ID, ECOUNT_API_KEY 환경변수를 확인해주세요.` 
     };
   }
 
@@ -38,7 +58,13 @@ export async function getSessionId() {
     const zoneData = zoneRes.data || {};
     
     if (!zoneData.Data && zoneRes.text) {
-      return { error: `이카운트 API 통신 오류: ${zoneRes.text.substring(0, 150)}` };
+      ecountCircuitBreakerUntil = Date.now() + 15 * 60 * 1000;
+      lastEcountLoginErrorMsg = `Zone API 오류: ${zoneRes.text}`;
+      return { 
+        error: `이카운트 Zone API 응답 오류: ${zoneRes.text.substring(0, 150)}`,
+        circuitBreakerTriggered: true,
+        rawText: zoneRes.text,
+      };
     }
     
     console.log("=== [DEBUG] ZONE API Response ===");
@@ -57,7 +83,13 @@ export async function getSessionId() {
 
     const data = loginRes.data || {};
     if (!data.Status && loginRes.text) {
-      return { error: `이카운트 로그인 응답 오류: ${loginRes.text.substring(0, 150)}` };
+      ecountCircuitBreakerUntil = Date.now() + 15 * 60 * 1000;
+      lastEcountLoginErrorMsg = `OAPILogin HTTP 응답 오류: ${loginRes.text}`;
+      return { 
+        error: `이카운트 로그인 응답 오류: ${loginRes.text.substring(0, 150)}`,
+        circuitBreakerTriggered: true,
+        rawText: loginRes.text,
+      };
     }
 
     console.log("=== [DEBUG] OAPILogin API Response ===");
@@ -70,14 +102,25 @@ export async function getSessionId() {
                            (data.Data?.Code === "00" || data.Data?.Code === "200" || data.Data?.Code === "204" || successData?.SESSION_ID);
 
     if (!isLoginSuccess) {
+      const errMsg = data.Result?.Message || data.Errors?.[0]?.Message || data.Data?.Message || "이카운트 로그인 거절";
+      
+      // 🔥 이카운트 기술지침 준수: 로그인 실패 시 15분간 서킷브레이커 발동 (동일 IP 10회 누적 IP 차단 원천 방지)
+      ecountCircuitBreakerUntil = Date.now() + 15 * 60 * 1000;
+      lastEcountLoginErrorMsg = errMsg;
+
       return { 
-        error: data.Result?.Message || data.Errors?.[0]?.Message || data.Data?.Message || "이카운트 로그인 거절",
+        error: errMsg,
+        circuitBreakerTriggered: true,
         rawResponse: data,
         rawText: loginRes.text,
         httpStatus: loginRes.status,
         proxyBaseUrl
       };
     }
+
+    // 성공 시 서킷 브레이커 완전 해제
+    ecountCircuitBreakerUntil = 0;
+    lastEcountLoginErrorMsg = "";
 
     // 후속 API가 이카운트 직행하지 않도록 HOST_URL을 프록시 호스트로 덮어씀
     try {
