@@ -175,3 +175,27 @@ export async function insertQuickProductionToSupabase(item: {
     return { success: false, message: error?.message || "DB 저장 오류" };
   }
 }
+
+/**
+ * 품질/감사 서류 발급 완료 시 상태 업데이트 ('승인/발급완료')
+ */
+export async function updateAuditItemStatusToSupabase(id: string | number, status: string = '승인/발급완료') {
+  try {
+    const { data, error } = await supabase
+      .from('ecount_inventory')
+      .update({ status })
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      await supabase
+        .from('dashboard')
+        .update({ qc_status: status })
+        .eq('id', id);
+    }
+    return { success: true, data };
+  } catch (error: any) {
+    console.error("updateAuditItemStatusToSupabase error:", error);
+    return { success: false, message: error?.message || "DB 업데이트 오류" };
+  }
+}

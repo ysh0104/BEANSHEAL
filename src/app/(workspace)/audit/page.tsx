@@ -6,7 +6,8 @@ import { parseEcountExcel } from "@/utils/excelParser";
 import { 
   syncExcelToSupabase, 
   getAuditInventoryItems, 
-  insertQuickProductionToSupabase 
+  insertQuickProductionToSupabase,
+  updateAuditItemStatusToSupabase
 } from "@/app/actions/inventoryActions"; 
 import { getRecipeList } from "@/app/actions/recipe"; 
 import { useCanEdit } from "@/hooks/useCanEdit";
@@ -310,7 +311,21 @@ export default function AuditPage() {
         await new Promise((resolve) => setTimeout(resolve, 350));
       }
 
-      if (successCount === 0) {
+      if (successCount > 0) {
+        // 🌟 Supabase DB 상태 업데이트: '승인/발급완료'
+        if (item.rawItem?.id) {
+          await updateAuditItemStatusToSupabase(item.rawItem.id, "승인/발급완료");
+        }
+
+        // 🌟 화면 상태 즉시 업데이트 ('문서대기' -> '승인/발급완료')
+        setScrapedItems((prev) =>
+          prev.map((it) =>
+            it.lotNo === item.lotNo || (item.rawItem?.id && it.rawItem?.id === item.rawItem?.id)
+              ? { ...it, status: "승인/발급완료" }
+              : it
+          )
+        );
+      } else {
         alert("품질 서류 생성에 실패했습니다.");
       }
     } catch (err: any) {
@@ -542,36 +557,46 @@ export default function AuditPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {scrapedItems.slice(0, 100).map((item, idx) => (
-                  <tr key={idx} className={`transition-colors ${item.status === '문서대기' ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
-                    <td className="p-3 text-gray-500 font-mono text-center text-xs">{item.scrapedAt}</td>
-                    <td className="p-3 font-bold text-gray-900">{item.cleanName}</td>
-                    <td className="p-3 text-blue-700 font-mono font-bold">{item.lotNo}</td>
-                    <td className="p-3 text-gray-600">{item.expDate}</td>
-                    <td className="p-3 text-center">
-                      <span className={`px-2.5 py-1 rounded text-xs font-bold border ${item.status === '문서대기' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center">
-                      {item.status === '문서대기' ? (
-                        <button 
-                          onClick={() => handleDownloadQCBatch(item)} 
-                          className="bg-blue-600 text-white text-xs px-4 py-2 font-bold rounded shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
-                        >
-                          검토 및 서류 발급
-                        </button>
-                      ) : (
-                        <button 
-                          onClick={() => handleDownloadQCBatch(item)} 
-                          className="bg-gray-200 text-gray-500 text-xs px-4 py-2 font-bold rounded hover:bg-gray-300 transition-colors cursor-pointer"
-                        >
-                          서류 재발급
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {scrapedItems
+                  .filter((item) => {
+                    if (filterStatus === "문서대기") return item.status === "문서대기";
+                    if (filterStatus === "승인/발급완료") return item.status !== "문서대기";
+                    return true;
+                  })
+                  .slice(0, 100)
+                  .map((item, idx) => {
+                    const isPending = item.status === "문서대기";
+                    return (
+                      <tr key={idx} className={`transition-colors ${isPending ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
+                        <td className="p-3 text-gray-500 font-mono text-center text-xs">{item.scrapedAt}</td>
+                        <td className="p-3 font-bold text-gray-900">{item.cleanName}</td>
+                        <td className="p-3 text-blue-700 font-mono font-bold">{item.lotNo}</td>
+                        <td className="p-3 text-gray-600">{item.expDate}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2.5 py-1 rounded text-xs font-bold border ${isPending ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200'}`}>
+                            {isPending ? "문서대기" : "승인 및 발급완료"}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          {isPending ? (
+                            <button 
+                              onClick={() => handleDownloadQCBatch(item)} 
+                              className="bg-blue-600 text-white text-xs px-4 py-2 font-bold rounded shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
+                            >
+                              📋 검토 및 서류 발급
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => handleDownloadQCBatch(item)} 
+                              className="bg-slate-700 text-white text-xs px-4 py-2 font-bold rounded shadow-xs hover:bg-slate-800 transition-colors cursor-pointer"
+                            >
+                              🔄 서류 재발급
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 {scrapedItems.length === 0 && (<tr><td colSpan={6} className="text-center py-12 text-gray-500 font-medium bg-gray-50">조건에 맞는 로트 데이터가 없습니다.</td></tr>)}
               </tbody>
             </table>
