@@ -22,7 +22,8 @@ import {
   toggleMemoPinInSupabase,
   toggleMemoHideInSupabase,
 } from "@/app/actions/memoActions";
-import { getCalibrationItemsFromSupabase, DEFAULT_CALIBRATION_ITEMS } from "@/app/actions/calibrationActions";
+import { DEFAULT_CALIBRATION_ITEMS } from "@/lib/calibrationData";
+import { getCalibrationItemsFromSupabase } from "@/app/actions/calibrationActions";
 import MemoRichEditor from "@/components/MemoRichEditor";
 import MemoRichContent from "@/components/MemoRichContent";
 import MemoPresetsManager from "@/components/MemoPresetsManager";
