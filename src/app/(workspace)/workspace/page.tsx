@@ -27,7 +27,7 @@ import { getCalibrationItemsFromSupabase } from "@/app/actions/calibrationAction
 import { HealthCheckItem, DEFAULT_HEALTH_CHECK_ITEMS } from "@/lib/healthCheckData";
 import { getHealthCheckItemsFromSupabase } from "@/app/actions/healthCheckActions";
 import { getSafetyStockConfigs } from "@/app/actions/safetyStockActions";
-import { getDefaultSafetyQty } from "@/lib/safetyStockHelper";
+import { getDefaultSafetyQty, checkIsLowStock } from "@/lib/safetyStockHelper";
 import MemoRichEditor from "@/components/MemoRichEditor";
 import MemoRichContent from "@/components/MemoRichContent";
 import MemoPresetsManager from "@/components/MemoPresetsManager";
@@ -274,7 +274,7 @@ export default function Home() {
           ecountRes.data.forEach((item: any) => {
             const minQty = safetyMap[item.prod_cd] ?? getDefaultSafetyQty(item.prod_nm);
             const totalQty = Number(item.total_qty || 0);
-            if (totalQty <= minQty) {
+            if (checkIsLowStock(totalQty, minQty)) {
               lowStockItems.push({
                 prod_cd: item.prod_cd,
                 prod_nm: item.prod_nm,

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { saveProductionInboundToEcount, syncEcountMasterToDb } from "@/app/actions/ecount";
 import { getSafetyStockConfigs, saveSafetyStockConfig } from "@/app/actions/safetyStockActions";
-import { getDefaultSafetyQty } from "@/lib/safetyStockHelper";
+import { getDefaultSafetyQty, checkIsLowStock } from "@/lib/safetyStockHelper";
 import { saveItemMasterMapping } from "@/app/actions/itemMasterActions";
 import EcountExcelUploadModal from "@/components/EcountExcelUploadModal";
 
@@ -254,7 +254,7 @@ export default function InventoryPage() {
     const matchesQty = hideZeroQty ? item.qty > 0 : true;
 
     const minQty = safetyConfigs[item.prodCd] ?? getDefaultSafetyQty(item.prodNm);
-    const isLowStock = item.qty <= minQty;
+    const isLowStock = checkIsLowStock(item.qty, minQty);
     const matchesLowStock = showOnlyLowStock ? isLowStock : true;
 
     return matchesSearch && matchesQty && matchesLowStock;
@@ -428,7 +428,7 @@ export default function InventoryPage() {
             {filteredInventory.flatMap((item, idx) => {
               const breakdown = getInventoryBreakdown(item.prodNm, item.qty);
               const minQty = safetyConfigs[item.prodCd] ?? getDefaultSafetyQty(item.prodNm);
-              const isLowStock = breakdown.totalQty <= minQty;
+              const isLowStock = checkIsLowStock(breakdown.totalQty, minQty);
               const rows = [];
 
               rows.push(
