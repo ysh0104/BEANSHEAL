@@ -67,10 +67,20 @@ function formatNotionId(id: string) {
   return cleaned;
 }
 
+// ⚡ 노션 DB ID 해해결 결과 서버 인메모리 초고속 캐시 (지연시간 3초 -> 0초 혁신)
+const dbIdCache = new Map<string, { databaseId: string; dbData: any; expiry: number }>();
+const scheduleCache = new Map<string, { data: any; expiry: number }>();
+
 /**
- * 데이터베이스 ID 또는 페이지 ID(인라인 DB를 품은 페이지)를 지능적으로 감지/해결하는 함수
+ * 데이터베이스 ID 또는 페이지 ID(인라인 DB를 품은 페이지)를 지능적으로 감지/해결하는 함수 (서버 인메모리 캐싱)
  */
 async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ databaseId: string; dbData: any }> {
+  const cacheKey = `${rawDbId}_${apiKey.slice(-6)}`;
+  const cached = dbIdCache.get(cacheKey);
+  if (cached && cached.expiry > Date.now()) {
+    return { databaseId: cached.databaseId, dbData: cached.dbData };
+  }
+
   const id = cleanDbId(rawDbId);
   const formattedId = formatNotionId(rawDbId);
   
@@ -78,6 +88,7 @@ async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ dat
   if (formattedId) {
     try {
       const dbData = await notionFetch(`/databases/${formattedId}`, apiKey);
+      dbIdCache.set(cacheKey, { databaseId: formattedId, dbData, expiry: Date.now() + 600000 }); // 10분 캐시
       return { databaseId: formattedId, dbData };
     } catch (err1) {}
   }
@@ -86,6 +97,7 @@ async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ dat
   if (id) {
     try {
       const dbData = await notionFetch(`/databases/${id}`, apiKey);
+      dbIdCache.set(cacheKey, { databaseId: id, dbData, expiry: Date.now() + 600000 });
       return { databaseId: id, dbData };
     } catch (err2) {}
   }
@@ -101,15 +113,15 @@ async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ dat
     });
 
     if (searchRes.results && searchRes.results.length > 0) {
-      // rawDbId와 매칭되는 DB 우선 탐색
       if (id) {
         const matched = searchRes.results.find((db: any) => cleanDbId(db.id) === id || db.id === formattedId);
         if (matched) {
+          dbIdCache.set(cacheKey, { databaseId: matched.id, dbData: matched, expiry: Date.now() + 600000 });
           return { databaseId: matched.id, dbData: matched };
         }
       }
-      // 매칭 실패 시 첫 번째로 연결 허용된 노션 DB 자동 사용!
       const firstDb = searchRes.results[0];
+      dbIdCache.set(cacheKey, { databaseId: firstDb.id, dbData: firstDb, expiry: Date.now() + 600000 });
       return { databaseId: firstDb.id, dbData: firstDb };
     }
   } catch (searchErr) {}
@@ -121,6 +133,7 @@ async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ dat
       for (const block of blocksRes.results || []) {
         if (block.type === "child_database") {
           const childDbData = await notionFetch(`/databases/${block.id}`, apiKey);
+          dbIdCache.set(cacheKey, { databaseId: block.id, dbData: childDbData, expiry: Date.now() + 600000 });
           return { databaseId: block.id, dbData: childDbData };
         }
       }
@@ -243,6 +256,12 @@ export async function fetchNotionSchedules(
   config?: NotionConfig,
   range?: { startDate?: string; endDate?: string }
 ) {
+  const cacheKey = `${range?.startDate || "default"}_${range?.endDate || "default"}`;
+  const cached = scheduleCache.get(cacheKey);
+  if (cached && cached.expiry > Date.now()) {
+    return cached.data;
+  }
+
   try {
     const { apiKey, rawDbId } = getEffectiveConfig(config);
 
@@ -581,7 +600,9 @@ export async function fetchNotionSchedules(
       }
     }
 
-    return { success: true, data: schedules };
+    const res = { success: true, data: schedules };
+    scheduleCache.set(cacheKey, { data: res, expiry: Date.now() + 30000 }); // 30초 캐시
+    return res;
   } catch (error: any) {
     console.error("Notion fetch error:", error);
     

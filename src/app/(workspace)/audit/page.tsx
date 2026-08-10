@@ -121,13 +121,15 @@ export default function AuditPage() {
   useEffect(() => {
     const initData = async () => {
       try {
-        const recipeRes = await getRecipeList();
+        // ⚡ 레시피 목록 및 품질 로트 데이터를 병렬(Promise.all) 초고속 로드
+        const [recipeRes] = await Promise.all([
+          getRecipeList().catch(() => ({ success: false, data: [] })),
+          fetchInventoryFromSupabase().catch(() => {}),
+        ]);
+
         if (recipeRes?.success && recipeRes.data) {
           setRecipeOptions(recipeRes.data);
         }
-
-        // Supabase ecount_inventory 데이터 100% 자동 로드
-        await fetchInventoryFromSupabase();
 
         const savedHistory = localStorage.getItem("beansheal_mfg_history");
         if (savedHistory) setMfgHistory(JSON.parse(savedHistory));

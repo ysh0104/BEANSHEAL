@@ -77,15 +77,23 @@ export async function saveRecipeMaster(payload: any) {
 }
 
 // =======================================================================
+// ⚡ 레시피 목록 초고속 서버 인메모리 캐시 (30초 TTL)
+let recipeListCache: { data: any[]; expiry: number } | null = null;
+
 // 2. 저장된 레시피 목록 전체 불러오기 (Read List)
 // =======================================================================
 export async function getRecipeList() {
+  if (recipeListCache && recipeListCache.expiry > Date.now()) {
+    return { success: true, data: recipeListCache.data };
+  }
+
   try {
     const { data, error } = await supabase
       .from('recipes')
       .select('id, product_name, product_code, base_batch_size, base_unit, food_type, is_coffee, created_at') 
       .order('created_at', { ascending: false });
 
+    let finalData: any[] = [];
     if (error) {
       // product_code 미존재 환경 호환
       const fallback = await supabase
@@ -93,9 +101,13 @@ export async function getRecipeList() {
         .select('id, product_name, base_batch_size, base_unit, food_type, is_coffee, created_at')
         .order('created_at', { ascending: false });
       if (fallback.error) throw fallback.error;
-      return { success: true, data: fallback.data || [] };
+      finalData = fallback.data || [];
+    } else {
+      finalData = data || [];
     }
-    return { success: true, data: data || [] };
+
+    recipeListCache = { data: finalData, expiry: Date.now() + 30000 };
+    return { success: true, data: finalData };
   } catch (error) {
     console.error("레시피 목록 불러오기 실패:", error);
     return { success: false, data: [] };

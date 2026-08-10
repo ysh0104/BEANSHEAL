@@ -117,10 +117,17 @@ export async function syncExcelToSupabase(parsedData: ParsedInventoryData[]) {
   }
 }
 
+// ⚡ 품질/감사 로트 목록 초고속 서버 인메모리 캐시 (15초 TTL)
+let auditInventoryCache: { data: any[]; expiry: number } | null = null;
+
 /**
  * Supabase ecount_inventory 테이블 전체 목록 조회
  */
 export async function getAuditInventoryItems() {
+  if (auditInventoryCache && auditInventoryCache.expiry > Date.now()) {
+    return { success: true, data: auditInventoryCache.data };
+  }
+
   try {
     const { data, error } = await supabase
       .from('ecount_inventory')
@@ -133,7 +140,9 @@ export async function getAuditInventoryItems() {
       return { success: false, message: error.message, data: [] };
     }
 
-    return { success: true, data: data || [] };
+    const finalData = data || [];
+    auditInventoryCache = { data: finalData, expiry: Date.now() + 15000 };
+    return { success: true, data: finalData };
   } catch (error: any) {
     console.error("getAuditInventoryItems error:", error);
     return { success: false, message: error?.message || "데이터 불러오기 오류", data: [] };
