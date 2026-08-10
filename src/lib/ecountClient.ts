@@ -25,16 +25,46 @@ export async function ecountFetchHeaders(extra: Record<string, string> = {}): Pr
 }
 
 /**
+ * Fixie 프록시 전용 Agent 생성 헬퍼
+ * Proxy-Authorization 기본 인증 헤더 명시적 주입으로 CONNECT 소켓 종료 에러 방지
+ */
+function createFixieAgent(fixieUrl: string) {
+  try {
+    const parsed = new URL(fixieUrl);
+    const auth = parsed.username
+      ? `${decodeURIComponent(parsed.username)}:${decodeURIComponent(parsed.password)}`
+      : "";
+
+    const proxyHeaders: Record<string, string> = {};
+    if (auth && auth !== ":") {
+      proxyHeaders["Proxy-Authorization"] = "Basic " + Buffer.from(auth).toString("base64");
+    }
+
+    return new HttpsProxyAgent(fixieUrl, {
+      headers: proxyHeaders,
+      keepAlive: false,
+    });
+  } catch (e) {
+    return new HttpsProxyAgent(fixieUrl);
+  }
+}
+
+/**
  * Fixie 고정 IP 프록시 지원 ECOUNT API 통신 전용 함수
  * FIXIE_URL 설정 시 Fixie 고정 IP(IPv4 2개)를 거쳐 이카운트로 다이렉트 통신
+ * 실패 시 표준 fetch(클라우드플레어 터널/오피스 프록시) 폴백 지원
  */
-export async function ecountPost(url: string, body: any, extraHeaders: Record<string, string> = {}): Promise<{ status: number; text: string; data: any }> {
+export async function ecountPost(
+  url: string,
+  body: any,
+  extraHeaders: Record<string, string> = {}
+): Promise<{ status: number; text: string; data: any }> {
   const fixieUrl = process.env.FIXIE_URL || process.env.FIXIE_SOCKS_HOST;
   const headers = await ecountFetchHeaders(extraHeaders);
 
   if (fixieUrl) {
-    const agent = new HttpsProxyAgent(fixieUrl);
-    return new Promise<{ status: number; text: string; data: any }>((resolve, reject) => {
+    const agent = createFixieAgent(fixieUrl);
+    const result = await new Promise<{ status: number; text: string; data: any }>((resolve) => {
       try {
         const parsedUrl = new URL(url);
         const postData = JSON.stringify(body);
@@ -50,6 +80,7 @@ export async function ecountPost(url: string, body: any, extraHeaders: Record<st
             ...headers,
           },
           agent: agent,
+          timeout: 10000,
         };
 
         const req = https.request(options, (res) => {
@@ -60,7 +91,8 @@ export async function ecountPost(url: string, body: any, extraHeaders: Record<st
           res.on("end", () => {
             let parsedData: any = null;
             try {
-              parsedData = JSON.parse(rawData);
+              const cleanText = rawData.replace(/^\uFEFF/, "").trim();
+              parsedData = JSON.parse(cleanText);
             } catch (e) {
               parsedData = null;
             }
@@ -76,7 +108,7 @@ export async function ecountPost(url: string, body: any, extraHeaders: Record<st
           resolve({
             status: 500,
             text: e?.message || "Fixie 프록시 통신 오류",
-            data: { error: e?.message },
+            data: null,
           });
         });
 
@@ -86,13 +118,20 @@ export async function ecountPost(url: string, body: any, extraHeaders: Record<st
         resolve({
           status: 500,
           text: err?.message || "Fixie URL 파싱 오류",
-          data: { error: err?.message },
+          data: null,
         });
       }
     });
+
+    // Fixie 프록시 통신 성공 시 즉시 반환
+    if (result.status === 200 && result.data) {
+      return result;
+    }
+
+    console.warn(`[Fixie Proxy Fallback] Fixie 통신 실패 (${result.text}). 표준 fetch로 폴백 시도합니다.`);
   }
 
-  // FIXIE_URL 미설정 시 일반 fetch (클라우드플레어 터널/오피스 프록시 경유)
+  // FIXIE_URL 미설정 또는 Fixie 실패 시 표준 fetch 폴백
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -103,7 +142,8 @@ export async function ecountPost(url: string, body: any, extraHeaders: Record<st
     const text = await res.text();
     let parsedData: any = null;
     try {
-      parsedData = JSON.parse(text);
+      const cleanText = text.replace(/^\uFEFF/, "").trim();
+      parsedData = JSON.parse(cleanText);
     } catch {
       parsedData = null;
     }
@@ -116,7 +156,7 @@ export async function ecountPost(url: string, body: any, extraHeaders: Record<st
     return {
       status: 500,
       text: e?.message || "네트워크 통신 오류",
-      data: { error: e?.message },
+      data: null,
     };
   }
 }
