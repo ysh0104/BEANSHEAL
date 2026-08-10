@@ -82,8 +82,16 @@ function replaceHwpPlaceholders(buffer: Buffer, renderData: Record<string, any>)
         const deflated = isRaw ? zlib.deflateRawSync(inflatedBuf) : zlib.deflateSync(inflatedBuf);
         // OLE CFBF 섹터 주소 오버라이트 방지: 압축 후 스트림 바이트가 원래 할당 슬라이스 크기 이내일 때만 안전 복사
         if (deflated.length <= slice.length) {
+          const origStreamLength = slice.length;
           deflated.copy(result, offset);
-          processedStreamRanges.push({ start: offset, end: offset + deflated.length });
+
+          // 🌟 [핵심 파싱 오류 완벽 예방] 재압축 후 남은 이전 스트림의 쓰레기 바이트(Tail Junk) 0x00 소거
+          const junkLength = origStreamLength - deflated.length;
+          if (junkLength > 0) {
+            result.fill(0x00, offset + deflated.length, offset + origStreamLength);
+          }
+
+          processedStreamRanges.push({ start: offset, end: offset + origStreamLength });
         }
       }
     } catch (e) {}
