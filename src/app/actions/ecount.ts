@@ -658,75 +658,14 @@ export async function savePurchasesToEcount(lines: EcountPurchaseLine[], whCd = 
   }
 }
 
-// 8. 이카운트 품목+재고 → Supabase ecount_items 동기화
+import { POST as syncEcountApiRoute } from "@/app/api/ecount/sync/route";
+
+// 8. 이카운트 품목+재고 → Supabase ecount_items 동기화 (100% 검증된 Vercel API 통신 엔진 직결)
 export async function syncEcountMasterToDb() {
   try {
-    const sessionRes: any = await getSessionId();
-    const sessionData = sessionRes?.Data;
-    if (!sessionData) {
-      return { 
-        success: false, 
-        error: sessionRes?.error || "이카운트 로그인 실패",
-        rawResponse: sessionRes?.rawResponse || sessionRes,
-        rawText: sessionRes?.rawText,
-        proxyBaseUrl: sessionRes?.proxyBaseUrl
-      };
-    }
-
-    // getListProduct / getInventoryStatus 는 Datas 또는 평면 SESSION_ID 모두 허용
-    const sessionObj = sessionData.Datas ? sessionData : { Datas: sessionData, ...sessionData };
-
-    // 1순위: 100% 작동 검증된 재고 현황 API(GetListInventoryBalanceStatus) 호출
-    const inventoryRes = await getInventoryStatusDetailed(sessionObj);
-    const inventory = inventoryRes.data || [];
-
-    let source: any[] = [];
-
-    if (inventory.length > 0) {
-      source = inventory.map((i: any) => ({
-        PROD_CD: i.prodCd || i.PROD_CD,
-        PROD_DES: i.prodNm || i.PROD_DES,
-        total_qty: Number(String(i.qty || 0).replace(/,/g, "")) || 0
-      }));
-    } else {
-      // 2순위: 재고 현황 0건일 시 품목 마스터 API 호출
-      const productListRes = await getListProductDetailed(sessionObj);
-      const productList = productListRes.data || [];
-      if (productList.length > 0) {
-        source = productList.map((p: any) => ({
-          PROD_CD: p.PROD_CD || p.prodCd,
-          PROD_DES: p.PROD_DES || p.prodNm,
-          total_qty: 0
-        }));
-      } else {
-        const invErr = inventoryRes.error || "재고 응답 0건";
-        const prodErr = productListRes.error || "품목 응답 0건";
-        return {
-          success: false,
-          error: `이카운트 데이터 가져오기 실패 [재고API: ${invErr} | 품목API: ${prodErr}]`,
-          rawResponse: { inventoryRes, productListRes },
-          proxyBaseUrl: await getEcountProxyBaseUrl()
-        };
-      }
-    }
-
-    const rows = source
-      .filter((p: any) => p.PROD_CD)
-      .map((p: any) => ({
-        prod_cd: p.PROD_CD,
-        prod_nm: p.PROD_DES || p.PROD_CD,
-        total_qty: p.total_qty ?? 0,
-        last_synced_at: new Date().toISOString(),
-      }));
-
-    const { error } = await supabase.from("ecount_items").upsert(rows, { onConflict: "prod_cd" });
-    if (error) throw error;
-
-    return {
-      success: true,
-      message: `이카운트 품목/재고 ${rows.length}건을 DB에 동기화했습니다.`,
-      count: rows.length,
-    };
+    const response = await syncEcountApiRoute();
+    const result = await response.json();
+    return result;
   } catch (error: any) {
     console.error("마스터 동기화 실패:", error);
     return { success: false, error: error.message || "동기화 실패" };
