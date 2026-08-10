@@ -192,9 +192,10 @@ function AuditPageContent() {
   }, [selectedProduct]);
 
   const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const numericValue = e.target.value.replace(/[^0-9]/g, '');
-    const formattedValue = numericValue ? Number(numericValue).toLocaleString('ko-KR') : '';
-    setInputQty(formattedValue);
+    const value = e.target.value;
+    if (/^\d*\.?\d{0,3}$/.test(value) || value === "") {
+      setInputQty(value);
+    }
   };
 
   const handleMfgNoChange = (val: string) => {

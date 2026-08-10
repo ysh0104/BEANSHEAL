@@ -5,11 +5,12 @@ import { supabase } from "@/lib/supabase";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { saveProductionInboundToEcount, syncEcountMasterToDb } from "@/app/actions/ecount";
 
-/** 재고수량: 소수점 셋째 자리까지 표시 */
+/** 재고수량: 소수점 3자리까지 정밀 표시 (Floating point 오류 방지) */
 function formatQty(value: number | string) {
   const n = Number(String(value).replace(/,/g, ""));
   if (!Number.isFinite(n)) return "0";
-  return n.toLocaleString(undefined, {
+  const rounded = Math.round(n * 1000) / 1000;
+  return rounded.toLocaleString('ko-KR', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 3,
   });
@@ -211,14 +212,14 @@ export default function InventoryPage() {
       const lot = matchingLots[i];
       if (lot.qty <= neededQty) {
         finalLots.push(lot);
-        neededQty -= lot.qty;
+        neededQty = Math.round((neededQty - lot.qty) * 1000) / 1000;
       } else {
         finalLots.push({ ...lot, qty: neededQty });
         neededQty = 0;
       }
     }
 
-    const unassignedQty = Math.max(neededQty, 0); 
+    const unassignedQty = Math.max(Math.round(neededQty * 1000) / 1000, 0); 
 
     return { totalQty, matchingLots: finalLots, unassignedQty };
   };
