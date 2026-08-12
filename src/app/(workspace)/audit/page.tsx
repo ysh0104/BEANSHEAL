@@ -113,21 +113,47 @@ function AuditPageContent() {
   const [mfgDate, setMfgDate] = useState("");
   const [mfgHistory, setMfgHistory] = useState<any[]>([]);
 
+  const formatExpDate = (rawDate: any) => {
+    if (!rawDate) return '제조일로부터 24개월';
+    const str = String(rawDate).trim();
+    if (!str || str === '-' || str === 'undefined' || str === 'null') return '제조일로부터 24개월';
+    if (str.includes('T')) {
+      const datePart = str.split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
+    }
+    const match = str.match(/(\d{4})[\/.\-](\d{1,2})[\/.\-](\d{1,2})/);
+    if (match) {
+      return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+    }
+    const match2 = str.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (match2) {
+      return `${match2[1]}-${match2[2]}-${match2[3]}`;
+    }
+    return str;
+  };
+
   // Supabase ecount_inventory 데이터 실시간 로드 함수
   const fetchInventoryFromSupabase = async () => {
     try {
       const invRes = await getAuditInventoryItems();
       if (invRes?.success && Array.isArray(invRes.data) && invRes.data.length > 0) {
-        const formatted = invRes.data.map((item: any) => ({
-          scrapedAt: item.created_at 
-            ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) 
-            : '미상',
-          cleanName: item.item_name || item.name || item.product_name,
-          lotNo: item.lot_no || item.ecount_prod_cd || item.lot_number || `LOT-${item.id}`,
-          expDate: item.expiry_date || item.expiration_date || '제조일로부터 24개월',
-          status: item.status || item.qc_status || '문서대기',
-          rawItem: item
-        }));
+        const formatted = invRes.data.map((item: any) => {
+          const rawLot = String(item.lot_no || item.lot_number || '').trim();
+          const lotNo = (rawLot && rawLot !== 'undefined' && rawLot !== 'null') 
+            ? rawLot 
+            : `LOT-${item.id}`;
+
+          return {
+            scrapedAt: item.created_at 
+              ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) 
+              : '미상',
+            cleanName: item.item_name || item.name || item.product_name,
+            lotNo: lotNo,
+            expDate: formatExpDate(item.expiry_date || item.expiration_date),
+            status: item.status || item.qc_status || '문서대기',
+            rawItem: item
+          };
+        });
         setScrapedItems(formatted);
         localStorage.setItem("beansheal_audit_items", JSON.stringify(formatted));
         setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
@@ -138,8 +164,8 @@ function AuditPageContent() {
           const formatted = dashRes.data.map((item: any) => ({
             scrapedAt: item.created_at ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '미상',
             cleanName: item.name || item.product_name,
-            lotNo: item.ecount_prod_cd || item.lot_number || `LOT-${item.id}`,
-            expDate: item.expiration_date || '제조일로부터 24개월',
+            lotNo: item.lot_number || `LOT-${item.id}`,
+            expDate: formatExpDate(item.expiration_date),
             status: item.qc_status || '문서대기',
             rawItem: item
           }));

@@ -120,8 +120,10 @@ export async function syncExcelToSupabase(parsedData: ParsedInventoryData[]) {
 // ⚡ 품질/감사 로트 목록 초고속 서버 인메모리 캐시 (15초 TTL)
 let auditInventoryCache: { data: any[]; expiry: number } | null = null;
 
+const SYSTEM_STATUSES = ['SAFETY_STOCK', 'CALIBRATION', 'HEALTH_CHECK', 'MEMO', 'ITEM_MASTER'];
+
 /**
- * Supabase ecount_inventory 테이블 전체 목록 조회
+ * Supabase ecount_inventory 테이블 전체 목록 조회 (시스템 예약 행 및 품목코드 대체 행 자동 필터링)
  */
 export async function getAuditInventoryItems() {
   if (auditInventoryCache && auditInventoryCache.expiry > Date.now()) {
@@ -132,6 +134,7 @@ export async function getAuditInventoryItems() {
     const { data, error } = await supabase
       .from('ecount_inventory')
       .select('*')
+      .not('status', 'in', '("SAFETY_STOCK","CALIBRATION","HEALTH_CHECK","MEMO","ITEM_MASTER")')
       .order('created_at', { ascending: false })
       .limit(1000);
 
@@ -140,9 +143,26 @@ export async function getAuditInventoryItems() {
       return { success: false, message: error.message, data: [] };
     }
 
-    const finalData = data || [];
-    auditInventoryCache = { data: finalData, expiry: Date.now() + 15000 };
-    return { success: true, data: finalData };
+    // 마스터 품목코드 목록 조회 (lot_no가 품목코드와 동일한 행을 오인하지 않도록 방어)
+    const { data: masterItems } = await supabase.from('ecount_items').select('prod_cd');
+    const masterProdCodes = new Set((masterItems || []).map(m => String(m.prod_cd).trim()));
+
+    const filteredData = (data || []).filter(item => {
+      const status = String(item.status || '').toUpperCase();
+      if (SYSTEM_STATUSES.includes(status)) return false;
+
+      const lot = String(item.lot_no || '').trim();
+      // lot_no가 없거나 'undefined', 'null' 인 경우 거름
+      if (!lot || lot === 'undefined' || lot === 'null') return false;
+
+      // lot_no가 단순 품목코드(예: M0001, 000010 등)와 100% 동일하면 엑셀 파싱 오류로 유입된 것으로 판단하여 제외
+      if (masterProdCodes.has(lot)) return false;
+
+      return true;
+    });
+
+    auditInventoryCache = { data: filteredData, expiry: Date.now() + 15000 };
+    return { success: true, data: filteredData };
   } catch (error: any) {
     console.error("getAuditInventoryItems error:", error);
     return { success: false, message: error?.message || "데이터 불러오기 오류", data: [] };
