@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { getAllUserProfiles, updateUserProfile, ProfileItem } from "@/app/actions/userActions";
+import { getAllUserProfiles, updateUserProfile, deleteUserProfile, ProfileItem } from "@/app/actions/userActions";
 import { formatJobTitle } from "@/context/AuthContext";
 import PermissionGroupsPanel from "@/components/PermissionGroupsPanel";
 import {
@@ -363,29 +363,105 @@ export default function UserManagementPage() {
     }
   };
 
-  const handleAddEmployee = async () => {
-    const name = prompt("등록할 사원 이름을 입력하세요.");
-    if (!name?.trim()) return;
-    const dept = prompt(
-      "부서 (생산팀 / 품질관리팀 / 영업팀 / 경영지원팀 / 경영진)",
-      "생산팀"
-    );
-    if (!dept?.trim()) return;
-    const position = prompt("직급 (예: 사원, 주임, 팀장)", "사원") || "사원";
-    const normalizedDept = normalizeDepartment(dept.trim());
-    const scheduleGroup = profileDeptToScheduleGroup(normalizedDept);
+  // 사원 신규 추가 모달 상태
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addDept, setAddDept] = useState("생산팀");
+  const [addPos, setAddPos] = useState("사원");
+  const [isAdding, setIsAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-    const res = await createProfileForSchedule(name.trim(), scheduleGroup, position.trim());
-    if (!res.success || !res.profile) {
-      alert(res.message || "사원 등록에 실패했습니다.");
+  const handleAddEmployeeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addName.trim()) {
+      alert("사원 이름을 입력해 주세요.");
       return;
     }
-    await loadProfiles();
+
+    setIsAdding(true);
+    const name = addName.trim();
+    const dept = addDept;
+    const pos = addPos;
+    const scheduleGroup = profileDeptToScheduleGroup(dept);
+
+    // ⚡ 0초 초고속 낙관적 UI 즉시 등록
+    const tempId = `temp_${Date.now()}`;
+    const newJobTitle = formatJobTitle(dept, pos);
+    const tempProfile: ProfileItem = {
+      id: tempId,
+      email: `staff.${Date.now()}@beansheal.com`,
+      full_name: name,
+      department: dept,
+      position: pos,
+      role: computeRoleLocal(dept, pos),
+      job_title: newJobTitle,
+      updated_at: new Date().toISOString(),
+    };
+
+    setProfiles((prev) => [tempProfile, ...prev]);
+    setEditStates((prev) => ({
+      ...prev,
+      [tempId]: {
+        department: dept,
+        position: pos,
+        role: computeRoleLocal(dept, pos),
+        permission_group_id: null,
+        ecount_user_id: "",
+      },
+    }));
+
+    setIsAddModalOpen(false);
+    setAddName("");
+
     setStatusMsg({
-      id: res.profile.id,
+      id: tempId,
       type: "success",
-      text: `'${name.trim()}' 사원이 등록되었습니다. 대시보드 스케줄표에도 자동 반영됩니다.`,
+      text: `'${name}' 사원이 추가되었습니다.`,
     });
+
+    // 백그라운드 DB 등록
+    const res = await createProfileForSchedule(name, scheduleGroup, pos);
+    if (res.success && res.profile) {
+      const realId = res.profile.id;
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === tempId ? { ...p, id: realId } : p))
+      );
+      setEditStates((prev) => {
+        const copy = { ...prev };
+        if (copy[tempId]) {
+          copy[realId] = copy[tempId];
+          delete copy[tempId];
+        }
+        return copy;
+      });
+    }
+    setIsAdding(false);
+  };
+
+  const handleDeleteEmployee = async (targetUser: ProfileItem) => {
+    if (!confirm(`'${targetUser.full_name}' (${targetUser.email || targetUser.job_title}) 사원을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    setDeletingId(targetUser.id);
+
+    // ⚡ 0초 초고속 낙관적 UI 즉시 삭제
+    setProfiles((prev) => prev.filter((p) => p.id !== targetUser.id));
+    setEditStates((prev) => {
+      const copy = { ...prev };
+      delete copy[targetUser.id];
+      return copy;
+    });
+
+    setStatusMsg({
+      id: targetUser.id,
+      type: "success",
+      text: `'${targetUser.full_name}' 사원이 삭제되었습니다.`,
+    });
+
+    // 백그라운드 DB 및 Auth 삭제
+    await deleteUserProfile(targetUser.id);
+    setDeletingId(null);
   };
 
   const handleSaveProfile = async (targetUser: ProfileItem) => {
@@ -876,20 +952,31 @@ export default function UserManagementPage() {
                           {p.updated_at ? p.updated_at.split("T")[0] : "-"}
                         </td>
 
-                        {/* 저장 버튼 - 강조(Bold) */}
+                        {/* 저장 & 삭제 버튼 */}
                         <td className="py-3.5 px-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleSaveProfile(p)}
-                            disabled={savingId === p.id}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
-                              isChanged
-                                ? "bg-slate-900 hover:bg-slate-800 text-white animate-pulse"
-                                : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                            } disabled:opacity-50`}
-                          >
-                            {savingId === p.id ? "저장 중..." : isChanged ? "권한 변경 저장" : "저장됨"}
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleSaveProfile(p)}
+                              disabled={savingId === p.id}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+                                isChanged
+                                  ? "bg-slate-900 hover:bg-slate-800 text-white animate-pulse"
+                                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                              } disabled:opacity-50`}
+                            >
+                              {savingId === p.id ? "저장 중..." : isChanged ? "권한 변경 저장" : "저장됨"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteEmployee(p)}
+                              disabled={deletingId === p.id}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer disabled:opacity-50"
+                              title="사원 삭제"
+                            >
+                              {deletingId === p.id ? "삭제 중..." : "삭제"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -928,6 +1015,93 @@ export default function UserManagementPage() {
           )}
         </div>
       </div>
+
+      {/* 🌟 사원 신규 등록 초고속 모달 */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md p-6">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                <span>👤</span>
+                <span>신규 사원 추가</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddEmployeeSubmit} className="space-y-4 mt-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  사원 이름 <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  placeholder="예: 홍길동"
+                  className="w-full text-xs border border-slate-300 rounded-xl px-3.5 py-2.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">부서</label>
+                  <select
+                    value={addDept}
+                    onChange={(e) => setAddDept(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer"
+                  >
+                    {DEPARTMENT_OPTIONS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">직급</label>
+                  <select
+                    value={addPos}
+                    onChange={(e) => setAddPos(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-xl px-3 py-2.5 bg-white text-slate-900 focus:ring-2 focus:ring-slate-900 focus:outline-none cursor-pointer"
+                  >
+                    {POSITION_OPTIONS.map((pos) => (
+                      <option key={pos} value={pos}>
+                        {pos}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAdding}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {isAdding ? "등록 중..." : "등록하기"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

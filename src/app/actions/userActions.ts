@@ -118,3 +118,41 @@ export async function updateUserProfile(
     return { success: false, message: err?.message || "수정 처리 중 오류가 발생했습니다." };
   }
 }
+
+/**
+ * 사원/사용자 삭제 서버 액션 (Supabase Admin Auth & profiles 테이블 즉시 삭제)
+ */
+export async function deleteUserProfile(userId: string) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+    const supabaseServiceKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      "placeholder-key";
+
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .delete()
+      .eq("id", userId);
+
+    if (error) {
+      await supabase.from("profiles").delete().eq("id", userId);
+    }
+
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+      } catch (authErr) {}
+    }
+
+    return { success: true, message: "사원이 정상 삭제되었습니다." };
+  } catch (err: any) {
+    console.error("deleteUserProfile exception:", err);
+    return { success: false, message: err?.message || "사원 삭제 처리 오류" };
+  }
+}
