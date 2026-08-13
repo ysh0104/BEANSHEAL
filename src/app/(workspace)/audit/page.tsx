@@ -414,17 +414,6 @@ function AuditPageContent() {
         <div className="flex items-center bg-gray-100 p-1.5 rounded-xl border border-gray-200 self-start sm:self-auto gap-1">
           <button
             type="button"
-            onClick={() => setDocFormat("hwp")}
-            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
-              docFormat === "hwp"
-                ? "bg-blue-600 text-white shadow-xs"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            한컴 한글 (.hwp)
-          </button>
-          <button
-            type="button"
             onClick={() => setDocFormat("hwpx")}
             className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
               docFormat === "hwpx"
@@ -439,7 +428,7 @@ function AuditPageContent() {
             onClick={() => setDocFormat("docx")}
             className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
               docFormat === "docx"
-                ? "bg-white text-slate-900 shadow-xs border border-gray-200"
+                ? "bg-blue-600 text-white shadow-xs"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
