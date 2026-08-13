@@ -1,5 +1,6 @@
 "use server";
 
+import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { formatJobTitle, normalizeAdminDepartment } from "@/lib/departmentNormalize";
 
@@ -129,7 +130,6 @@ export async function deleteUserProfile(userId: string) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
       "placeholder-key";
 
-    const { createClient } = await import("@supabase/supabase-js");
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
