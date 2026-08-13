@@ -657,7 +657,7 @@ export default function UserManagementPage() {
             <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
             <button
               type="button"
-              onClick={handleAddEmployee}
+              onClick={() => setIsAddModalOpen(true)}
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
             >
               + 사원 추가
