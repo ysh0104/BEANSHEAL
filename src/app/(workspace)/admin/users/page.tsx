@@ -832,24 +832,29 @@ export default function UserManagementPage() {
                   </tr>
                 ) : (
                   profiles.map((p) => {
-                    const currentEdit = editStates[p.id] || {
-                      department: p.department,
-                      position: p.position,
-                      role: p.role,
+                    if (!p || !p.id) return null;
+                    const currentEdit = (editStates && editStates[p.id]) || {
+                      department: p.department || "생산팀",
+                      position: p.position || "사원",
+                      role: p.role || "WORKER",
                       permission_group_id: p.permission_group_id || null,
                       ecount_user_id: p.ecount_user_id || "",
                     };
+                    const deptVal = currentEdit.department || p.department || "생산팀";
+                    const posVal = currentEdit.position || p.position || "사원";
+                    const roleVal = currentEdit.role || p.role || "WORKER";
+
                     const isChanged =
-                      currentEdit.department !== p.department ||
-                      currentEdit.position !== p.position ||
-                      currentEdit.role !== p.role ||
+                      deptVal !== p.department ||
+                      posVal !== p.position ||
+                      roleVal !== p.role ||
                       (currentEdit.permission_group_id || null) !== (p.permission_group_id || null) ||
                       (currentEdit.ecount_user_id || "") !== (p.ecount_user_id || "");
-                    const previewJobTitle = formatJobTitle(currentEdit.department, currentEdit.position);
-                    const isSelf = user?.email === p.email;
+                    const previewJobTitle = formatJobTitle(deptVal, posVal);
+                    const isSelf = !!user?.email && !!p.email && user.email.toLowerCase() === p.email.toLowerCase();
                     const ecountFreeText =
-                      currentEdit.ecount_user_id &&
-                      !ecountUsers.some((e) => e.user_id === currentEdit.ecount_user_id);
+                      !!currentEdit.ecount_user_id &&
+                      !(ecountUsers || []).some((e) => e && e.user_id === currentEdit.ecount_user_id);
 
                     return (
                       <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${isSelf ? "bg-slate-50/90" : ""}`}>
