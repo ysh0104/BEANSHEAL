@@ -108,7 +108,7 @@ async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ dat
       method: "POST",
       body: {
         filter: { value: "database", property: "object" },
-        page_size: 10,
+        page_size: 20,
       },
     });
 
@@ -119,10 +119,18 @@ async function resolveDatabaseId(rawDbId: string, apiKey: string): Promise<{ dat
           dbIdCache.set(cacheKey, { databaseId: matched.id, dbData: matched, expiry: Date.now() + 600000 });
           return { databaseId: matched.id, dbData: matched };
         }
+        // 사용자가 명시적 DB ID를 입력했으나 일치하지 않으면 무관한 첫 번째 DB로 엉뚱하게 넘어가던 버그 완전 차단
+        console.warn(`[Notion API] 입력된 Database ID (${id})와 일치하는 DB를 /search 결과에서 찾지 못했습니다.`);
+      } else {
+        // DB ID가 비어있을 때만 생산/일정/계획 관련 DB를 최우선으로 탐색
+        const scheduleDb = searchRes.results.find((db: any) => {
+          const title = (db.title?.[0]?.plain_text || "").toLowerCase();
+          return title.includes("생산") || title.includes("일정") || title.includes("계획") || title.includes("달력") || title.includes("schedule") || title.includes("calendar");
+        });
+        const targetDb = scheduleDb || searchRes.results[0];
+        dbIdCache.set(cacheKey, { databaseId: targetDb.id, dbData: targetDb, expiry: Date.now() + 600000 });
+        return { databaseId: targetDb.id, dbData: targetDb };
       }
-      const firstDb = searchRes.results[0];
-      dbIdCache.set(cacheKey, { databaseId: firstDb.id, dbData: firstDb, expiry: Date.now() + 600000 });
-      return { databaseId: firstDb.id, dbData: firstDb };
     }
   } catch (searchErr) {}
 
@@ -209,11 +217,19 @@ export async function getNotionConfigStatus() {
   };
 }
 
+export async function clearNotionCache() {
+  dbIdCache.clear();
+  scheduleCache.clear();
+  return { success: true };
+}
+
 /**
  * 노션 API 연결 테스트
  */
 export async function testNotionConnection(config?: NotionConfig) {
   try {
+    dbIdCache.clear();
+    scheduleCache.clear();
     const { apiKey, rawDbId } = getEffectiveConfig(config);
 
     if (!apiKey) {
@@ -466,23 +482,7 @@ export async function fetchNotionSchedules(
         }
       }
 
-      // 2-4. Created Time 파싱
-      if (!planDate) {
-        for (const key of Object.keys(props)) {
-          const prop = props[key];
-          if (prop.type === "created_time" && prop.created_time) {
-            planDate = prop.created_time.split("T")[0].trim();
-            endDate = planDate;
-            break;
-          }
-        }
-      }
-
-      // 2-5. 노션 페이지 생성 일시 폴백
-      if (!planDate && page.created_time) {
-        planDate = page.created_time.split("T")[0].trim();
-        endDate = planDate;
-      }
+      // 💡 날짜 속성이 명시되지 않은 일반 노트/페이지는 일정이 아니므로 생성일시(created_time) 폴백으로 일정화하지 않고 거름
 
       // 3. 수량 파싱
       for (const key of Object.keys(props)) {
