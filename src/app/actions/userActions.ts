@@ -1,8 +1,7 @@
 "use server";
 
 import { supabase } from "@/lib/supabase";
-import { formatJobTitle } from "@/context/AuthContext";
-import { normalizeAdminDepartment } from "@/lib/departmentNormalize";
+import { formatJobTitle, normalizeAdminDepartment } from "@/lib/departmentNormalize";
 
 export interface ProfileItem {
   id: string;

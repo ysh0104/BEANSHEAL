@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getAllUserProfiles, updateUserProfile, deleteUserProfile, ProfileItem } from "@/app/actions/userActions";
-import { formatJobTitle } from "@/context/AuthContext";
+import { formatJobTitle, profileDeptToScheduleGroup } from "@/lib/departmentNormalize";
 import PermissionGroupsPanel from "@/components/PermissionGroupsPanel";
 import {
   listPermissionGroups,
@@ -23,7 +23,6 @@ import {
   type EcountUserRecord,
 } from "@/app/actions/ecountUserMapping";
 import { createProfileForSchedule } from "@/app/actions/scheduleRosterActions";
-import { profileDeptToScheduleGroup } from "@/lib/departmentNormalize";
 import { parseEcountUsersExcel } from "@/utils/ecountUsersExcel";
 
 const DEPARTMENT_OPTIONS = [

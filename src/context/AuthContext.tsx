@@ -41,16 +41,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// 부서 + 직급에 따른 표시용 타이틀 자동 생성
-// 예: "생산팀 사원", "품질관리팀 팀장", "경영진 이사"
-export function formatJobTitle(department: string, position: string): string {
-  const pos = position === "관리자" ? "이사" : position || "사원";
-  const dept = (department || "생산팀").trim();
-  if (!dept || dept === "-") {
-    return pos;
-  }
-  return `${dept} ${pos}`;
-}
+import { formatJobTitle } from "@/lib/departmentNormalize";
+export { formatJobTitle };
 
 // 부서 기준으로 기본 권한 역할 제안 (직급과 무관하게 부서·저장된 role 우선)
 function computePermissionRole(department: string, _position: string): "ADMIN" | "QA" | "WORKER" {

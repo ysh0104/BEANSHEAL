@@ -54,3 +54,12 @@ export function scheduleGroupToProfileDept(group: string): AdminDepartment {
 export function normalizePersonName(name: string): string {
   return (name || "").trim().replace(/\s+/g, " ");
 }
+
+export function formatJobTitle(department: string, position: string): string {
+  const pos = position === "관리자" ? "이사" : position || "사원";
+  const dept = (department || "생산팀").trim();
+  if (!dept || dept === "-") {
+    return pos;
+  }
+  return `${dept} ${pos}`;
+}
