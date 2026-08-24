@@ -21,6 +21,7 @@ export default function LoginPage() {
   const [clockInCheck, setClockInCheck] = useState(false);
   
   const [error, setError] = useState("");
+  const [infoMsg, setInfoMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
   // 회원가입 전용 폼 상태
@@ -41,11 +42,22 @@ export default function LoginPage() {
     }
   }, [user, authLoading, router]);
 
-  // 아이디 저장 로드
+  // 아이디 저장 로드 + Google 승인 대기/거절 안내
   useEffect(() => {
     const savedId = localStorage.getItem("beansheal_saved_id");
     if (savedId) {
       setEmail(savedId);
+    }
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("pending") === "1") {
+      setInfoMsg(
+        "Google 가입 요청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다. (/admin/users에서 승인)"
+      );
+    } else if (params.get("rejected") === "1") {
+      setError("가입 요청이 거절되었습니다. 관리자에게 문의해 주세요.");
+    } else if (params.get("error")) {
+      setError(decodeURIComponent(params.get("error") || "로그인에 실패했습니다."));
     }
   }, []);
 
@@ -188,7 +200,12 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {/* 에러 메시지 바 */}
+        {/* 에러 / 안내 메시지 바 */}
+        {infoMsg && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3 rounded-xl font-semibold leading-relaxed">
+            {infoMsg}
+          </div>
+        )}
         {error && (
           <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3 rounded-xl font-semibold leading-relaxed animate-fade-in">
             {error}
@@ -290,7 +307,7 @@ export default function LoginPage() {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
               </svg>
-              <span>Google 계정으로 회원가입 & 간편 로그인</span>
+              <span>Google로 가입 요청 / 로그인</span>
             </button>
 
             {/* 자동저장 안내 도움말 */}

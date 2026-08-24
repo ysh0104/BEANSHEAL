@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getAllUserProfiles, updateUserProfile, deleteUserProfile, ProfileItem } from "@/app/actions/userActions";
+import {
+  getPendingApprovalProfiles,
+  setUserApprovalStatus,
+} from "@/app/actions/userApprovalActions";
 import { formatJobTitle, profileDeptToScheduleGroup } from "@/lib/departmentNormalize";
 import PermissionGroupsPanel from "@/components/PermissionGroupsPanel";
 import {
@@ -107,6 +111,19 @@ export default function UserManagementPage() {
   const [ecountExcelImporting, setEcountExcelImporting] = useState(false);
   const ecountExcelInputRef = useRef<HTMLInputElement>(null);
   const [permPanelOpen, setPermPanelOpen] = useState(false);
+  const [pendingApprovals, setPendingApprovals] = useState<
+    {
+      id: string;
+      email: string;
+      full_name: string;
+      department?: string;
+      position?: string;
+      auth_provider?: string | null;
+      requested_at?: string | null;
+      created_at?: string | null;
+    }[]
+  >([]);
+  const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
 
   const canManagePerms =
     canUserEdit(user, "admin_users") ||
@@ -122,12 +139,33 @@ export default function UserManagementPage() {
 
   useEffect(() => {
     loadProfiles();
+    loadPendingApprovals();
     loadEcountUsers();
     (async () => {
       const res = await listPermissionGroups();
       if (res.success) setPermGroups(res.data);
     })();
   }, [user]);
+
+  const loadPendingApprovals = async () => {
+    const res = await getPendingApprovalProfiles();
+    if (res.success) setPendingApprovals(res.data || []);
+    else setPendingApprovals([]);
+  };
+
+  const handleApproval = async (userId: string, status: "approved" | "rejected") => {
+    setApprovalBusyId(userId);
+    const res = await setUserApprovalStatus(userId, status);
+    setStatusMsg({
+      id: userId,
+      type: res.success ? "success" : "error",
+      text: res.message || (res.success ? "처리되었습니다." : "처리 실패"),
+    });
+    setTimeout(() => setStatusMsg(null), 3500);
+    await loadPendingApprovals();
+    await loadProfiles();
+    setApprovalBusyId(null);
+  };
 
   const loadProfiles = async () => {
     setLoading(true);
@@ -163,6 +201,9 @@ export default function UserManagementPage() {
             ecount_user_id: p.ecount_user_id || null,
             ecount_emp_cd: p.ecount_emp_cd || null,
             ecount_user_name: p.ecount_user_name || null,
+            approval_status: p.approval_status || "approved",
+            auth_provider: p.auth_provider || null,
+            requested_at: p.requested_at || null,
           };
         });
       } else {
@@ -625,9 +666,10 @@ export default function UserManagementPage() {
     );
   }
 
-  const adminCount = profiles.filter((p) => p.role === "ADMIN").length;
-  const qaCount = profiles.filter((p) => p.role === "QA").length;
-  const workerCount = profiles.filter((p) => p.role === "WORKER").length;
+  const adminCount = profiles.filter((p) => (p.approval_status || "approved") !== "pending" && p.role === "ADMIN").length;
+  const qaCount = profiles.filter((p) => (p.approval_status || "approved") !== "pending" && p.role === "QA").length;
+  const workerCount = profiles.filter((p) => (p.approval_status || "approved") !== "pending" && p.role === "WORKER").length;
+  const approvedProfiles = profiles.filter((p) => (p.approval_status || "approved") !== "pending");
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
@@ -679,7 +721,7 @@ export default function UserManagementPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-100">
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
               <span className="text-[11px] font-medium text-slate-500">전체 사용자</span>
-              <span className="text-lg font-bold text-slate-900 font-mono mt-1">{profiles.length} 명</span>
+              <span className="text-lg font-bold text-slate-900 font-mono mt-1">{approvedProfiles.length} 명</span>
             </div>
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col justify-between">
               <span className="text-[11px] font-medium text-slate-600">ADMIN 권한</span>
@@ -708,6 +750,72 @@ export default function UserManagementPage() {
             </button>
           </div>
         )}
+
+        {/* Google 가입 승인 대기 */}
+        <div className="bg-white border border-amber-200 rounded-2xl shadow-xs overflow-hidden">
+          <div className="px-5 py-4 bg-amber-50 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-sm text-amber-950">Google 가입 승인 대기</h2>
+              <p className="text-[11px] text-amber-800/80 mt-0.5">
+                Google로 처음 접속한 사용자는 여기서 승인해야 ERP에 로그인할 수 있습니다.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={loadPendingApprovals}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 cursor-pointer self-start"
+            >
+              대기 목록 새로고침
+            </button>
+          </div>
+          {pendingApprovals.length === 0 ? (
+            <div className="px-5 py-8 text-center text-xs text-slate-500 font-medium">
+              승인 대기 중인 가입 요청이 없습니다.
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {pendingApprovals.map((p) => (
+                <li
+                  key={p.id}
+                  className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-slate-900 truncate">
+                      {p.full_name || "이름 없음"}
+                    </div>
+                    <div className="text-xs text-slate-600 truncate mt-0.5">{p.email}</div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      {(p.auth_provider || "google").toUpperCase()}
+                      {p.requested_at
+                        ? ` · 요청 ${new Date(p.requested_at).toLocaleString("ko-KR")}`
+                        : p.created_at
+                          ? ` · ${new Date(p.created_at).toLocaleString("ko-KR")}`
+                          : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={approvalBusyId === p.id}
+                      onClick={() => handleApproval(p.id, "approved")}
+                      className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold px-3.5 py-2 rounded-xl cursor-pointer"
+                    >
+                      승인
+                    </button>
+                    <button
+                      type="button"
+                      disabled={approvalBusyId === p.id}
+                      onClick={() => handleApproval(p.id, "rejected")}
+                      className="bg-white hover:bg-rose-50 disabled:opacity-50 text-rose-700 border border-rose-200 text-xs font-semibold px-3.5 py-2 rounded-xl cursor-pointer"
+                    >
+                      거절
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
           <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -760,7 +868,7 @@ export default function UserManagementPage() {
               >
                 {ecountSyncing ? "시도 중…" : "OpenAPI 동기화 시도"}
               </button>
-              <span className="text-xs text-slate-500 font-normal">총 {profiles.length} 건</span>
+              <span className="text-xs text-slate-500 font-normal">총 {approvedProfiles.length} 건</span>
             </div>
           </div>
           {ecountSyncMsg && (
@@ -824,14 +932,14 @@ export default function UserManagementPage() {
                       </div>
                     </td>
                   </tr>
-                ) : profiles.length === 0 ? (
+                ) : approvedProfiles.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-slate-400 font-medium">
                       가입된 사용자 프로필이 없습니다.
                     </td>
                   </tr>
                 ) : (
-                  profiles.map((p) => {
+                  approvedProfiles.map((p) => {
                     if (!p || !p.id) return null;
                     const currentEdit = (editStates && editStates[p.id]) || {
                       department: p.department || "생산팀",

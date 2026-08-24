@@ -18,6 +18,9 @@ export interface ProfileItem {
   ecount_user_id?: string | null;
   ecount_emp_cd?: string | null;
   ecount_user_name?: string | null;
+  approval_status?: "pending" | "approved" | "rejected" | string | null;
+  auth_provider?: string | null;
+  requested_at?: string | null;
 }
 
 function computeRoleHelper(department: string, _position: string): "ADMIN" | "QA" | "WORKER" {
@@ -66,6 +69,9 @@ export async function getAllUserProfiles() {
         ecount_user_id: p.ecount_user_id || null,
         ecount_emp_cd: p.ecount_emp_cd || null,
         ecount_user_name: p.ecount_user_name || null,
+        approval_status: p.approval_status || "approved",
+        auth_provider: p.auth_provider || null,
+        requested_at: p.requested_at || null,
       };
     });
 

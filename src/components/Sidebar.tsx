@@ -32,7 +32,7 @@ export default function Sidebar() {
     };
   }, [isMobileMenuOpen]);
 
-  if (!pathname || pathname === "/login" || pathname === "/") {
+  if (!pathname || pathname === "/login" || pathname === "/" || pathname.startsWith("/auth/")) {
     return null;
   }
 

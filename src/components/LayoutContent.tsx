@@ -9,7 +9,8 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
 
   // 고객용 공식 메인 홈페이지(/) 또는 로그인 화면(/login)인 경우:
   // 상단 바, 패딩(p-4), 최대 가로폭(max-w-7xl) 제한 없이 100% 풀스크린 렌더링
-  const isFullWidthPage = pathname === "/" || pathname === "/login";
+  const isFullWidthPage =
+    pathname === "/" || pathname === "/login" || pathname?.startsWith("/auth/");
 
   if (isFullWidthPage) {
     return (

@@ -147,6 +147,8 @@ export async function createProfileForSchedule(
       department,
       position: pos,
       role,
+      approval_status: "approved",
+      auth_provider: "email",
       include_in_work_schedule: true,
       is_schedule_only: true,
       schedule_sort_order: sortOrder,

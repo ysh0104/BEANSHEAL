@@ -71,17 +71,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authUser.user_metadata?.permission_role || computePermissionRole(department, position);
 
       try {
-        const { data } = await supabase
+        const { data, error: profileError } = await supabase
           .from("profiles")
-          .select("full_name, department, position, role, permission_group_id")
+          .select("full_name, department, position, role, permission_group_id, approval_status, auth_provider")
           .eq("id", authUser.id)
           .maybeSingle();
 
-        if (data) {
+        // 마이그레이션 전(컬럼 없음)이면 승인 게이트 없이 기존 동작 유지
+        const missingApprovalColumn =
+          !!profileError &&
+          /approval_status|does not exist|column/i.test(profileError.message || "");
+
+        if (data && !missingApprovalColumn) {
+          const approval = (data.approval_status || "approved") as string;
+          if (approval === "pending" || approval === "rejected") {
+            await supabase.auth.signOut();
+            setUser(null);
+            localStorage.removeItem("beansheal_active_user");
+            if (typeof window !== "undefined") {
+              const q = approval === "pending" ? "pending=1" : "rejected=1";
+              if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/auth/")) {
+                window.location.href = `/login?${q}`;
+              }
+            }
+            return;
+          }
+
           if (data.department) department = data.department;
           if (data.position) position = data.position;
           if (data.full_name) fullName = data.full_name;
           if (data.role) permissionRole = data.role as "ADMIN" | "QA" | "WORKER";
+        } else if (data && missingApprovalColumn) {
+          if (data.department) department = data.department;
+          if (data.position) position = data.position;
+          if (data.full_name) fullName = data.full_name;
+          if (data.role) permissionRole = data.role as "ADMIN" | "QA" | "WORKER";
+        } else if (!data && !missingApprovalColumn && !profileError) {
+          // 프로필 없음 + Google → 콜백에서 pending 처리. 여기서는 세션 유저로 올리지 않음
+          const provider =
+            (authUser.app_metadata?.provider as string) ||
+            (authUser.app_metadata?.providers?.[0] as string) ||
+            "";
+          const isGoogle =
+            provider === "google" ||
+            (Array.isArray(authUser.app_metadata?.providers) &&
+              authUser.app_metadata.providers.includes("google"));
+
+          if (isGoogle) {
+            if (typeof window !== "undefined" && window.location.pathname.startsWith("/auth/")) {
+              return;
+            }
+            await supabase.auth.signOut();
+            setUser(null);
+            localStorage.removeItem("beansheal_active_user");
+            if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+              window.location.href = "/login?pending=1";
+            }
+            return;
+          }
+        } else if (!data && !missingApprovalColumn) {
+          // select 실패 시 레거시 조회로 폴백
+          const { data: legacy } = await supabase
+            .from("profiles")
+            .select("full_name, department, position, role, permission_group_id")
+            .eq("id", authUser.id)
+            .maybeSingle();
+          if (legacy) {
+            if (legacy.department) department = legacy.department;
+            if (legacy.position) position = legacy.position;
+            if (legacy.full_name) fullName = legacy.full_name;
+            if (legacy.role) permissionRole = legacy.role as "ADMIN" | "QA" | "WORKER";
+          }
         }
       } catch (err) {
         console.warn("profiles 테이블 조회 중 오류:", err);
@@ -189,7 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("beansheal_auto_login", "true");
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/workspace` },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
   };
 
@@ -244,6 +304,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             department,
             position,
             role: permissionRole,
+            approval_status: "approved",
+            auth_provider: "email",
             include_in_work_schedule: true,
             updated_at: new Date().toISOString(),
           },
@@ -263,9 +325,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAutoLogin(autoLogin);
 
     // 1. Supabase Auth 패스워드 로그인 시도
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (!error) {
+      const uid = signInData.user?.id;
+      if (uid) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("approval_status")
+          .eq("id", uid)
+          .maybeSingle();
+        const approval = (profile?.approval_status || "approved") as string;
+        if (approval === "pending" || approval === "rejected") {
+          await supabase.auth.signOut();
+          localStorage.removeItem("beansheal_active_user");
+          return {
+            error:
+              approval === "pending"
+                ? "가입 승인 대기 중입니다. 관리자 승인 후 로그인할 수 있습니다."
+                : "가입 요청이 거절되었습니다. 관리자에게 문의해 주세요.",
+          };
+        }
+      }
       return { error: null };
     }
 
