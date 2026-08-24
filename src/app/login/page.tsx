@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
@@ -147,6 +148,15 @@ export default function LoginPage() {
               className="h-8 w-auto max-w-[220px] object-contain"
             />
           </div>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center gap-1.5 mx-auto px-3 py-1.5 text-xs font-extrabold text-slate-600 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-lg transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" />
+            </svg>
+            홈페이지로 돌아가기
+          </Link>
         </div>
 
         {/* 탭 스위처 (ID 로그인 / QR 로그인) */}
