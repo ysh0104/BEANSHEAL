@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   getWorkSchedule,
   saveWorkSchedule,
@@ -15,6 +15,11 @@ import {
 } from "@/app/actions/scheduleRosterActions";
 import { mergeRosterWithScheduleRows } from "@/lib/scheduleRosterMerge";
 import { profileDeptToScheduleGroup, SCHEDULE_GROUP_OPTIONS } from "@/lib/departmentNormalize";
+import {
+  parseWorkScheduleExcel,
+  overlayExcelShiftsOnRows,
+  type ParseWorkScheduleExcelResult,
+} from "@/lib/parseWorkScheduleExcel";
 
 export type ShiftCodeInfo = {
   code: string;
@@ -265,6 +270,14 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
   const [newEmpName, setNewEmpName] = useState("");
   const [newEmpGroup, setNewEmpGroup] = useState("생산팀");
 
+  // 엑셀 업로드 모달
+  const excelInputRef = useRef<HTMLInputElement>(null);
+  const [excelImport, setExcelImport] = useState<ParseWorkScheduleExcelResult | null>(null);
+  const [excelFileName, setExcelFileName] = useState("");
+  const [excelImporting, setExcelImporting] = useState(false);
+  const [excelAddUnmatched, setExcelAddUnmatched] = useState(false);
+  const [excelApplyMode, setExcelApplyMode] = useState<"current" | "all">("all");
+
   const [editingCell, setEditingCell] = useState<{
     empId: string;
     day: number;
@@ -315,6 +328,115 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
       }
     })();
   }, [yearMonthKey, currentYear, currentMonth]);
+
+  const handleExcelFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      setExcelImporting(true);
+      const parsed = await parseWorkScheduleExcel(file);
+      if (!parsed.months.length) {
+        alert("엑셀에서 월간 근무표를 찾지 못했습니다. 시트명(1월, 2월…)과 이름/일자 형식을 확인해 주세요.");
+        return;
+      }
+      setExcelFileName(file.name);
+      setExcelImport(parsed);
+      const hasCurrent = parsed.months.some((m) => m.yearMonth === yearMonthKey);
+      setExcelApplyMode(hasCurrent ? "all" : "all");
+    } catch (err: any) {
+      alert(`엑셀 파싱 실패: ${err?.message || "알 수 없는 오류"}`);
+    } finally {
+      setExcelImporting(false);
+    }
+  };
+
+  const handleApplyExcelImport = async () => {
+    if (!excelImport) return;
+    const targets =
+      excelApplyMode === "current"
+        ? excelImport.months.filter((m) => m.yearMonth === yearMonthKey)
+        : excelImport.months;
+
+    if (targets.length === 0) {
+      alert(`현재 보고 있는 ${yearMonthKey} 시트가 엑셀에 없습니다. "전체 월 저장"을 선택하거나 월을 바꿔 주세요.`);
+      return;
+    }
+
+    if (
+      !confirm(
+        excelApplyMode === "current"
+          ? `${yearMonthKey} 스케줄을 엑셀 내용으로 덮어쓰고 저장할까요?`
+          : `엑셀의 ${targets.length}개 월(${targets.map((t) => t.month + "월").join(", ")})을 모두 저장할까요?\n기존 월간 데이터가 덮어씌워집니다.`
+      )
+    ) {
+      return;
+    }
+
+    setExcelImporting(true);
+    try {
+      const rosterRes = await getScheduleRosterProfiles();
+      const profiles = rosterRes.success ? rosterRes.data || [] : [];
+      let lastOverlaySummary = { matched: 0, unmatched: [] as string[] };
+
+      for (const monthData of targets) {
+        const existingRes = await getWorkSchedule(monthData.yearMonth);
+        const existingRows =
+          existingRes.success && existingRes.data?.length
+            ? existingRes.data
+            : monthData.yearMonth === yearMonthKey
+              ? rows
+              : [];
+
+        const base =
+          profiles.length > 0
+            ? mergeRosterWithScheduleRows(
+                profiles,
+                existingRows,
+                monthData.year,
+                monthData.month
+              )
+            : existingRows.length > 0
+              ? existingRows
+              : [];
+
+        const overlay = overlayExcelShiftsOnRows(base, monthData.employees, {
+          addUnmatchedAsNew: excelAddUnmatched,
+          defaultGroup: "생산팀",
+        });
+
+        lastOverlaySummary = {
+          matched: overlay.matchedNames.length,
+          unmatched: overlay.unmatchedExcelNames,
+        };
+
+        await saveWorkSchedule(monthData.yearMonth, overlay.rows);
+        localStorage.setItem(
+          `beansheal_work_schedule_${monthData.yearMonth}`,
+          JSON.stringify(overlay.rows)
+        );
+
+        if (monthData.yearMonth === yearMonthKey) {
+          setRows(overlay.rows);
+        }
+      }
+
+      const unmatchedMsg =
+        lastOverlaySummary.unmatched.length > 0
+          ? `\n미매칭: ${lastOverlaySummary.unmatched.join(", ")}`
+          : "";
+      setSaveMsg({
+        type: "success",
+        text: `엑셀 ${targets.length}개월 반영 완료 (매칭 ${lastOverlaySummary.matched}명)${unmatchedMsg ? " · 일부 미매칭" : ""}`,
+      });
+      setExcelImport(null);
+      setTimeout(() => setSaveMsg(null), 5000);
+    } catch (err: any) {
+      alert(`반영 실패: ${err?.message || "알 수 없는 오류"}`);
+    } finally {
+      setExcelImporting(false);
+    }
+  };
 
   // 저장 실행
   const handleSave = async () => {
@@ -769,6 +891,21 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
 
           {!readOnly && (
             <>
+              <input
+                ref={excelInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleExcelFilePick}
+              />
+              <button
+                onClick={() => excelInputRef.current?.click()}
+                disabled={excelImporting}
+                className="px-3 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all border border-emerald-200 disabled:opacity-50"
+              >
+                {excelImporting ? "엑셀 읽는 중…" : "엑셀 업로드 📤"}
+              </button>
+
               <button
                 onClick={() => setIsAddModalOpen(true)}
                 className="px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
@@ -1479,6 +1616,120 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* 엑셀 근무시간표 업로드 미리보기 */}
+      {excelImport && (
+        <div className="fixed inset-0 z-[60] bg-black/45 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
+                  엑셀 근무시간표 반영
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5 truncate max-w-[280px]">
+                  {excelFileName}
+                </p>
+              </div>
+              <button
+                onClick={() => setExcelImport(null)}
+                className="text-slate-400 font-bold px-1"
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 text-xs space-y-1.5 border border-slate-100 dark:border-slate-800">
+              <div className="font-bold text-slate-700 dark:text-slate-200">
+                인식된 월: {excelImport.months.map((m) => `${m.month}월(${m.employees.length}명)`).join(", ")}
+              </div>
+              {excelImport.skippedSheets.length > 0 && (
+                <div className="text-slate-400">건너뛴 시트: {excelImport.skippedSheets.join(", ")}</div>
+              )}
+              {excelImport.warnings.slice(0, 4).map((w, i) => (
+                <div key={i} className="text-amber-700">{w}</div>
+              ))}
+              {(() => {
+                const cur = excelImport.months.find((m) => m.yearMonth === yearMonthKey);
+                if (!cur) {
+                  return (
+                    <div className="text-amber-700 font-medium">
+                      현재 화면 월({yearMonthKey})은 엑셀에 없습니다. 전체 월 저장을 권장합니다.
+                    </div>
+                  );
+                }
+                const preview = overlayExcelShiftsOnRows(rows, cur.employees, {
+                  addUnmatchedAsNew: false,
+                });
+                return (
+                  <div className="space-y-1 pt-1 border-t border-slate-200 dark:border-slate-700">
+                    <div className="text-emerald-700 font-bold">
+                      {yearMonthKey} 미리보기 · 매칭 {preview.matchedNames.length}명
+                    </div>
+                    {preview.unmatchedExcelNames.length > 0 && (
+                      <div className="text-rose-600">
+                        미매칭(엑셀): {preview.unmatchedExcelNames.join(", ")}
+                      </div>
+                    )}
+                    {preview.rosterWithoutExcel.length > 0 && (
+                      <div className="text-slate-500">
+                        엑셀에 없음(기존 유지): {preview.rosterWithoutExcel.join(", ")}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                <input
+                  type="radio"
+                  name="excelApplyMode"
+                  checked={excelApplyMode === "all"}
+                  onChange={() => setExcelApplyMode("all")}
+                />
+                엑셀 전체 월 저장 ({excelImport.months.length}개월)
+              </label>
+              <label className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 cursor-pointer">
+                <input
+                  type="radio"
+                  name="excelApplyMode"
+                  checked={excelApplyMode === "current"}
+                  onChange={() => setExcelApplyMode("current")}
+                />
+                현재 월만 ({yearMonthKey})
+              </label>
+              <label className="flex items-center gap-2 font-medium text-slate-600 dark:text-slate-300 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={excelAddUnmatched}
+                  onChange={(e) => setExcelAddUnmatched(e.target.checked)}
+                />
+                미매칭 사원을 스케줄에 신규 행으로 추가
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setExcelImport(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={excelImporting}
+                onClick={handleApplyExcelImport}
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50"
+              >
+                {excelImporting ? "저장 중…" : "반영 및 저장"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
