@@ -147,6 +147,16 @@ export default function Sidebar() {
                 className="h-6 sm:h-7 md:h-8 w-auto max-w-[140px] sm:max-w-[180px] object-contain opacity-95 group-hover:opacity-80 transition-opacity"
               />
             </Link>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1 px-2 py-1.5 sm:px-2.5 text-[11px] md:text-xs font-extrabold text-slate-600 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-lg transition-colors shrink-0"
+              title="고객 홈페이지로 이동"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" />
+              </svg>
+              홈페이지
+            </Link>
           </div>
 
           <nav className="hidden md:flex items-center gap-0.5 shrink-0">
@@ -269,6 +279,13 @@ export default function Sidebar() {
                 }`}
               >
                 대시보드
+              </Link>
+              <Link
+                href="/"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="block mx-2 mb-2 px-4 py-3 text-sm font-extrabold rounded-xl text-emerald-800 hover:bg-emerald-50 border border-emerald-100"
+              >
+                홈페이지
               </Link>
 
               {menuGroups.map((group) => {
