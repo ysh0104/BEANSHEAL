@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# ERP / admin (not for search indexing)
+Disallow: /login
+Disallow: /workspace
+Disallow: /api/
+Disallow: /admin/
+
+Sitemap: https://www.beansheal.com/sitemap.xml

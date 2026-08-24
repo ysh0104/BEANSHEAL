@@ -20,6 +20,24 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "BEANSHEAL (주)빈스힐 공식 홈페이지 & 통합 생산 ERP",
   description: "액상 핸드드립 커피 및 건강기능식품(GMP) 전문 제조기업 (주)빈스힐",
+  metadataBase: new URL("https://www.beansheal.com"),
+  alternates: {
+    canonical: "/",
+  },
+  verification: {
+    other: {
+      "naver-site-verification": "aa4c194d277e8f850ce8ab161059c686ae99e509",
+    },
+  },
+  openGraph: {
+    type: "website",
+    url: "https://www.beansheal.com/",
+    siteName: "BEANSHEAL (주)빈스힐",
+    locale: "ko_KR",
+    title: "빈스힐 (BEANSHEAL) - 액상 건강기능식품 & 기능성 음료 전문 기업",
+    description:
+      "액상 건기식 소량생산부터 대량생산까지! 빈스힐 전담 연구진의 프리미엄 액상 전용 OEM/ODM 맞춤 제조 솔루션",
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "32x32" },
