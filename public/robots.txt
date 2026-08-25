@@ -1,10 +1,17 @@
 User-agent: *
 Allow: /
-
-# ERP / admin (not for search indexing)
 Disallow: /login
 Disallow: /workspace
 Disallow: /api/
 Disallow: /admin/
+Disallow: /auth/
+
+User-agent: Yeti
+Allow: /
+Disallow: /login
+Disallow: /workspace
+Disallow: /api/
+Disallow: /admin/
+Disallow: /auth/
 
 Sitemap: https://www.beansheal.com/sitemap.xml
