@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   getWorkSchedule,
   saveWorkSchedule,
+  deleteWorkSchedule,
+  deleteAllWorkSchedules,
   type ScheduleEmployeeRow,
 } from "@/app/actions/workScheduleActions";
 import {
@@ -277,6 +279,8 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
   const [excelImporting, setExcelImporting] = useState(false);
   const [excelAddUnmatched, setExcelAddUnmatched] = useState(false);
   const [excelApplyMode, setExcelApplyMode] = useState<"current" | "all">("all");
+  const [isDeleteDataOpen, setIsDeleteDataOpen] = useState(false);
+  const [deletingData, setDeletingData] = useState(false);
 
   const [editingCell, setEditingCell] = useState<{
     empId: string;
@@ -435,6 +439,66 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
       alert(`반영 실패: ${err?.message || "알 수 없는 오류"}`);
     } finally {
       setExcelImporting(false);
+    }
+  };
+
+  const emptyMonthShifts = () => {
+    const days = new Date(currentYear, currentMonth, 0).getDate();
+    const shifts: Record<string, string> = {};
+    for (let day = 1; day <= days; day++) shifts[String(day)] = "";
+    return shifts;
+  };
+
+  const clearLocalScheduleCache = (onlyCurrentMonth: boolean) => {
+    if (onlyCurrentMonth) {
+      localStorage.removeItem(`beansheal_work_schedule_${yearMonthKey}`);
+      return;
+    }
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("beansheal_work_schedule_")) toRemove.push(key);
+    }
+    toRemove.forEach((key) => localStorage.removeItem(key));
+  };
+
+  const handleDeleteScheduleData = async (scope: "current" | "all") => {
+    if (readOnly) return;
+
+    setDeletingData(true);
+    setSaveMsg(null);
+    try {
+      const clearedRows = rows.map((r) => ({ ...r, shifts: emptyMonthShifts() }));
+      setRows(clearedRows);
+
+      const res =
+        scope === "current"
+          ? await deleteWorkSchedule(yearMonthKey)
+          : await deleteAllWorkSchedules();
+
+      await saveWorkSchedule(yearMonthKey, clearedRows);
+      clearLocalScheduleCache(scope === "current");
+
+      if (res.success) {
+        setSaveMsg({
+          type: "success",
+          text:
+            scope === "current"
+              ? `${yearMonthKey} 근무표 데이터를 삭제했습니다.`
+              : "저장된 전체 월 근무표 데이터를 삭제했습니다.",
+        });
+      } else {
+        setSaveMsg({
+          type: "error",
+          text: res.message || "삭제에 실패했습니다. 화면은 비웠으니 저장을 확인해 주세요.",
+        });
+      }
+      setIsDeleteDataOpen(false);
+    } catch {
+      setSaveMsg({ type: "error", text: "근무표 데이터 삭제 중 오류가 발생했습니다." });
+    } finally {
+      setDeletingData(false);
+      setTimeout(() => setSaveMsg(null), 4000);
     }
   };
 
@@ -904,6 +968,14 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                 className="px-3 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-all border border-emerald-200 disabled:opacity-50"
               >
                 {excelImporting ? "엑셀 읽는 중…" : "엑셀 업로드 📤"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDeleteDataOpen(true)}
+                disabled={deletingData}
+                className="px-3 py-2 text-xs font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all border border-rose-200 disabled:opacity-50"
+              >
+                {deletingData ? "삭제 중…" : "데이터 삭제"}
               </button>
 
               <button
@@ -1616,6 +1688,61 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {isDeleteDataOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/45 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
+                  근무표 데이터 삭제
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium mt-1">
+                  사원 명단은 그대로 두고, 저장된 근무코드만 지웁니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDeleteDataOpen(false)}
+                disabled={deletingData}
+                className="text-slate-400 font-bold px-1"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+              현재 화면은 <span className="font-extrabold text-slate-900 dark:text-white">{yearMonthKey}</span> 입니다.
+              엑셀로 올린 내용까지 포함해 선택한 범위의 스케줄 데이터가 삭제됩니다.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={deletingData}
+                onClick={() => void handleDeleteScheduleData("current")}
+                className="w-full px-3 py-2.5 text-xs font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-xl border border-rose-200 disabled:opacity-50"
+              >
+                {deletingData ? "삭제 중…" : `${yearMonthKey} 현재 월만 삭제`}
+              </button>
+              <button
+                type="button"
+                disabled={deletingData}
+                onClick={() => void handleDeleteScheduleData("all")}
+                className="w-full px-3 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl disabled:opacity-50"
+              >
+                {deletingData ? "삭제 중…" : "저장된 전체 월 삭제"}
+              </button>
+              <button
+                type="button"
+                disabled={deletingData}
+                onClick={() => setIsDeleteDataOpen(false)}
+                className="w-full px-3 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
+              >
+                취소
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

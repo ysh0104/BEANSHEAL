@@ -72,3 +72,32 @@ export async function saveWorkSchedule(
     return { success: false, message: e?.message || "스케줄 저장 실패" };
   }
 }
+
+export async function deleteWorkSchedule(
+  yearMonth: string
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const { error } = await supabase.from("work_schedules").delete().eq("year_month", yearMonth);
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true, message: `${yearMonth} 스케줄 데이터를 삭제했습니다.` };
+  } catch (e: any) {
+    return { success: false, message: e?.message || "스케줄 삭제 실패" };
+  }
+}
+
+export async function deleteAllWorkSchedules(): Promise<{
+  success: boolean;
+  message?: string;
+}> {
+  try {
+    const { error } = await supabase.from("work_schedules").delete().neq("year_month", "");
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true, message: "저장된 모든 월간 스케줄 데이터를 삭제했습니다." };
+  } catch (e: any) {
+    return { success: false, message: e?.message || "전체 스케줄 삭제 실패" };
+  }
+}
