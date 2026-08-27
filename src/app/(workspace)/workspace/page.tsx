@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { getRecipeList } from "@/app/actions/recipe"; 
 import { 
   syncNotionWithSupabase, 
   createNotionSchedule, 
@@ -54,8 +54,14 @@ import {
   getMemoPresetsFromSupabase,
   saveMemoPresetsToSupabase,
 } from "@/app/actions/memoPresetsActions";
-import WorkScheduleTable from "@/components/WorkScheduleTable";
 import { useCanEdit, useCanView } from "@/hooks/useCanEdit";
+
+const WorkScheduleTable = dynamic(() => import("@/components/WorkScheduleTable"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-72 rounded-lg bg-white border border-gray-200 animate-pulse" />
+  ),
+});
 
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
@@ -150,19 +156,6 @@ export default function Home() {
   const { canView: canViewWeeklyPlan } = useCanView("weekly_plan");
   const { canEdit: canEditWeeklyPlan } = useCanEdit("weekly_plan");
   const isMobile = useIsMobile();
-  const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("beansheal_recipe_options");
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) setRecipeOptions(parsed);
-        } catch (e) {}
-      }
-    }
-  }, []);
 
   // 달력 및 메모장용 State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -247,7 +240,7 @@ export default function Home() {
       setCalibrationAlertStats(calcCalStats(DEFAULT_CALIBRATION_ITEMS));
     }
 
-    // 2. 🚀 병렬 클라우드 동기화 (Promise.all): 초고속 동시 수집 후 상태 갱신
+    // 2. 재고·검교정 알림은 첫 화면 이후에 불러옴 (대시보드 진입을 막지 않음)
     const syncAlertsFromCloud = async () => {
       try {
         const [calRes, hcRes, safetyRes, ecountRes] = await Promise.all([
@@ -289,7 +282,10 @@ export default function Home() {
       } catch {}
     };
 
-    syncAlertsFromCloud();
+    const alertTimer = window.setTimeout(() => {
+      void syncAlertsFromCloud();
+    }, 400);
+    return () => clearTimeout(alertTimer);
   }, []);
 
   // 🌟 메모 카드 격자 드래그 앤 드롭 (Drag & Drop) 위치 이동 State 및 핸들러
@@ -343,13 +339,23 @@ export default function Home() {
   const [schedules, setSchedules] = useState<any[]>([]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("beansheal_cached_schedules");
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed) && parsed.length > 0) setSchedules(parsed);
-        } catch (e) {}
+    if (typeof window === "undefined") return;
+    const cached = localStorage.getItem("beansheal_cached_schedules");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) setSchedules(parsed);
+      } catch {
+        /* ignore */
+      }
+    }
+    const savedMemos = localStorage.getItem("beansheal_memos");
+    if (savedMemos) {
+      try {
+        const parsed = JSON.parse(savedMemos);
+        if (Array.isArray(parsed) && parsed.length > 0) setMemos(parsed);
+      } catch {
+        /* ignore */
       }
     }
   }, []);
@@ -453,42 +459,62 @@ export default function Home() {
     localStorage.setItem(key, JSON.stringify(newConfigs));
   };
 
-  useEffect(() => {
-    const fetchSchedulesSilently = async () => {
-      try {
-        const y = currentDate.getFullYear();
-        const m = currentDate.getMonth(); // 0-indexed
-        
-        // 당월 1일 ~ 다음달 말일 계산
-        const startDate = `${y}-${String(m + 1).padStart(2, '0')}-01`;
-        const nextY = m === 11 ? y + 1 : y;
-        const nextM = m === 11 ? 1 : m + 2;
-        const lastDayNextM = new Date(nextY, nextM, 0).getDate();
-        const endDate = `${nextY}-${String(nextM).padStart(2, '0')}-${String(lastDayNextM).padStart(2, '0')}`;
+  const fetchSchedulesSilently = useCallback(async () => {
+    try {
+      const y = currentDate.getFullYear();
+      const m = currentDate.getMonth();
+      const startDate = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+      const nextY = m === 11 ? y + 1 : y;
+      const nextM = m === 11 ? 1 : m + 2;
+      const lastDayNextM = new Date(nextY, nextM, 0).getDate();
+      const endDate = `${nextY}-${String(nextM).padStart(2, "0")}-${String(lastDayNextM).padStart(2, "0")}`;
 
-        const notionRes = await fetchNotionSchedules(getNotionConfig(), { startDate, endDate });
-        if (notionRes?.success && notionRes.data && notionRes.data.length > 0) {
-          setSchedules(notionRes.data);
-          setNotionSyncStatusMsg(null);
-          localStorage.setItem("beansheal_cached_schedules", JSON.stringify(notionRes.data));
-        } else {
-          // 백업 캐시 일정 불러오기 시도
-          const cached = localStorage.getItem("beansheal_cached_schedules");
-          if (cached) {
-            try {
-              const parsed = JSON.parse(cached);
-              if (parsed && parsed.length > 0) setSchedules(parsed);
-            } catch (cE) {}
-          }
-          if (notionRes && !notionRes.success) {
-            setNotionSyncStatusMsg(notionRes.message || "노션 연동 실패");
+      const savedKey = typeof window !== "undefined" ? localStorage.getItem("beansheal_notion_api_key") : null;
+      const savedDbId = typeof window !== "undefined" ? localStorage.getItem("beansheal_notion_database_id") : null;
+      const config =
+        notionApiKey.trim() && notionDatabaseId.trim()
+          ? { apiKey: notionApiKey.trim(), databaseId: notionDatabaseId.trim() }
+          : savedKey?.trim() && savedDbId?.trim()
+            ? { apiKey: savedKey.trim(), databaseId: savedDbId.trim() }
+            : undefined;
+
+      const notionRes = await Promise.race([
+        fetchNotionSchedules(config, { startDate, endDate }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 12000)),
+      ]);
+      if (!notionRes) return;
+
+      if (notionRes.success && notionRes.data && notionRes.data.length > 0) {
+        setSchedules(notionRes.data);
+        setNotionSyncStatusMsg(null);
+        localStorage.setItem("beansheal_cached_schedules", JSON.stringify(notionRes.data));
+      } else {
+        const cached = localStorage.getItem("beansheal_cached_schedules");
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.length > 0) setSchedules(parsed);
+          } catch {
+            /* ignore */
           }
         }
-      } catch (e: any) {
-        setNotionSyncStatusMsg(e?.message || "노션 데이터 불러오기 오류");
+        if (!notionRes.success) {
+          setNotionSyncStatusMsg(notionRes.message || "노션 연동 실패");
+        }
       }
-    };
+    } catch (e: any) {
+      setNotionSyncStatusMsg(e?.message || "노션 데이터 불러오기 오류");
+    }
+  }, [currentDate, notionApiKey, notionDatabaseId]);
 
+  const fetchSchedulesRef = useRef(fetchSchedulesSilently);
+  fetchSchedulesRef.current = fetchSchedulesSilently;
+
+  useEffect(() => {
+    void fetchSchedulesRef.current();
+  }, [currentDate]);
+
+  useEffect(() => {
     const initData = async () => {
       try {
         const savedKey = localStorage.getItem("beansheal_notion_api_key");
@@ -496,17 +522,11 @@ export default function Home() {
         if (savedKey) setNotionApiKey(savedKey);
         if (savedDbId) setNotionDatabaseId(savedDbId);
 
-        // ⚡ 병렬(Promise.all) 데이터 조회로 초기 로딩 속도 10배 향상
-        const [recipeRes, statusRes, memoRes] = await Promise.all([
-          getRecipeList().catch(() => ({ success: false, data: [] })),
+        const [statusRes, memoRes] = await Promise.all([
           getNotionConfigStatus().catch(() => ({ isConfigured: false })),
           getMemosFromSupabase().catch(() => ({ success: false, data: [] })),
         ]);
 
-        if (recipeRes?.success && recipeRes.data) {
-          setRecipeOptions(recipeRes.data);
-          localStorage.setItem("beansheal_recipe_options", JSON.stringify(recipeRes.data));
-        }
         if (statusRes?.isConfigured) setIsVercelNotionConfigured(true);
 
         if (memoRes?.success && memoRes.data && memoRes.data.length > 0) {
@@ -533,33 +553,27 @@ export default function Home() {
           } else {
             const defaultMemos = [
               { id: 1, text: "A라인 포장기 점검 예정 (14:00~15:00)", date: "오늘 10:30", author: "생산팀" },
-              { id: 2, text: "유기농 야채원료 입고 검수 완료", date: "오늘 09:15", author: "품질팀" }
+              { id: 2, text: "유기농 야채원료 입고 검수 완료", date: "오늘 09:15", author: "품질팀" },
             ];
             setMemos(defaultMemos);
             localStorage.setItem("beansheal_memos", JSON.stringify(defaultMemos));
           }
         }
-
-        // 노션 달력 생산 일정 갱신 (Vercel 서버 환경변수로 100% 무조건 백그라운드 자동 로드)
-        await fetchSchedulesSilently();
       } catch (e) {
         console.error(e);
       }
     };
-    initData();
+    void initData();
 
-    // 노션 일정만 주기적 폴링 (메모는 Realtime으로 즉시 반영)
     const interval = setInterval(() => {
-      fetchSchedulesSilently();
-    }, 15000);
+      void fetchSchedulesRef.current();
+    }, 60000);
 
-    // Supabase Realtime: 다른 사용자가 메모를 추가/수정/삭제하면 새로고침 없이 반영
     const refreshMemos = async () => {
       try {
         const memoRes = await getMemosFromSupabase();
         if (!memoRes?.success || !Array.isArray(memoRes.data)) return;
         setMemos((prev) => {
-          // 서버가 비어 있는데 로컬만 있는 경우(저장 지연/실패) 목록을 지우지 않음
           if (memoRes.data.length === 0 && prev.length > 0) return prev;
           localStorage.setItem("beansheal_memos", JSON.stringify(memoRes.data));
           return memoRes.data;
@@ -591,7 +605,7 @@ export default function Home() {
       clearInterval(interval);
       void supabase.removeChannel(memoChannel);
     };
-  }, [currentDate]);
+  }, []);
 
   const handleAddMemo = async (e?: React.FormEvent) => {
     e?.preventDefault();

@@ -94,8 +94,8 @@ export default function LoginPage() {
       alert("출근체크가 정상 등록되었습니다. 오늘 하루도 수고하세요!");
     }
 
-    // 로그인 완료 시 사내 업무 플랫폼(/workspace)으로 즉시 진입
-    window.location.href = "/workspace";
+    // 전체 새로고침 대신 클라이언트 이동 — 대시보드 JS를 처음부터 다시 받지 않음
+    router.replace("/workspace");
   };
 
   const handleGoogleLogin = async () => {
