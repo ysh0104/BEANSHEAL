@@ -1896,7 +1896,7 @@ export default function Home() {
       {/* 🌟 월간 근무 & 근무조 스케줄표 */}
       {canViewWorkSchedule && (
         <div id="work-schedule-dashboard" className="w-full mt-6 sm:mt-8 scroll-mt-4">
-          <div className="bg-white border border-gray-200 rounded-lg shadow-xs overflow-hidden">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-xs overflow-x-auto">
             <div
               className={`bg-slate-100/90 border-b border-slate-200 px-3.5 py-2.5 flex justify-between items-center select-none transition-colors ${
                 isWidgetCollapsed("work_schedule")

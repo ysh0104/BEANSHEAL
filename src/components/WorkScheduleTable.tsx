@@ -22,7 +22,6 @@ import {
   overlayExcelShiftsOnRows,
   type ParseWorkScheduleExcelResult,
 } from "@/lib/parseWorkScheduleExcel";
-import MobileWorkScheduleAgenda from "@/components/MobileWorkScheduleAgenda";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 
 export type ShiftCodeInfo = {
@@ -776,6 +775,15 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
     return daysHeader;
   }, [daysHeader, viewMode, selectedWeek, daysInMonth]);
 
+  const scheduleTableMinWidth = useMemo(() => {
+    const nameCol = viewMode === "월간" ? 170 : 130;
+    const totalCol = viewMode === "월간" ? 80 : 70;
+    const dayCol = viewMode === "월간" ? 40 : 70;
+    return nameCol + totalCol + visibleDaysHeader.length * dayCol;
+  }, [viewMode, visibleDaysHeader.length]);
+
+  const dayColumnMinClass = viewMode === "월간" ? "min-w-[40px]" : "min-w-[70px]";
+
   const departmentList = useMemo(() => {
     const set = new Set(rows.map((r) => r.group));
     return ["전체", ...Array.from(set)];
@@ -1255,21 +1263,16 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
         </div>
       )}
 
-      {/* 🌟 4. 모바일: 날짜별 사원 카드 / 데스크톱: 그리드 테이블 */}
-      {isMobile && viewMode !== "월간" && (
-        <MobileWorkScheduleAgenda
-          days={visibleDaysHeader}
-          employees={filteredRows}
-          empWorkStatsMap={empWorkStatsMap}
-          readOnly={readOnly}
-          onCellClick={handleCellClick}
-          getShiftInfo={getShiftInfo}
-        />
-      )}
-
-      <div className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-sm ${isMobile && viewMode !== "월간" ? "hidden md:block" : ""}`}>
+      {/* 🌟 4. 근무 스케줄 그리드 (모바일·데스크톱 공통, 가로 스크롤) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm">
+        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium px-3 pt-3 md:hidden">
+          ← 표가 넓습니다. 좌우로 스크롤해 전체 일자를 확인하세요.
+        </p>
         <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-xs text-center border-collapse">
+          <table
+            className="w-max text-xs text-center border-collapse"
+            style={{ minWidth: scheduleTableMinWidth }}
+          >
             <thead>
               <tr className="bg-[#F8FAFC] dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
                 <th
@@ -1292,9 +1295,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                 {visibleDaysHeader.map((d) => (
                   <th
                     key={d.day}
-                    className={`px-1 py-2 border-r border-slate-200 dark:border-slate-700 ${
-                      viewMode === "월간" ? "min-w-[40px]" : "min-w-[70px]"
-                    } font-bold ${
+                    className={`px-1 py-2 border-r border-slate-200 dark:border-slate-700 ${dayColumnMinClass} font-bold ${
                       d.isSun
                         ? "text-[#DC2626] bg-[#FEF2F2] dark:bg-red-950/30"
                         : d.isSat
@@ -1344,7 +1345,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                     >
                       {/* 🌟 사원 이름 / 부서 셀 (드래그 타겟 하이라이트 인디케이터 포함) */}
                       <td
-                        className={`sticky left-0 z-10 px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-left font-semibold text-slate-800 dark:text-slate-200 shadow-2xs group ${readOnly ? "cursor-default" : "cursor-grab active:cursor-grabbing"} ${
+                        className={`sticky left-0 z-10 px-2 py-2 border-r border-slate-200 dark:border-slate-800 text-left font-semibold text-slate-800 dark:text-slate-200 shadow-[2px_0_4px_rgba(0,0,0,0.06)] group ${readOnly ? "cursor-default" : "cursor-grab active:cursor-grabbing"} ${
                           isTargetOver ? "bg-blue-600 text-white font-black" : "bg-white dark:bg-slate-900"
                         } ${viewMode === "월간" ? "w-[170px] min-w-[170px]" : "w-[130px] min-w-[130px]"}`}
                         title="마우스로 드래그하여 이동할 사원 위치에 놓으세요."
@@ -1423,7 +1424,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
 
                       {/* 월 총근무시간 집계 열 */}
                       <td
-                        className={`sticky ${leftTotalHoursOffset} z-10 bg-white dark:bg-slate-900 px-1 py-2 border-r border-slate-200 dark:border-slate-800 text-center font-black text-slate-900 dark:text-white font-mono shadow-2xs ${
+                        className={`sticky ${leftTotalHoursOffset} z-10 bg-white dark:bg-slate-900 px-1 py-2 border-r border-slate-200 dark:border-slate-800 text-center font-black text-slate-900 dark:text-white font-mono shadow-[2px_0_4px_rgba(0,0,0,0.06)] ${
                           viewMode === "월간" ? "w-[80px] min-w-[80px]" : "w-[70px] min-w-[70px]"
                         }`}
                       >
@@ -1440,7 +1441,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                           <td
                             key={d.day}
                             onClick={() => handleCellClick(emp.id, d.day, emp.name, code)}
-                            className={`p-1 border-r border-slate-100 dark:border-slate-800/80 cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all select-none ${
+                            className={`p-1 border-r border-slate-100 dark:border-slate-800/80 cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all select-none ${dayColumnMinClass} ${
                               d.isSun ? "bg-[#FEF2F2]/30" : d.isSat ? "bg-[#EFF6FF]/30" : ""
                             }`}
                           >
@@ -1470,7 +1471,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                 </td>
                 <td className={`sticky ${viewMode === "월간" ? "left-[170px]" : "left-[130px]"} z-20 bg-blue-100/80 dark:bg-blue-950 border-r border-slate-300 dark:border-slate-700`}></td>
                 {visibleDaysHeader.map((d) => (
-                  <td key={d.day} className="px-1 py-1 border-r border-slate-300 dark:border-slate-700 font-mono text-[11px]">
+                  <td key={d.day} className={`px-1 py-1 border-r border-slate-300 dark:border-slate-700 font-mono text-[11px] ${dayColumnMinClass}`}>
                     {dailyDistributionMap[d.day]?.dayCount || 0}명
                   </td>
                 ))}
@@ -1481,7 +1482,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                 </td>
                 <td className={`sticky ${viewMode === "월간" ? "left-[170px]" : "left-[130px]"} z-20 bg-indigo-100/80 dark:bg-indigo-950 border-r border-slate-300 dark:border-slate-700`}></td>
                 {visibleDaysHeader.map((d) => (
-                  <td key={d.day} className="px-1 py-1 border-r border-slate-300 dark:border-slate-700 font-mono text-[11px]">
+                  <td key={d.day} className={`px-1 py-1 border-r border-slate-300 dark:border-slate-700 font-mono text-[11px] ${dayColumnMinClass}`}>
                     {dailyDistributionMap[d.day]?.nightCount || 0}명
                   </td>
                 ))}
@@ -1492,7 +1493,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                 </td>
                 <td className={`sticky ${viewMode === "월간" ? "left-[170px]" : "left-[130px]"} z-20 bg-slate-200 dark:bg-slate-800 border-r border-slate-300 dark:border-slate-700`}></td>
                 {visibleDaysHeader.map((d) => (
-                  <td key={d.day} className="px-1 py-1 border-r border-slate-300 dark:border-slate-700 font-mono text-[11px]">
+                  <td key={d.day} className={`px-1 py-1 border-r border-slate-300 dark:border-slate-700 font-mono text-[11px] ${dayColumnMinClass}`}>
                     {dailyDistributionMap[d.day]?.leaveCount || 0}명
                   </td>
                 ))}
