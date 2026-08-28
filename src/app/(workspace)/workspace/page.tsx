@@ -91,6 +91,7 @@ const DEFAULT_WIDGET_COLLAPSED: Record<string, boolean> = {
   calendar: true,
   memo: false,
   weekly_plan: true,
+  work_schedule: true,
 };
 
 function readCollapsedWidgetsFromStorage(): Record<string, boolean> {
@@ -246,7 +247,7 @@ export default function Home() {
   };
 
   const isWidgetCollapsed = (widgetId: string) =>
-    COLLAPSIBLE_WIDGET_IDS.has(widgetId) &&
+    (COLLAPSIBLE_WIDGET_IDS.has(widgetId) || widgetId === "work_schedule") &&
     (collapsedWidgets[widgetId] ?? DEFAULT_WIDGET_COLLAPSED[widgetId] ?? true);
 
   // 달력 및 메모장용 State
@@ -1890,10 +1891,50 @@ export default function Home() {
         })}
       </div>
 
-      {/* 🌟 월간 근무 & 근무조 스케줄표 (엑셀 이미지 기준 편집 기능 탑재) */}
+      {/* 🌟 월간 근무 & 근무조 스케줄표 */}
       {canViewWorkSchedule && (
-        <div className="w-full mt-8">
-          <WorkScheduleTable readOnly={!canEditWorkSchedule} />
+        <div className="w-full mt-6 sm:mt-8">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-xs overflow-hidden">
+            <div
+              className={`bg-slate-100/90 border-b border-slate-200 px-3.5 py-2.5 flex justify-between items-center select-none transition-colors ${
+                isWidgetCollapsed("work_schedule")
+                  ? "cursor-pointer hover:bg-slate-200/80"
+                  : "hover:bg-slate-200/70"
+              }`}
+              onClick={
+                isWidgetCollapsed("work_schedule")
+                  ? () => toggleWidgetCollapsed("work_schedule")
+                  : undefined
+              }
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                  근무 및 근무조 스케줄 대시보드
+                </span>
+              </div>
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleWidgetCollapsed("work_schedule");
+                }}
+                className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                  isWidgetCollapsed("work_schedule")
+                    ? "bg-slate-50 text-slate-600 border-slate-200 hover:text-indigo-600"
+                    : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                }`}
+              >
+                <span>{isWidgetCollapsed("work_schedule") ? "탭하여 펼치기" : "탭하여 접기"}</span>
+                <span className="text-[9px]">{isWidgetCollapsed("work_schedule") ? "▼" : "▲"}</span>
+              </button>
+            </div>
+            {!isWidgetCollapsed("work_schedule") && (
+              <div className="p-2 sm:p-0">
+                <WorkScheduleTable readOnly={!canEditWorkSchedule} />
+              </div>
+            )}
+          </div>
         </div>
       )}
 

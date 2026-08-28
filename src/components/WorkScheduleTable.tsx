@@ -22,6 +22,8 @@ import {
   overlayExcelShiftsOnRows,
   type ParseWorkScheduleExcelResult,
 } from "@/lib/parseWorkScheduleExcel";
+import MobileWorkScheduleAgenda from "@/components/MobileWorkScheduleAgenda";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 export type ShiftCodeInfo = {
   code: string;
@@ -145,7 +147,7 @@ export const MASTER_LEGEND_GRID = {
   ]
 };
 
-function getShiftInfo(code: string): ShiftCodeInfo {
+export function getShiftInfo(code: string): ShiftCodeInfo {
   if (SHIFT_CODES[code]) return SHIFT_CODES[code];
   const char = code.charAt(0);
   const num = parseInt(code.slice(1), 10);
@@ -253,6 +255,8 @@ type WorkScheduleTableProps = {
 };
 
 export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTableProps) {
+  const isMobile = useIsMobile();
+  const [showMobileTools, setShowMobileTools] = useState(false);
   const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth() + 1);
   
@@ -951,50 +955,69 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
   const weekEndDay = Math.min(selectedWeek * 7, daysInMonth);
 
   return (
-    <div className="w-full bg-[#F8FAFC] dark:bg-slate-950 p-4 sm:p-6 rounded-[24px] font-sans border border-slate-200/80 dark:border-slate-800 shadow-2xl space-y-6">
+    <div className="w-full bg-[#F8FAFC] dark:bg-slate-950 p-2 sm:p-6 rounded-2xl sm:rounded-[24px] font-sans border border-slate-200/80 dark:border-slate-800 shadow-2xl space-y-3 sm:space-y-6">
       {loadingRows && rows.length === 0 && (
         <div className="text-center py-6 text-sm text-slate-500 font-medium">
           사용자관리와 연동된 사원 목록을 불러오는 중…
         </div>
       )}
       {/* 🌟 1. 상단 타이틀 & 글로벌 컨트롤 바 */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-black text-lg shadow-md">
-            K
+      <div className="flex flex-col gap-3 bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-black text-sm sm:text-lg shadow-md shrink-0">
+              K
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span>근무 및 근무조 스케줄</span>
+                {readOnly ? (
+                  <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-bold border border-slate-200 shrink-0">
+                    조회 전용
+                  </span>
+                ) : (
+                  <span className="hidden sm:inline text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-bold border border-blue-200 shrink-0">
+                    시각적 드래그앤드롭 강화
+                  </span>
+                )}
+              </h1>
+              <p className="hidden sm:block text-xs text-slate-400 font-medium">
+                사용자관리(profiles)와 연동 · 생산 · 품질 · 영업 · 경영 지원 통합 스케줄
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              근무 및 근무조 스케줄 대시보드
-              {readOnly ? (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-bold border border-slate-200">
-                  조회 전용
-                </span>
-              ) : (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-bold border border-blue-200">
-                  시각적 드래그앤드롭 강화
-                </span>
-              )}
-            </h1>
-            <p className="text-xs text-slate-400 font-medium">사용자관리(profiles)와 연동 · 생산 · 품질 · 영업 · 경영 지원 통합 스케줄</p>
-          </div>
+
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setShowMobileTools((v) => !v)}
+              className={`shrink-0 text-[10px] font-bold px-2 py-1.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                showMobileTools
+                  ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                  : "bg-slate-50 text-slate-600 border-slate-200"
+              }`}
+            >
+              <span>{showMobileTools ? "도구 접기" : "도구"}</span>
+              <span className="text-[9px]">{showMobileTools ? "▲" : "▼"}</span>
+            </button>
+          )}
         </div>
 
-        {/* 액션 버튼 그룹 */}
-        <div className="flex items-center flex-wrap gap-2">
-          <div className="relative">
-            <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="사원명 / 부서 검색..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2 text-xs bg-slate-100 dark:bg-slate-800 border-none rounded-full text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-600 w-36 sm:w-48 font-medium"
-            />
-          </div>
+        <div className="relative w-full sm:max-w-xs">
+          <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="사원명 / 부서 검색..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-xs bg-slate-100 dark:bg-slate-800 border-none rounded-full text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-600 font-medium"
+          />
+        </div>
 
+        {(!isMobile || showMobileTools) && (
+        <div className="flex items-center flex-wrap gap-2">
           {!readOnly && (
             <>
               <input
@@ -1038,7 +1061,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
 
           <button
             onClick={() => window.print()}
-            className="px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
+            className="hidden sm:inline-flex px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-xl transition-all border border-slate-200 dark:border-slate-700"
           >
             🖨️ 인쇄
           </button>
@@ -1054,16 +1077,27 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 text-xs font-bold text-white bg-[#0047FF] hover:bg-blue-700 rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center gap-1.5"
+              className="hidden sm:flex px-4 py-2 text-xs font-bold text-white bg-[#0047FF] hover:bg-blue-700 rounded-xl shadow-md transition-all disabled:opacity-50 items-center gap-1.5"
             >
               {saving ? "저장 중..." : "스케줄 저장 🚀"}
             </button>
           )}
         </div>
+        )}
+
+        {isMobile && !readOnly && (
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full px-3 py-2.5 text-xs font-bold text-white bg-[#0047FF] hover:bg-blue-700 rounded-xl shadow-md transition-all disabled:opacity-50"
+          >
+            {saving ? "저장 중..." : "스케줄 저장 🚀"}
+          </button>
+        )}
       </div>
 
       {/* 🌟 2. 12개 도장 선택 코드 팔레트 */}
-      {!readOnly && (
+      {!readOnly && (!isMobile || showMobileTools) && (
       <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-3 rounded-2xl border border-slate-800 shadow-md flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center space-x-2">
           <button
@@ -1120,20 +1154,20 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
       )}
 
       {/* 🌟 3. 년월 및 주차 이동 컨트롤 바 */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center space-x-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center space-x-1">
             <button
               onClick={() => {
                 if (currentMonth === 1) { setCurrentYear((prev) => prev - 1); setCurrentMonth(12); }
                 else setCurrentMonth((prev) => prev - 1);
               }}
-              className="p-2 bg-white dark:bg-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 transition-colors shadow-2xs font-bold"
+              className="p-1.5 sm:p-2 bg-white dark:bg-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 transition-colors shadow-2xs font-bold"
               title="이전 달"
             >
               ◀
             </button>
-            <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight px-1">
+            <h2 className="text-base sm:text-xl font-black text-slate-900 dark:text-white tracking-tight px-1">
               {currentYear}년 {currentMonth}월
             </h2>
             <button
@@ -1141,7 +1175,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                 if (currentMonth === 12) { setCurrentYear((prev) => prev + 1); setCurrentMonth(1); }
                 else setCurrentMonth((prev) => prev + 1);
               }}
-              className="p-2 bg-white dark:bg-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 transition-colors shadow-2xs font-bold"
+              className="p-1.5 sm:p-2 bg-white dark:bg-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 transition-colors shadow-2xs font-bold"
               title="다음 달"
             >
               ▶
@@ -1172,9 +1206,9 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
           )}
         </div>
 
-        <div className="flex items-center flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {/* 부서 필터 칩 */}
-          <div className="flex items-center bg-slate-200/70 dark:bg-slate-800/70 p-1 rounded-xl gap-1 text-xs font-bold">
+          <div className="flex items-center bg-slate-200/70 dark:bg-slate-800/70 p-1 rounded-xl gap-1 text-xs font-bold overflow-x-auto">
             {departmentList.map((dept) => (
               <button
                 key={dept}
@@ -1221,8 +1255,19 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
         </div>
       )}
 
-      {/* 🌟 4. 요구사항 1: 시각적 타겟 하이라이트가 명확히 적용된 스케줄 그리드 테이블 */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-sm">
+      {/* 🌟 4. 모바일: 날짜별 사원 카드 / 데스크톱: 그리드 테이블 */}
+      {isMobile && viewMode !== "월간" && (
+        <MobileWorkScheduleAgenda
+          days={visibleDaysHeader}
+          employees={filteredRows}
+          empWorkStatsMap={empWorkStatsMap}
+          readOnly={readOnly}
+          onCellClick={handleCellClick}
+          getShiftInfo={getShiftInfo}
+        />
+      )}
+
+      <div className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-sm ${isMobile && viewMode !== "월간" ? "hidden md:block" : ""}`}>
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-xs text-center border-collapse">
             <thead>
