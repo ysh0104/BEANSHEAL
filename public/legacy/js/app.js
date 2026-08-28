@@ -1,7 +1,17 @@
 // 상상바이오 (SANGSANG BIO) Main Application Script
 import { DATA } from './data.js';
 
+/** 실시간 견적 산출기 전역 스위치 — false면 섹션·메뉴 숨김 */
+const QUOTE_CALCULATOR_GLOBALLY_ENABLED = false;
+
+function applyQuoteCalculatorVisibility() {
+  if (QUOTE_CALCULATOR_GLOBALLY_ENABLED) return;
+  document.getElementById('calculator')?.classList.add('home-feature-hidden');
+  document.querySelectorAll('a[href="#calculator"]').forEach((el) => el.classList.add('home-feature-hidden'));
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  applyQuoteCalculatorVisibility();
   trackVisitorAnalytics();
   loadDynamicCompanyInfo();
   initNavigation();
@@ -952,6 +962,8 @@ function loadDynamicCalcButtons() {
 }
 
 function initQuoteCalculator() {
+  if (!QUOTE_CALCULATOR_GLOBALLY_ENABLED) return;
+
   loadDynamicCalcButtons();
 
   const calcContainer = document.getElementById('calculator');
