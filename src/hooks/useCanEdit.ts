@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth, UserProfile } from "@/context/AuthContext";
-import type { FeatureKey } from "@/lib/permissions";
+import { WORKSPACE_FEATURE_KEYS, type FeatureKey } from "@/lib/permissions";
 
 /** @deprecated FeatureGroup → FeatureKey 와 동일. 기존 페이지 호환용 */
 export type FeatureGroup = FeatureKey | "all";
@@ -81,7 +81,13 @@ export function useCanEdit(group: FeatureGroup): { canEdit: boolean; user: UserP
 }
 
 export function useCanView(group: FeatureGroup): { canView: boolean; user: UserProfile | null } {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const canView = canUserView(user, group);
-  return { canView, user };
+  // 세션/권한이 오기 전에도 워크스페이스 위젯 뼈대는 바로 그린다
+  const optimisticWorkspace =
+    loading &&
+    !user &&
+    group !== "all" &&
+    WORKSPACE_FEATURE_KEYS.includes(group as FeatureKey);
+  return { canView: canView || optimisticWorkspace, user };
 }

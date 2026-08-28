@@ -204,6 +204,30 @@ function getTodayWeekNum(year: number, month: number): number {
   return 1;
 }
 
+function workScheduleCacheKey(yearMonth: string) {
+  return `beansheal_work_schedule_${yearMonth}`;
+}
+
+function readCachedWorkSchedule(yearMonth: string): ScheduleEmployeeRow[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(workScheduleCacheKey(yearMonth));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedWorkSchedule(yearMonth: string, rows: ScheduleEmployeeRow[]) {
+  try {
+    localStorage.setItem(workScheduleCacheKey(yearMonth), JSON.stringify(rows));
+  } catch {
+    /* ignore */
+  }
+}
+
 const INITIAL_DEMO_DATA: ScheduleEmployeeRow[] = [
   { id: "1", name: "정성영", group: "생산팀", shifts: { "1": "A4", "2": "A4", "3": "A8", "4": "A3", "5": "A8", "6": "AL", "7": "AL", "8": "A4", "9": "A4", "10": "A4", "11": "A4", "12": "A4", "13": "A3", "14": "AL", "15": "BE", "16": "BE" } },
   { id: "2", name: "임화랑", group: "생산팀", shifts: { "1": "BE", "2": "BE", "3": "AL", "4": "A3", "5": "A4", "6": "A4", "7": "AL", "8": "BE", "9": "BE", "10": "A4", "11": "A3", "12": "A4", "13": "A8", "14": "AL", "15": "BE", "16": "BE" } },
@@ -229,15 +253,26 @@ type WorkScheduleTableProps = {
 };
 
 export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTableProps) {
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(8);
+  const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth() + 1);
   
   const [viewMode, setViewMode] = useState<"주간" | "월간" | "일간">("주간");
-  const [selectedWeek, setSelectedWeek] = useState<number>(() => getTodayWeekNum(2026, 8));
+  const [selectedWeek, setSelectedWeek] = useState<number>(() => {
+    const now = new Date();
+    return getTodayWeekNum(now.getFullYear(), now.getMonth() + 1);
+  });
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>("전체");
   
-  const [rows, setRows] = useState<ScheduleEmployeeRow[]>([]);
-  const [loadingRows, setLoadingRows] = useState(true);
+  const [rows, setRows] = useState<ScheduleEmployeeRow[]>(() => {
+    const now = new Date();
+    const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return readCachedWorkSchedule(key);
+  });
+  const [loadingRows, setLoadingRows] = useState(() => {
+    const now = new Date();
+    const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return readCachedWorkSchedule(key).length === 0;
+  });
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -291,46 +326,53 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
 
   const yearMonthKey = `${currentYear}-${String(currentMonth).padStart(2, "0")}`;
 
-  // 데이터 로딩 — profiles(사용자관리)와 월간 shifts 병합
+  // 데이터 로딩 — 캐시 먼저 표시, profiles(사용자관리)와 월간 shifts는 뒤에서 병합
   useEffect(() => {
-    (async () => {
+    const cached = readCachedWorkSchedule(yearMonthKey);
+    if (cached.length > 0) {
+      setRows(cached);
+      setLoadingRows(false);
+    } else {
       setLoadingRows(true);
+    }
+
+    let cancelled = false;
+    (async () => {
       try {
         const [scheduleRes, rosterRes] = await Promise.all([
           getWorkSchedule(yearMonthKey),
           getScheduleRosterProfiles(),
         ]);
+        if (cancelled) return;
 
         let existingRows: ScheduleEmployeeRow[] = [];
         if (scheduleRes.success && scheduleRes.data && scheduleRes.data.length > 0) {
           existingRows = scheduleRes.data;
-        } else {
-          const localData = localStorage.getItem(`beansheal_work_schedule_${yearMonthKey}`);
-          if (localData) {
-            try {
-              existingRows = JSON.parse(localData);
-            } catch {
-              existingRows = [];
-            }
-          }
+        } else if (cached.length > 0) {
+          existingRows = cached;
         }
 
         const profiles = rosterRes.success ? rosterRes.data : [];
+        let nextRows: ScheduleEmployeeRow[] = INITIAL_DEMO_DATA;
         if (profiles.length > 0) {
-          setRows(
-            mergeRosterWithScheduleRows(profiles, existingRows, currentYear, currentMonth)
-          );
+          nextRows = mergeRosterWithScheduleRows(profiles, existingRows, currentYear, currentMonth);
         } else if (existingRows.length > 0) {
-          setRows(existingRows);
-        } else {
-          setRows(INITIAL_DEMO_DATA);
+          nextRows = existingRows;
+        }
+
+        setRows(nextRows);
+        if (nextRows !== INITIAL_DEMO_DATA) {
+          writeCachedWorkSchedule(yearMonthKey, nextRows);
         }
       } catch {
-        setRows(INITIAL_DEMO_DATA);
+        if (!cancelled && cached.length === 0) setRows(INITIAL_DEMO_DATA);
       } finally {
-        setLoadingRows(false);
+        if (!cancelled) setLoadingRows(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [yearMonthKey, currentYear, currentMonth]);
 
   const handleExcelFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -910,7 +952,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
 
   return (
     <div className="w-full bg-[#F8FAFC] dark:bg-slate-950 p-4 sm:p-6 rounded-[24px] font-sans border border-slate-200/80 dark:border-slate-800 shadow-2xl space-y-6">
-      {loadingRows && (
+      {loadingRows && rows.length === 0 && (
         <div className="text-center py-6 text-sm text-slate-500 font-medium">
           사용자관리와 연동된 사원 목록을 불러오는 중…
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ProductionScheduleItem } from "@/app/actions/notionActions";
 import { ScheduleEntryPillsList } from "@/components/ScheduleEntryPills";
 import { getWeeklyPlan, saveWeeklyPlan } from "@/app/actions/weeklyPlanActions";
@@ -48,6 +48,31 @@ interface WeeklyPlanViewProps {
 
 function emptyGrid(): WeeklyPlanGrid {
   return emptyWeeklyPlanGrid();
+}
+
+function weeklyPlanCacheKey(weekStart: string) {
+  return `beansheal_weekly_plan_${weekStart}`;
+}
+
+function readCachedWeeklyPlan(weekStart: string): WeeklyPlanGrid | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(weeklyPlanCacheKey(weekStart));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as WeeklyPlanGrid;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedWeeklyPlan(weekStart: string, grid: WeeklyPlanGrid) {
+  try {
+    localStorage.setItem(weeklyPlanCacheKey(weekStart), JSON.stringify(grid));
+  } catch {
+    /* ignore */
+  }
 }
 
 function parseYmd(dateStr: string) {
@@ -173,12 +198,23 @@ export default function WeeklyPlanView({
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const schedulesRef = useRef(schedules);
+  schedulesRef.current = schedules;
 
   const days = weekDaysFromMonday(weekStart);
   const periodLabel = weekOfMonthLabel(days[0]);
 
+  useLayoutEffect(() => {
+    const cached = readCachedWeeklyPlan(weekStart);
+    if (cached) {
+      setGrid(cached);
+      setLoading(false);
+    }
+  }, [weekStart]);
+
   const loadWeek = useCallback(async () => {
-    setLoading(true);
+    const cached = readCachedWeeklyPlan(weekStart);
+    if (!cached) setLoading(true);
     setMsg(null);
     const dayList = weekDaysFromMonday(weekStart);
 
@@ -191,22 +227,14 @@ export default function WeeklyPlanView({
       }
       setGrid(merged);
       setDirty(false);
-    } else {
-      const fromSchedules = buildGridFromSchedules(schedules, dayList);
+      writeCachedWeeklyPlan(weekStart, merged);
+    } else if (!cached) {
+      const fromSchedules = buildGridFromSchedules(schedulesRef.current, dayList);
       setGrid(fromSchedules);
       setDirty(false);
-      const cached = localStorage.getItem(`beansheal_weekly_plan_${weekStart}`);
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached) as WeeklyPlanGrid;
-          setGrid(parsed);
-        } catch {
-          /* ignore */
-        }
-      }
     }
     setLoading(false);
-  }, [weekStart, schedules]);
+  }, [weekStart]);
 
   useEffect(() => {
     void loadWeek();
@@ -236,11 +264,11 @@ export default function WeeklyPlanView({
     setMsg(null);
     const res = await saveWeeklyPlan(weekStart, grid, updatedBy);
     if (res.success) {
-      localStorage.setItem(`beansheal_weekly_plan_${weekStart}`, JSON.stringify(grid));
+      writeCachedWeeklyPlan(weekStart, grid);
       setDirty(false);
       setMsg("저장되었습니다.");
     } else {
-      localStorage.setItem(`beansheal_weekly_plan_${weekStart}`, JSON.stringify(grid));
+      writeCachedWeeklyPlan(weekStart, grid);
       setDirty(false);
       setMsg(res.message || "서버 저장 실패 — 로컬에만 저장됨");
     }
@@ -259,6 +287,7 @@ export default function WeeklyPlanView({
           <p className={`text-sm font-bold text-slate-700 ${embedded ? "" : "mt-1"}`}>
             부서: {department} | 기간: {periodLabel}
             {!canEdit && <span className="ml-2 text-slate-400">(조회 전용)</span>}
+            {loading && <span className="ml-2 text-slate-400 font-medium">동기화 중…</span>}
           </p>
         </div>
 
@@ -317,10 +346,7 @@ export default function WeeklyPlanView({
         <p className="text-xs font-medium text-emerald-700 mb-2 print:hidden">{msg}</p>
       )}
 
-      {loading ? (
-        <div className="py-12 text-center text-xs text-slate-400">불러오는 중…</div>
-      ) : (
-        <div className="overflow-x-auto border border-[#9db4d0] rounded-sm flex-1 min-h-0">
+      <div className="overflow-x-auto border border-[#9db4d0] rounded-sm flex-1 min-h-0">
           <table className="w-full min-w-[720px] border-collapse text-left table-fixed">
             <thead>
               <tr className="bg-[#1e3a5f] text-white">
@@ -395,7 +421,6 @@ export default function WeeklyPlanView({
             </tbody>
           </table>
         </div>
-      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -65,6 +65,47 @@ const WorkScheduleTable = dynamic(() => import("@/components/WorkScheduleTable")
 
 const GRID_WIDTH_STEPS = [25, 32, 49, 50, 65, 75, 100];
 const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
+const DEFAULT_WIDGET_CONFIGS: Array<{ id: string; title: string; widthPct: number; heightPx: number }> = [
+  { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 780 },
+  { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 780 },
+  { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 540 },
+];
+
+function readLocalJsonArray(key: string): any[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function readWidgetConfigsFromStorage(): typeof DEFAULT_WIDGET_CONFIGS {
+  if (typeof window === "undefined") return DEFAULT_WIDGET_CONFIGS;
+  try {
+    let email = "";
+    const cachedUser = localStorage.getItem("beansheal_active_user");
+    if (cachedUser) {
+      email = JSON.parse(cachedUser)?.email || "";
+    }
+    const key = email ? `beansheal_widget_configs_${email}` : "beansheal_widget_configs_guest";
+    const saved = localStorage.getItem(key);
+    if (!saved) return DEFAULT_WIDGET_CONFIGS;
+    const parsed = JSON.parse(saved);
+    const allowed = new Set(["calendar", "memo", "weekly_plan"]);
+    const filtered = (parsed || []).filter((w: any) => allowed.has(w.id));
+    if (filtered.length === 0) return DEFAULT_WIDGET_CONFIGS;
+    if (!filtered.some((w: any) => w.id === "weekly_plan")) {
+      filtered.push({ id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 540 });
+    }
+    return filtered;
+  } catch {
+    return DEFAULT_WIDGET_CONFIGS;
+  }
+}
 
 // 🌟 노션 고유 색상을 화면용 디자인으로 변환하는 함수
 const getNotionColorClass = (colorStr?: string) => {
@@ -335,29 +376,14 @@ export default function Home() {
     setDragOverMemoId(null);
   };
 
-  // ⚡ 0.00초 초고속 하이드레이션: 새로고침(F5) 시 로컬 캐시된 노션 일정을 0초 만에 동기적 복원
+  // ⚡ 첫 페인트 전 로컬 캐시 복원 (노션/메모 네트워크를 기다리지 않음)
   const [schedules, setSchedules] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const cached = localStorage.getItem("beansheal_cached_schedules");
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) setSchedules(parsed);
-      } catch {
-        /* ignore */
-      }
-    }
-    const savedMemos = localStorage.getItem("beansheal_memos");
-    if (savedMemos) {
-      try {
-        const parsed = JSON.parse(savedMemos);
-        if (Array.isArray(parsed) && parsed.length > 0) setMemos(parsed);
-      } catch {
-        /* ignore */
-      }
-    }
+  useLayoutEffect(() => {
+    const cachedSchedules = readLocalJsonArray("beansheal_cached_schedules");
+    if (cachedSchedules.length > 0) setSchedules(cachedSchedules);
+    const cachedMemos = readLocalJsonArray("beansheal_memos");
+    if (cachedMemos.length > 0) setMemos(cachedMemos);
   }, []);
   const [selectedDateForPlan, setSelectedDateForPlan] = useState<string | null>(null);
   const [planEndDate, setPlanEndDate] = useState<string>("");
@@ -388,16 +414,7 @@ export default function Home() {
 
   // 🌟 마이 대시보드 그리드 커스텀 State
   const [isGridSnapEnabled, setIsGridSnapEnabled] = useState(true);
-  const [widgetConfigs, setWidgetConfigs] = useState<Array<{
-    id: string;
-    title: string;
-    widthPct: number;
-    heightPx: number;
-  }>>([
-    { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 780 },
-    { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 780 },
-    { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 540 },
-  ]);
+  const [widgetConfigs, setWidgetConfigs] = useState(DEFAULT_WIDGET_CONFIGS);
 
   const [draggedWidgetId, setDraggedWidgetId] = useState<string | null>(null);
   const [dragOverWidgetId, setDragOverWidgetId] = useState<string | null>(null);
@@ -410,22 +427,8 @@ export default function Home() {
     return user?.email ? `beansheal_widget_configs_${user.email}` : "beansheal_widget_configs_guest";
   };
 
-  useEffect(() => {
-    const key = getStorageKey();
-    const savedLayout = localStorage.getItem(key);
-    if (savedLayout) {
-      try {
-        const parsed = JSON.parse(savedLayout);
-        const allowed = new Set(["calendar", "memo", "weekly_plan"]);
-        const filtered = parsed.filter((w: any) => allowed.has(w.id));
-        if (filtered.length > 0) {
-          if (!filtered.some((w: any) => w.id === "weekly_plan")) {
-            filtered.push({ id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 540 });
-          }
-          setWidgetConfigs(filtered);
-        }
-      } catch (e) {}
-    }
+  useLayoutEffect(() => {
+    setWidgetConfigs(readWidgetConfigsFromStorage());
   }, [user?.email]);
 
   useEffect(() => {
@@ -1076,12 +1079,7 @@ export default function Home() {
   };
 
   const resetWidgetLayout = () => {
-    const defaultConfig = [
-      { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 780 },
-      { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 780 },
-      { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 540 },
-    ];
-    saveWidgetConfigs(defaultConfig);
+    saveWidgetConfigs(DEFAULT_WIDGET_CONFIGS);
   };
 
   const getCalendarWeeks = (y: number, m: number) => {

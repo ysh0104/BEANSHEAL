@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useLayoutEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 import {
@@ -204,7 +204,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  useEffect(() => {
+  // 첫 페인트 전에 캐시된 프로필을 복원해 위젯/메뉴가 권한 조회를 기다리지 않게 함
+  useLayoutEffect(() => {
     const isAuto = localStorage.getItem("beansheal_auto_login") !== "false";
     if (localStorage.getItem("beansheal_auto_login") !== null) {
       setIsAutoLogin(isAuto);
@@ -216,8 +217,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const cachedUser = JSON.parse(cachedUserJson);
         setUser(cachedUser);
         setLoading(false);
-      } catch (e) {}
+      } catch {
+        /* ignore */
+      }
     }
+  }, []);
+
+  useEffect(() => {
+    const isAuto = localStorage.getItem("beansheal_auto_login") !== "false";
+    const cachedUserJson = localStorage.getItem("beansheal_active_user");
 
     supabase.auth.getSession().then((res) => {
       const session = res?.data?.session;
