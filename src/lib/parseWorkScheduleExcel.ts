@@ -1,17 +1,10 @@
 import * as XLSX from "xlsx";
 import { normalizePersonName } from "@/lib/departmentNormalize";
 
-/** 엑셀 표기 ↔ 사내 profiles 이름 보정 */
-export const WORK_SCHEDULE_NAME_ALIASES: Record<string, string> = {
-  유혜형: "유희정",
-  최봉주: "최봉구",
-  정선영: "정성영",
-};
-
 export type ParsedExcelEmployee = {
   /** 엑셀 원본 이름 */
   excelName: string;
-  /** alias 적용 후 매칭용 이름 */
+  /** 스케줄/profiles 매칭용 이름 (엑셀 이름 그대로) */
   matchName: string;
   shifts: Record<string, string>;
 };
@@ -43,11 +36,6 @@ function isPlaceholderName(name: string): boolean {
   if (/^(CCC|BBB|AAA|XXX|TEST|테스트)$/i.test(n)) return true;
   if (/^[A-Za-z0-9_\-]{1,4}$/.test(n) && !/[가-힣]/.test(n)) return true;
   return false;
-}
-
-function resolveMatchName(excelName: string): string {
-  const raw = normalizePersonName(excelName);
-  return WORK_SCHEDULE_NAME_ALIASES[raw] || raw;
 }
 
 function excelCellToDateParts(value: unknown): { year: number; month: number; day: number } | null {
@@ -222,7 +210,7 @@ function parseSheet(
     // 근무 코드가 거의 없으면 합계/빈 행으로 간주
     if (Object.keys(shifts).length < 3) continue;
 
-    const matchName = resolveMatchName(excelName);
+    const matchName = normalizePersonName(excelName);
     const key = normalizePersonName(matchName);
     if (seenNames.has(key)) {
       warnings.push(`시트 "${sheetName}": 중복 이름 "${excelName}" — 마지막 행 사용`);
