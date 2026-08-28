@@ -2070,7 +2070,7 @@ export default function Home() {
             );
             const weeklyHeaderRight = (
               <span className="text-[10px] font-bold text-slate-500">
-                {!canEditWeeklyPlan ? "조회 전용" : "셀 클릭 후 편집 · 저장"}
+                {!canEditWeeklyPlan ? "조회 전용" : "일정 자동 · 메모 편집 · 저장"}
               </span>
             );
 
