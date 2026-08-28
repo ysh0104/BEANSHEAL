@@ -144,7 +144,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <header className="bg-white/95 backdrop-blur-md text-slate-900 sticky top-0 z-50 border-b border-slate-200 shadow-2xs font-sans">
+      <header className="bg-white/95 backdrop-blur-md text-slate-900 sticky top-0 z-50 border-b border-slate-200 shadow-2xs font-sans overflow-visible">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 flex items-center justify-between h-14 gap-2 min-w-0">
           <div className="flex items-center gap-2 sm:gap-4 shrink-0 min-w-0">
             <button
@@ -237,9 +237,28 @@ export default function Sidebar() {
             )}
           </nav>
 
-          <div className="flex items-center gap-1 sm:gap-2 text-xs shrink-0 min-w-0">
+          <div className="flex items-center gap-1 sm:gap-2 text-xs shrink-0 min-w-0 overflow-visible">
             {user ? (
-              <div ref={userMenuRef} className="relative flex items-center min-w-0">
+              <div ref={userMenuRef} className="relative flex items-center gap-1 min-w-0 overflow-visible">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    setIsAccountSettingsOpen(true);
+                  }}
+                  className="p-1.5 sm:p-2 rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-700 hover:border-blue-200 hover:bg-blue-50 transition-colors cursor-pointer shrink-0"
+                  title="계정 정보 수정"
+                  aria-label="계정 정보 수정"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    />
+                  </svg>
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsUserMenuOpen((open) => !open)}
@@ -265,7 +284,7 @@ export default function Sidebar() {
                 </button>
 
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 top-full pt-2 w-56 z-[80] animate-fadeIn">
+                  <div className="absolute right-0 top-full pt-2 w-56 z-[120] animate-fadeIn">
                     <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200/90 p-1 backdrop-blur-xl">
                       <div className="px-3 py-2 border-b border-slate-100 mb-1">
                         <p className="text-xs font-extrabold text-slate-900 truncate">{user.name}</p>
@@ -277,14 +296,14 @@ export default function Sidebar() {
                           setIsUserMenuOpen(false);
                           setIsAccountSettingsOpen(true);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                       >
                         <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth="2"
-                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                           />
                         </svg>
                         계정 정보 수정

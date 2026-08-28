@@ -1,12 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/context/AuthContext";
 import { updateMyProfile } from "@/app/actions/userActions";
-import { ADMIN_DEPARTMENT_OPTIONS, normalizeAdminDepartment } from "@/lib/departmentNormalize";
+import {
+  ADMIN_DEPARTMENT_OPTIONS,
+  formatJobTitle,
+  normalizeAdminDepartment,
+  normalizePersonName,
+} from "@/lib/departmentNormalize";
 import { supabase } from "@/lib/supabase";
 
 const POSITION_OPTIONS = ["사원", "주임", "과장", "팀장", "이사", "대표", "대표이사"] as const;
+
+function computeRole(department: string): "ADMIN" | "QA" | "WORKER" {
+  if (department.includes("경영")) return "ADMIN";
+  if (department.includes("품질")) return "QA";
+  return "WORKER";
+}
 
 type Props = {
   open: boolean;
@@ -20,6 +32,11 @@ export default function AccountSettingsModal({ open, onClose }: Props) {
   const [position, setPosition] = useState("사원");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open || !user) return;
@@ -29,10 +46,10 @@ export default function AccountSettingsModal({ open, onClose }: Props) {
     setMessage(null);
   }, [open, user]);
 
-  if (!open || !user) return null;
+  if (!open || !user || !mounted) return null;
 
   const handleSave = async () => {
-    const trimmedName = fullName.trim();
+    const trimmedName = normalizePersonName(fullName);
     if (!trimmedName) {
       setMessage({ type: "error", text: "이름을 입력해 주세요." });
       return;
@@ -49,24 +66,56 @@ export default function AccountSettingsModal({ open, onClose }: Props) {
         return;
       }
 
-      const res = await updateMyProfile(userId, trimmedName, department, position);
-      if (!res.success) {
-        setMessage({ type: "error", text: res.message || "저장에 실패했습니다." });
-        return;
+      const saveDept = normalizeAdminDepartment(department);
+      const savePos = position === "관리자" ? "이사" : (position || "사원").trim();
+      const saveRole = computeRole(saveDept);
+      const updatedAt = new Date().toISOString();
+
+      // 1) 로그인 세션이 있는 브라우저에서 profiles 직접 업데이트 (RLS 통과)
+      const { error: clientError } = await supabase
+        .from("profiles")
+        .update({
+          full_name: trimmedName,
+          department: saveDept,
+          position: savePos,
+          role: saveRole,
+          updated_at: updatedAt,
+        })
+        .eq("id", userId);
+
+      // 2) 실패 시 서버 액션으로 재시도
+      if (clientError) {
+        const res = await updateMyProfile(userId, trimmedName, saveDept, savePos);
+        if (!res.success) {
+          setMessage({ type: "error", text: res.message || clientError.message || "저장에 실패했습니다." });
+          return;
+        }
       }
 
       if (authUser) {
         await supabase.auth.updateUser({
           data: {
-            full_name: res.updated?.full_name || trimmedName,
-            department: res.updated?.department || department,
-            position: res.updated?.position || position,
+            full_name: trimmedName,
+            department: saveDept,
+            position: savePos,
           },
         });
       }
 
+      // 헤더 표시 즉시 반영
+      const nextProfile = {
+        ...user,
+        id: userId,
+        name: trimmedName,
+        department: saveDept,
+        position: savePos,
+        role: saveRole,
+        jobTitle: formatJobTitle(saveDept, savePos),
+      };
+      localStorage.setItem("beansheal_active_user", JSON.stringify(nextProfile));
+
       await refreshUser();
-      setMessage({ type: "success", text: res.message || "저장되었습니다." });
+      setMessage({ type: "success", text: "계정 정보가 저장되었습니다." });
       setTimeout(() => onClose(), 600);
     } catch (err: unknown) {
       setMessage({
@@ -78,7 +127,7 @@ export default function AccountSettingsModal({ open, onClose }: Props) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
@@ -182,6 +231,7 @@ export default function AccountSettingsModal({ open, onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
