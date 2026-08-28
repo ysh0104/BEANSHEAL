@@ -85,10 +85,10 @@ function readLocalJsonArray(key: string): any[] {
   }
 }
 
-const COLLAPSIBLE_WIDGET_IDS = new Set(["calendar", "weekly_plan"]);
+const COLLAPSIBLE_WIDGET_IDS = new Set(["calendar", "memo", "weekly_plan"]);
 
 function readCollapsedWidgetsFromStorage(): Record<string, boolean> {
-  const defaults: Record<string, boolean> = { calendar: true, weekly_plan: true };
+  const defaults: Record<string, boolean> = { calendar: true, memo: true, weekly_plan: true };
   if (typeof window === "undefined") return defaults;
   try {
     const raw = localStorage.getItem("beansheal_collapsed_widgets");
@@ -1502,26 +1502,9 @@ export default function Home() {
               <span className="text-xs font-bold text-slate-900">특이사항 및 메모</span>
             );
 
-            const memoHeaderRight = (
-              <div className="flex items-center gap-2">
-                {!canEditMemo && (
-                  <span className="text-[10px] font-bold text-slate-400">조회 전용</span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowMemoTools(!showMemoTools)}
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 border ${
-                    showMemoTools
-                      ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
-                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-indigo-600"
-                  }`}
-                  title="상세기능 (태그 필터, 상단고정, 알림, 템플릿 관리)"
-                >
-                  <span>상세 기능</span>
-                  <span className="text-[9px]">{showMemoTools ? "▲" : "▼"}</span>
-                </button>
-              </div>
-            );
+            const memoHeaderRight = !canEditMemo ? (
+              <span className="text-[10px] font-bold text-slate-400">조회 전용</span>
+            ) : null;
 
             return (
               <div 
@@ -1535,6 +1518,7 @@ export default function Home() {
               >
                 <div className="bg-white border border-gray-200 rounded-lg shadow-xs flex flex-col h-full overflow-hidden relative">
                   {renderWidgetHeader(memoHeaderLeft, memoHeaderRight)}
+                  {!widgetCollapsed && (
                   <div className="p-4 flex flex-col flex-1 overflow-hidden">
                     {/* 상세기능이 열렸거나 태그 필터가 활성화된 경우만 태그 바 노출 */}
                     {(showMemoTools || memoTagFilter) && (allTags.length > 0 || memoTagFilter) && (
@@ -1840,7 +1824,8 @@ export default function Home() {
                       </div>
                     )}
                   </div>
-                  {renderCornerResizeHandles()}
+                  )}
+                  {!widgetCollapsed && renderCornerResizeHandles()}
                 </div>
               </div>
             );
