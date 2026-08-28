@@ -332,7 +332,7 @@ window.saveAllFaqsAdmin = function() {
 
 function getDefaultNoticePopupConfig() {
   return {
-    enabled: true,
+    enabled: false,
     badge: "BEANSHEAL PROMOTION",
     title: "빈스힐 (BEANSHEAL) <br><span class=\"highlight\">소량 액상 건기식 OEM/ODM</span> 특가 프로모션",
     subtitle: "액상 전용 무균 충진 및 신규 브랜드 전격 지원 혜택",
