@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { canUserView } from "@/hooks/useCanEdit";
 import { MENU_FEATURE_MAP } from "@/lib/permissions";
-import AccountSettingsModal from "@/components/AccountSettingsModal";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -14,14 +13,12 @@ export default function Sidebar() {
   const handleLogout = async () => {
     setIsUserMenuOpen(false);
     setIsMobileMenuOpen(false);
-    setIsAccountSettingsOpen(false);
     await logout();
     window.location.href = "/login";
   };
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
   const [mobileExpandedGroup, setMobileExpandedGroup] = useState<string | null>(null);
   const userMenuRef = React.useRef<HTMLDivElement>(null);
 
@@ -144,7 +141,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <header className="bg-white/95 backdrop-blur-md text-slate-900 sticky top-0 z-50 border-b border-slate-200 shadow-2xs font-sans overflow-visible">
+      <header className="bg-white/95 backdrop-blur-md text-slate-900 sticky top-0 z-50 border-b border-slate-200 shadow-2xs font-sans">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 flex items-center justify-between h-14 gap-2 min-w-0">
           <div className="flex items-center gap-2 sm:gap-4 shrink-0 min-w-0">
             <button
@@ -237,28 +234,9 @@ export default function Sidebar() {
             )}
           </nav>
 
-          <div className="flex items-center gap-1 sm:gap-2 text-xs shrink-0 min-w-0 overflow-visible">
+          <div className="flex items-center gap-1 sm:gap-2 text-xs shrink-0 min-w-0">
             {user ? (
-              <div ref={userMenuRef} className="relative flex items-center gap-1 min-w-0 overflow-visible">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsUserMenuOpen(false);
-                    setIsAccountSettingsOpen(true);
-                  }}
-                  className="p-1.5 sm:p-2 rounded-full border border-slate-200 bg-white text-slate-600 hover:text-blue-700 hover:border-blue-200 hover:bg-blue-50 transition-colors cursor-pointer shrink-0"
-                  title="계정 정보 수정"
-                  aria-label="계정 정보 수정"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                </button>
+              <div ref={userMenuRef} className="relative flex items-center min-w-0">
                 <button
                   type="button"
                   onClick={() => setIsUserMenuOpen((open) => !open)}
@@ -284,30 +262,12 @@ export default function Sidebar() {
                 </button>
 
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 top-full pt-2 w-56 z-[120] animate-fadeIn">
+                  <div className="absolute right-0 top-full pt-2 w-56 z-[80] animate-fadeIn">
                     <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200/90 p-1 backdrop-blur-xl">
                       <div className="px-3 py-2 border-b border-slate-100 mb-1">
                         <p className="text-xs font-extrabold text-slate-900 truncate">{user.name}</p>
                         <p className="text-[11px] text-slate-500 truncate mt-0.5">{user.email}</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          setIsAccountSettingsOpen(true);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                          />
-                        </svg>
-                        계정 정보 수정
-                      </button>
                       <button
                         type="button"
                         onClick={handleLogout}
@@ -467,24 +427,6 @@ export default function Sidebar() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    setIsAccountSettingsOpen(true);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors cursor-pointer"
-                >
-                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                  계정 정보 수정
-                </button>
-                <button
-                  type="button"
                   onClick={handleLogout}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors cursor-pointer"
                 >
@@ -503,11 +445,6 @@ export default function Sidebar() {
           </div>
         </>
       )}
-
-      <AccountSettingsModal
-        open={isAccountSettingsOpen}
-        onClose={() => setIsAccountSettingsOpen(false)}
-      />
     </>
   );
 }

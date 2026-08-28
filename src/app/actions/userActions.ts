@@ -83,65 +83,6 @@ export async function getAllUserProfiles() {
 }
 
 /**
- * 본인 프로필 수정 (이름 · 부서 · 직급)
- */
-export async function updateMyProfile(
-  userId: string,
-  fullName: string,
-  department: string,
-  position: string
-) {
-  try {
-    const normalizedPosition = position === "관리자" ? "이사" : (position || "사원").trim();
-    const normalizedDepartment = normalizeAdminDepartment(
-      department === "-" || !department?.trim() ? "생산팀" : department
-    );
-    const role = computeRoleHelper(normalizedDepartment, normalizedPosition);
-    const name = (fullName || "").trim().replace(/\s+/g, " ");
-    const updatedAt = new Date().toISOString();
-
-    if (!name) {
-      return { success: false, message: "이름을 입력해 주세요." };
-    }
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        full_name: name,
-        department: normalizedDepartment,
-        position: normalizedPosition,
-        role,
-        updated_at: updatedAt,
-      })
-      .eq("id", userId);
-
-    if (error) {
-      console.error("updateMyProfile error:", error);
-      return { success: false, message: error.message };
-    }
-
-    return {
-      success: true,
-      message: "계정 정보가 저장되었습니다.",
-      updated: {
-        full_name: name,
-        department: normalizedDepartment,
-        position: normalizedPosition,
-        role,
-        job_title: formatJobTitle(normalizedDepartment, normalizedPosition),
-        updatedAt,
-      },
-    };
-  } catch (err: unknown) {
-    console.error("updateMyProfile exception:", err);
-    return {
-      success: false,
-      message: err instanceof Error ? err.message : "계정 정보 저장 중 오류가 발생했습니다.",
-    };
-  }
-}
-
-/**
  * 관리자가 특정 사용자의 부서, 직급 및 권한(Role) 변경/부여
  */
 export async function updateUserProfile(

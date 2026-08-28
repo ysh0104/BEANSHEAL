@@ -11,7 +11,6 @@ import {
 import { getUserPermissionMap } from "@/app/actions/permissionActions";
 
 export interface UserProfile {
-  id?: string;
   name: string;
   email: string;
   department: string;
@@ -38,7 +37,6 @@ interface AuthContextType {
   ) => Promise<{ error: string | null }>;
   loginWithEmail: (email: string, password: string, autoLogin?: boolean) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -178,7 +176,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const userProfile: UserProfile = {
-        id: authUser.id,
         name: fullName,
         email: authUser.email || "",
         department,
@@ -393,13 +390,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error.message };
   };
 
-  const refreshUser = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (authUser) {
-      await loadProfile(authUser);
-    }
-  };
-
   const logout = async () => {
     localStorage.setItem("beansheal_auto_login", "false");
     localStorage.removeItem("beansheal_active_user");
@@ -413,7 +403,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAutoLogin, loginWithGoogle, signUpWithEmail, loginWithEmail, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, isAutoLogin, loginWithGoogle, signUpWithEmail, loginWithEmail, logout }}>
       {children}
     </AuthContext.Provider>
   );
