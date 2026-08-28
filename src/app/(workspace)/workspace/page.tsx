@@ -87,16 +87,28 @@ function readLocalJsonArray(key: string): any[] {
 
 const COLLAPSIBLE_WIDGET_IDS = new Set(["calendar", "memo", "weekly_plan"]);
 
+const DEFAULT_WIDGET_COLLAPSED: Record<string, boolean> = {
+  calendar: true,
+  memo: false,
+  weekly_plan: true,
+};
+
 function readCollapsedWidgetsFromStorage(): Record<string, boolean> {
-  const defaults: Record<string, boolean> = { calendar: true, memo: true, weekly_plan: true };
-  if (typeof window === "undefined") return defaults;
+  if (typeof window === "undefined") return { ...DEFAULT_WIDGET_COLLAPSED };
   try {
     const raw = localStorage.getItem("beansheal_collapsed_widgets");
-    if (!raw) return defaults;
+    if (!raw) return { ...DEFAULT_WIDGET_COLLAPSED };
     const parsed = JSON.parse(raw) as Record<string, boolean>;
-    return { ...defaults, ...parsed };
+    const merged = { ...DEFAULT_WIDGET_COLLAPSED, ...parsed };
+    // 메모는 기본 펼침 — 이전에 memo:true 로 저장된 경우 1회 보정
+    if (!localStorage.getItem("beansheal_collapsed_widgets_memo_open_v2")) {
+      merged.memo = false;
+      localStorage.setItem("beansheal_collapsed_widgets_memo_open_v2", "1");
+      localStorage.setItem("beansheal_collapsed_widgets", JSON.stringify(merged));
+    }
+    return merged;
   } catch {
-    return defaults;
+    return { ...DEFAULT_WIDGET_COLLAPSED };
   }
 }
 
@@ -222,7 +234,8 @@ export default function Home() {
 
   const toggleWidgetCollapsed = (widgetId: string) => {
     setCollapsedWidgets((prev) => {
-      const next = { ...prev, [widgetId]: !(prev[widgetId] ?? true) };
+      const current = prev[widgetId] ?? DEFAULT_WIDGET_COLLAPSED[widgetId] ?? true;
+      const next = { ...prev, [widgetId]: !current };
       try {
         localStorage.setItem("beansheal_collapsed_widgets", JSON.stringify(next));
       } catch {
@@ -233,7 +246,8 @@ export default function Home() {
   };
 
   const isWidgetCollapsed = (widgetId: string) =>
-    COLLAPSIBLE_WIDGET_IDS.has(widgetId) && (collapsedWidgets[widgetId] ?? true);
+    COLLAPSIBLE_WIDGET_IDS.has(widgetId) &&
+    (collapsedWidgets[widgetId] ?? DEFAULT_WIDGET_COLLAPSED[widgetId] ?? true);
 
   // 달력 및 메모장용 State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -1335,7 +1349,7 @@ export default function Home() {
 
           const renderWidgetHeader = (customLeft: React.ReactNode, customRight?: React.ReactNode) => (
             <div 
-              draggable={true}
+              draggable={!widgetCollapsed}
               onDragStart={(e) => handleWidgetDragStart(e, widget.id)}
               onDragEnd={handleWidgetDragEnd}
               className={`bg-slate-100/90 border-b border-slate-200 px-3.5 py-1.5 flex justify-between items-center select-none transition-colors ${
@@ -1344,6 +1358,10 @@ export default function Home() {
               onClick={isCollapsibleWidget && widgetCollapsed ? () => toggleWidgetCollapsed(widget.id) : undefined}
             >
               <div className="flex items-center gap-2 min-w-0">
+                {customLeft}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {!widgetCollapsed && customRight}
                 {isCollapsibleWidget && (
                   <button
                     type="button"
@@ -1352,20 +1370,17 @@ export default function Home() {
                       e.stopPropagation();
                       toggleWidgetCollapsed(widget.id);
                     }}
-                    className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-200 cursor-pointer"
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 border ${
+                      widgetCollapsed
+                        ? "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-indigo-600"
+                        : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                    }`}
                     aria-expanded={!widgetCollapsed}
-                    aria-label={widgetCollapsed ? "펼치기" : "접기"}
-                    title={widgetCollapsed ? "펼치기" : "접기"}
+                    title={widgetCollapsed ? "위젯 펼치기" : "위젯 접기"}
                   >
-                    <span className="text-[10px] font-black leading-none">{widgetCollapsed ? "▶" : "▼"}</span>
+                    <span>{widgetCollapsed ? "탭하여 펼치기" : "탭하여 접기"}</span>
+                    <span className="text-[9px]">{widgetCollapsed ? "▼" : "▲"}</span>
                   </button>
-                )}
-                {customLeft}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {!widgetCollapsed && customRight}
-                {isCollapsibleWidget && widgetCollapsed && (
-                  <span className="text-[10px] font-bold text-slate-400">탭하여 펼치기</span>
                 )}
               </div>
             </div>
