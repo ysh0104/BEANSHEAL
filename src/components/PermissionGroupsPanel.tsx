@@ -14,6 +14,7 @@ import {
   updatePermissionGroup,
   deletePermissionGroup,
 } from "@/app/actions/permissionActions";
+import { supabase } from "@/lib/supabase";
 
 type Props = {
   canManage: boolean;
@@ -79,10 +80,12 @@ export default function PermissionGroupsPanel({ canManage, onGroupsChange }: Pro
     const name = prompt("새 권한 그룹 이름");
     if (!name?.trim()) return;
     setSaving(true);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
     const res = await createPermissionGroup({
       name: name.trim(),
       description: "",
       features: emptyPermissionMap(true, false),
+      actorUserId: authUser?.id,
     });
     setSaving(false);
     if (!res.success) {
@@ -96,10 +99,12 @@ export default function PermissionGroupsPanel({ canManage, onGroupsChange }: Pro
   const handleSave = async () => {
     if (!canManage || !selectedId) return;
     setSaving(true);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
     const res = await updatePermissionGroup(selectedId, {
       name: draftName,
       description: draftDesc,
       features: draftFeatures,
+      actorUserId: authUser?.id,
     });
     setSaving(false);
     if (!res.success) {
@@ -119,7 +124,8 @@ export default function PermissionGroupsPanel({ canManage, onGroupsChange }: Pro
     }
     if (!confirm(`'${g.name}' 그룹을 삭제할까요? 배정된 사용자는 그룹 미배정이 됩니다.`)) return;
     setSaving(true);
-    const res = await deletePermissionGroup(selectedId);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const res = await deletePermissionGroup(selectedId, authUser?.id);
     setSaving(false);
     if (!res.success) {
       alert(res.message || "삭제 실패");
@@ -138,6 +144,11 @@ export default function PermissionGroupsPanel({ canManage, onGroupsChange }: Pro
           <h3 className="text-sm font-bold text-slate-900">권한 그룹 설정</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">
             이카운트처럼 그룹을 만들고, 메뉴별 조회/수정 권한을 체크한 뒤 사원에게 배정합니다.
+            {!canManage && (
+              <span className="block mt-1 text-amber-700 font-semibold">
+                수정·생성·삭제는 전체관리자 권한 그룹만 가능합니다. (조회만 가능)
+              </span>
+            )}
           </p>
         </div>
         {canManage && (

@@ -36,6 +36,40 @@ async function loadGroupFeatures(groupId: string): Promise<PermissionMap> {
   return featuresFromRows(data || []);
 }
 
+/** 권한 그룹 설정 변경 — 전체관리자 그룹 소속만 허용 */
+async function assertCanManagePermissionGroups(actorUserId: string | undefined | null): Promise<{
+  ok: boolean;
+  message?: string;
+}> {
+  if (!actorUserId) {
+    return { ok: false, message: '로그인이 필요합니다.' };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('permission_group_id, role')
+    .eq('id', actorUserId)
+    .maybeSingle();
+
+  if (!profile) {
+    return { ok: false, message: '사용자 프로필을 찾을 수 없습니다.' };
+  }
+
+  if (profile.permission_group_id) {
+    const { data: group } = await supabase
+      .from('permission_groups')
+      .select('name')
+      .eq('id', profile.permission_group_id)
+      .maybeSingle();
+    if (group?.name === '전체관리자') return { ok: true };
+  } else if (profile.role === 'ADMIN') {
+    // 레거시: 그룹 미배정 ADMIN
+    return { ok: true };
+  }
+
+  return { ok: false, message: '권한 그룹 설정 수정은 전체관리자만 가능합니다.' };
+}
+
 /** 레거시 workspace 권한 → 4개 세분화 키로 DB 마이그레이션 */
 async function migrateLegacyWorkspaceFeatures() {
   const { data: legacyRows } = await supabase
@@ -136,8 +170,11 @@ export async function createPermissionGroup(input: {
   name: string;
   description?: string;
   features?: PermissionMap;
+  actorUserId?: string;
 }) {
   try {
+    const guard = await assertCanManagePermissionGroups(input.actorUserId);
+    if (!guard.ok) return { success: false, message: guard.message };
     const name = (input.name || '').trim();
     if (!name) return { success: false, message: '그룹 이름을 입력하세요.' };
 
@@ -174,9 +211,11 @@ export async function createPermissionGroup(input: {
 
 export async function updatePermissionGroup(
   id: string,
-  input: { name?: string; description?: string; features?: PermissionMap }
+  input: { name?: string; description?: string; features?: PermissionMap; actorUserId?: string }
 ) {
   try {
+    const guard = await assertCanManagePermissionGroups(input.actorUserId);
+    if (!guard.ok) return { success: false, message: guard.message };
     const patch: any = { updated_at: new Date().toISOString() };
     if (input.name !== undefined) patch.name = input.name.trim();
     if (input.description !== undefined) patch.description = input.description;
@@ -195,8 +234,10 @@ export async function updatePermissionGroup(
   }
 }
 
-export async function deletePermissionGroup(id: string) {
+export async function deletePermissionGroup(id: string, actorUserId?: string) {
   try {
+    const guard = await assertCanManagePermissionGroups(actorUserId);
+    if (!guard.ok) return { success: false, message: guard.message };
     const { data: g } = await supabase
       .from('permission_groups')
       .select('is_system, name')

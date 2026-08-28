@@ -15,6 +15,14 @@ function isSuperUser(user: UserProfile): boolean {
   );
 }
 
+/** 권한 그룹 설정(생성·수정·삭제) — 전체관리자 그룹만 */
+export function canManagePermissionGroups(user: UserProfile | null): boolean {
+  if (!user) return false;
+  const groupName = user.permissionGroupName || "";
+  if (groupName === "전체관리자" || groupName === "전체관리자(역할)") return true;
+  return false;
+}
+
 /**
  * 권한 그룹(또는 레거시 부서 규칙) 기반 수정 권한
  */

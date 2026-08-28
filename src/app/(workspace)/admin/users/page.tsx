@@ -16,7 +16,7 @@ import {
   assignUserPermissionGroup,
 } from "@/app/actions/permissionActions";
 import type { PermissionGroupRecord } from "@/lib/permissions";
-import { canUserEdit } from "@/hooks/useCanEdit";
+import { canManagePermissionGroups } from "@/hooks/useCanEdit";
 import {
   listEcountUsers,
   syncEcountUsersFromApi,
@@ -125,10 +125,7 @@ export default function UserManagementPage() {
   >([]);
   const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
 
-  const canManagePerms =
-    canUserEdit(user, "admin_users") ||
-    user?.role === "ADMIN" ||
-    !!user?.department?.includes("경영");
+  const canManagePerms = canManagePermissionGroups(user);
 
   const [dbStatusInfo, setDbStatusInfo] = useState<string>("Supabase DB 연결 확인 중...");
 
