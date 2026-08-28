@@ -1,11 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import type { ProductionScheduleItem } from "@/app/actions/notionActions";
-import MobileWeeklyPlanAgenda from "@/components/MobileWeeklyPlanAgenda";
 import WeeklyPlanCell, { type WeeklyPlanEditingCell } from "@/components/WeeklyPlanCell";
 import { getWeeklyPlan, saveWeeklyPlan } from "@/app/actions/weeklyPlanActions";
-import { useIsMobile } from "@/hooks/useMediaQuery";
 import {
   emptyWeeklyPlanGrid,
   getMondayOfDate,
@@ -87,7 +85,6 @@ export default function WeeklyPlanView({
   embedded = false,
   updatedBy,
 }: WeeklyPlanViewProps) {
-  const isMobile = useIsMobile();
   const [weekStart, setWeekStart] = useState(() => getMondayOfDate());
   const [grid, setGrid] = useState<WeeklyPlanGrid>(emptyGrid);
   const [loading, setLoading] = useState(true);
@@ -166,107 +163,96 @@ export default function WeeklyPlanView({
     setEditingCell(null);
   };
 
-  const toolbar = (
-    <div className="flex flex-col gap-2 mb-3 print:hidden shrink-0">
-      <div className="min-w-0">
-        {!embedded && (
-          <h2 className="text-xl md:text-2xl font-black tracking-tight text-[#1e3a5f]">
-            BEANSHEAL 주간계획표
-          </h2>
-        )}
-        <p className={`text-xs sm:text-sm font-bold text-slate-700 ${embedded ? "" : "mt-1"}`}>
-          부서: {department} · {periodLabel}
-          {!canEdit && <span className="ml-1.5 text-slate-400">(조회 전용)</span>}
-          {loading && <span className="ml-1.5 text-slate-400 font-medium">동기화 중…</span>}
-        </p>
-        {canEdit && (
-          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">
-            {isMobile
-              ? "날짜별 카드로 표시 · 메모만 편집 후 저장"
-              : "노션 일정은 자동 표시 · 아래 메모만 직접 편집 후 저장"}
-          </p>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1">
-          <button
-            type="button"
-            onClick={() => handleWeekChange(getMondayOfDate())}
-            className="text-[11px] sm:text-xs font-bold px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
-          >
-            이번 주
-          </button>
-          <button
-            type="button"
-            onClick={() => handleWeekChange(shiftMonday(weekStart, -1))}
-            className="text-[11px] sm:text-xs font-bold px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
-          >
-            ‹ 이전
-          </button>
-          <button
-            type="button"
-            onClick={() => handleWeekChange(shiftMonday(weekStart, 1))}
-            className="text-[11px] sm:text-xs font-bold px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
-          >
-            다음 ›
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          {canEdit && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#152a45] cursor-pointer disabled:opacity-50"
-            >
-              {saving ? "저장 중…" : dirty ? "저장 *" : "저장"}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="hidden sm:inline-flex text-[11px] sm:text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer"
-          >
-            인쇄
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div
       className={`bg-white text-slate-900 w-full ${
-        embedded && !isMobile ? "h-full flex flex-col min-h-0" : ""
-      } ${embedded ? "" : "max-w-6xl mx-auto"}`}
+        embedded ? "h-full flex flex-col min-h-0" : "max-w-6xl mx-auto"
+      }`}
     >
-      {toolbar}
+      <div className="flex flex-col gap-2 mb-3 print:hidden shrink-0">
+        <div className="min-w-0">
+          {!embedded && (
+            <h2 className="text-xl md:text-2xl font-black tracking-tight text-[#1e3a5f]">
+              BEANSHEAL 주간계획표
+            </h2>
+          )}
+          <p className={`text-xs sm:text-sm font-bold text-slate-700 ${embedded ? "" : "mt-1"}`}>
+            부서: {department} · {periodLabel}
+            {!canEdit && <span className="ml-1.5 text-slate-400">(조회 전용)</span>}
+            {loading && <span className="ml-1.5 text-slate-400 font-medium">동기화 중…</span>}
+          </p>
+          {canEdit && (
+            <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">
+              노션 일정 자동 표시 · 메모 편집 후 저장 · 표는 좌우 스크롤
+            </p>
+          )}
+          {!canEdit && (
+            <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 md:hidden">
+              ← 좌우로 스크롤해 한 주 전체를 확인하세요
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleWeekChange(getMondayOfDate())}
+              className="text-[11px] sm:text-xs font-bold px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
+            >
+              이번 주
+            </button>
+            <button
+              type="button"
+              onClick={() => handleWeekChange(shiftMonday(weekStart, -1))}
+              className="text-[11px] sm:text-xs font-bold px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
+            >
+              ‹ 이전
+            </button>
+            <button
+              type="button"
+              onClick={() => handleWeekChange(shiftMonday(weekStart, 1))}
+              className="text-[11px] sm:text-xs font-bold px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
+            >
+              다음 ›
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#152a45] cursor-pointer disabled:opacity-50"
+              >
+                {saving ? "저장 중…" : dirty ? "저장 *" : "저장"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="hidden sm:inline-flex text-[11px] sm:text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer"
+            >
+              인쇄
+            </button>
+          </div>
+        </div>
+      </div>
 
       {msg && (
         <p className="text-xs font-medium text-emerald-700 mb-2 print:hidden shrink-0">{msg}</p>
       )}
 
-      <MobileWeeklyPlanAgenda
-        days={days}
-        grid={grid}
-        schedules={schedules}
-        canEdit={canEdit}
-        editingCell={editingCell}
-        onEditCell={setEditingCell}
-        onCellChange={handleCellChange}
-      />
-
       <div
-        className={`border border-[#9db4d0] rounded-sm hidden md:block print:block ${
-          embedded ? "flex-1 min-h-0 overflow-auto" : "overflow-x-auto"
+        className={`border border-[#9db4d0] rounded-sm overflow-x-auto overflow-y-auto ${
+          embedded ? "flex-1 min-h-0" : ""
         }`}
       >
-        <table className="w-full min-w-[720px] border-collapse text-left table-fixed">
+        <table className="w-full min-w-[880px] border-collapse text-left">
           <thead>
             <tr className="bg-[#1e3a5f] text-white">
-              <th className="sticky left-0 z-20 w-[80px] border border-[#9db4d0] px-2 py-2 text-sm font-extrabold text-center bg-[#1e3a5f]">
+              <th className="sticky left-0 z-20 w-[64px] sm:w-[80px] border border-[#9db4d0] px-1.5 sm:px-2 py-2 text-xs sm:text-sm font-extrabold text-center bg-[#1e3a5f]">
                 구분
               </th>
               {days.map((day, idx) => {
@@ -275,7 +261,7 @@ export default function WeeklyPlanView({
                 return (
                   <th
                     key={day.dateStr}
-                    className={`border border-[#9db4d0] px-2 py-2 text-xs font-extrabold text-center ${
+                    className={`w-[120px] min-w-[120px] border border-[#9db4d0] px-2 py-2 text-xs font-extrabold text-center ${
                       isSun ? "bg-[#5c2b2b] text-red-100" : isSat ? "bg-[#2a4a6f]" : ""
                     }`}
                   >
@@ -288,7 +274,7 @@ export default function WeeklyPlanView({
           <tbody>
             {CATEGORIES.map((cat) => (
               <tr key={cat}>
-                <td className="sticky left-0 z-10 border border-[#9db4d0] bg-[#1e3a5f] text-white text-center text-sm font-extrabold align-middle px-2 py-3 shadow-[2px_0_4px_rgba(0,0,0,0.08)]">
+                <td className="sticky left-0 z-10 border border-[#9db4d0] bg-[#1e3a5f] text-white text-center text-xs sm:text-sm font-extrabold align-middle px-1.5 sm:px-2 py-3 shadow-[2px_0_4px_rgba(0,0,0,0.08)]">
                   {cat}
                 </td>
                 {days.map((day, idx) => {
@@ -303,7 +289,7 @@ export default function WeeklyPlanView({
                   return (
                     <td
                       key={`${cat}-${day.dateStr}`}
-                      className={`border border-[#9db4d0] p-0 align-top ${cellBg}`}
+                      className={`border border-[#9db4d0] p-0 align-top min-w-[120px] ${cellBg}`}
                     >
                       <WeeklyPlanCell
                         category={cat}
