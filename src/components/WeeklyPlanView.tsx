@@ -46,6 +46,8 @@ interface WeeklyPlanViewProps {
   updatedBy?: string;
 }
 
+type EditingCell = { cat: WeeklyPlanCategory; dayIdx: number } | null;
+
 function emptyGrid(): WeeklyPlanGrid {
   return emptyWeeklyPlanGrid();
 }
@@ -120,43 +122,7 @@ function scheduleOverlapsDay(sch: ScheduleLike, dateStr: string) {
     sch.end_date && String(sch.end_date).trim()
       ? String(sch.end_date).split("T")[0].trim()
       : start;
-  return start <= dateStr && end >= dateStr;
-}
-
-function formatCellEntry(sch: ScheduleLike, category: WeeklyPlanCategory): string {
-  const name = (sch.product_name || "").trim();
-  const qty = (sch.quantity || "").trim();
-  const note = (sch.note || "").trim();
-
-  if (category === "생산") {
-    const lines = [`*생산 : ${name || "-"}`];
-    if (qty && qty !== "1") lines.push(`수량 : ${qty}`);
-    if (note) lines.push(note.startsWith("LOT") || note.startsWith("lot") ? note : `LOT : ${note}`);
-    return lines.join("\n");
-  }
-
-  if (category === "입고" || category === "출고") {
-    return name + (qty && qty !== "1" ? ` (${qty})` : "") + (note ? `\n${note}` : "");
-  }
-
-  const tag = sch.tag_name ? `[${sch.tag_name}] ` : "";
-  return `${tag}${name}` + (note ? `\n${note}` : "");
-}
-
-export function buildGridFromSchedules(schedules: ScheduleLike[], days: WeekDay[]): WeeklyPlanGrid {
-  const grid = emptyGrid();
-  schedules.forEach((sch) => {
-    const category = resolveScheduleCategory(sch);
-    days.forEach((day, idx) => {
-      if (scheduleOverlapsDay(sch, day.dateStr)) {
-        const entry = formatCellEntry(sch, category);
-        grid[category][idx] = grid[category][idx]
-          ? `${grid[category][idx]}\n\n${entry}`
-          : entry;
-      }
-    });
-  });
-  return grid;
+  return start <= dateStr && dateStr <= end;
 }
 
 function weekOfMonthLabel(monday: WeekDay): string {
@@ -185,6 +151,10 @@ function shiftMonday(mondayStr: string, weeks: number): string {
   return formatYmd(dt);
 }
 
+function sameEditingCell(a: EditingCell, cat: WeeklyPlanCategory, dayIdx: number) {
+  return a?.cat === cat && a?.dayIdx === dayIdx;
+}
+
 export default function WeeklyPlanView({
   schedules,
   department = "생산팀",
@@ -198,6 +168,7 @@ export default function WeeklyPlanView({
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [editingCell, setEditingCell] = useState<EditingCell>(null);
   const schedulesRef = useRef(schedules);
   schedulesRef.current = schedules;
 
@@ -216,7 +187,7 @@ export default function WeeklyPlanView({
     const cached = readCachedWeeklyPlan(weekStart);
     if (!cached) setLoading(true);
     setMsg(null);
-    const dayList = weekDaysFromMonday(weekStart);
+    setEditingCell(null);
 
     const res = await getWeeklyPlan(weekStart);
     if (res.success && res.data) {
@@ -229,8 +200,7 @@ export default function WeeklyPlanView({
       setDirty(false);
       writeCachedWeeklyPlan(weekStart, merged);
     } else if (!cached) {
-      const fromSchedules = buildGridFromSchedules(schedulesRef.current, dayList);
-      setGrid(fromSchedules);
+      setGrid(emptyGrid());
       setDirty(false);
     }
     setLoading(false);
@@ -250,14 +220,6 @@ export default function WeeklyPlanView({
     setDirty(true);
   };
 
-  const handleImportFromSchedules = () => {
-    if (!canEdit) return;
-    if (dirty && !confirm("편집 중인 내용이 있습니다. 일정 데이터로 덮어쓸까요?")) return;
-    setGrid(buildGridFromSchedules(schedules, days));
-    setDirty(true);
-    setMsg("노션/일정 데이터를 불러왔습니다. 저장 버튼을 눌러 반영하세요.");
-  };
-
   const handleSave = async () => {
     if (!canEdit) return;
     setSaving(true);
@@ -275,70 +237,76 @@ export default function WeeklyPlanView({
     setSaving(false);
   };
 
+  const handleWeekChange = (nextWeekStart: string) => {
+    setWeekStart(nextWeekStart);
+    setEditingCell(null);
+  };
+
   return (
     <div className={`bg-white text-slate-900 w-full ${embedded ? "" : "max-w-6xl mx-auto"}`}>
-      <div className="flex flex-wrap items-start justify-between gap-2 mb-3 print:hidden">
+      <div className="flex flex-col gap-2 mb-3 print:hidden">
         <div className="min-w-0">
           {!embedded && (
             <h2 className="text-xl md:text-2xl font-black tracking-tight text-[#1e3a5f]">
               BEANSHEAL 주간계획표
             </h2>
           )}
-          <p className={`text-sm font-bold text-slate-700 ${embedded ? "" : "mt-1"}`}>
-            부서: {department} | 기간: {periodLabel}
-            {!canEdit && <span className="ml-2 text-slate-400">(조회 전용)</span>}
-            {loading && <span className="ml-2 text-slate-400 font-medium">동기화 중…</span>}
+          <p className={`text-xs sm:text-sm font-bold text-slate-700 ${embedded ? "" : "mt-1"}`}>
+            부서: {department} · {periodLabel}
+            {!canEdit && <span className="ml-1.5 text-slate-400">(조회 전용)</span>}
+            {loading && <span className="ml-1.5 text-slate-400 font-medium">동기화 중…</span>}
           </p>
+          {canEdit && (
+            <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">
+              노션 일정은 자동 표시 · 아래 메모만 직접 편집 후 저장
+            </p>
+          )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setWeekStart(getMondayOfDate())}
-            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
-          >
-            이번 주
-          </button>
-          <button
-            type="button"
-            onClick={() => setWeekStart((w) => shiftMonday(w, -1))}
-            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
-          >
-            ‹ 이전 주
-          </button>
-          <button
-            type="button"
-            onClick={() => setWeekStart((w) => shiftMonday(w, 1))}
-            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
-          >
-            다음 주 ›
-          </button>
-          {canEdit && (
-            <>
-              <button
-                type="button"
-                onClick={handleImportFromSchedules}
-                className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 cursor-pointer"
-              >
-                일정에서 불러오기
-              </button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleWeekChange(getMondayOfDate())}
+              className="text-[11px] sm:text-xs font-bold px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
+            >
+              이번 주
+            </button>
+            <button
+              type="button"
+              onClick={() => handleWeekChange(shiftMonday(weekStart, -1))}
+              className="text-[11px] sm:text-xs font-bold px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
+            >
+              ‹ 이전
+            </button>
+            <button
+              type="button"
+              onClick={() => handleWeekChange(shiftMonday(weekStart, 1))}
+              className="text-[11px] sm:text-xs font-bold px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer"
+            >
+              다음 ›
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {canEdit && (
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#152a45] cursor-pointer disabled:opacity-50"
+                className="text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-lg bg-[#1e3a5f] text-white hover:bg-[#152a45] cursor-pointer disabled:opacity-50"
               >
                 {saving ? "저장 중…" : dirty ? "저장 *" : "저장"}
               </button>
-            </>
-          )}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer"
-          >
-            인쇄
-          </button>
+            )}
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="text-[11px] sm:text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer"
+            >
+              인쇄
+            </button>
+          </div>
         </div>
       </div>
 
@@ -346,81 +314,105 @@ export default function WeeklyPlanView({
         <p className="text-xs font-medium text-emerald-700 mb-2 print:hidden">{msg}</p>
       )}
 
-      <div className="overflow-x-auto border border-[#9db4d0] rounded-sm flex-1 min-h-0">
-          <table className="w-full min-w-[720px] border-collapse text-left table-fixed">
-            <thead>
-              <tr className="bg-[#1e3a5f] text-white">
-                <th className="w-[80px] border border-[#9db4d0] px-2 py-2.5 text-sm font-extrabold text-center">
-                  구분
-                </th>
+      <div className="overflow-x-auto border border-[#9db4d0] rounded-sm flex-1 min-h-0 -mx-0.5 sm:mx-0">
+        <table className="w-full min-w-[560px] sm:min-w-[720px] border-collapse text-left table-fixed">
+          <thead>
+            <tr className="bg-[#1e3a5f] text-white">
+              <th className="sticky left-0 z-20 w-[64px] sm:w-[80px] border border-[#9db4d0] px-1.5 sm:px-2 py-2 text-xs sm:text-sm font-extrabold text-center bg-[#1e3a5f]">
+                구분
+              </th>
+              {days.map((day, idx) => {
+                const isSat = idx === 5;
+                const isSun = idx === 6;
+                return (
+                  <th
+                    key={day.dateStr}
+                    className={`border border-[#9db4d0] px-1 sm:px-2 py-2 text-[10px] sm:text-xs font-extrabold text-center ${
+                      isSun ? "bg-[#5c2b2b] text-red-100" : isSat ? "bg-[#2a4a6f]" : ""
+                    }`}
+                  >
+                    <span className="block sm:hidden">{day.month}/{day.day}</span>
+                    <span className="hidden sm:block">{day.month}/{day.day}_{DAY_LABELS[idx]}</span>
+                    <span className="block sm:hidden text-[9px] font-bold opacity-90">
+                      {DAY_LABELS[idx].split("(")[0]}
+                    </span>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {CATEGORIES.map((cat) => (
+              <tr key={cat}>
+                <td className="sticky left-0 z-10 border border-[#9db4d0] bg-[#1e3a5f] text-white text-center text-xs sm:text-sm font-extrabold align-middle px-1.5 sm:px-2 py-3 shadow-[2px_0_4px_rgba(0,0,0,0.08)]">
+                  {cat}
+                </td>
                 {days.map((day, idx) => {
                   const isSat = idx === 5;
                   const isSun = idx === 6;
+                  const value = grid[cat][idx] || "";
+                  const cellSchedules = getSchedulesForCell(schedules, cat, day.dateStr);
+                  const isEditing = sameEditingCell(editingCell, cat, idx);
+                  const showMemoEditor = canEdit && (isEditing || !!value || cellSchedules.length === 0);
+                  const cellBg = isSun
+                    ? "bg-[#fff5f5]"
+                    : isSat
+                      ? "bg-[#f0f7ff]"
+                      : "bg-white";
+
                   return (
-                    <th
-                      key={day.dateStr}
-                      className={`border border-[#9db4d0] px-2 py-2.5 text-xs font-extrabold text-center ${
-                        isSun ? "bg-[#5c2b2b] text-red-100" : isSat ? "bg-[#2a4a6f]" : ""
-                      }`}
+                    <td
+                      key={`${cat}-${day.dateStr}`}
+                      className={`border border-[#9db4d0] p-0 align-top ${cellBg}`}
                     >
-                      {day.month}/{day.day}_{DAY_LABELS[idx]}
-                    </th>
+                      <div className="flex flex-col min-h-[72px] sm:min-h-[96px]">
+                        {cellSchedules.length > 0 && (
+                          <div className={`px-1.5 sm:px-2 pt-1.5 sm:pt-2 ${value || showMemoEditor ? "pb-1 border-b border-slate-100/80" : "pb-1.5"}`}>
+                            <ScheduleEntryPillsList schedules={cellSchedules} compact />
+                          </div>
+                        )}
+
+                        {showMemoEditor ? (
+                          <textarea
+                            value={value}
+                            onChange={(e) => handleCellChange(cat, idx, e.target.value)}
+                            onFocus={() => setEditingCell({ cat, dayIdx: idx })}
+                            onBlur={() => {
+                              if (!value.trim()) {
+                                setEditingCell((prev) =>
+                                  sameEditingCell(prev, cat, idx) ? null : prev
+                                );
+                              }
+                            }}
+                            autoFocus={isEditing && !value}
+                            rows={value ? 3 : 2}
+                            className="w-full flex-1 min-h-[40px] px-1.5 sm:px-2 py-1.5 text-[11px] sm:text-xs font-medium leading-relaxed resize-none bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-300 text-slate-800 placeholder:text-slate-400"
+                            placeholder={cellSchedules.length ? "추가 메모…" : "메모 입력…"}
+                          />
+                        ) : canEdit && cellSchedules.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setEditingCell({ cat, dayIdx: idx })}
+                            className="mx-1.5 sm:mx-2 my-1 text-[10px] sm:text-[11px] font-bold text-slate-400 hover:text-indigo-600 text-left cursor-pointer"
+                          >
+                            + 메모 추가
+                          </button>
+                        ) : value ? (
+                          <div className="px-1.5 sm:px-2 py-1.5 text-[11px] sm:text-xs font-medium leading-relaxed whitespace-pre-wrap text-slate-700">
+                            {value}
+                          </div>
+                        ) : cellSchedules.length === 0 ? (
+                          <div className="px-1.5 sm:px-2 py-1.5 text-[11px] text-slate-300">—</div>
+                        ) : null}
+                      </div>
+                    </td>
                   );
                 })}
               </tr>
-            </thead>
-            <tbody>
-              {CATEGORIES.map((cat) => (
-                <tr key={cat}>
-                  <td className="border border-[#9db4d0] bg-[#1e3a5f] text-white text-center text-sm font-extrabold align-middle px-2 py-3">
-                    {cat}
-                  </td>
-                  {days.map((day, idx) => {
-                    const isSat = idx === 5;
-                    const isSun = idx === 6;
-                    const value = grid[cat][idx] || "";
-                    const cellSchedules = getSchedulesForCell(schedules, cat, day.dateStr);
-                    const cellBg = isSun
-                      ? "bg-[#fff5f5]"
-                      : isSat
-                        ? "bg-[#f0f7ff]"
-                        : "bg-white";
-
-                    return (
-                      <td
-                        key={`${cat}-${day.dateStr}`}
-                        className={`border border-[#9db4d0] p-0 align-top min-h-[100px] ${cellBg}`}
-                      >
-                        <div className="flex flex-col min-h-[100px]">
-                          {cellSchedules.length > 0 && (
-                            <div className="px-2 pt-2 pb-1.5 border-b border-slate-100/80">
-                              <ScheduleEntryPillsList schedules={cellSchedules} />
-                            </div>
-                          )}
-
-                          {canEdit ? (
-                            <textarea
-                              value={value}
-                              onChange={(e) => handleCellChange(cat, idx, e.target.value)}
-                              className="w-full flex-1 min-h-[52px] px-2 py-2 text-xs font-medium leading-relaxed resize-none bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-300 text-slate-800 placeholder:text-slate-400"
-                              placeholder={cellSchedules.length ? "추가 메모…" : "입력…"}
-                            />
-                          ) : value ? (
-                            <div className="px-2 py-2 text-xs font-medium leading-relaxed whitespace-pre-wrap text-slate-700">
-                              {value}
-                            </div>
-                          ) : cellSchedules.length === 0 ? (
-                            <div className="px-2 py-2 text-xs text-slate-300">—</div>
-                          ) : null}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
