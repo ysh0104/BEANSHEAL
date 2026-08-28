@@ -70,7 +70,7 @@ const ROW_HEIGHT_SNAP = 40; // 40px 단위 세로 스냅
 const DEFAULT_WIDGET_CONFIGS: Array<{ id: string; title: string; widthPct: number; heightPx: number }> = [
   { id: "calendar", title: "월간 생산 계획표", widthPct: 65, heightPx: 780 },
   { id: "memo", title: "실시간 특이사항 & 메모", widthPct: 32, heightPx: 780 },
-  { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 540 },
+  { id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 720 },
 ];
 
 function readLocalJsonArray(key: string): any[] {
@@ -101,9 +101,13 @@ function readWidgetConfigsFromStorage(): typeof DEFAULT_WIDGET_CONFIGS {
     const filtered = (parsed || []).filter((w: any) => allowed.has(w.id));
     if (filtered.length === 0) return DEFAULT_WIDGET_CONFIGS;
     if (!filtered.some((w: any) => w.id === "weekly_plan")) {
-      filtered.push({ id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 540 });
+      filtered.push({ id: "weekly_plan", title: "BEANSHEAL 주간계획표", widthPct: 100, heightPx: 720 });
     }
-    return filtered;
+    return filtered.map((w: any) =>
+      w.id === "weekly_plan" && w.heightPx < 640
+        ? { ...w, heightPx: 720 }
+        : w
+    );
   } catch {
     return DEFAULT_WIDGET_CONFIGS;
   }
@@ -1256,13 +1260,22 @@ export default function Home() {
           const isResizingThis = resizingWidgetId === widget.id;
 
           const cardStyle: React.CSSProperties = isMobile
-            ? {
-                width: "100%",
-                minWidth: "unset",
-                height: `${widget.heightPx}px`,
-                flexGrow: 0,
-                flexShrink: 0,
-              }
+            ? widget.id === "weekly_plan"
+              ? {
+                  width: "100%",
+                  minWidth: "unset",
+                  minHeight: `${Math.max(widget.heightPx, 720)}px`,
+                  height: "auto",
+                  flexGrow: 0,
+                  flexShrink: 0,
+                }
+              : {
+                  width: "100%",
+                  minWidth: "unset",
+                  height: `${widget.heightPx}px`,
+                  flexGrow: 0,
+                  flexShrink: 0,
+                }
             : {
                 width: `calc(${widget.widthPct}% - 12px)`,
                 minWidth: "280px",
@@ -1789,9 +1802,9 @@ export default function Home() {
                 style={cardStyle}
                 className={`transition-all duration-300 ease-in-out rounded-lg group/card ${dragVisualClass}`}
               >
-                <div className="bg-white border border-gray-200 rounded-lg shadow-xs flex flex-col h-full overflow-hidden relative">
+                <div className={`bg-white border border-gray-200 rounded-lg shadow-xs flex flex-col relative ${isMobile ? "h-auto" : "h-full overflow-hidden"}`}>
                   {renderWidgetHeader(weeklyHeaderLeft, weeklyHeaderRight)}
-                  <div className="p-3 flex flex-col flex-1 overflow-hidden min-h-0">
+                  <div className={`p-3 flex flex-col flex-1 min-h-0 ${isMobile ? "" : "overflow-hidden"}`}>
                     <WeeklyPlanView
                       schedules={schedules}
                       department={user?.department || "생산팀"}

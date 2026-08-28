@@ -243,8 +243,12 @@ export default function WeeklyPlanView({
   };
 
   return (
-    <div className={`bg-white text-slate-900 w-full ${embedded ? "" : "max-w-6xl mx-auto"}`}>
-      <div className="flex flex-col gap-2 mb-3 print:hidden">
+    <div
+      className={`bg-white text-slate-900 w-full ${
+        embedded ? "h-full flex flex-col min-h-0" : "max-w-6xl mx-auto"
+      }`}
+    >
+      <div className="flex flex-col gap-2 mb-3 print:hidden shrink-0">
         <div className="min-w-0">
           {!embedded && (
             <h2 className="text-xl md:text-2xl font-black tracking-tight text-[#1e3a5f]">
@@ -311,10 +315,14 @@ export default function WeeklyPlanView({
       </div>
 
       {msg && (
-        <p className="text-xs font-medium text-emerald-700 mb-2 print:hidden">{msg}</p>
+        <p className="text-xs font-medium text-emerald-700 mb-2 print:hidden shrink-0">{msg}</p>
       )}
 
-      <div className="overflow-x-auto border border-[#9db4d0] rounded-sm flex-1 min-h-0 -mx-0.5 sm:mx-0">
+      <div
+        className={`border border-[#9db4d0] rounded-sm -mx-0.5 sm:mx-0 ${
+          embedded ? "flex-1 min-h-0 overflow-auto" : "overflow-x-auto"
+        }`}
+      >
         <table className="w-full min-w-[560px] sm:min-w-[720px] border-collapse text-left table-fixed">
           <thead>
             <tr className="bg-[#1e3a5f] text-white">
