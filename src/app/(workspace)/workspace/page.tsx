@@ -85,6 +85,21 @@ function readLocalJsonArray(key: string): any[] {
   }
 }
 
+const COLLAPSIBLE_WIDGET_IDS = new Set(["calendar", "weekly_plan"]);
+
+function readCollapsedWidgetsFromStorage(): Record<string, boolean> {
+  const defaults: Record<string, boolean> = { calendar: true, weekly_plan: true };
+  if (typeof window === "undefined") return defaults;
+  try {
+    const raw = localStorage.getItem("beansheal_collapsed_widgets");
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as Record<string, boolean>;
+    return { ...defaults, ...parsed };
+  } catch {
+    return defaults;
+  }
+}
+
 function readWidgetConfigsFromStorage(): typeof DEFAULT_WIDGET_CONFIGS {
   if (typeof window === "undefined") return DEFAULT_WIDGET_CONFIGS;
   try {
@@ -203,6 +218,22 @@ export default function Home() {
   const { canView: canViewWeeklyPlan } = useCanView("weekly_plan");
   const { canEdit: canEditWeeklyPlan } = useCanEdit("weekly_plan");
   const isMobile = useIsMobile();
+  const [collapsedWidgets, setCollapsedWidgets] = useState(readCollapsedWidgetsFromStorage);
+
+  const toggleWidgetCollapsed = (widgetId: string) => {
+    setCollapsedWidgets((prev) => {
+      const next = { ...prev, [widgetId]: !(prev[widgetId] ?? true) };
+      try {
+        localStorage.setItem("beansheal_collapsed_widgets", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const isWidgetCollapsed = (widgetId: string) =>
+    COLLAPSIBLE_WIDGET_IDS.has(widgetId) && (collapsedWidgets[widgetId] ?? true);
 
   // 달력 및 메모장용 State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -1258,8 +1289,10 @@ export default function Home() {
           const isDraggingThis = draggedWidgetId === widget.id;
           const isDragOverThis = dragOverWidgetId === widget.id;
           const isResizingThis = resizingWidgetId === widget.id;
+          const isCollapsibleWidget = COLLAPSIBLE_WIDGET_IDS.has(widget.id);
+          const widgetCollapsed = isWidgetCollapsed(widget.id);
 
-          const cardStyle: React.CSSProperties = isMobile
+          let cardStyle: React.CSSProperties = isMobile
             ? widget.id === "weekly_plan"
               ? {
                   width: "100%",
@@ -1284,6 +1317,14 @@ export default function Home() {
                 flexShrink: 0,
               };
 
+          if (widgetCollapsed) {
+            cardStyle = {
+              ...cardStyle,
+              height: "auto",
+              minHeight: "unset",
+            };
+          }
+
           const dragVisualClass = isDraggingThis
             ? 'opacity-40 scale-95 border-2 border-dashed border-blue-500 shadow-2xl'
             : isDragOverThis
@@ -1297,13 +1338,35 @@ export default function Home() {
               draggable={true}
               onDragStart={(e) => handleWidgetDragStart(e, widget.id)}
               onDragEnd={handleWidgetDragEnd}
-              className="bg-slate-100/90 border-b border-slate-200 px-3.5 py-1.5 flex justify-between items-center cursor-grab active:cursor-grabbing select-none hover:bg-slate-200/70 transition-colors"
+              className={`bg-slate-100/90 border-b border-slate-200 px-3.5 py-1.5 flex justify-between items-center select-none transition-colors ${
+                widgetCollapsed ? "cursor-pointer hover:bg-slate-200/80" : "cursor-grab active:cursor-grabbing hover:bg-slate-200/70"
+              }`}
+              onClick={isCollapsibleWidget && widgetCollapsed ? () => toggleWidgetCollapsed(widget.id) : undefined}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {isCollapsibleWidget && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleWidgetCollapsed(widget.id);
+                    }}
+                    className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:text-indigo-600 hover:border-indigo-200 cursor-pointer"
+                    aria-expanded={!widgetCollapsed}
+                    aria-label={widgetCollapsed ? "펼치기" : "접기"}
+                    title={widgetCollapsed ? "펼치기" : "접기"}
+                  >
+                    <span className="text-[10px] font-black leading-none">{widgetCollapsed ? "▶" : "▼"}</span>
+                  </button>
+                )}
                 {customLeft}
               </div>
-              <div className="flex items-center gap-2">
-                {customRight}
+              <div className="flex items-center gap-2 shrink-0">
+                {!widgetCollapsed && customRight}
+                {isCollapsibleWidget && widgetCollapsed && (
+                  <span className="text-[10px] font-bold text-slate-400">탭하여 펼치기</span>
+                )}
               </div>
             </div>
           );
@@ -1385,6 +1448,7 @@ export default function Home() {
               >
                 <div className="bg-white border border-gray-200 rounded-lg shadow-xs flex flex-col h-full overflow-hidden relative">
                   {renderWidgetHeader(calendarHeaderLeft, calendarHeaderRight)}
+                  {!widgetCollapsed && (
                   <div className="p-3 flex flex-col flex-1 overflow-hidden min-h-0">
                     {isMobile ? (
                       <MobileScheduleAgenda
@@ -1407,7 +1471,8 @@ export default function Home() {
                       />
                     )}
                   </div>
-                  {renderCornerResizeHandles()}
+                  )}
+                  {!widgetCollapsed && renderCornerResizeHandles()}
                 </div>
               </div>
             );
@@ -1802,8 +1867,9 @@ export default function Home() {
                 style={cardStyle}
                 className={`transition-all duration-300 ease-in-out rounded-lg group/card ${dragVisualClass}`}
               >
-                <div className={`bg-white border border-gray-200 rounded-lg shadow-xs flex flex-col relative ${isMobile ? "h-auto" : "h-full overflow-hidden"}`}>
+                <div className={`bg-white border border-gray-200 rounded-lg shadow-xs flex flex-col relative ${widgetCollapsed ? "" : isMobile ? "h-auto" : "h-full overflow-hidden"}`}>
                   {renderWidgetHeader(weeklyHeaderLeft, weeklyHeaderRight)}
+                  {!widgetCollapsed && (
                   <div className={`p-3 flex flex-col flex-1 min-h-0 ${isMobile ? "" : "overflow-hidden"}`}>
                     <WeeklyPlanView
                       schedules={schedules}
@@ -1813,7 +1879,8 @@ export default function Home() {
                       updatedBy={user?.name || user?.email || undefined}
                     />
                   </div>
-                  {renderCornerResizeHandles()}
+                  )}
+                  {!widgetCollapsed && renderCornerResizeHandles()}
                 </div>
               </div>
             );
