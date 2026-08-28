@@ -107,6 +107,11 @@ function readCollapsedWidgetsFromStorage(): Record<string, boolean> {
       localStorage.setItem("beansheal_collapsed_widgets_memo_collapsed_v3", "1");
       localStorage.setItem("beansheal_collapsed_widgets", JSON.stringify(merged));
     }
+    if (!localStorage.getItem("beansheal_collapsed_widgets_work_schedule_collapsed_v1")) {
+      merged.work_schedule = true;
+      localStorage.setItem("beansheal_collapsed_widgets_work_schedule_collapsed_v1", "1");
+      localStorage.setItem("beansheal_collapsed_widgets", JSON.stringify(merged));
+    }
     return merged;
   } catch {
     return { ...DEFAULT_WIDGET_COLLAPSED };
@@ -1893,7 +1898,7 @@ export default function Home() {
         })}
       </div>
 
-      {/* 🌟 월간 근무 & 근무조 스케줄표 */}
+      {/* 근무스케줄표 */}
       {canViewWorkSchedule && (
         <div id="work-schedule-dashboard" className="w-full mt-6 sm:mt-8 scroll-mt-4">
           <div className="bg-white border border-gray-200 rounded-lg shadow-xs overflow-x-auto">
@@ -1911,7 +1916,7 @@ export default function Home() {
             >
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-xs sm:text-sm font-bold text-slate-900 truncate">
-                  근무 및 근무조 스케줄 대시보드
+                  근무스케줄표
                 </span>
               </div>
               <button

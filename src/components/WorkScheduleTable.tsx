@@ -978,7 +978,7 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
             </div>
             <div className="min-w-0">
               <h1 className="text-base sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <span>근무 및 근무조 스케줄</span>
+                <span>근무스케줄표</span>
                 {readOnly ? (
                   <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-bold border border-slate-200 shrink-0">
                     조회 전용
