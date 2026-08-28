@@ -45,13 +45,18 @@ function initAutoLoginRedirect() {
   } catch (e) {}
 }
 
+function phoneToTelHref(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return digits ? `tel:${digits}` : "tel:0319692428";
+}
+
 function loadDynamicCompanyInfo() {
   let info = {
     name: "(주) 빈스힐",
     ceo: "홍길동",
     address: "경기도 고양시 일산동구 견달산로 359 (주)빈스힐",
-    phone: "031-900-0000",
-    fax: "031-900-0001",
+    phone: "031-969-2428",
+    fax: "031-969-2429",
     email: "beansheal@beansheal.com",
     hours: "평일 09:00 ~ 18:00 (점심시간 12:00 ~ 13:00)"
   };
@@ -96,6 +101,16 @@ function loadDynamicCompanyInfo() {
   }
   if (document.getElementById('footer-company-tel')) {
     document.getElementById('footer-company-tel').textContent = `TEL : ${info.phone} | FAX : ${info.fax} | 전화상담시간: ${info.hours}`;
+  }
+
+  const floatingCallBtn = document.getElementById('floating-call-btn');
+  if (floatingCallBtn) {
+    floatingCallBtn.href = phoneToTelHref(info.phone);
+    floatingCallBtn.setAttribute('aria-label', `전화 상담 ${info.phone}`);
+  }
+  const floatingCallNumber = document.getElementById('floating-call-btn-number');
+  if (floatingCallNumber) {
+    floatingCallNumber.textContent = info.phone;
   }
 }
 

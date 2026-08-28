@@ -30,6 +30,11 @@ document.addEventListener('DOMContentLoaded', () => {
   initStatCounterAnimation();
 });
 
+function phoneToTelHref(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  return digits ? `tel:${digits}` : "tel:0319692428";
+}
+
 function loadDynamicCompanyInfo() {
   let info = {
     name: "(주) 빈스힐",
@@ -81,6 +86,16 @@ function loadDynamicCompanyInfo() {
   }
   if (document.getElementById('footer-company-tel')) {
     document.getElementById('footer-company-tel').textContent = `TEL : ${info.phone} | FAX : ${info.fax} | 전화상담시간: ${info.hours}`;
+  }
+
+  const floatingCallBtn = document.getElementById('floating-call-btn');
+  if (floatingCallBtn) {
+    floatingCallBtn.href = phoneToTelHref(info.phone);
+    floatingCallBtn.setAttribute('aria-label', `전화 상담 ${info.phone}`);
+  }
+  const floatingCallNumber = document.getElementById('floating-call-btn-number');
+  if (floatingCallNumber) {
+    floatingCallNumber.textContent = info.phone;
   }
 }
 
