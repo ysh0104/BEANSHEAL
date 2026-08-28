@@ -32,6 +32,7 @@ import MemoRichEditor from "@/components/MemoRichEditor";
 import MemoRichContent from "@/components/MemoRichContent";
 import MemoPresetsManager from "@/components/MemoPresetsManager";
 import WeeklyPlanView from "@/components/WeeklyPlanView";
+import MyWeeklyShiftStrip from "@/components/MyWeeklyShiftStrip";
 import MonthlyScheduleCalendar from "@/components/MonthlyScheduleCalendar";
 import MobileScheduleAgenda from "@/components/MobileScheduleAgenda";
 import { ScheduleCalendarHeaderLeft, ScheduleCalendarHeaderRight } from "@/components/ScheduleCalendarHeader";
@@ -89,7 +90,7 @@ const COLLAPSIBLE_WIDGET_IDS = new Set(["calendar", "memo", "weekly_plan"]);
 
 const DEFAULT_WIDGET_COLLAPSED: Record<string, boolean> = {
   calendar: true,
-  memo: false,
+  memo: true,
   weekly_plan: true,
   work_schedule: true,
 };
@@ -101,10 +102,9 @@ function readCollapsedWidgetsFromStorage(): Record<string, boolean> {
     if (!raw) return { ...DEFAULT_WIDGET_COLLAPSED };
     const parsed = JSON.parse(raw) as Record<string, boolean>;
     const merged = { ...DEFAULT_WIDGET_COLLAPSED, ...parsed };
-    // 메모는 기본 펼침 — 이전에 memo:true 로 저장된 경우 1회 보정
-    if (!localStorage.getItem("beansheal_collapsed_widgets_memo_open_v2")) {
-      merged.memo = false;
-      localStorage.setItem("beansheal_collapsed_widgets_memo_open_v2", "1");
+    if (!localStorage.getItem("beansheal_collapsed_widgets_memo_collapsed_v3")) {
+      merged.memo = true;
+      localStorage.setItem("beansheal_collapsed_widgets_memo_collapsed_v3", "1");
       localStorage.setItem("beansheal_collapsed_widgets", JSON.stringify(merged));
     }
     return merged;
@@ -1285,6 +1285,8 @@ export default function Home() {
         </div>
       )}
 
+      <MyWeeklyShiftStrip userName={user?.name} />
+
       {/* 🌟 2D 자유형 드래그 앤 드롭 & 코너 리사이즈 그리드 컨테이너 */}
       <div 
         ref={containerRef}
@@ -1893,7 +1895,7 @@ export default function Home() {
 
       {/* 🌟 월간 근무 & 근무조 스케줄표 */}
       {canViewWorkSchedule && (
-        <div className="w-full mt-6 sm:mt-8">
+        <div id="work-schedule-dashboard" className="w-full mt-6 sm:mt-8 scroll-mt-4">
           <div className="bg-white border border-gray-200 rounded-lg shadow-xs overflow-hidden">
             <div
               className={`bg-slate-100/90 border-b border-slate-200 px-3.5 py-2.5 flex justify-between items-center select-none transition-colors ${
