@@ -1503,28 +1503,35 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
       </div>
 
       {/* 시간표 설명 표 (기본 접힘) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-5 space-y-4 shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-          <div>
-            <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-              📋 이카운트 근무 코드 & 시간 기준표 (Shift Master Legend Grid)
-              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-bold border border-orange-200">
-                주황색 = 11시이후 야간/석근조
-              </span>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-3 sm:p-5 space-y-3 sm:space-y-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="min-w-0">
+            <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white leading-snug">
+              📋 이카운트 근무 코드 & 시간 기준표
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">보내주신 시간 기준표 규격 100% 동일 매칭 표</p>
+            <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">
+              Shift Master Legend · 보내주신 시간 기준표와 동일
+            </p>
+            <span className="inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-bold border border-orange-200 dark:bg-orange-950 dark:text-orange-200 dark:border-orange-800">
+              주황색 = 11시이후 야간/석근조
+            </span>
           </div>
           <button
+            type="button"
             onClick={() => setShowMasterGrid((prev) => !prev)}
-            className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+            className="shrink-0 self-start text-[10px] sm:text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
           >
             {showMasterGrid ? "표 접기 ▲" : "표 펼치기 ▼"}
           </button>
         </div>
 
         {showMasterGrid && (
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-xs text-center border border-slate-300 dark:border-slate-700 border-collapse">
+          <>
+            <p className="text-[10px] text-slate-500 font-medium md:hidden">
+              ← 표가 넓습니다. 좌우로 스크롤해 전체 계열을 확인하세요.
+            </p>
+            <div className="overflow-x-auto scrollbar-thin -mx-1 px-1">
+            <table className="min-w-[680px] w-max text-[11px] sm:text-xs text-center border border-slate-300 dark:border-slate-700 border-collapse text-slate-800 dark:text-slate-200">
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-800 font-bold border-b border-slate-300 dark:border-slate-700">
                   <th colSpan={2} className="py-2 border-r border-slate-300 dark:border-slate-700">A계열 (9시간)</th>
@@ -1546,45 +1553,45 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
 
                   return (
                     <tr key={i} className="border-b border-slate-200 dark:border-slate-800 font-mono">
-                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                      <td className={`px-1.5 sm:px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 whitespace-nowrap ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : "bg-white dark:bg-slate-900"}`}>
                         {itemA?.code || ""}
                       </td>
-                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                      <td className={`px-1.5 sm:px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap ${itemA?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : "bg-white dark:bg-slate-900"}`}>
                         {itemA?.time || ""}
                       </td>
 
-                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                      <td className={`px-1.5 sm:px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 whitespace-nowrap ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : "bg-white dark:bg-slate-900"}`}>
                         {itemB?.code || ""}
                       </td>
-                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                      <td className={`px-1.5 sm:px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap ${itemB?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : "bg-white dark:bg-slate-900"}`}>
                         {itemB?.time || ""}
                       </td>
 
-                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                      <td className={`px-1.5 sm:px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 whitespace-nowrap ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : "bg-white dark:bg-slate-900"}`}>
                         {itemC?.code || ""}
                       </td>
-                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                      <td className={`px-1.5 sm:px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap ${itemC?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : "bg-white dark:bg-slate-900"}`}>
                         {itemC?.time || ""}
                       </td>
 
-                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                      <td className={`px-1.5 sm:px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 whitespace-nowrap ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : "bg-white dark:bg-slate-900"}`}>
                         {itemD?.code || ""}
                       </td>
-                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                      <td className={`px-1.5 sm:px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap ${itemD?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : "bg-white dark:bg-slate-900"}`}>
                         {itemD?.time || ""}
                       </td>
 
-                      <td className={`px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                      <td className={`px-1.5 sm:px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 whitespace-nowrap ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : "bg-white dark:bg-slate-900"}`}>
                         {itemE?.code || ""}
                       </td>
-                      <td className={`px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : ""}`}>
+                      <td className={`px-1.5 sm:px-2 py-1.5 border-r border-slate-300 dark:border-slate-700 whitespace-nowrap ${itemE?.highlight ? "bg-[#F8CBAD] text-[#7C2D12]" : "bg-white dark:bg-slate-900"}`}>
                         {itemE?.time || ""}
                       </td>
 
-                      <td className="px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800">
+                      <td className="px-1.5 sm:px-2 py-1.5 font-bold border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 whitespace-nowrap">
                         {itemLeave ? <span className={`px-2 py-0.5 rounded text-[11px] ${itemLeave.badge}`}>{itemLeave.code}</span> : ""}
                       </td>
-                      <td className="px-2 py-1.5 font-sans font-bold text-slate-800 dark:text-slate-200">
+                      <td className="px-1.5 sm:px-2 py-1.5 font-sans font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 whitespace-nowrap">
                         {itemLeave?.name || ""}
                       </td>
                     </tr>
@@ -1592,7 +1599,8 @@ export default function WorkScheduleTable({ readOnly = false }: WorkScheduleTabl
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
 
