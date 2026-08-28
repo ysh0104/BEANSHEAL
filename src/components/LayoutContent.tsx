@@ -3,6 +3,7 @@
 import React from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import AuthGate from "@/components/AuthGate";
 
 export default function LayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -26,7 +27,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col antialiased overflow-x-hidden">
       <Sidebar />
       <main className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4 md:p-6 max-w-[1920px] mx-auto w-full min-w-0">
-        {children}
+        <AuthGate>{children}</AuthGate>
       </main>
     </div>
   );

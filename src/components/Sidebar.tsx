@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import LoginModal from "@/components/LoginModal";
 import { canUserView } from "@/hooks/useCanEdit";
 import { MENU_FEATURE_MAP } from "@/lib/permissions";
 
@@ -19,7 +18,6 @@ export default function Sidebar() {
   };
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileExpandedGroup, setMobileExpandedGroup] = useState<string | null>(null);
   const userMenuRef = React.useRef<HTMLDivElement>(null);
@@ -111,12 +109,13 @@ export default function Sidebar() {
   ];
 
   const menuGroups = rawMenuGroups.filter((group) => {
+    if (!user) return false;
     const featureKey = MENU_FEATURE_MAP[group.name];
     if (group.name === "시스템/사용자 관리" || featureKey === "admin_users") {
       return isAdmin;
     }
     if (!featureKey) return true;
-    if (!user?.permissions) {
+    if (!user.permissions) {
       if (featureKey === "cms") return isAdmin;
       return true;
     }
@@ -175,7 +174,8 @@ export default function Sidebar() {
           </div>
 
           <nav className="hidden md:flex items-center gap-0.5 shrink-0">
-            {menuGroups.map((group) => {
+            {user ? (
+              menuGroups.map((group) => {
               const isOpen = activeDropdown === group.name;
 
               return (
@@ -226,7 +226,12 @@ export default function Sidebar() {
                   )}
                 </div>
               );
-            })}
+            })
+            ) : (
+              <span className="px-3 py-1.5 text-xs font-bold text-slate-500">
+                로그인 후 메뉴를 이용할 수 있습니다
+              </span>
+            )}
           </nav>
 
           <div className="flex items-center gap-1 sm:gap-2 text-xs shrink-0 min-w-0">
@@ -283,12 +288,12 @@ export default function Sidebar() {
                 )}
               </div>
             ) : (
-              <button
-                onClick={() => setIsLoginModalOpen(true)}
+              <Link
+                href="/login"
                 className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold px-3 sm:px-3.5 py-1.5 rounded-full shadow-xs transition-colors cursor-pointer text-xs shrink-0"
               >
                 로그인
-              </button>
+              </Link>
             )}
           </div>
         </div>
@@ -337,7 +342,8 @@ export default function Sidebar() {
                 홈페이지
               </Link>
 
-              {menuGroups.map((group) => {
+              {user ? (
+                menuGroups.map((group) => {
                 const expanded = mobileExpandedGroup === group.name;
                 const hasActive = group.items.some((item) => isActivePath(item.path));
 
@@ -380,8 +386,35 @@ export default function Sidebar() {
                     )}
                   </div>
                 );
-              })}
+              })
+              ) : (
+                <div className="mx-4 my-3 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                  <p className="text-sm font-extrabold text-slate-900 mb-1">로그인이 필요합니다</p>
+                  <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                    ERP 메뉴와 기능은 사내 계정 로그인 후 이용할 수 있습니다.
+                  </p>
+                  <Link
+                    href="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="inline-flex items-center justify-center w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm px-4 py-3 rounded-xl transition-colors"
+                  >
+                    로그인하기
+                  </Link>
+                </div>
+              )}
             </nav>
+
+            {!user && (
+              <div className="border-t border-slate-200 p-4 shrink-0">
+                <Link
+                  href="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors"
+                >
+                  로그인
+                </Link>
+              </div>
+            )}
 
             {user && (
               <div className="border-t border-slate-200 p-4 shrink-0 space-y-3">
@@ -412,8 +445,6 @@ export default function Sidebar() {
           </div>
         </>
       )}
-
-      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
     </>
   );
 }
