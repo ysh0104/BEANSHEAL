@@ -393,7 +393,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     localStorage.setItem("beansheal_auto_login", "false");
     localStorage.removeItem("beansheal_active_user");
-    await supabase.auth.signOut();
+    sessionStorage.removeItem("beansheal_admin_authed");
+    try {
+      await supabase.auth.signOut({ scope: "global" });
+    } catch {
+      await supabase.auth.signOut().catch(() => {});
+    }
     setUser(null);
   };
 

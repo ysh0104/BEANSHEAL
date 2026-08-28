@@ -11,14 +11,18 @@ import { MENU_FEATURE_MAP } from "@/lib/permissions";
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    setIsUserMenuOpen(false);
+    setIsMobileMenuOpen(false);
+    await logout();
     window.location.href = "/login";
   };
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileExpandedGroup, setMobileExpandedGroup] = useState<string | null>(null);
+  const userMenuRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -31,6 +35,17 @@ export default function Sidebar() {
       document.body.style.overflow = "";
     };
   }, [isMobileMenuOpen]);
+
+  useEffect(() => {
+    if (!isUserMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [isUserMenuOpen]);
 
   if (!pathname || pathname === "/login" || pathname === "/" || pathname.startsWith("/auth/")) {
     return null;
@@ -216,22 +231,56 @@ export default function Sidebar() {
 
           <div className="flex items-center gap-1 sm:gap-2 text-xs shrink-0 min-w-0">
             {user ? (
-              <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                <div className="bg-slate-100 text-slate-800 border border-slate-200 px-2 sm:px-3 py-1 rounded-full font-bold flex items-center gap-1 sm:gap-1.5 shadow-2xs min-w-0 max-w-[160px] sm:max-w-none">
+              <div ref={userMenuRef} className="relative flex items-center min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setIsUserMenuOpen((open) => !open)}
+                  className="bg-slate-100 text-slate-800 border border-slate-200 px-2 sm:px-3 py-1 rounded-full font-bold flex items-center gap-1 sm:gap-1.5 shadow-2xs min-w-0 max-w-[180px] sm:max-w-none hover:bg-slate-200/80 transition-colors cursor-pointer"
+                  aria-expanded={isUserMenuOpen}
+                  aria-haspopup="menu"
+                  title="계정 메뉴"
+                >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                   <span className="text-xs font-extrabold text-slate-900 truncate">{user.name}</span>
                   <span className="hidden sm:inline text-xs text-slate-700 font-bold truncate">
                     ({user.jobTitle ? user.jobTitle : `${user.department || "생산"} ${user.position || "사원"}`})
                   </span>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="text-slate-500 hover:text-red-600 text-xs font-bold px-1.5 sm:px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
-                  title="로그아웃"
-                >
-                  <span className="hidden sm:inline">로그아웃</span>
-                  <span className="sm:hidden">↪</span>
+                  <svg
+                    className={`w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform ${isUserMenuOpen ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    aria-hidden
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
+
+                {isUserMenuOpen && (
+                  <div className="absolute right-0 top-full pt-2 w-56 z-[80] animate-fadeIn">
+                    <div className="bg-white text-slate-900 rounded-xl shadow-xl border border-slate-200/90 p-1 backdrop-blur-xl">
+                      <div className="px-3 py-2 border-b border-slate-100 mb-1">
+                        <p className="text-xs font-extrabold text-slate-900 truncate">{user.name}</p>
+                        <p className="text-[11px] text-slate-500 truncate mt-0.5">{user.email}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                          />
+                        </svg>
+                        로그아웃
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <button
@@ -335,12 +384,29 @@ export default function Sidebar() {
             </nav>
 
             {user && (
-              <div className="border-t border-slate-200 p-4 shrink-0">
-                <p className="text-xs font-bold text-slate-500 mb-1">로그인 계정</p>
-                <p className="text-sm font-extrabold text-slate-900">{user.name}</p>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  {user.jobTitle || `${user.department || "생산"} ${user.position || "사원"}`}
-                </p>
+              <div className="border-t border-slate-200 p-4 shrink-0 space-y-3">
+                <div>
+                  <p className="text-xs font-bold text-slate-500 mb-1">로그인 계정</p>
+                  <p className="text-sm font-extrabold text-slate-900">{user.name}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {user.jobTitle || `${user.department || "생산"} ${user.position || "사원"}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition-colors cursor-pointer"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    />
+                  </svg>
+                  로그아웃
+                </button>
               </div>
             )}
           </div>
