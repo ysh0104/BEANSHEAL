@@ -203,6 +203,9 @@ function initStatCounterAnimation() {
 /* ==========================================================================
    Notice Popup Logic (오늘 하루 보지 않기)
    ========================================================================== */
+/** 프로모션 팝업 전역 스위치 — false면 localStorage/CMS 설정과 무관하게 미노출 */
+const NOTICE_POPUP_GLOBALLY_ENABLED = false;
+
 function initNoticePopup() {
   const noticeModal = document.getElementById('notice-popup-modal');
   const closeHeaderBtn = document.getElementById('notice-header-close');
@@ -211,10 +214,11 @@ function initNoticePopup() {
   const ctaBtn = document.getElementById('notice-cta-btn');
 
   if (!noticeModal) return;
+  if (!NOTICE_POPUP_GLOBALLY_ENABLED) return;
 
   // Load custom admin popup config
   let popupConfig = {
-    enabled: true,
+    enabled: false,
     badge: "BEANSHEAL PROMOTION",
     title: "빈스힐 (BEANSHEAL) <br><span class=\"highlight\">소량 액상 건기식 OEM/ODM</span> 특가 프로모션",
     subtitle: "액상 전용 무균 충진 및 신규 브랜드 전격 지원 혜택",

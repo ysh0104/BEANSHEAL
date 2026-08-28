@@ -389,7 +389,7 @@ function AdminCmsContent() {
   const [companyHours, setCompanyHours] = useState("평일 09:00 ~ 18:00 (점심시간 12:00 ~ 13:00)");
 
   // 팝업 설정
-  const [popupEnabled, setPopupEnabled] = useState(true);
+  const [popupEnabled, setPopupEnabled] = useState(false);
   const [popupBadge, setPopupBadge] = useState("BEANSHEAL PROMOTION");
   const [popupTitle, setPopupTitle] = useState("빈스힐 소량 액상 건기식 OEM/ODM 특가 프로모션");
   const [popupSubTitle, setPopupSubTitle] = useState("액상 전용 무균 충진 및 신규 브랜드 전격 지원 혜택");
