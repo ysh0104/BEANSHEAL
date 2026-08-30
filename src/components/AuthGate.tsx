@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { BRAND } from "@/lib/branding";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -26,7 +27,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           </div>
           <h2 className="text-lg font-extrabold text-slate-900 mb-2">로그인이 필요합니다</h2>
           <p className="text-sm text-slate-600 leading-relaxed mb-6">
-            BEANSHEAL 사내 ERP 기능은 로그인한 사원만 이용할 수 있습니다.
+            {BRAND.workspace} 기능은 로그인한 사원만 이용할 수 있습니다.
             <br />
             사내 계정으로 로그인해 주세요.
           </p>
@@ -41,7 +42,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
               href="/"
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm px-5 py-3 rounded-xl transition-colors w-full text-center border border-slate-200"
             >
-              고객 홈페이지로 이동
+              {BRAND.connect}로 이동
             </Link>
           </div>
         </div>

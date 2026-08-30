@@ -3,21 +3,24 @@ description: BEANSHEAL project architecture and routing map
 alwaysApply: true
 ---
 
-# BEANSHEAL StockTrace — Project Overview
+# BEANSHEAL Platform — Project Overview
 
-액상 건기식 OEM/ODM **고객 홈페이지** + 사내 **생산 ERP** 통합 앱 (Next.js 15 App Router).
+액상 건기식 OEM/ODM 통합 플랫폼 (Next.js 15 App Router).
 
-## Two surfaces
+## Product naming
 
-| Surface | Entry | Stack |
-|---------|-------|-------|
-| Customer site | `/` → middleware rewrites to `public/homepage.html` | Static HTML + `public/css/styles.css` + `public/js/app.js` |
-| Internal ERP | `/login`, `/workspace`, `/orders`, `/inventory`, … | Next.js + Tailwind + Supabase + Server Actions |
+| Name | Surface | Entry |
+|------|---------|-------|
+| **BEANSHEAL Platform** | Whole system | — |
+| **BEANSHEAL Connect** | Customer site | `/` → `public/homepage.html` |
+| **BEANSHEAL Workspace** | Internal ERP | `/login`, `/workspace`, `/orders`, … |
+
+Constants: `src/lib/branding.ts`
 
 ## Layout split (`LayoutContent.tsx`)
 
 - **Full-width** (no Sidebar): `/`, `/login`
-- **ERP shell** (Sidebar + `bg-slate-100`): all other routes under `src/app/(workspace)/`
+- **Workspace shell** (Sidebar + `bg-slate-100`): all routes under `src/app/(workspace)/`
 
 ## Key integrations
 
@@ -28,6 +31,6 @@ alwaysApply: true
 
 ## Do not break
 
-- `/` must stay customer homepage (rewrite or iframe), not ERP dashboard.
-- ERP dashboard lives at `/workspace`, not `/`.
+- `/` must stay **BEANSHEAL Connect** (rewrite or iframe), not Workspace dashboard.
+- Workspace dashboard lives at `/workspace`, not `/`.
 - Logo link in Sidebar → `/workspace`.

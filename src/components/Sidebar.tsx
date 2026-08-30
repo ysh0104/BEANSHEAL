@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { canUserView } from "@/hooks/useCanEdit";
 import { MENU_FEATURE_MAP } from "@/lib/permissions";
+import { BRAND, BRAND_SHORT } from "@/lib/branding";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -93,13 +94,13 @@ export default function Sidebar() {
       ],
     },
     {
-      name: "홈페이지 관리",
+      name: "BEANSHEAL Connect 관리",
       items: [
         { name: "고객 견적 문의 관리", path: "/admin/cms?tab=inquiries" },
         { name: "견적 산출기 옵션 설정", path: "/admin/cms?tab=calculator" },
         { name: "포트폴리오 관리", path: "/admin/cms?tab=portfolio" },
         { name: "FAQ 관리", path: "/admin/cms?tab=faq" },
-        { name: "홈페이지 시스템 설정", path: "/admin/cms?tab=settings" },
+        { name: "Connect 시스템 설정", path: "/admin/cms?tab=settings" },
       ],
     },
     {
@@ -164,12 +165,12 @@ export default function Sidebar() {
             <Link
               href="/"
               className="hidden sm:inline-flex items-center gap-1 px-2 py-1.5 sm:px-2.5 text-[11px] md:text-xs font-extrabold text-slate-600 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-lg transition-colors shrink-0"
-              title="고객 홈페이지로 이동"
+              title={`${BRAND.connect}로 이동`}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" />
               </svg>
-              홈페이지
+              {BRAND_SHORT.connect}
             </Link>
           </div>
 
@@ -332,14 +333,14 @@ export default function Sidebar() {
                     : "text-slate-800 hover:bg-slate-50 border border-transparent"
                 }`}
               >
-                대시보드
+                {BRAND.workspace}
               </Link>
               <Link
                 href="/"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="block mx-2 mb-2 px-4 py-3 text-sm font-extrabold rounded-xl text-emerald-800 hover:bg-emerald-50 border border-emerald-100"
               >
-                홈페이지
+                {BRAND.connect}
               </Link>
 
               {user ? (
@@ -391,7 +392,7 @@ export default function Sidebar() {
                 <div className="mx-4 my-3 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
                   <p className="text-sm font-extrabold text-slate-900 mb-1">로그인이 필요합니다</p>
                   <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                    ERP 메뉴와 기능은 사내 계정 로그인 후 이용할 수 있습니다.
+                    {BRAND.workspace} 메뉴와 기능은 사내 계정 로그인 후 이용할 수 있습니다.
                   </p>
                   <Link
                     href="/login"

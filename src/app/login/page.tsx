@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { BRAND, BRAND_SHORT } from "@/lib/branding";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -148,10 +149,10 @@ export default function LoginPage() {
       {/* 중앙 메인 로그인 카드 */}
       <div className="w-full max-w-[420px] bg-white rounded-3xl p-8 shadow-xl border border-slate-200/90 space-y-7 relative overflow-hidden">
         
-        {/* 상단 로고 헤더 (BEANSHEAL) */}
+        {/* 상단 로고 헤더 */}
         <div className="text-center space-y-3 pt-2">
           <div className="text-[11px] font-black tracking-widest text-slate-400 uppercase">
-            EFFICIENT CHANGE & INTEGRATION
+            {BRAND.workspace}
           </div>
           <div className="flex items-center justify-center">
             <img
@@ -167,7 +168,7 @@ export default function LoginPage() {
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4" />
             </svg>
-            홈페이지로 돌아가기
+            {BRAND.connect}로 돌아가기
           </Link>
         </div>
 

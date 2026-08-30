@@ -3,6 +3,8 @@ import { Noto_Sans_KR, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import LayoutContent from "@/components/LayoutContent";
+import BrandingDocumentTitle from "@/components/BrandingDocumentTitle";
+import { BRAND } from "@/lib/branding";
 
 const notoSansKR = Noto_Sans_KR({
   subsets: ["latin"],
@@ -18,8 +20,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "BEANSHEAL (주)빈스힐 공식 홈페이지 & 통합 생산 ERP",
-  description: "액상 핸드드립 커피 및 건강기능식품(GMP) 전문 제조기업 (주)빈스힐",
+  title: {
+    default: BRAND.platform,
+    template: `%s | ${BRAND.platform}`,
+  },
+  description: `${BRAND.platform} — ${BRAND.connect}(고객) · ${BRAND.workspace}(사내) 통합 플랫폼 | (주)빈스힐`,
   metadataBase: new URL("https://www.beansheal.com"),
   alternates: {
     canonical: "/",
@@ -32,9 +37,9 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: "https://www.beansheal.com/",
-    siteName: "BEANSHEAL (주)빈스힐",
+    siteName: BRAND.platform,
     locale: "ko_KR",
-    title: "빈스힐 (BEANSHEAL) - 액상 건강기능식품 & 기능성 음료 전문 기업",
+    title: `${BRAND.connect} | (주)빈스힐 — 액상 건강기능식품 & 기능성 음료 OEM/ODM`,
     description:
       "액상 건기식 소량생산부터 대량생산까지! 빈스힐 전담 연구진의 프리미엄 액상 전용 OEM/ODM 맞춤 제조 솔루션",
   },
@@ -56,6 +61,7 @@ export default function RootLayout({
     <html lang="ko" className={`${notoSansKR.variable} ${inter.variable}`}>
       <body className="m-0 p-0 antialiased text-slate-900 bg-slate-50 font-sans">
         <AuthProvider>
+          <BrandingDocumentTitle />
           <LayoutContent>{children}</LayoutContent>
         </AuthProvider>
       </body>

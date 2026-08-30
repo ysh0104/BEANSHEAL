@@ -45,7 +45,7 @@ export default function GlobalError({
               }}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer w-full"
             >
-              시스템 새로고침 및 대시보드 접속
+              시스템 새로고침 및 BEANSHEAL Workspace 접속
             </button>
           </div>
         </div>

@@ -1,17 +1,25 @@
-# BEANSHEAL StockTrace
+# BEANSHEAL Platform
 
-(주)빈스힐 **액상 건기식·음료 OEM/ODM** 고객 홈페이지와 사내 **생산 ERP**를 하나의 Next.js 앱으로 운영하는 저장소입니다.
+(주)빈스힐 **BEANSHEAL Platform** — **BEANSHEAL Connect**(고객) + **BEANSHEAL Workspace**(사내)를 하나의 Next.js 앱으로 운영합니다.
+
+## 제품 명칭
+
+| 명칭 | 대상 | 진입 URL |
+|------|------|----------|
+| **BEANSHEAL Platform** | 통합 플랫폼 | — |
+| **BEANSHEAL Connect** | 고객 홈페이지·견적·문의 | `/` |
+| **BEANSHEAL Workspace** | 사내 생산·재고·품질 ERP | `/login`, `/workspace`, … |
 
 ## 구성
 
 | 영역 | 진입 URL | 설명 |
 |------|----------|------|
-| 고객 홈페이지 | `/` | `public/homepage.html` (견적, 문의, 포트폴리오) |
-| 로그인 | `/login` | Supabase Auth (이메일 / Google) |
-| ERP 대시보드 | `/workspace` | 생산 계획·Notion 달력·메모 위젯 |
-| 제조/품질 | `/orders`, `/audit`, `/LotGenerator` … | 제조지시기록서, HACCP, 로트 |
-| 기준정보 | `/recipes`, `/inventory`, `/simulator` | 레시피, 이카운트 재고, 발주 계산 |
-| 홈페이지 CMS | `/admin/cms` | 견적 문의·포트폴리오·FAQ 관리 |
+| BEANSHEAL Connect | `/` | `public/homepage.html` (견적, 문의, 포트폴리오) |
+| Workspace 로그인 | `/login` | Supabase Auth (이메일 / Google) |
+| Workspace 대시보드 | `/workspace` | 생산 계획·Notion 달력·메모 위젯 |
+| Workspace 제조/품질 | `/orders`, `/audit`, `/LotGenerator` … | 제조지시기록서, HACCP, 로트 |
+| Workspace 기준정보 | `/recipes`, `/inventory`, `/simulator` | 레시피, 이카운트 재고, 발주 계산 |
+| Connect CMS | `/admin/cms` | Connect 문의·포트폴리오·FAQ 관리 |
 
 `/``는 middleware에서 `homepage.html`로 rewrite됩니다. ERP 화면은 `LayoutContent` + `Sidebar` 레이아웃을 사용합니다.
 
@@ -22,8 +30,8 @@ npm install
 npm run dev
 ```
 
-- 고객 사이트: [http://localhost:3000](http://localhost:3000)
-- ERP: 로그인 후 [http://localhost:3000/workspace](http://localhost:3000/workspace)
+- Connect: [http://localhost:3000](http://localhost:3000)
+- Workspace: 로그인 후 [http://localhost:3000/workspace](http://localhost:3000/workspace)
 
 ```bash
 npm run build   # 프로덕션 빌드

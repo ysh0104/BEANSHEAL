@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { BRAND } from "@/lib/branding";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -108,11 +109,11 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
             className="h-7 w-auto max-w-[200px] object-contain mb-4"
           />
           <h2 className="text-2xl font-extrabold text-gray-900 text-center mb-1.5 tracking-tight">
-            {mode === "login" ? "로그인 또는 회원가입" : "BEANSHEAL 사내 회원가입"}
+            {mode === "login" ? "로그인 또는 회원가입" : `${BRAND.workspace} 회원가입`}
           </h2>
           <p className="text-xs font-semibold text-gray-500 text-center mb-6 leading-relaxed px-2">
             {mode === "login"
-              ? "BEANSHEAL 스마트 ERP 시스템 및 관리자 기능을 이용할 수 있습니다."
+              ? `${BRAND.workspace} 및 관리자 기능을 이용할 수 있습니다.`
               : "새로운 사내 계정을 생성하고 시스템 이용 권한을 부여받으세요."}
           </p>
         </div>

@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { BRAND } from "@/lib/branding";
 import { supabase } from "@/lib/supabase";
 import { getAllUserProfiles, updateUserProfile, deleteUserProfile, ProfileItem } from "@/app/actions/userActions";
 import {
@@ -647,7 +648,7 @@ export default function UserManagementPage() {
               onClick={() => router.push("/workspace")}
               className="bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer w-full"
             >
-              메인 워크스페이스로 이동
+              메인 {BRAND.workspace}로 이동
             </button>
             {!user && (
               <button

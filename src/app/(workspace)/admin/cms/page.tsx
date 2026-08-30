@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { BRAND } from "@/lib/branding";
 
 // 실제 고객 홈페이지에 등록된 공식 포트폴리오 30개 데이터 (1~24번 실제 생산 제품 + 25~30번 비어있는 준비중 슬롯)
 const officialPortfolioItems = [
@@ -706,15 +707,15 @@ function AdminCmsContent() {
         <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold mb-1">
-              <Link href="/workspace" className="hover:text-blue-600 transition-colors">사내 업무 ERP</Link>
+              <Link href="/workspace" className="hover:text-blue-600 transition-colors">{BRAND.workspace}</Link>
               <span>/</span>
-              <span className="text-slate-700">홈페이지 브랜드 관리 (CMS)</span>
+              <span className="text-slate-700">{BRAND.connect} CMS</span>
             </div>
             <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              BEANSHEAL 공식 브랜드 홈페이지 관리자 시스템
+              {BRAND.connect} 관리자
             </h1>
             <p className="text-xs text-slate-500 font-medium mt-1">
-              고객 문의 접수, 견적 산출기, 생산 포트폴리오, FAQ 및 브랜드 시스템 설정을 관리하며 메인 홈페이지와 실시간 동기화됩니다.
+              고객 문의·견적·포트폴리오·FAQ를 관리하며 {BRAND.connect}와 실시간 동기화됩니다.
             </p>
           </div>
 

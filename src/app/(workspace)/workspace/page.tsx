@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/context/AuthContext";
+import { BRAND } from "@/lib/branding";
 import { supabase } from "@/lib/supabase";
 import { 
   syncNotionWithSupabase, 
@@ -1161,7 +1162,7 @@ export default function Home() {
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 pb-4 border-b border-gray-200">
         <div className="min-w-0">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight flex flex-wrap items-center gap-2">
-            <span>BEANSHEAL 대시보드</span>
+            <span>{BRAND.workspace}</span>
             <span className="text-xs bg-blue-100 text-blue-800 font-extrabold px-2.5 py-0.5 rounded border border-blue-200">ERP 그리드 커스텀</span>
           </h2>
           <p className="text-sm text-gray-500 mt-1 hidden sm:block">상단 <strong>⣿ 핸들</strong>로 순서를 변경하고, 우측 하단 <strong>⤡ 코너</strong>를 끌어 가로/세로 크기를 커스텀하세요.</p>

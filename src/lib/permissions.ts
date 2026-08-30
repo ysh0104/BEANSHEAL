@@ -37,31 +37,31 @@ export const FEATURE_CATALOG: {
     key: "schedule_mgmt",
     label: "일정관리",
     description: "월간 생산 계획표 · 노션 일정",
-    section: "워크스페이스",
+    section: "BEANSHEAL Workspace",
   },
   {
     key: "memo",
     label: "메모",
     description: "실시간 특이사항 · 공유 메모",
-    section: "워크스페이스",
+    section: "BEANSHEAL Workspace",
   },
   {
     key: "work_schedule",
     label: "스케줄표",
     description: "월간 근무 · 근무조 스케줄표",
-    section: "워크스페이스",
+    section: "BEANSHEAL Workspace",
   },
   {
     key: "weekly_plan",
     label: "주간계획표",
     description: "주간 생산/입고/출고 계획표",
-    section: "워크스페이스",
+    section: "BEANSHEAL Workspace",
   },
   { key: "recipes", label: "기준정보 (BOM)", description: "제품 레시피 조회/수정" },
   { key: "production", label: "생산/제조", description: "발주계산 · 작업지시 · 제조기록 · 로트" },
   { key: "inventory", label: "자재/물류", description: "재고 · 스캔" },
   { key: "qa", label: "품질/감사", description: "Audit 실적 등록" },
-  { key: "cms", label: "홈페이지 관리", description: "문의 · FAQ · 포트폴리오" },
+  { key: "cms", label: "BEANSHEAL Connect", description: "문의 · FAQ · 포트폴리오" },
   { key: "admin_users", label: "시스템/사용자", description: "사원 · 권한 그룹 관리" },
 ];
 
@@ -95,7 +95,7 @@ export const MENU_FEATURE_MAP: Record<string, FeatureKey> = {
   "제조/공정 실행": "production",
   "자재/물류 관리": "inventory",
   "품질/감사 (QA)": "qa",
-  "홈페이지 관리": "cms",
+  "BEANSHEAL Connect 관리": "cms",
   "시스템/사용자 관리": "admin_users",
 };
 
