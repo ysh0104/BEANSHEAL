@@ -53,6 +53,28 @@ export function weekDaysFromMonday(mondayStr: string): WeekDay[] {
   });
 }
 
+/** 기준일 전·후 N일 포함한 날짜 배열 (기본: 전 3일 + 당일 + 후 4일 = 8일) */
+export function daysAroundToday(
+  before = 3,
+  after = 4,
+  anchor: Date = new Date()
+): WeekDay[] {
+  const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - before);
+  return Array.from({ length: before + after + 1 }, (_, i) => {
+    const dt = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    return {
+      dateStr: formatYmd(dt),
+      day: dt.getDate(),
+      month: dt.getMonth() + 1,
+    };
+  });
+}
+
+export function dayOfWeekShort(dateStr: string): string {
+  const { y, m, d } = parseYmd(dateStr);
+  return ["일", "월", "화", "수", "목", "금", "토"][new Date(y, m - 1, d).getDay()];
+}
+
 export function weekDayLabel(day: WeekDay, idx: number): string {
   return `${day.month}/${day.day} (${DAY_LABELS[idx]})`;
 }

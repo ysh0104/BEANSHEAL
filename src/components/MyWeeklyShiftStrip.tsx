@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getWorkSchedule, type ScheduleEmployeeRow } from "@/app/actions/workScheduleActions";
 import { getShiftInfo } from "@/components/WorkScheduleTable";
 import { normalizePersonName } from "@/lib/departmentNormalize";
-import { getMondayOfDate, weekDaysFromMonday } from "@/lib/weeklyPlan";
-
-const DAY_SHORT = ["월", "화", "수", "목", "금", "토", "일"];
+import { dayOfWeekShort, daysAroundToday } from "@/lib/weeklyPlan";
 
 function workScheduleCacheKey(yearMonth: string) {
   return `beansheal_work_schedule_${yearMonth}`;
@@ -30,36 +28,52 @@ function findMyRow(rows: ScheduleEmployeeRow[], userName: string): ScheduleEmplo
   return rows.find((r) => normalizePersonName(r.name) === key) ?? null;
 }
 
+function yearMonthFromDateStr(dateStr: string): string {
+  const [y, m] = dateStr.split("-");
+  return `${y}-${m}`;
+}
+
 type Props = {
   userName?: string;
 };
 
 export default function MyWeeklyShiftStrip({ userName }: Props) {
-  const [myRow, setMyRow] = useState<ScheduleEmployeeRow | null>(null);
+  const [myRowsByMonth, setMyRowsByMonth] = useState<Record<string, ScheduleEmployeeRow | null>>({});
   const [loading, setLoading] = useState(true);
 
   const now = useMemo(() => new Date(), []);
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-  const yearMonthKey = `${year}-${String(month).padStart(2, "0")}`;
-  const days = useMemo(() => weekDaysFromMonday(getMondayOfDate(now)), [now]);
+  const days = useMemo(() => daysAroundToday(3, 4, now), [now]);
+  const yearMonthKeys = useMemo(
+    () => [...new Set(days.map((day) => yearMonthFromDateStr(day.dateStr)))],
+    [days]
+  );
   const todayStr = useMemo(
     () =>
       `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
     [now]
   );
 
+  const hasAnyRow = useMemo(
+    () => Object.values(myRowsByMonth).some((row) => row != null),
+    [myRowsByMonth]
+  );
+
   useEffect(() => {
     if (!userName?.trim()) {
-      setMyRow(null);
+      setMyRowsByMonth({});
       setLoading(false);
       return;
     }
 
-    const cached = readCachedWorkSchedule(yearMonthKey);
-    const cachedMine = findMyRow(cached, userName);
-    if (cachedMine) {
-      setMyRow(cachedMine);
+    const cachedByMonth: Record<string, ScheduleEmployeeRow | null> = {};
+    let hasCached = false;
+    for (const key of yearMonthKeys) {
+      const mine = findMyRow(readCachedWorkSchedule(key), userName);
+      cachedByMonth[key] = mine;
+      if (mine) hasCached = true;
+    }
+    if (hasCached) {
+      setMyRowsByMonth(cachedByMonth);
       setLoading(false);
     } else {
       setLoading(true);
@@ -67,31 +81,42 @@ export default function MyWeeklyShiftStrip({ userName }: Props) {
 
     let cancelled = false;
     void (async () => {
-      const res = await getWorkSchedule(yearMonthKey);
+      const next: Record<string, ScheduleEmployeeRow | null> = { ...cachedByMonth };
+      await Promise.all(
+        yearMonthKeys.map(async (key) => {
+          const res = await getWorkSchedule(key);
+          const rows = res.success && res.data ? res.data : readCachedWorkSchedule(key);
+          next[key] = findMyRow(rows, userName);
+        })
+      );
       if (cancelled) return;
-      const rows = res.success && res.data ? res.data : cached;
-      setMyRow(findMyRow(rows, userName));
+      setMyRowsByMonth(next);
       setLoading(false);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [userName, yearMonthKey]);
+  }, [userName, yearMonthKeys]);
 
   if (!userName?.trim()) return null;
 
-  if (!loading && !myRow) return null;
+  if (!loading && !hasAnyRow) return null;
+
+  const getShiftCode = (day: (typeof days)[number]) => {
+    const row = myRowsByMonth[yearMonthFromDateStr(day.dateStr)];
+    return row?.shifts[String(day.day)] || "";
+  };
 
   return (
     <section className="mb-3 rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
       <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-extrabold text-slate-900 truncate">
-            {userName}님 · 이번 주 근무
+            {userName}님 · 근무 일정
           </p>
           <p className="text-[10px] text-slate-500 font-medium">
-            {days[0]?.month}월 {days[0]?.day}일 ~ {days[6]?.month}월 {days[6]?.day}일
+            {days[0]?.month}월 {days[0]?.day}일 ~ {days[days.length - 1]?.month}월 {days[days.length - 1]?.day}일
           </p>
         </div>
         <a
@@ -105,14 +130,15 @@ export default function MyWeeklyShiftStrip({ userName }: Props) {
       {loading ? (
         <div className="px-3 py-4 text-[11px] text-slate-400 font-medium">근무표 불러오는 중…</div>
       ) : (
-        <div className="grid grid-cols-7 gap-1 p-2">
-          {days.map((day, idx) => {
+        <div className="grid grid-cols-8 gap-1 p-2">
+          {days.map((day) => {
             const isToday = day.dateStr === todayStr;
-            const inMonth = day.month === month;
-            const code = inMonth ? myRow?.shifts[String(day.day)] || "" : "";
+            const code = getShiftCode(day);
             const info = code ? getShiftInfo(code) : null;
-            const isSat = idx === 5;
-            const isSun = idx === 6;
+            const [y, m, d] = day.dateStr.split("-").map(Number);
+            const dow = new Date(y, m - 1, d).getDay();
+            const isSun = dow === 0;
+            const isSat = dow === 6;
 
             return (
               <div
@@ -127,7 +153,7 @@ export default function MyWeeklyShiftStrip({ userName }: Props) {
                         : "border-slate-100 bg-slate-50/50"
                 }`}
               >
-                <div className="text-[9px] font-bold text-slate-500">{DAY_SHORT[idx]}</div>
+                <div className="text-[9px] font-bold text-slate-500">{dayOfWeekShort(day.dateStr)}</div>
                 <div className={`text-[11px] font-black ${isToday ? "text-blue-700" : "text-slate-800"}`}>
                   {day.day}
                 </div>
