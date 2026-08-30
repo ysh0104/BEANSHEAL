@@ -1,5 +1,8 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useIsMobile } from "@/hooks/useMediaQuery";
+
+const A4_WIDTH = 794;
 
 interface Props {
   children: React.ReactNode;
@@ -7,10 +10,12 @@ interface Props {
 }
 
 export default function PrintAdjuster({ children, formId }: Props) {
+  const isMobile = useIsMobile();
   // 초기값: 비율 100%(scale: 1), 상단 여백 0
   const [config, setConfig] = useState({ scale: 1, marginTop: 0 });
   const [isResizing, setIsResizing] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
+  const [hasSavedConfig, setHasSavedConfig] = useState(false);
 
   const startY = useRef(0);
   const startScale = useRef(1);
@@ -22,11 +27,21 @@ export default function PrintAdjuster({ children, formId }: Props) {
     if (saved) {
       try {
         setConfig(JSON.parse(saved));
+        setHasSavedConfig(true);
       } catch (e) {
         console.error("설정 불러오기 실패:", e);
       }
     }
   }, [formId]);
+
+  // 모바일: 저장된 설정이 없으면 뷰포트에 맞게 자동 축소
+  useEffect(() => {
+    if (!isMobile || hasSavedConfig) return;
+    const padding = 24;
+    const available = window.innerWidth - padding;
+    const autoScale = Math.min(1, Math.max(0.35, available / A4_WIDTH));
+    setConfig((prev) => ({ ...prev, scale: autoScale, marginTop: 0 }));
+  }, [isMobile, hasSavedConfig]);
 
   // 2. 설정 바뀔 때마다 자동 저장
   useEffect(() => {
@@ -82,7 +97,7 @@ export default function PrintAdjuster({ children, formId }: Props) {
   }, [isMoving, isResizing, handleMouseMove, handleMouseUp]);
 
   return (
-    <div className="relative w-full min-h-screen bg-gray-100 py-4 sm:py-10 print:py-0 print:bg-white flex flex-col items-center overflow-x-auto sm:overflow-x-hidden px-3 sm:px-4">
+    <div className="relative w-full min-h-0 sm:min-h-screen bg-gray-100 py-2 sm:py-10 print:py-0 print:bg-white flex flex-col items-center overflow-x-hidden px-2 sm:px-4">
       
       {/* 🌟 핵심 해결책: 화면에서 조절한 값을 인쇄(PDF)할 때도 강제로 주입하는 스타일 */}
       <style>{`
@@ -99,17 +114,21 @@ export default function PrintAdjuster({ children, formId }: Props) {
       `}</style>
 
       {/* 상단 안내 및 초기화 패널 (인쇄 시 숨김 처리) */}
-      <div className="mb-6 text-sm text-slate-700 font-bold bg-white p-4 rounded border border-slate-300 shadow-sm print:hidden z-10 w-full max-w-[794px]">
-        상단 빈 공간을 드래그하여 위아래 위치를 조절하고, 우측 하단 모서리를 당겨 크기(비율)를 조절하십시오. 설정은 자동으로 저장됩니다.
-        <div className="mt-3 flex items-center space-x-3">
+      <div className="mb-3 sm:mb-6 text-xs sm:text-sm text-slate-700 font-bold bg-white p-3 sm:p-4 rounded border border-slate-300 shadow-sm print:hidden z-10 w-full max-w-[794px]">
+        {isMobile ? (
+          <span>화면에 맞게 자동 축소됩니다. 핀치·스크롤로 확인하세요.</span>
+        ) : (
+          <span>상단 빈 공간을 드래그하여 위아래 위치를 조절하고, 우측 하단 모서리를 당겨 크기(비율)를 조절하십시오. 설정은 자동으로 저장됩니다.</span>
+        )}
+        <div className="mt-2 sm:mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
           <button 
             onClick={() => setConfig({ scale: 1, marginTop: 0 })} 
-            className="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 rounded text-xs transition-colors"
+            className="px-3 sm:px-4 py-1.5 bg-gray-200 hover:bg-gray-300 rounded text-xs transition-colors"
           >
             기본값 초기화
           </button>
           <span className="text-xs text-gray-500">
-            현재 비율: {Math.round(config.scale * 100)}% / 상단여백: {config.marginTop}px
+            {Math.round(config.scale * 100)}% · 여백 {config.marginTop}px
           </span>
         </div>
       </div>
@@ -131,10 +150,10 @@ export default function PrintAdjuster({ children, formId }: Props) {
           {children}
         </div>
 
-        크기 조절 핸들 (우측 하단 모서리, 인쇄 시 숨김 처리)
+        {/* 크기 조절 핸들 (데스크톱만) */}
         <div
           onMouseDown={handleMouseDownResize}
-          className="absolute bottom-0 right-0 w-10 h-10 cursor-nwse-resize bg-gray-400 hover:bg-gray-600 flex items-center justify-center print:hidden z-50 rounded-tl-lg opacity-80 transition-colors"
+          className="hidden sm:flex absolute bottom-0 right-0 w-10 h-10 cursor-nwse-resize bg-gray-400 hover:bg-gray-600 items-center justify-center print:hidden z-50 rounded-tl-lg opacity-80 transition-colors"
           title="크기 조절"
         >
           <div className="w-3 h-3 border-r-2 border-b-2 border-white transform translate-x-[-2px] translate-y-[-2px]"></div>

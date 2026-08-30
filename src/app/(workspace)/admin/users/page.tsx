@@ -905,7 +905,119 @@ export default function UserManagementPage() {
             </div>
           )}
 
-          <div className="overflow-x-auto">
+          {/* 모바일 사용자 카드 */}
+          <div className="md:hidden space-y-3">
+            {loading ? (
+              <p className="text-center py-12 text-slate-400 text-sm">사용자 프로필을 로딩하는 중...</p>
+            ) : approvedProfiles.length === 0 ? (
+              <p className="text-center py-12 text-slate-400 text-sm">가입된 사용자 프로필이 없습니다.</p>
+            ) : (
+              approvedProfiles.map((p) => {
+                if (!p || !p.id) return null;
+                const currentEdit = (editStates && editStates[p.id]) || {
+                  department: p.department || "생산팀",
+                  position: p.position || "사원",
+                  role: p.role || "WORKER",
+                  permission_group_id: p.permission_group_id || null,
+                  ecount_user_id: p.ecount_user_id || "",
+                };
+                const deptVal = currentEdit.department || p.department || "생산팀";
+                const posVal = currentEdit.position || p.position || "사원";
+                const isChanged =
+                  deptVal !== p.department ||
+                  posVal !== p.position ||
+                  (currentEdit.role || p.role || "WORKER") !== p.role ||
+                  (currentEdit.permission_group_id || null) !== (p.permission_group_id || null) ||
+                  (currentEdit.ecount_user_id || "") !== (p.ecount_user_id || "");
+                const previewJobTitle = formatJobTitle(deptVal, posVal);
+
+                return (
+                  <article key={p.id} className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm space-y-3">
+                    <div>
+                      <p className="font-bold text-slate-900">{p.full_name}</p>
+                      <p className="text-[11px] text-slate-500 font-mono">{p.email}</p>
+                      <span className="inline-block mt-1 text-xs font-semibold text-slate-800 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                        {previewJobTitle}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500">부서</label>
+                        <select
+                          value={currentEdit.department}
+                          onChange={(e) => handleSelectChange(p.id, "department", e.target.value)}
+                          className="w-full mt-0.5 text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white"
+                        >
+                          {DEPARTMENT_OPTIONS.map((dept) => (
+                            <option key={dept} value={dept}>{dept}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500">직급</label>
+                        <select
+                          value={normalizePosition(currentEdit.position)}
+                          onChange={(e) => handleSelectChange(p.id, "position", e.target.value)}
+                          className="w-full mt-0.5 text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white"
+                        >
+                          {POSITION_OPTIONS.map((pos) => (
+                            <option key={pos} value={pos}>{pos}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500">권한 그룹</label>
+                      <select
+                        value={currentEdit.permission_group_id || ""}
+                        onChange={(e) => handleSelectChange(p.id, "permission_group_id", e.target.value)}
+                        disabled={!canManagePerms}
+                        className="w-full mt-0.5 text-xs border border-indigo-200 rounded-lg px-2 py-1.5 bg-indigo-50 disabled:opacity-60"
+                      >
+                        <option value="">(미지정)</option>
+                        {permGroups.map((g) => (
+                          <option key={g.id} value={g.id}>{g.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500">이카운트 매칭</label>
+                      <input
+                        type="text"
+                        placeholder="ID 직접 입력"
+                        value={currentEdit.ecount_user_id}
+                        onChange={(e) => handleSelectChange(p.id, "ecount_user_id", e.target.value)}
+                        disabled={!canManagePerms}
+                        className="w-full mt-0.5 text-xs border border-slate-200 rounded-lg px-2 py-1.5 font-mono disabled:bg-slate-50"
+                      />
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveProfile(p)}
+                        disabled={savingId === p.id}
+                        className={`flex-1 py-2 rounded-lg text-xs font-semibold ${
+                          isChanged ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
+                        } disabled:opacity-50`}
+                      >
+                        {savingId === p.id ? "저장 중..." : isChanged ? "저장" : "저장됨"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteEmployee(p)}
+                        disabled={deletingId === p.id}
+                        className="px-3 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 disabled:opacity-50"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">

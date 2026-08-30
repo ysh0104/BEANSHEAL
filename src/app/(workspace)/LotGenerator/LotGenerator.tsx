@@ -131,7 +131,7 @@ export default function LotGenerator() {
         </div>
 
         {/* 납품처 선택 및 입력 필드 */}
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               납품처 (선택 또는 직접 입력)
@@ -150,7 +150,7 @@ export default function LotGenerator() {
               ))}
             </datalist>
           </div>
-          <div className="w-1/3">
+          <div className="w-full sm:w-1/3">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               입고 수량
             </label>
@@ -164,7 +164,7 @@ export default function LotGenerator() {
           </div>
         </div>
 
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               제조/보충 일자
@@ -176,7 +176,7 @@ export default function LotGenerator() {
               className="w-full border border-gray-300 rounded p-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-          <div className="w-32">
+          <div className="w-full sm:w-32">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               당일 배치 순번
             </label>

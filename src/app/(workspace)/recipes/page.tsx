@@ -325,7 +325,61 @@ export default function RecipeListPage() {
         />
       </div>
 
-      <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden overflow-x-auto">
+      {/* 모바일 카드 목록 */}
+      <div className="md:hidden space-y-3 mb-6">
+        {isLoading ? (
+          <p className="text-center py-16 text-slate-400 font-bold text-sm">데이터 불러오는 중...</p>
+        ) : filteredRecipes.length > 0 ? (
+          filteredRecipes.map((recipe, index) => (
+            <article key={recipe.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <span className="text-xs font-mono text-slate-400 font-bold">#{index + 1}</span>
+                {recipe.product_code && (
+                  <span className="text-[11px] font-mono font-bold text-blue-600">{recipe.product_code}</span>
+                )}
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">{recipe.product_name}</h3>
+              <div className="flex items-center justify-between text-sm mb-3">
+                <span className="font-black text-emerald-600 text-base">
+                  {Number(recipe.base_batch_size || 0).toLocaleString()}
+                  <span className="ml-1 text-xs text-slate-400 uppercase">{recipe.base_unit}</span>
+                </span>
+                <span className="text-slate-500 font-bold text-xs">
+                  {recipe.created_at ? new Date(recipe.created_at).toLocaleDateString() : "-"}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => void handleViewBom(recipe.id)}
+                  className="flex-1 min-w-[100px] py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600"
+                >
+                  BOM 보기
+                </button>
+                {canEdit && (
+                  <>
+                    <Link
+                      href={`/recipes/edit/${recipe.id}`}
+                      className="flex-1 min-w-[80px] py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 text-center"
+                    >
+                      편집
+                    </Link>
+                    <button
+                      onClick={() => handleDelete(recipe.id, recipe.product_name)}
+                      className="flex-1 min-w-[80px] py-2 rounded-xl border border-red-100 bg-red-50 text-xs font-bold text-red-600"
+                    >
+                      삭제
+                    </button>
+                  </>
+                )}
+              </div>
+            </article>
+          ))
+        ) : (
+          <p className="text-center py-16 text-slate-400 font-bold text-sm">결과가 없습니다.</p>
+        )}
+      </div>
+
+      <div className="hidden md:block bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[720px]">
           <thead>
             <tr className="bg-slate-100 border-b border-slate-200 text-slate-700">

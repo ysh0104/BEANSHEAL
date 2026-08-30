@@ -244,8 +244,49 @@ export default function WeeklyPlanView({
         <p className="text-xs font-medium text-emerald-700 mb-2 print:hidden shrink-0">{msg}</p>
       )}
 
+      {/* 모바일: 날짜별 카드 목록 */}
+      <div className="md:hidden space-y-3 print:hidden">
+        {days.map((day, idx) => {
+          const isSat = idx === 5;
+          const isSun = idx === 6;
+          const headerBg = isSun ? "bg-[#5c2b2b] text-red-100" : isSat ? "bg-[#2a4a6f] text-white" : "bg-[#1e3a5f] text-white";
+          const cellBg = isSun ? "bg-[#fff5f5]" : isSat ? "bg-[#f0f7ff]" : "bg-white";
+
+          return (
+            <section key={day.dateStr} className="border border-[#9db4d0] rounded-lg overflow-hidden">
+              <div className={`px-3 py-2 text-sm font-extrabold ${headerBg}`}>
+                {day.month}/{day.day} · {DAY_LABELS[idx]}
+              </div>
+              <div className={`divide-y divide-[#9db4d0]/60 ${cellBg}`}>
+                {CATEGORIES.map((cat) => (
+                  <div key={`${day.dateStr}-${cat}`} className="p-0">
+                    <div className="px-3 py-1.5 text-[11px] font-extrabold text-[#1e3a5f] bg-slate-50 border-b border-[#9db4d0]/40">
+                      {cat}
+                    </div>
+                    <WeeklyPlanCell
+                      category={cat}
+                      dayIdx={idx}
+                      dateStr={day.dateStr}
+                      value={grid[cat][idx] || ""}
+                      schedules={schedules}
+                      canEdit={canEdit}
+                      editingCell={editingCell}
+                      onEditCell={setEditingCell}
+                      onCellChange={handleCellChange}
+                      variant="table"
+                      isSat={isSat}
+                      isSun={isSun}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
       <div
-        className={`border border-[#9db4d0] rounded-sm overflow-x-auto overflow-y-auto ${
+        className={`hidden md:block border border-[#9db4d0] rounded-sm overflow-x-auto overflow-y-auto ${
           embedded ? "flex-1 min-h-0" : ""
         }`}
       >

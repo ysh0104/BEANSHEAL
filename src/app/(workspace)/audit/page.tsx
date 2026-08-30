@@ -438,30 +438,32 @@ function AuditPageContent() {
       </div>
 
       {/* 🌟 탭 네비게이션 (HACCP 품질서류 발급 vs 건강진단결과서 보건증 대장 vs GMP 기기 검·교정 관리대장) */}
-      <div className="flex items-center gap-2 border-b border-gray-200 pb-1 overflow-x-auto">
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-1 overflow-x-auto -mx-1 px-1">
         <button
           type="button"
           onClick={() => setActiveTab("documents")}
-          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x whitespace-nowrap ${
+          className={`px-3 sm:px-5 py-2.5 text-xs sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x whitespace-nowrap shrink-0 ${
             activeTab === "documents"
               ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
               : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
           }`}
         >
-          <span>HACCP 품질검사 서류 발급</span>
+          <span className="sm:hidden">품질서류</span>
+          <span className="hidden sm:inline">HACCP 품질검사 서류 발급</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("health")}
-          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x flex items-center gap-2 whitespace-nowrap ${
+          className={`px-3 sm:px-5 py-2.5 text-xs sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x flex items-center gap-2 whitespace-nowrap shrink-0 ${
             activeTab === "health"
               ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
               : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
           }`}
         >
-          <span>건강진단결과서 (보건증) 관리대장</span>
-          <span className="bg-emerald-600 text-white text-xs px-2 py-0.5 rounded-full font-mono font-bold">
+          <span className="sm:hidden">보건증</span>
+          <span className="hidden sm:inline">건강진단결과서 (보건증) 관리대장</span>
+          <span className="bg-emerald-600 text-white text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-mono font-bold">
             14명
           </span>
         </button>
@@ -469,14 +471,15 @@ function AuditPageContent() {
         <button
           type="button"
           onClick={() => setActiveTab("calibration")}
-          className={`px-4 sm:px-5 py-2.5 text-sm sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x flex items-center gap-2 whitespace-nowrap ${
+          className={`px-3 sm:px-5 py-2.5 text-xs sm:text-base font-extrabold rounded-t-xl transition-all cursor-pointer border-t border-x flex items-center gap-2 whitespace-nowrap shrink-0 ${
             activeTab === "calibration"
               ? "bg-white text-indigo-700 border-gray-300 shadow-xs border-b-2 border-b-white -mb-1"
               : "bg-slate-100 text-slate-600 border-transparent hover:bg-slate-200 hover:text-slate-900"
           }`}
         >
-          <span>기기 검·교정 관리대장 (GMP G-05-07-01)</span>
-          <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-mono font-bold">
+          <span className="sm:hidden">검·교정</span>
+          <span className="hidden sm:inline">기기 검·교정 관리대장 (GMP G-05-07-01)</span>
+          <span className="bg-indigo-600 text-white text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-mono font-bold">
             37종
           </span>
         </button>

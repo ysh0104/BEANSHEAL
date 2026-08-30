@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe";
 import { getSessionId, getInventoryStatus } from "@/app/actions/ecount";
 import { useCanEdit } from "@/hooks/useCanEdit";
+import A4MobileScaler from "@/components/A4MobileScaler";
 
 // 사전에 정의된 원료별 포장 규격 (이름에 포함된 키워드 기준)
 const MATERIAL_SPEC_MASTER: Record<string, number> = {
@@ -317,7 +318,7 @@ export default function WorkOrder() {
         </div>
       </div>
 
-      <div className="print-container flex justify-center print:block print:w-full">
+      <A4MobileScaler className="print-container flex justify-center print:block print:w-full">
         <div className="bg-white w-[794px] print:w-full min-h-[1050px] print:min-h-0 border border-gray-400 print:border-none p-8 print:p-2 box-border text-black shadow-lg print:shadow-none">
           
           <div className="flex justify-between items-start mb-3">
@@ -472,7 +473,7 @@ export default function WorkOrder() {
           </div>
 
         </div>
-      </div>
+      </A4MobileScaler>
 
     </div>
   );

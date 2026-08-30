@@ -337,7 +337,7 @@ export default function InventoryPage() {
       
       <div className="mb-8">
         <div className="flex items-center justify-center gap-3 mb-6">
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">재고현황</h1>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">재고현황</h1>
           {!canEdit && (
             <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded border border-amber-200 shadow-2xs">
               🔒 자재물류 부서 사원만 수정 가능 (조회 전용)
@@ -375,7 +375,7 @@ export default function InventoryPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <div className="relative w-full sm:w-auto">
+            <div className="relative w-full sm:w-auto order-1">
               <input
                 type="text"
                 placeholder="품목명/코드 검색"
@@ -388,14 +388,51 @@ export default function InventoryPage() {
             <button 
               onClick={fetchInventory} 
               disabled={loadingInv} 
-              className="text-sm text-gray-700 bg-gray-100 border border-gray-300 px-4 py-1.5 hover:bg-gray-200 cursor-pointer"
+              className="text-sm text-gray-700 bg-gray-100 border border-gray-300 px-4 py-1.5 hover:bg-gray-200 cursor-pointer order-2"
             >
               {loadingInv ? "조회중..." : "조회"}
             </button>
 
             <button
+              onClick={() => openInboundModal("")}
+              className="text-sm font-semibold text-white bg-blue-600 border border-blue-700 px-4 py-1.5 hover:bg-blue-700 transition-colors shadow-sm cursor-pointer order-3 sm:order-4"
+            >
+              생산입고 전표
+            </button>
+
+            {/* 모바일: 추가 작업 접이식 메뉴 */}
+            <details className="md:hidden w-full order-4">
+              <summary className="text-sm font-bold text-gray-700 bg-gray-100 border border-gray-300 px-4 py-2 cursor-pointer list-none flex items-center justify-between">
+                추가 작업
+                <span className="text-xs text-gray-400">▼</span>
+              </summary>
+              <div className="mt-2 flex flex-col gap-2 p-2 bg-white border border-gray-200 rounded-lg">
+                <button
+                  onClick={() => setIsExcelModalOpen(true)}
+                  className="text-sm font-extrabold text-white bg-emerald-700 hover:bg-emerald-800 border border-emerald-800 px-4 py-2 transition-colors"
+                >
+                  엑셀 재고 반영
+                </button>
+                <button
+                  onClick={handleSyncMaster}
+                  disabled={syncingMaster}
+                  className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-2 hover:bg-blue-100 disabled:opacity-50"
+                >
+                  {syncingMaster ? "동기화중..." : "이카운트 API 동기화"}
+                </button>
+                <button
+                  onClick={handleResetAllSafetyStockToZero}
+                  disabled={loadingInv}
+                  className="text-sm font-bold text-amber-800 bg-amber-50 border border-amber-300 px-4 py-2 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  안전재고 전체 0 설정
+                </button>
+              </div>
+            </details>
+
+            <button
               onClick={() => setIsExcelModalOpen(true)}
-              className="text-sm font-extrabold text-white bg-emerald-700 hover:bg-emerald-800 border border-emerald-800 px-4 py-1.5 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
+              className="hidden md:flex text-sm font-extrabold text-white bg-emerald-700 hover:bg-emerald-800 border border-emerald-800 px-4 py-1.5 transition-colors shadow-sm cursor-pointer items-center gap-1.5"
             >
               <span>이카운트 엑셀 재고 반영 (100% 소수점)</span>
             </button>
@@ -403,33 +440,93 @@ export default function InventoryPage() {
             <button
               onClick={handleSyncMaster}
               disabled={syncingMaster}
-              className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-1.5 hover:bg-blue-100 cursor-pointer disabled:opacity-50 shadow-2xs"
+              className="hidden md:inline-flex text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-1.5 hover:bg-blue-100 cursor-pointer disabled:opacity-50 shadow-2xs"
             >
               {syncingMaster ? "동기화중..." : "이카운트 API 동기화"}
             </button>
 
             <button
-              onClick={() => openInboundModal("")}
-              className="text-sm font-semibold text-white bg-blue-600 border border-blue-700 px-4 py-1.5 hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
-            >
-              생산입고 전표
-            </button>
-
-            <button
               onClick={handleResetAllSafetyStockToZero}
               disabled={loadingInv}
-              className="text-sm font-bold text-amber-800 bg-amber-50 border border-amber-300 px-4 py-1.5 hover:bg-amber-100 cursor-pointer shadow-2xs"
+              className="hidden md:inline-flex text-sm font-bold text-amber-800 bg-amber-50 border border-amber-300 px-4 py-1.5 hover:bg-amber-100 cursor-pointer shadow-2xs"
               title="모든 품목의 안전재고 기준 수량을 0으로 일괄 저장합니다"
             >
               안전재고 전체 0 설정
             </button>
             
-            <span className="text-sm text-gray-800 font-mono sm:ml-2 w-full sm:w-auto">{currentDate}</span>
+            <span className="text-sm text-gray-800 font-mono w-full sm:w-auto sm:ml-2 order-5">{currentDate}</span>
           </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto bg-[#f8f9fb]">
+      {/* 모바일 카드 목록 */}
+      <div className="md:hidden space-y-3 mb-4">
+        {filteredInventory.map((item, idx) => {
+          const breakdown = getInventoryBreakdown(item.prodNm, item.qty);
+          const minQty = safetyConfigs[item.prodCd] ?? getDefaultSafetyQty(item.prodNm);
+          const isLowStock = checkIsLowStock(breakdown.totalQty, minQty);
+
+          return (
+            <article
+              key={`mobile-${idx}`}
+              className={`bg-white border rounded-xl p-4 shadow-sm ${isLowStock ? "border-amber-300 bg-amber-50/40" : "border-gray-300"}`}
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => openInboundModal(item.prodCd)}
+                  className="font-mono text-xs text-blue-600 font-bold hover:underline"
+                >
+                  {item.prodCd}
+                </button>
+                {isLowStock && (
+                  <span className="px-2 py-0.5 bg-amber-600 text-white rounded text-[10px] font-extrabold shrink-0">
+                    안전재고 미달
+                  </span>
+                )}
+              </div>
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-gray-900 text-sm truncate">
+                    {item.prodNm && item.prodNm !== item.prodCd ? item.prodNm : "(품목명 미지정)"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleEditItemName(item.prodCd, item.prodNm)}
+                    className="mt-1 text-[11px] font-bold text-blue-600"
+                  >
+                    품목명 {(!item.prodNm || item.prodNm === item.prodCd) ? "등록" : "수정"}
+                  </button>
+                </div>
+                <p className="font-extrabold text-lg text-gray-900 shrink-0">{formatQty(breakdown.totalQty)}</p>
+              </div>
+              <div className="flex items-center justify-between text-xs border-t border-gray-100 pt-2">
+                <span className="text-gray-500">안전재고: <span className="font-mono font-bold">{formatQty(minQty)}</span></span>
+                <button
+                  onClick={() => handleEditSafetyStock(item.prodCd, item.prodNm, minQty)}
+                  className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-[10px] font-bold border border-gray-300"
+                >
+                  기준 설정
+                </button>
+              </div>
+              {breakdown.matchingLots.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-dashed border-gray-200 space-y-1">
+                  {breakdown.matchingLots.map((lot, lotIdx) => (
+                    <p key={lotIdx} className="text-[11px] text-gray-500">
+                      LOT {lot.lotNo} · {lot.expDate} · {formatQty(lot.qty)}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </article>
+          );
+        })}
+        {filteredInventory.length === 0 && !loadingInv && (
+          <p className="text-center py-10 text-gray-500 text-sm">조회된 데이터가 없습니다.</p>
+        )}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto bg-[#f8f9fb]">
         <table className="w-full text-sm border-collapse border border-gray-300 table-fixed bg-[#f8f9fb]">
           
           <colgroup>

@@ -21,6 +21,7 @@ import ExcelViewer from "@/components/ExcelViewer";
 
 // 🌟 마법의 조절기 불러오기
 import PrintAdjuster from "@/components/PrintAdjuster"; 
+import A4MobileScaler from "@/components/A4MobileScaler";
 
 const ALL_TABS = [
   { id: 'cover', label: '표지', formType: 'cover' },
@@ -485,7 +486,47 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-gray-300 shadow-sm overflow-hidden min-h-[200px] relative overflow-x-auto">
+        {/* 모바일 카드 목록 */}
+        <div className="md:hidden space-y-3 min-h-[200px] relative">
+          {isLoading && (
+            <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 rounded-lg">
+              <span className="text-gray-500 font-bold text-sm">데이터 불러오는 중...</span>
+            </div>
+          )}
+          {orders.map((order) => (
+            <article
+              key={order.id}
+              className="bg-white border border-gray-300 rounded-xl p-4 shadow-sm active:bg-blue-50/30 transition-colors"
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <p className="font-bold text-gray-600 text-sm">{order.orderNumber}</p>
+                <span className={`inline-block px-2.5 py-0.5 text-[11px] font-bold border shrink-0 ${
+                  order.rawStatus === 'COMPLETED' ? 'bg-green-50 text-green-700 border-green-200' : 
+                  order.status === '진행중' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                  'bg-gray-100 text-gray-700 border-gray-300'
+                }`}>
+                  {order.status}
+                </span>
+              </div>
+              <p className="font-extrabold text-gray-900 text-base mb-1">{order.itemName}</p>
+              <div className="flex items-center justify-between text-sm mb-3">
+                <span className="text-gray-500">{order.date}</span>
+                <span className="font-extrabold text-blue-600">{order.qty.toLocaleString()}</span>
+              </div>
+              <button
+                onClick={() => openModal(order)}
+                className="w-full py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 hover:text-blue-600 transition-colors"
+              >
+                기록 작성 / 조회
+              </button>
+            </article>
+          ))}
+          {orders.length === 0 && !isLoading && (
+            <p className="text-center py-10 text-gray-400 text-sm">발행된 지시서가 없습니다.</p>
+          )}
+        </div>
+
+        <div className="hidden md:block bg-white border border-gray-300 shadow-sm overflow-hidden min-h-[200px] relative overflow-x-auto">
           {isLoading && (
             <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
               <span className="text-gray-500 font-bold">데이터 불러오는 중...</span>
@@ -535,8 +576,8 @@ export default function OrdersPage() {
 
       {/* 새 지시서 발행 모달 */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-gray-900/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-50 shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh] rounded-xl overflow-hidden border border-gray-300">
+        <div className="fixed inset-0 bg-gray-900/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-gray-50 shadow-2xl w-full sm:max-w-5xl flex flex-col h-full sm:h-auto sm:max-h-[90vh] rounded-none sm:rounded-xl overflow-hidden border-0 sm:border border-gray-300">
             <div className="flex justify-between items-center bg-white border-b border-gray-200 px-6 py-4">
               <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">새 스마트 제조지시서 발행</h2>
               <button onClick={closeCreateModal} className="text-gray-400 hover:text-gray-700 font-bold text-2xl transition-colors">&times;</button>
@@ -607,7 +648,7 @@ export default function OrdersPage() {
                     </p>
                     <div className="space-y-2 max-h-72 overflow-y-auto">
                       {/* 헤더 */}
-                      <div className="grid grid-cols-4 gap-1 px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wide">
                         <span className="col-span-1">원료명</span>
                         <span className="text-right">필요량</span>
                         <span className="text-right">현재재고</span>
@@ -625,7 +666,7 @@ export default function OrdersPage() {
                         const isShort = shortage !== null && shortage > 0;
                         const isOk = isWater || (shortage !== null && shortage <= 0);
                         return (
-                          <div key={idx} className={`grid grid-cols-4 gap-1 items-center p-3 rounded-md border ${
+                          <div key={idx} className={`grid grid-cols-2 sm:grid-cols-4 gap-1 items-center p-3 rounded-md border ${
                             isShort ? 'bg-red-50 border-red-200' : isOk ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-100'
                           }`}>
                             <span className="col-span-1 font-bold text-gray-700 text-xs leading-tight">{mat.material_name}</span>
@@ -705,11 +746,11 @@ export default function OrdersPage() {
 
       {/* 기록 뷰어 모달 */}
       {selectedOrder && (
-        <div className="fixed inset-0 bg-gray-900/60 flex items-center justify-center z-40 p-4">
-          <div className="bg-gray-100 shadow-2xl w-full max-w-5xl flex flex-col h-[95vh] border-2 border-black">
+        <div className="fixed inset-0 bg-gray-900/60 flex items-end sm:items-center justify-center z-40 p-0 sm:p-4">
+          <div className="bg-gray-100 shadow-2xl w-full sm:max-w-5xl flex flex-col h-full sm:h-[95vh] border-0 sm:border-2 border-black rounded-none sm:rounded-none">
             
-            <div className="flex justify-between items-end bg-[#e2e8f0] border-b border-gray-400 pt-3 px-3">
-              <div className="flex overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] w-full mr-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end bg-[#e2e8f0] border-b border-gray-400 pt-2 sm:pt-3 px-2 sm:px-3 shrink-0">
+              <div className="flex overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] w-full sm:mr-4 order-2 sm:order-1">
                 {allowedTabs.map((tab) => (
                   <button 
                     key={tab.id}
@@ -725,25 +766,32 @@ export default function OrdersPage() {
                 ))}
               </div>
               
-              <div className="flex items-center gap-3 pb-2 shrink-0">
+              <div className="flex items-center justify-end gap-2 sm:gap-3 pb-2 shrink-0 order-1 sm:order-2 w-full sm:w-auto">
                 <button 
                   onClick={handleDownloadAllPDF}
                   disabled={isPrinting}
-                  className={`${isPrinting ? 'bg-gray-500' : 'bg-blue-800 hover:bg-blue-900'} text-white px-4 py-2 text-[13px] font-bold rounded shadow-sm transition-colors flex items-center gap-1 whitespace-nowrap`}
+                  className={`${isPrinting ? 'bg-gray-500' : 'bg-blue-800 hover:bg-blue-900'} text-white px-3 sm:px-4 py-2 text-[12px] sm:text-[13px] font-bold rounded shadow-sm transition-colors flex items-center gap-1 whitespace-nowrap`}
                 >
-                  {isPrinting ? "PDF 생성 준비중..." : "PDF 인쇄"}
+                  {isPrinting ? "PDF 준비중..." : "PDF 인쇄"}
                 </button>
                 <button onClick={closeModal} className="text-gray-500 hover:text-black font-bold text-2xl pb-0.5 px-2">&times;</button>
               </div>
             </div>
 
-            <div className="overflow-y-auto flex-1 bg-gray-100">
-              <div className="p-8 flex justify-center">
-                {/* 🌟 각 탭에 saveTrigger 전달 */}
-                {activeTab === "표지" && <CoverPage selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
-                {activeTab === "제조지시기록서" && <ManufacturingLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
-                {activeTab === "원료칭량기록서" && allowedTabs.find(t=>t.label==="원료칭량기록서") && <WeighingLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
-                {activeTab === "공정검사기록서" && allowedTabs.find(t=>t.label==="공정검사기록서") && <ProcessInspection selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
+            <div className="overflow-y-auto flex-1 bg-gray-100 min-h-0">
+              <div className="p-2 sm:p-8 flex justify-center">
+                {activeTab === "표지" && (
+                  <A4MobileScaler><CoverPage selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} /></A4MobileScaler>
+                )}
+                {activeTab === "제조지시기록서" && (
+                  <A4MobileScaler><ManufacturingLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} /></A4MobileScaler>
+                )}
+                {activeTab === "원료칭량기록서" && allowedTabs.find(t=>t.label==="원료칭량기록서") && (
+                  <A4MobileScaler><WeighingLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} /></A4MobileScaler>
+                )}
+                {activeTab === "공정검사기록서" && allowedTabs.find(t=>t.label==="공정검사기록서") && (
+                  <A4MobileScaler><ProcessInspection selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} /></A4MobileScaler>
+                )}
                 
                 {activeTab === "추출공정점검표" && allowedTabs.find(t=>t.label==="추출공정점검표") && (
                   <PrintAdjuster formId="extraction_handdrip">
@@ -751,42 +799,42 @@ export default function OrdersPage() {
                   </PrintAdjuster>
                 )}
                 
-                {activeTab === "CCP-2P 일지" && allowedTabs.find(t=>t.label==="CCP-2P 일지") && <CCPLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
-                {activeTab === "완제품출하승인서" && allowedTabs.find(t=>t.label==="완제품출하승인서") && <ShippingApproval selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} />}
+                {activeTab === "CCP-2P 일지" && allowedTabs.find(t=>t.label==="CCP-2P 일지") && (
+                  <A4MobileScaler><CCPLog selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} /></A4MobileScaler>
+                )}
+                {activeTab === "완제품출하승인서" && allowedTabs.find(t=>t.label==="완제품출하승인서") && (
+                  <A4MobileScaler><ShippingApproval selectedOrder={selectedOrder} signatures={signatures} openSignModal={openSignModal} saveTrigger={saveTrigger} /></A4MobileScaler>
+                )}
               </div>
             </div>
             
-            {/* 🌟 대망의 통합 저장 버튼 위치! (팝업창 최하단 고정) */}
-            <div className="p-4 border-t border-gray-400 bg-white flex justify-between gap-2">
-              <div>
+            <div className="p-3 sm:p-4 border-t border-gray-400 bg-white flex flex-col sm:flex-row sm:justify-between gap-3 shrink-0">
+              <div className="order-2 sm:order-1">
                 <button 
                   onClick={handleDeleteOrder} 
-                  className="px-4 py-2 text-red-600 font-bold border border-red-200 hover:bg-red-50 shadow-sm transition rounded"
+                  className="w-full sm:w-auto px-4 py-2.5 text-red-600 font-bold border border-red-200 hover:bg-red-50 shadow-sm transition rounded text-sm"
                 >
                   지시서 삭제
                 </button>
               </div>
 
-              <div className="flex gap-2 items-center">
-                {/* ✨ 추가된 통합 저장 버튼 (클릭 시 saveTrigger 숫자 1 증가 -> 각 양식이 감지해서 저장) */}
+              <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center order-1 sm:order-2">
                 <button 
                   onClick={() => setSaveTrigger(prev => prev + 1)}
-                  className="px-6 py-2 bg-slate-800 text-white font-bold hover:bg-slate-900 shadow-sm transition rounded mr-2"
+                  className="px-4 sm:px-6 py-2.5 bg-slate-800 text-white font-bold hover:bg-slate-900 shadow-sm transition rounded text-sm"
                 >
-                  현재 탭 클라우드 저장
+                  현재 탭 저장
                 </button>
-                
-                <div className="w-px h-6 bg-gray-300 mx-1"></div> {/* 시각적 구분선 */}
 
                 {selectedOrder.rawStatus !== 'COMPLETED' && (
                   <button 
                     onClick={handleCompleteOrder} 
-                    className="px-6 py-2 bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-sm transition rounded"
+                    className="px-4 sm:px-6 py-2.5 bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-sm transition rounded text-sm"
                   >
                     작업 완료 처리
                   </button>
                 )}
-                <button onClick={closeModal} className="px-6 py-2 bg-white border border-gray-400 text-gray-700 font-bold hover:bg-gray-100 shadow-sm transition rounded">
+                <button onClick={closeModal} className="px-4 sm:px-6 py-2.5 bg-white border border-gray-400 text-gray-700 font-bold hover:bg-gray-100 shadow-sm transition rounded text-sm">
                   닫기
                 </button>
               </div>

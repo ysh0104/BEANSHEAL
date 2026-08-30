@@ -544,7 +544,46 @@ export default function ProductionSimulator() {
             </div>
           </div>
 
-          <div className="overflow-x-auto -mx-1 px-1">
+          {/* 모바일 결과 카드 */}
+          <div className="md:hidden space-y-2 mb-4">
+            {results.map((item, idx) => {
+              const isShortage = Number(item.shortage) > 0;
+              const isSelfProduced = item.currentStock === "자가생산";
+              return (
+                <article
+                  key={idx}
+                  className={`border-2 border-black rounded-lg p-3 text-sm ${
+                    isSelfProduced ? "bg-gray-100" : isShortage ? "bg-red-50" : "bg-white"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <span className="text-[11px] font-bold text-gray-500">{item.type}</span>
+                    {isShortage && !isSelfProduced && (
+                      <span className="text-[10px] font-extrabold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">결품</span>
+                    )}
+                  </div>
+                  <p className="font-bold text-gray-900 mb-2">{item.name}</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                    <span className="text-gray-500">필요량</span>
+                    <span className="font-bold text-right">{Number(item.requiredQty).toLocaleString()} {item.unit}</span>
+                    <span className="text-gray-500">현재재고</span>
+                    <span className="font-bold text-right">
+                      {typeof item.currentStock === "number" ? item.currentStock.toLocaleString() : item.currentStock}
+                    </span>
+                    <span className="text-gray-500">발주필요</span>
+                    <span className={`font-extrabold text-right ${isShortage && !isSelfProduced ? "text-red-700" : "text-gray-400"}`}>
+                      {isSelfProduced ? "-" : (Number(item.shortage) > 0 ? Number(item.shortage).toLocaleString() : "-")}
+                      {item.requiredPacksDesc && (
+                        <span className="block text-[11px] text-red-900">{item.requiredPacksDesc}</span>
+                      )}
+                    </span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto -mx-1 px-1">
           <table className="w-full min-w-[720px] border-collapse border-2 border-black text-center text-[13px]">
             <colgroup>
               <col className="w-[8%]" />
