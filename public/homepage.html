@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>액상 건강기능식품 & 기능성 음료 생산 전문 기업 빈스힐 | BEANSHEAL OEM/ODM</title>
   <meta name="description" content="액상 건강기능식품 생산 전문 제조업체 빈스힐(BEANSHEAL). 액상 기획부터 제조, GMP/HACCP 품질관리까지 액상 전용 맞춤 ODM/OEM 서비스. 액상 스틱, 스파우트 파우치 생산.">
   <meta name="keywords" content="빈스힐, BEANSHEAL, OEM, ODM, 액상건강기능식품, 액상소량생산, 커피, 핸드드립커피, 액상스틱, 스파우트파우치, 기능성음료제조">
@@ -667,52 +667,52 @@
        ========================================================================== -->
   <!-- 1. Inquiry Submission Modal -->
   <div class="modal-overlay" id="inquiry-modal">
-    <div class="modal-container">
+    <div class="modal-container inquiry-modal-container">
       <div class="modal-header">
-        <h3 class="modal-title"><i class="fas fa-paper-plane" style="color: var(--primary);"></i> 빈스힐 액상 생산 1:1 맞춤 문의</h3>
-        <button class="modal-close"><i class="fas fa-times"></i></button>
+        <h3 class="modal-title"><i class="fas fa-paper-plane inquiry-modal-icon"></i> 빈스힐 액상 생산 1:1 맞춤 문의</h3>
+        <button type="button" class="modal-close" aria-label="문의창 닫기"><i class="fas fa-times"></i></button>
       </div>
-      <div class="modal-body">
-        <form id="inquiry-form" style="display: flex; flex-direction: column; gap: 10px;">
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #1E293B;">회사명 / 담당자 성함 *</label>
-            <input type="text" id="form-name" class="form-input" placeholder="예: (주)바이오헬스 / 홍길동 팀장" required style="height: 42px; font-size: 0.9rem;">
+      <div class="modal-body inquiry-modal-body">
+        <form id="inquiry-form" class="inquiry-form">
+          <div class="form-group">
+            <label class="form-label" for="form-name">회사명 / 담당자 성함 *</label>
+            <input type="text" id="form-name" class="form-input" placeholder="예: (주)바이오헬스 / 홍길동 팀장" required autocomplete="organization">
           </div>
 
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #1E293B;">연락처 *</label>
-            <input type="tel" id="form-phone" class="form-input" placeholder="010-0000-0000" required style="height: 42px; font-size: 0.9rem;">
+          <div class="form-group">
+            <label class="form-label" for="form-phone">연락처 *</label>
+            <input type="tel" id="form-phone" class="form-input" placeholder="010-0000-0000" required autocomplete="tel">
           </div>
 
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #1E293B;">이메일 주소</label>
-            <input type="email" id="form-email" class="form-input" placeholder="contact@example.com" style="height: 42px; font-size: 0.9rem;">
+          <div class="form-group">
+            <label class="form-label" for="form-email">이메일 주소</label>
+            <input type="email" id="form-email" class="form-input" placeholder="contact@example.com" autocomplete="email" inputmode="email">
           </div>
 
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #1E293B;">문의 제목 *</label>
-            <input type="text" id="form-title" class="form-input" placeholder="예: 액상 스틱 30,000포 OEM 견적 요청" required style="height: 42px; font-size: 0.9rem;">
+          <div class="form-group">
+            <label class="form-label" for="form-title">문의 제목 *</label>
+            <input type="text" id="form-title" class="form-input" placeholder="예: 액상 스틱 30,000포 OEM 견적 요청" required>
           </div>
 
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #2E7D32;">비밀글 비밀번호 (답변 열람용 4자리) *</label>
-            <input type="password" id="form-password" class="form-input" placeholder="답변 열람용 4자리 입력 (예: 1234)" maxlength="8" required style="height: 42px; font-size: 0.9rem; letter-spacing: 2px; font-weight: 700; border-color: #A5D6A7; background-color: #F1F8E9;">
+          <div class="form-group">
+            <label class="form-label form-label--secret" for="form-password">비밀글 비밀번호 (답변 열람용 4자리) *</label>
+            <input type="password" id="form-password" class="form-input form-input--password" placeholder="답변 열람용 4자리 입력 (예: 1234)" maxlength="8" required inputmode="numeric" autocomplete="off">
           </div>
 
-          <div class="form-group" style="margin-bottom: 0;">
-            <label class="form-label" style="font-size: 0.85rem; margin-bottom: 4px; font-weight: 700; color: #1E293B;">상세 문의 내용</label>
-            <textarea id="form-content" class="form-textarea" placeholder="희망하시는 액상 스틱 용량, 원료 카테고리, 포장 형태, 예상 수량 등을 작성해 주세요." style="min-height: 60px; height: 62px; padding: 8px 12px; font-size: 0.85rem;"></textarea>
+          <div class="form-group">
+            <label class="form-label" for="form-content">상세 문의 내용</label>
+            <textarea id="form-content" class="form-textarea inquiry-form-textarea" placeholder="희망하시는 액상 스틱 용량, 원료 카테고리, 포장 형태, 예상 수량 등을 작성해 주세요."></textarea>
           </div>
 
-          <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
-            <input type="checkbox" id="form-privacy-agree" required checked style="width: 16px; height: 16px; accent-color: #2E7D32; cursor: pointer;">
-            <label for="form-privacy-agree" style="font-size: 0.8rem; color: #475569; cursor: pointer; user-select: none;">
-              <strong style="color: #1E293B;">개인정보 수집 및 이용 동의</strong> (필수)
-              <a href="javascript:void(0)" onclick="openPrivacyModal()" style="color: #2E7D32; text-decoration: underline; margin-left: 4px;">[전문보기]</a>
+          <div class="inquiry-form__privacy">
+            <input type="checkbox" id="form-privacy-agree" required checked>
+            <label for="form-privacy-agree">
+              <strong>개인정보 수집 및 이용 동의</strong> (필수)
+              <a href="javascript:void(0)" onclick="openPrivacyModal()" class="inquiry-form__privacy-link">[전문보기]</a>
             </label>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; height: 46px; margin-top: 4px; border-radius: 10px; font-weight: 800; font-size: 1.05rem; background: #2E7D32; box-shadow: 0 4px 16px rgba(46, 125, 50, 0.35);">
+          <button type="submit" class="btn btn-primary btn-lg inquiry-form__submit">
             <i class="fas fa-check"></i> 빈스힐 액상 문의 접수하기
           </button>
         </form>

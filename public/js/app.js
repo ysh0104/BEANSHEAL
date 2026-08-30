@@ -325,7 +325,10 @@ function initNoticePopup() {
       const inquiryModal = document.getElementById('inquiry-modal');
       const titleInput = document.getElementById('form-title');
       if (titleInput) titleInput.value = "[프로모션 문의] 소량 건기식 OEM/ODM 특가 및 원료 배합 상담";
-      if (inquiryModal) inquiryModal.classList.add('active');
+      if (inquiryModal) {
+        inquiryModal.classList.add('active');
+        updateModalScrollLock();
+      }
     });
   }
 }
@@ -1112,9 +1115,9 @@ window.openQuoteInquiryModal = function() {
   }
   if (inquiryModal) {
     inquiryModal.classList.add('active');
+    updateModalScrollLock();
   }
 };
-
 /* ==========================================================================
    8. Real-Time Inquiry Board
    ========================================================================== */
@@ -1248,6 +1251,11 @@ window.closeTermsModal = function() {
 /* ==========================================================================
    9. Modals & Forms
    ========================================================================== */
+function updateModalScrollLock() {
+  const anyOpen = document.querySelector('.modal-overlay.active');
+  document.body.classList.toggle('modal-open', !!anyOpen);
+}
+
 function initModals() {
   const modalOverlays = document.querySelectorAll('.modal-overlay');
   const closeBtns = document.querySelectorAll('.modal-close');
@@ -1255,6 +1263,7 @@ function initModals() {
   closeBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       modalOverlays.forEach(m => m.classList.remove('active'));
+      updateModalScrollLock();
     });
   });
 
@@ -1262,6 +1271,7 @@ function initModals() {
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
         modal.classList.remove('active');
+        updateModalScrollLock();
       }
     });
   });
@@ -1310,6 +1320,7 @@ function initModals() {
 
       // Close modal & notify
       document.getElementById('inquiry-modal').classList.remove('active');
+      updateModalScrollLock();
       alert(`[접수 완료] ${name}님, 생산 문의가 성공적으로 접수되었습니다.\n(주)빈스힐 대표 이메일로 실시간 알림 전송 및 설정하신 비밀번호(${password})로 언제든 답변을 확인하실 수 있습니다.`);
       inquiryForm.reset();
     });
@@ -1353,7 +1364,10 @@ function sendInquiryEmailNotification(inquiry) {
 // Global window helpers for inline calls
 window.openInquiryModal = function() {
   const modal = document.getElementById('inquiry-modal');
-  if (modal) modal.classList.add('active');
+  if (modal) {
+    modal.classList.add('active');
+    updateModalScrollLock();
+  }
 };
 
 window.openInquiryModalWithIngredient = function(ingredientName) {
@@ -1363,6 +1377,7 @@ window.openInquiryModalWithIngredient = function(ingredientName) {
     const titleInput = document.getElementById('form-title');
     if (titleInput) titleInput.value = `[특허원료 문의] ${ingredientName} 배합 OEM/ODM 생산 견적 요청`;
     inquiryModal.classList.add('active');
+    updateModalScrollLock();
   }
 };
 
