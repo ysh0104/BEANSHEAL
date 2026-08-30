@@ -1108,10 +1108,10 @@ window.openQuoteInquiryModal = function() {
   const contentInput = document.getElementById('form-content');
 
   if (titleInput) {
-    titleInput.value = `[액상스틱 견적문의] ${quoteState.volume} / ${quoteState.ingredient} / ${quoteState.quantity}`;
+    titleInput.value = `[견적문의] ${quoteState.volume} / ${quoteState.ingredient} / ${quoteState.quantity}`;
   }
   if (contentInput) {
-    contentInput.value = `안녕하세요, 빈스힐 간편 견적 산출기 조건으로 생산 문의드립니다.\n\n[선택 사양 요약]\n- 제조 제형: 액상 스틱 파우치 (전용 무균 라인)\n- 스틱 용량: ${quoteState.volume}\n- 원료/라인업: ${quoteState.ingredient}\n- 포장 형태: ${quoteState.packaging}\n- 예상 생산 수량: ${quoteState.quantity}\n\n[추가 문의 및 전달사항]\n`;
+    contentInput.value = `안녕하세요, 빈스힐 간편 견적 산출기 조건으로 생산 문의드립니다.\n\n[선택 사양 요약]\n- 제조 제형: 스틱 파우치 (전용 무균 라인)\n- 스틱 용량: ${quoteState.volume}\n- 원료/라인업: ${quoteState.ingredient}\n- 포장 형태: ${quoteState.packaging}\n- 예상 생산 수량: ${quoteState.quantity}\n\n[추가 문의 및 전달사항]\n`;
   }
   if (inquiryModal) {
     inquiryModal.classList.add('active');
@@ -1292,7 +1292,7 @@ function initModals() {
 
       const newInquiry = {
         id: Date.now(),
-        title: title || "액상 스틱 OEM/ODM 생산 문의드립니다.",
+        title: title || "OEM/ODM 생산 문의드립니다.",
         author: name,
         company: name,
         contact: phone,
