@@ -67,6 +67,17 @@ async function loginEcount(
   await loginEcountWeb(page, creds);
 }
 
+async function dismissPopups(page: Page) {
+  for (const pattern of [/확인/, /닫기/, /오늘 하루/, /close/i]) {
+    try {
+      await clickTextInAnyFrame(page, pattern);
+      await page.waitForTimeout(500);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 async function openStockBalanceReport(
   page: Page,
   menu?: { stock_menu_depth1?: string; stock_menu_depth2?: string }
@@ -75,50 +86,81 @@ async function openStockBalanceReport(
   const d2 = menu?.stock_menu_depth2 || process.env.ECOUNT_STOCK_MENU_DEPTH2;
 
   console.log("2. 재고현황 메뉴 이동...");
+  await dismissPopups(page);
+
   if (d1 && d2) {
     if (!(await clickInAnyFrame(page, d1))) throw new Error(`메뉴 클릭 실패: ${d1}`);
     await page.waitForTimeout(2000);
     if (!(await clickInAnyFrame(page, d2))) throw new Error(`메뉴 클릭 실패: ${d2}`);
-  } else if (await clickTextInAnyFrame(page, /재고현황/)) {
-    console.log("   → '재고현황' 텍스트 메뉴 클릭");
   } else {
-    await clickTextInAnyFrame(page, /^재고$/);
-    await page.waitForTimeout(2000);
+    // 마이페이지 → 상단 ERP 메뉴바 「재고(1)」 클릭 후 하위 「재고현황」
+    const openedStockModule =
+      (await clickTextInAnyFrame(page, /재고\s*\(1\)|재고\s*\(I\)|재고Ⅰ|재고Ⅱ/)) ||
+      (await clickTextInAnyFrame(page, /^재고$/));
+
+    if (!openedStockModule) {
+      console.log("   → 상단 재고 메뉴 미발견, 메뉴 트리 ID 시도...");
+      await clickInAnyFrame(page, "#link_depth1_MENUTREE_000782");
+      await clickInAnyFrame(page, "#link_depth1_MENUTREE_000783");
+    }
+
+    await page.waitForTimeout(2500);
+    await dismissPopups(page);
+
     if (!(await clickTextInAnyFrame(page, /재고현황/))) {
-      throw new Error(
-        "재고현황 메뉴를 찾지 못했습니다. /admin/ecount-bot 에서 메뉴 selector를 설정하세요."
-      );
+      await clickTextInAnyFrame(page, /재고수불부|재고\s*현황/);
+      await page.waitForTimeout(1500);
+      await clickTextInAnyFrame(page, /재고현황/);
     }
   }
 
   await page.waitForTimeout(2000);
-  await clickTextInAnyFrame(page, /^조회$|^검색$|^Search$/i);
-  console.log("3. 데이터 로딩 대기 (12초)...");
-  await page.waitForTimeout(12000);
+  await clickTextInAnyFrame(page, /^조회$|^검색$|^Search$|F8/i);
+  console.log("3. 데이터 로딩 대기 (20초)...");
+  await page.waitForTimeout(20000);
 }
 
 async function downloadExcelFromFrames(page: Page, saveAs: string) {
   console.log("4. 엑셀 다운로드 버튼 탐색...");
-  for (const frame of page.frames()) {
-    for (const sel of ["#outputExcel", '[id*="outputExcel"]', 'button:has-text("엑셀")', 'a:has-text("엑셀")']) {
-      const btn = frame.locator(sel).first();
-      try {
-        if ((await btn.count()) > 0 && (await btn.isVisible())) {
-          const [download] = await Promise.all([
-            page.waitForEvent("download", { timeout: 60000 }),
-            btn.click(),
-          ]);
-          if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
-          await download.saveAs(saveAs);
-          console.log(`✅ 엑셀 저장: ${saveAs}`);
-          return;
+  const selectors = [
+    "#outputExcel",
+    '[id*="outputExcel"]',
+    "#btnExcel",
+    '[id*="btnExcel"]',
+    '[title*="엑셀"]',
+    '[title*="Excel"]',
+    'button:has-text("엑셀")',
+    'a:has-text("엑셀")',
+    'span:has-text("엑셀")',
+    'img[alt*="엑셀"]',
+    'img[alt*="excel" i]',
+  ];
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const frame of page.frames()) {
+      for (const sel of selectors) {
+        const btn = frame.locator(sel).first();
+        try {
+          if ((await btn.count()) > 0 && (await btn.isVisible())) {
+            const [download] = await Promise.all([
+              page.waitForEvent("download", { timeout: 90000 }),
+              btn.click(),
+            ]);
+            if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+            await download.saveAs(saveAs);
+            console.log(`✅ 엑셀 저장: ${saveAs}`);
+            return;
+          }
+        } catch {
+          /* retry */
         }
-      } catch {
-        /* 다음 selector 시도 */
       }
     }
+    console.log(`   엑셀 버튼 재탐색 (${attempt + 1}/3)...`);
+    await page.waitForTimeout(5000);
   }
-  throw new Error("엑셀 다운로드 버튼(#outputExcel)을 찾지 못했습니다.");
+
+  throw new Error("엑셀 다운로드 버튼을 찾지 못했습니다. /admin/ecount-bot 에서 메뉴 selector를 설정하세요.");
 }
 
 async function uploadStockExcelFile(filePath: string) {
