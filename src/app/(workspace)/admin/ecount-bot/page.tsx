@@ -18,6 +18,7 @@ export default function EcountBotAdminPage() {
   const [comCode, setComCode] = useState("");
   const [loginId, setLoginId] = useState("");
   const [loginPw, setLoginPw] = useState("");
+  const [menuUrl, setMenuUrl] = useState("");
   const [menu1, setMenu1] = useState("");
   const [menu2, setMenu2] = useState("");
   const [msg, setMsg] = useState("");
@@ -29,6 +30,7 @@ export default function EcountBotAdminPage() {
       setStatus(s);
       setComCode(s.bot.com_code || "");
       setLoginId(s.bot.login_id || "");
+      setMenuUrl(s.bot.stock_menu_url || "");
       setMenu1(s.bot.stock_menu_depth1 || "");
       setMenu2(s.bot.stock_menu_depth2 || "");
     } finally {
@@ -48,6 +50,7 @@ export default function EcountBotAdminPage() {
       com_code: comCode,
       login_id: loginId,
       login_pw: loginPw || undefined,
+      stock_menu_url: menuUrl,
       stock_menu_depth1: menu1,
       stock_menu_depth2: menu2,
       updated_by: user?.email || user?.full_name,
@@ -139,9 +142,27 @@ export default function EcountBotAdminPage() {
               placeholder={status?.bot.has_password ? "•••••• (유지)" : "비밀번호 입력"}
             />
           </div>
+          <div>
+            <label className="text-xs font-bold text-slate-600">
+              재고현황 화면 URL <span className="font-normal text-amber-700">(봇이 메뉴 못 찾을 때 필수)</span>
+            </label>
+            <p className="text-[11px] text-slate-500 mt-1 mb-1.5 leading-relaxed">
+              PC에서 이카ount 로그인 → <strong>재고(1)</strong> → <strong>재고현황</strong> 화면까지 이동 →
+              브라우저 <strong>주소창 URL 전체</strong>를 복사해 붙여넣기.
+            </p>
+            <input
+              value={menuUrl}
+              onChange={(e) => setMenuUrl(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono"
+              placeholder="https://..."
+            />
+          </div>
           <details className="text-xs text-slate-600">
-            <summary className="cursor-pointer font-bold text-slate-700">메뉴 selector (고급, 선택)</summary>
-            <p className="mt-2 mb-2">봇이 재고현황 메뉴를 못 찾을 때만 F12 → Copy selector</p>
+            <summary className="cursor-pointer font-bold text-slate-700">메뉴 selector (고급, 자동 이동 실패 시)</summary>
+            <p className="mt-2 mb-2">
+              PC에서 이카ount 로그인 → <strong>재고(1)</strong> → <strong>재고현황</strong> 클릭 → F12 →
+              메뉴 <code>&lt;a id=&quot;link_depth1_...&quot;&gt;</code> Copy selector 를 아래에 붙여넣기.
+            </p>
             <input
               value={menu1}
               onChange={(e) => setMenu1(e.target.value)}
@@ -182,7 +203,9 @@ export default function EcountBotAdminPage() {
 
       <p className="mt-6 text-[11px] text-slate-500 leading-relaxed">
         Supabase에 <code className="bg-slate-100 px-1 rounded">ecount_bot_config</code> 테이블 마이그레이션이 필요합니다.
-        SQL: <code className="bg-slate-100 px-1 rounded">supabase/migrations/20260831_ecount_bot_config.sql</code>
+        SQL:{" "}
+        <code className="bg-slate-100 px-1 rounded">20260831_ecount_bot_config.sql</code>,{" "}
+        <code className="bg-slate-100 px-1 rounded">20260831_ecount_bot_config_url.sql</code>
       </p>
     </div>
   );

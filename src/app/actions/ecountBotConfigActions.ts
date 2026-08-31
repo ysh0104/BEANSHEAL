@@ -26,6 +26,7 @@ export async function saveEcountBotConfig(input: {
   com_code: string;
   login_id: string;
   login_pw?: string;
+  stock_menu_url?: string;
   stock_menu_depth1?: string;
   stock_menu_depth2?: string;
   updated_by?: string;
@@ -56,6 +57,7 @@ export async function saveEcountBotConfig(input: {
       com_code,
       login_id,
       login_pw,
+      stock_menu_url: (input.stock_menu_url || "").trim() || null,
       stock_menu_depth1: (input.stock_menu_depth1 || "").trim() || null,
       stock_menu_depth2: (input.stock_menu_depth2 || "").trim() || null,
       updated_at: new Date().toISOString(),

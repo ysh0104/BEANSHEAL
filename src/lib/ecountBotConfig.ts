@@ -4,6 +4,7 @@ export type EcountBotConfig = {
   com_code: string;
   login_id: string;
   login_pw: string;
+  stock_menu_url: string | null;
   stock_menu_depth1: string | null;
   stock_menu_depth2: string | null;
   updated_at: string | null;
@@ -24,7 +25,7 @@ export async function loadEcountBotConfigFromDb(): Promise<EcountBotConfig | nul
 
   const { data, error } = await supabase
     .from("ecount_bot_config")
-    .select("com_code, login_id, login_pw, stock_menu_depth1, stock_menu_depth2, updated_at, updated_by")
+    .select("com_code, login_id, login_pw, stock_menu_url, stock_menu_depth1, stock_menu_depth2, updated_at, updated_by")
     .eq("id", 1)
     .maybeSingle();
 
@@ -34,11 +35,12 @@ export async function loadEcountBotConfigFromDb(): Promise<EcountBotConfig | nul
   return data as EcountBotConfig;
 }
 
-/** 환경변수 우선, 없으면 DB */
+/** 환경변수 우선, 없으면 DB. 메뉴 URL/selector는 env·DB 중 하나라도 있으면 병합 */
 export async function resolveEcountBotCredentials(): Promise<{
   com_code: string;
   login_id: string;
   login_pw: string;
+  stock_menu_url?: string;
   stock_menu_depth1?: string;
   stock_menu_depth2?: string;
   source: "env" | "database";
@@ -46,27 +48,45 @@ export async function resolveEcountBotCredentials(): Promise<{
   const comEnv = process.env.ECOUNT_COM_CODE?.trim();
   const idEnv = (process.env.ECOUNT_ID || process.env.ECOUNT_USER_ID)?.trim();
   const pwEnv = process.env.ECOUNT_PW?.trim();
+  const db = await loadEcountBotConfigFromDb();
+
+  const menuFromEnv = {
+    stock_menu_url: process.env.ECOUNT_STOCK_MENU_URL?.trim() || undefined,
+    stock_menu_depth1: process.env.ECOUNT_STOCK_MENU_DEPTH1?.trim() || undefined,
+    stock_menu_depth2: process.env.ECOUNT_STOCK_MENU_DEPTH2?.trim() || undefined,
+  };
+
+  const menuFromDb = db
+    ? {
+        stock_menu_url: db.stock_menu_url?.trim() || undefined,
+        stock_menu_depth1: db.stock_menu_depth1?.trim() || undefined,
+        stock_menu_depth2: db.stock_menu_depth2?.trim() || undefined,
+      }
+    : {};
+
+  const menu = {
+    stock_menu_url: menuFromEnv.stock_menu_url || menuFromDb.stock_menu_url,
+    stock_menu_depth1: menuFromEnv.stock_menu_depth1 || menuFromDb.stock_menu_depth1,
+    stock_menu_depth2: menuFromEnv.stock_menu_depth2 || menuFromDb.stock_menu_depth2,
+  };
 
   if (comEnv && idEnv && pwEnv) {
     return {
       com_code: comEnv,
       login_id: idEnv,
       login_pw: pwEnv,
-      stock_menu_depth1: process.env.ECOUNT_STOCK_MENU_DEPTH1,
-      stock_menu_depth2: process.env.ECOUNT_STOCK_MENU_DEPTH2,
+      ...menu,
       source: "env",
     };
   }
 
-  const db = await loadEcountBotConfigFromDb();
   if (!db) return null;
 
   return {
     com_code: db.com_code.trim(),
     login_id: db.login_id.trim(),
     login_pw: db.login_pw.trim(),
-    stock_menu_depth1: db.stock_menu_depth1 || undefined,
-    stock_menu_depth2: db.stock_menu_depth2 || undefined,
+    ...menu,
     source: "database",
   };
 }
@@ -77,6 +97,7 @@ export async function getEcountBotConfigPublic(): Promise<{
   com_code: string;
   login_id: string;
   has_password: boolean;
+  stock_menu_url: string;
   stock_menu_depth1: string;
   stock_menu_depth2: string;
   updated_at: string | null;
@@ -89,6 +110,7 @@ export async function getEcountBotConfigPublic(): Promise<{
       com_code: "",
       login_id: "",
       has_password: false,
+      stock_menu_url: "",
       stock_menu_depth1: "",
       stock_menu_depth2: "",
       updated_at: null,
@@ -100,6 +122,7 @@ export async function getEcountBotConfigPublic(): Promise<{
     com_code: db.com_code,
     login_id: db.login_id,
     has_password: !!db.login_pw,
+    stock_menu_url: db.stock_menu_url || "",
     stock_menu_depth1: db.stock_menu_depth1 || "",
     stock_menu_depth2: db.stock_menu_depth2 || "",
     updated_at: db.updated_at,

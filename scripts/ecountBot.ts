@@ -6,7 +6,8 @@
  *
  * 환경변수:
  *   ECOUNT_COM_CODE, ECOUNT_ID, ECOUNT_PW  — 웹 로그인
- *   ECOUNT_STOCK_MENU_DEPTH1/2 (선택)      — 메뉴 CSS selector (못 찾을 때)
+ *   ECOUNT_STOCK_MENU_URL (권장)           — 재고현황 화면 URL (브라우저 주소창 복사)
+ *   ECOUNT_STOCK_MENU_DEPTH1/2 (선택)      — 메뉴 CSS selector (URL 없을 때)
  *   ECOUNT_BOT_TARGET=lot                  — 로트/시리얼 봇(legacy) 실행
  */
 import * as fs from "fs";
@@ -16,42 +17,13 @@ import { parseEcountStockExcel } from "../src/lib/ecountStockExcelParser";
 import { uploadEcountStockRows } from "../src/lib/ecountStockExcelUpload";
 import { resolveEcountBotCredentials } from "../src/lib/ecountBotConfig";
 import { loginEcountWeb } from "./ecountLogin";
+import { navigateToStockReport } from "./ecountNavigateStock";
 
 const envPath = fs.existsSync(".env.local") ? ".env.local" : ".env";
 require("dotenv").config({ path: envPath });
 
 const DOWNLOAD_DIR = path.join(process.cwd(), "downloads");
 const STOCK_FILE = path.join(DOWNLOAD_DIR, "ecount_stock.xlsx");
-
-async function clickInAnyFrame(page: Page, selector: string): Promise<boolean> {
-  for (const frame of page.frames()) {
-    const loc = frame.locator(selector).first();
-    try {
-      if ((await loc.count()) > 0 && (await loc.isVisible())) {
-        await loc.click();
-        return true;
-      }
-    } catch {
-      /* frame 접근 불가 */
-    }
-  }
-  return false;
-}
-
-async function clickTextInAnyFrame(page: Page, pattern: RegExp | string): Promise<boolean> {
-  for (const frame of page.frames()) {
-    const loc = frame.locator("a, span, li, div, button").filter({ hasText: pattern }).first();
-    try {
-      if ((await loc.count()) > 0 && (await loc.isVisible())) {
-        await loc.click();
-        return true;
-      }
-    } catch {
-      /* skip */
-    }
-  }
-  return false;
-}
 
 async function saveDebugScreenshot(page: Page, name: string) {
   if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
@@ -65,59 +37,6 @@ async function loginEcount(
   creds: { com_code: string; login_id: string; login_pw: string }
 ) {
   await loginEcountWeb(page, creds);
-}
-
-async function dismissPopups(page: Page) {
-  for (const pattern of [/확인/, /닫기/, /오늘 하루/, /close/i]) {
-    try {
-      await clickTextInAnyFrame(page, pattern);
-      await page.waitForTimeout(500);
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-async function openStockBalanceReport(
-  page: Page,
-  menu?: { stock_menu_depth1?: string; stock_menu_depth2?: string }
-) {
-  const d1 = menu?.stock_menu_depth1 || process.env.ECOUNT_STOCK_MENU_DEPTH1;
-  const d2 = menu?.stock_menu_depth2 || process.env.ECOUNT_STOCK_MENU_DEPTH2;
-
-  console.log("2. 재고현황 메뉴 이동...");
-  await dismissPopups(page);
-
-  if (d1 && d2) {
-    if (!(await clickInAnyFrame(page, d1))) throw new Error(`메뉴 클릭 실패: ${d1}`);
-    await page.waitForTimeout(2000);
-    if (!(await clickInAnyFrame(page, d2))) throw new Error(`메뉴 클릭 실패: ${d2}`);
-  } else {
-    // 마이페이지 → 상단 ERP 메뉴바 「재고(1)」 클릭 후 하위 「재고현황」
-    const openedStockModule =
-      (await clickTextInAnyFrame(page, /재고\s*\(1\)|재고\s*\(I\)|재고Ⅰ|재고Ⅱ/)) ||
-      (await clickTextInAnyFrame(page, /^재고$/));
-
-    if (!openedStockModule) {
-      console.log("   → 상단 재고 메뉴 미발견, 메뉴 트리 ID 시도...");
-      await clickInAnyFrame(page, "#link_depth1_MENUTREE_000782");
-      await clickInAnyFrame(page, "#link_depth1_MENUTREE_000783");
-    }
-
-    await page.waitForTimeout(2500);
-    await dismissPopups(page);
-
-    if (!(await clickTextInAnyFrame(page, /재고현황/))) {
-      await clickTextInAnyFrame(page, /재고수불부|재고\s*현황/);
-      await page.waitForTimeout(1500);
-      await clickTextInAnyFrame(page, /재고현황/);
-    }
-  }
-
-  await page.waitForTimeout(2000);
-  await clickTextInAnyFrame(page, /^조회$|^검색$|^Search$|F8/i);
-  console.log("3. 데이터 로딩 대기 (20초)...");
-  await page.waitForTimeout(20000);
 }
 
 async function downloadExcelFromFrames(page: Page, saveAs: string) {
@@ -160,7 +79,9 @@ async function downloadExcelFromFrames(page: Page, saveAs: string) {
     await page.waitForTimeout(5000);
   }
 
-  throw new Error("엑셀 다운로드 버튼을 찾지 못했습니다. /admin/ecount-bot 에서 메뉴 selector를 설정하세요.");
+  throw new Error(
+    "엑셀 다운로드 버튼을 찾지 못했습니다. PC에서 재고현황 화면 URL을 /admin/ecount-bot 에 저장하세요."
+  );
 }
 
 async function uploadStockExcelFile(filePath: string) {
@@ -197,7 +118,11 @@ export async function runEcountStockBot() {
     console.log(`   로그인 정보: ${creds.source === "database" ? "워크스페이스 DB" : "환경변수"}`);
 
     await loginEcount(page, creds);
-    await openStockBalanceReport(page, creds);
+    await navigateToStockReport(page, {
+      stock_menu_url: creds.stock_menu_url,
+      stock_menu_depth1: creds.stock_menu_depth1,
+      stock_menu_depth2: creds.stock_menu_depth2,
+    });
     await downloadExcelFromFrames(page, STOCK_FILE);
     return await uploadStockExcelFile(STOCK_FILE);
   } catch (err) {

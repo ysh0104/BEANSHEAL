@@ -1,4 +1,4 @@
-import type { Frame, Page } from "playwright";
+import type { Page } from "playwright";
 
 const LOGIN_URLS = [
   "https://login.ecount.com/Login/KOR",

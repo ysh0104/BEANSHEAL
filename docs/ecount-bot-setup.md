@@ -47,14 +47,26 @@ GitHub → `ysh0104/BEANSHEAL` → **Settings → Secrets → Actions**
 
 ## ~~1단계~~ 구 방식 — GitHub에 이카ount 비번 직접 (선택)
 
-메뉴를 못 찾을 때만 추가:
+메뉴를 못 찾을 때 **재고현황 URL**을 먼저 설정하세요 (권장):
+
+| Secret | 예시 |
+|--------|------|
+| `ECOUNT_STOCK_MENU_URL` | PC에서 재고현황 화면 주소창 URL 전체 |
+
+또는 CSS selector (URL 대신):
 
 | Secret | 예시 |
 |--------|------|
 | `ECOUNT_STOCK_MENU_DEPTH1` | `#link_depth1_MENUTREE_xxxxxx` |
 | `ECOUNT_STOCK_MENU_DEPTH2` | `#link_depth2_MENUTREE_yyyyyy` |
 
-### 메뉴 selector 찾는 법
+### 재고현황 URL 찾는 법 (권장)
+
+1. PC 브라우저에서 이카ount ERP 로그인
+2. **재고(1) → 재고현황** 클릭 (엑셀 버튼 보이는 화면)
+3. 주소창 URL 전체 복사 → `/admin/ecount-bot` 또는 GitHub Secret `ECOUNT_STOCK_MENU_URL`
+
+### 메뉴 selector 찾는 법 (대안)
 
 1. PC 브라우저에서 이카ount ERP 로그인
 2. **재고 → 재고현황** 클릭
@@ -127,7 +139,7 @@ npx tsx scripts/uploadEcountStockExcel.ts ~/Downloads/재고현황.xlsx
 |------|------|
 | 버튼 눌러도 API(정수)만 동기화 | Vercel에 `GITHUB_TOKEN`/`GITHUB_REPO` 미설정 |
 | GitHub Actions 로그인 실패 | `ECOUNT_ID`/`ECOUNT_PW` 확인, 2FA/ IP 제한 여부 |
-| 메뉴 못 찾음 | `ECOUNT_STOCK_MENU_DEPTH1/2` Secrets 설정 |
+| 메뉴 못 찾음 / 엑셀 버튼 없음 | `/admin/ecount-bot`에 **재고현황 URL** 저장 (또는 `ECOUNT_STOCK_MENU_URL`) |
 | DB 업로드 실패 | `SUPABASE_SERVICE_ROLE_KEY` 설정 |
 | Hobby cron 배포 실패 | `vercel.json` cron은 하루 1회만 (`0 18 * * *`) |
 
