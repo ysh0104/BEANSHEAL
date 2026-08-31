@@ -1019,17 +1019,17 @@ export default function UserManagementPage() {
           </div>
 
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[1120px] text-left border-collapse">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                  <th className="py-3 px-4">Google 사용자</th>
-                  <th className="py-3 px-4">표시 직책</th>
-                  <th className="py-3 px-4 min-w-[120px]">부서</th>
-                  <th className="py-3 px-4 min-w-[100px]">직급</th>
-                  <th className="py-3 px-4 min-w-[140px]">권한 그룹</th>
-                  <th className="py-3 px-4 min-w-[200px]">이카운트 매칭</th>
-                  <th className="py-3 px-4">최근 수정</th>
-                  <th className="py-3 px-4 text-right">저장</th>
+                  <th className="py-3 px-3 min-w-[150px]">Google 사용자</th>
+                  <th className="py-3 px-3 min-w-[7.5rem] whitespace-nowrap">표시 직책</th>
+                  <th className="py-3 px-3 min-w-[7rem]">부서</th>
+                  <th className="py-3 px-3 min-w-[5.5rem]">직급</th>
+                  <th className="py-3 px-3 min-w-[8.5rem]">권한 그룹</th>
+                  <th className="py-3 px-3 min-w-[12.5rem]">이카운트 매칭</th>
+                  <th className="py-3 px-3 w-24 whitespace-nowrap">최근 수정</th>
+                  <th className="py-3 px-3 min-w-[9rem] whitespace-nowrap text-right">작업</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-normal">
@@ -1076,27 +1076,32 @@ export default function UserManagementPage() {
 
                     return (
                       <tr key={p.id} className={`hover:bg-slate-50 transition-colors ${isSelf ? "bg-slate-50/90" : ""}`}>
-                        <td className="py-3.5 px-4">
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-slate-900 text-xs">{p.full_name}</span>
+                        <td className="py-3 px-3 align-middle">
+                          <div className="flex flex-col min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900 text-xs whitespace-nowrap">{p.full_name}</span>
                               {isSelf && (
-                                <span className="text-[10px] font-semibold bg-slate-200 text-slate-800 px-1.5 py-0.2 rounded border border-slate-300">
+                                <span className="text-[10px] font-semibold bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded border border-slate-300 whitespace-nowrap">
                                   본인
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] text-slate-500 font-mono font-normal">{p.email}</span>
+                            <span className="text-[11px] text-slate-500 font-mono font-normal truncate max-w-[200px]" title={p.email || ""}>
+                              {p.email}
+                            </span>
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4">
-                          <span className="font-semibold text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+                        <td className="py-3 px-3 align-middle">
+                          <span
+                            className="inline-flex items-center whitespace-nowrap font-semibold text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md text-xs"
+                            title={previewJobTitle}
+                          >
                             {previewJobTitle}
                           </span>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td className="py-3 px-3 align-middle">
                           <select
                             value={currentEdit.department}
                             onChange={(e) => handleSelectChange(p.id, "department", e.target.value)}
@@ -1110,7 +1115,7 @@ export default function UserManagementPage() {
                           </select>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td className="py-3 px-3 align-middle">
                           <select
                             value={normalizePosition(currentEdit.position)}
                             onChange={(e) => handleSelectChange(p.id, "position", e.target.value)}
@@ -1124,7 +1129,7 @@ export default function UserManagementPage() {
                           </select>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td className="py-3 px-3 align-middle">
                           <select
                             value={currentEdit.permission_group_id || ""}
                             onChange={(e) => handleSelectChange(p.id, "permission_group_id", e.target.value)}
@@ -1140,7 +1145,7 @@ export default function UserManagementPage() {
                           </select>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td className="py-3 px-3 align-middle">
                           <select
                             value={currentEdit.ecount_user_id || ""}
                             onChange={(e) => handleSelectChange(p.id, "ecount_user_id", e.target.value)}
@@ -1169,34 +1174,34 @@ export default function UserManagementPage() {
                           />
                         </td>
 
-                        {/* 최근 수정일 */}
-                        <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px] font-normal">
-                          {p.updated_at ? p.updated_at.split("T")[0] : "-"}
+                        <td className="py-3 px-3 align-middle whitespace-nowrap text-slate-500 font-mono text-[11px] tabular-nums">
+                          {p.updated_at ? p.updated_at.slice(0, 10) : "-"}
                         </td>
 
-                        {/* 저장 & 삭제 버튼 */}
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleSaveProfile(p)}
-                              disabled={savingId === p.id}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
-                                isChanged
-                                  ? "bg-slate-900 hover:bg-slate-800 text-white animate-pulse"
-                                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-                              } disabled:opacity-50`}
-                            >
-                              {savingId === p.id ? "저장 중..." : isChanged ? "권한 변경 저장" : "저장됨"}
-                            </button>
+                        <td className="py-3 px-3 align-middle">
+                          <div className="flex items-center justify-end gap-2 flex-nowrap">
+                            {isChanged ? (
+                              <button
+                                type="button"
+                                onClick={() => handleSaveProfile(p)}
+                                disabled={savingId === p.id}
+                                className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white animate-pulse cursor-pointer disabled:opacity-50"
+                              >
+                                {savingId === p.id ? "저장 중…" : "저장"}
+                              </button>
+                            ) : (
+                              <span className="shrink-0 whitespace-nowrap inline-flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                                저장됨
+                              </span>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleDeleteEmployee(p)}
                               disabled={deletingId === p.id}
-                              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer disabled:opacity-50"
+                              className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer disabled:opacity-50"
                               title="사원 삭제"
                             >
-                              {deletingId === p.id ? "삭제 중..." : "삭제"}
+                              {deletingId === p.id ? "삭제 중…" : "삭제"}
                             </button>
                           </div>
                         </td>
