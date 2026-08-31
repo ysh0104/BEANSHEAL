@@ -69,7 +69,7 @@ Vercel → Project → Settings → Environment Variables:
 
 `/inventory` → **「이카운트 재고 동기화」** 버튼
 
-자동 동기화: `vercel.json` cron — 4시간마다 `/api/ecount/sync`
+자동 동기화: `vercel.json` cron — 매일 03:00(KST) `/api/ecount/sync` (Vercel Hobby는 하루 1회 제한)
 
 ## 5. 로컬 개발
 
