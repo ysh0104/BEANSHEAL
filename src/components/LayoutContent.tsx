@@ -24,9 +24,9 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
   // 사내 업무 ERP 관련 페이지(/workspace, /inventory 등)인 경우:
   // 원래의 화사한 라이트 슬레이트 배경(bg-slate-100 text-slate-900) 적용 및 넓은 와이드 스크린 레이아웃(max-w-[1920px])
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col antialiased overflow-x-hidden">
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col antialiased">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4 md:p-6 max-w-[1920px] mx-auto w-full min-w-0">
+      <main className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 max-w-[1920px] mx-auto w-full min-w-0">
         <AuthGate>{children}</AuthGate>
       </main>
     </div>
