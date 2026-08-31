@@ -907,7 +907,7 @@ export default function UserManagementPage() {
           )}
 
           {/* 모바일 사용자 카드 */}
-          <div className="lg:hidden space-y-3">
+          <div className="md:hidden space-y-3">
             {loading ? (
               <p className="text-center py-12 text-slate-400 text-sm">사용자 프로필을 로딩하는 중...</p>
             ) : approvedProfiles.length === 0 ? (
@@ -1018,19 +1018,19 @@ export default function UserManagementPage() {
             )}
           </div>
 
-          <div className="hidden lg:block border-t border-slate-100 min-w-0">
+          <div className="hidden md:block border-t border-slate-100 min-w-0">
             <div className="overflow-x-auto overscroll-x-contain">
-            <table className="w-max min-w-full text-left border-collapse">
+            <table className="w-max min-w-[1180px] text-left border-collapse">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                   <th className="py-3 px-3 text-left min-w-[11rem]">Google 사용자</th>
-                  <th className="py-3 px-3 text-left whitespace-nowrap min-w-[6.5rem]">표시 직책</th>
+                  <th className="py-3 px-3 text-left min-w-[8.5rem]">표시 직책</th>
                   <th className="py-3 px-3 text-left min-w-[7rem]">부서</th>
                   <th className="py-3 px-3 text-left min-w-[5.5rem]">직급</th>
                   <th className="py-3 px-3 text-left min-w-[8.5rem]">권한 그룹</th>
                   <th className="py-3 px-3 text-left min-w-[13rem]">이카운트 매칭</th>
-                  <th className="py-3 px-3 text-left whitespace-nowrap min-w-[6.5rem]">최근 수정</th>
-                  <th className="py-3 px-3 text-right whitespace-nowrap min-w-[9rem]">작업</th>
+                  <th className="py-3 px-3 text-left min-w-[7.5rem]">최근 수정</th>
+                  <th className="py-3 px-3 text-right min-w-[9.5rem]">작업</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-normal">
@@ -1093,9 +1093,9 @@ export default function UserManagementPage() {
                           </div>
                         </td>
 
-                        <td className="py-3 px-3 align-middle whitespace-nowrap">
+                        <td className="py-3 px-3 align-middle" style={{ whiteSpace: "nowrap" }}>
                           <span
-                            className="inline-flex items-center whitespace-nowrap font-semibold text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md text-xs"
+                            className="inline-flex items-center font-semibold text-slate-800 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md text-xs"
                             title={previewJobTitle}
                           >
                             {previewJobTitle}
@@ -1175,11 +1175,11 @@ export default function UserManagementPage() {
                           />
                         </td>
 
-                        <td className="py-3 px-3 align-middle whitespace-nowrap text-slate-500 font-mono text-[11px] tabular-nums">
+                        <td className="py-3 px-3 align-middle text-slate-500 font-mono text-[11px] tabular-nums" style={{ whiteSpace: "nowrap" }}>
                           {p.updated_at ? p.updated_at.slice(0, 10) : "-"}
                         </td>
 
-                        <td className="py-3 px-3 align-middle whitespace-nowrap">
+                        <td className="py-3 px-3 align-middle" style={{ whiteSpace: "nowrap" }}>
                           <div className="flex items-center justify-end gap-2 flex-nowrap">
                             {isChanged ? (
                               <button
