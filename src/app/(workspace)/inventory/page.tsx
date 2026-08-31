@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase"; 
+import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { saveProductionInboundToEcount } from "@/app/actions/ecount";
 import { formatLastSyncedAt } from "@/lib/syncTime";
@@ -389,7 +390,10 @@ export default function InventoryPage() {
             >
               엑셀 재고 반영
             </button>
-            {" "}(소수점 100%). API 동기화는 정수만 반영됩니다.
+            {" "}(소수점 100%). API 동기화는 정수만 반영됩니다.{" "}
+            <Link href="/admin/ecount-bot" className="underline font-bold">
+              봇 설정
+            </Link>
           </p>
         )}
 

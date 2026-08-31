@@ -14,6 +14,7 @@ import * as path from "path";
 import { chromium, type Page } from "playwright";
 import { parseEcountStockExcel } from "../src/lib/ecountStockExcelParser";
 import { uploadEcountStockRows } from "../src/lib/ecountStockExcelUpload";
+import { resolveEcountBotCredentials } from "../src/lib/ecountBotConfig";
 
 const envPath = fs.existsSync(".env.local") ? ".env.local" : ".env";
 require("dotenv").config({ path: envPath });
@@ -58,25 +59,27 @@ async function saveDebugScreenshot(page: Page, name: string) {
   console.log(`📸 디버그 스크린샷: ${file}`);
 }
 
-async function loginEcount(page: Page) {
-  if (!process.env.ECOUNT_COM_CODE || !process.env.ECOUNT_ID || !process.env.ECOUNT_PW) {
-    throw new Error("ECOUNT_COM_CODE, ECOUNT_ID, ECOUNT_PW 환경변수가 필요합니다.");
-  }
-
+async function loginEcount(
+  page: Page,
+  creds: { com_code: string; login_id: string; login_pw: string }
+) {
   console.log("1. 이카ount 로그인...");
   await page.goto("https://login.ecount.com/Login/", { waitUntil: "domcontentloaded" });
-  await page.fill('input[name="com_code"]', process.env.ECOUNT_COM_CODE);
-  await page.fill('input[name="id"]', process.env.ECOUNT_ID);
-  await page.fill('input[name="passwd"]', process.env.ECOUNT_PW);
+  await page.fill('input[name="com_code"]', creds.com_code);
+  await page.fill('input[name="id"]', creds.login_id);
+  await page.fill('input[name="passwd"]', creds.login_pw);
   await page.press('input[name="passwd"]', "Enter");
   await page.waitForURL(/.*(OnetLogin\/Main|view\/erp).*/, { timeout: 45000 });
   console.log("✅ 로그인 성공");
   await page.waitForTimeout(3000);
 }
 
-async function openStockBalanceReport(page: Page) {
-  const d1 = process.env.ECOUNT_STOCK_MENU_DEPTH1;
-  const d2 = process.env.ECOUNT_STOCK_MENU_DEPTH2;
+async function openStockBalanceReport(
+  page: Page,
+  menu?: { stock_menu_depth1?: string; stock_menu_depth2?: string }
+) {
+  const d1 = menu?.stock_menu_depth1 || process.env.ECOUNT_STOCK_MENU_DEPTH1;
+  const d2 = menu?.stock_menu_depth2 || process.env.ECOUNT_STOCK_MENU_DEPTH2;
 
   console.log("2. 재고현황 메뉴 이동...");
   if (d1 && d2) {
@@ -90,7 +93,7 @@ async function openStockBalanceReport(page: Page) {
     await page.waitForTimeout(2000);
     if (!(await clickTextInAnyFrame(page, /재고현황/))) {
       throw new Error(
-        "재고현황 메뉴를 찾지 못했습니다. GitHub Secrets에 ECOUNT_STOCK_MENU_DEPTH1/2 를 설정하세요. (docs/ecount-bot-setup.md 참고)"
+        "재고현황 메뉴를 찾지 못했습니다. /admin/ecount-bot 에서 메뉴 selector를 설정하세요."
       );
     }
   }
@@ -150,8 +153,16 @@ export async function runEcountStockBot() {
   const page = await context.newPage();
 
   try {
-    await loginEcount(page);
-    await openStockBalanceReport(page);
+    const creds = await resolveEcountBotCredentials();
+    if (!creds) {
+      throw new Error(
+        "이카ount 로그인 정보 없음. /admin/ecount-bot 에서 회사코드·ID·비밀번호를 저장하거나 GitHub Secrets(ECOUNT_*)를 설정하세요."
+      );
+    }
+    console.log(`   로그인 정보: ${creds.source === "database" ? "워크스페이스 DB" : "환경변수"}`);
+
+    await loginEcount(page, creds);
+    await openStockBalanceReport(page, creds);
     await downloadExcelFromFrames(page, STOCK_FILE);
     return await uploadStockExcelFile(STOCK_FILE);
   } catch (err) {

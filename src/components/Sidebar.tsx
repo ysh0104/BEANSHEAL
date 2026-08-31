@@ -105,7 +105,10 @@ export default function Sidebar() {
     },
     {
       name: "시스템/사용자 관리",
-      items: [{ name: "사용자 및 권한 설정", path: "/admin/users" }],
+      items: [
+        { name: "사용자 및 권한 설정", path: "/admin/users" },
+        { name: "이카ount 엑셀 봇 설정", path: "/admin/ecount-bot" },
+      ],
     },
   ];
 

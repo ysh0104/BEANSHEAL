@@ -22,18 +22,30 @@ PC에 프로그램 설치 **불필요** — GitHub 클라우드에서 Playwright
 
 ---
 
-## 1단계 — GitHub Repository Secrets
+## 1단계 — 워크스페이스에서 로그인 정보 입력 (가장 쉬움)
 
-GitHub → `ysh0104/BEANSHEAL` → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+1. Supabase SQL Editor에서 `supabase/migrations/20260831_ecount_bot_config.sql` 실행
+2. 배포 후 **`/admin/ecount-bot`** 접속
+3. 이카ount **웹 로그인** 회사코드 · ID · 비밀번호 저장
 
-| Secret 이름 | 값 |
-|-------------|-----|
-| `ECOUNT_COM_CODE` | 이카ount 회사코드 |
-| `ECOUNT_ID` | 웹 로그인 ID (OpenAPI 키와 별개) |
-| `ECOUNT_PW` | 웹 로그인 비밀번호 |
+→ GitHub Actions가 Supabase에서 자동으로 읽습니다. **GitHub에 비번 넣을 필요 없음.**
+
+---
+
+## 2단계 — GitHub Repository Secrets (최소 2개)
+
+GitHub → `ysh0104/BEANSHEAL` → **Settings → Secrets → Actions**
+
+| Secret | 값 |
+|--------|-----|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service Role Key (delete+upsert용, **anon보다 권장**) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | (service role 없을 때 폴백) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service Role Key |
+
+(선택) env 변수로 직접 넣으려면: `ECOUNT_COM_CODE`, `ECOUNT_ID`, `ECOUNT_PW`
+
+---
+
+## ~~1단계~~ 구 방식 — GitHub에 이카ount 비번 직접 (선택)
 
 메뉴를 못 찾을 때만 추가:
 
