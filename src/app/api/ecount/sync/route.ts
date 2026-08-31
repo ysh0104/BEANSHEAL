@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { ecountPost } from '@/lib/ecountClient';
 import { isFixieConfigured } from '@/lib/fixie';
+import {
+  buildInventoryBalanceData,
+  parseEcountBalQty,
+} from '@/lib/ecountInventoryPayload';
 
 export const runtime = 'nodejs';
 
@@ -99,25 +103,26 @@ export async function POST() {
     const baseDate = `${kstTime.getUTCFullYear()}${String(kstTime.getUTCMonth() + 1).padStart(2, "0")}${String(kstTime.getUTCDate()).padStart(2, "0")}`;
 
     const candidateEndpoints = [
+      "/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus",
       "/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLocation",
       "/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusLocation",
       "/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatusByLot",
-      "/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus"
     ];
 
-    const combinedListMap = new Map<string, any>();
+    const allInventoryRows: any[] = [];
     let usedEndpoint = "";
-    const pageSize = 200; // 이카운트 API 페이지당 최대 200건
+    const pageSize = 200;
 
     for (const ep of candidateEndpoints) {
       let pageNo = 1;
+      let epRowCount = 0;
       while (true) {
         const epUrl = `${targetHost}${ep}?SESSION_ID=${sessionId}`;
         const payload = {
           SESSION_ID: sessionId,
           COM_CODE: comCode,
           BASE_DATE: baseDate,
-          DATA: { PAGE_NO: String(pageNo), PAGE_SIZE: String(pageSize) }
+          DATA: buildInventoryBalanceData(baseDate, pageNo, pageSize),
         };
         let resData: any;
         try {
@@ -128,20 +133,20 @@ export async function POST() {
         }
         const list = resData.Data?.Result || resData.Data?.List || resData.Data || [];
         if (!Array.isArray(list) || list.length === 0) break;
-        list.forEach((row: any) => {
-          const key = String(row.PROD_CD || row.PROD_NO || row.CODE || row.ITEM_CD || "").trim();
-          if (key && !combinedListMap.has(key)) {
-            combinedListMap.set(key, row);
-          }
-        });
+        allInventoryRows.push(...list);
+        epRowCount += list.length;
         usedEndpoint = usedEndpoint ? `${usedEndpoint}, ${ep}` : ep;
         console.log(`[Ecount Sync] ${ep} page ${pageNo} fetched ${list.length} rows`);
-        if (list.length < pageSize) break; // 마지막 페이지
+        if (list.length < pageSize) break;
         pageNo++;
+      }
+      // 소수점 옵션이 있는 기본 재고현황 API에서 데이터를 받으면 폴백 엔드포인트 생략
+      if (ep === "/OAPI/V2/InventoryBalance/GetListInventoryBalanceStatus" && epRowCount > 0) {
+        break;
       }
     }
 
-    const rawList = Array.from(combinedListMap.values());
+    const rawList = allInventoryRows;
     if (rawList.length === 0) {
       return NextResponse.json({
         success: false,
@@ -258,10 +263,7 @@ export async function POST() {
       if (!rawCd && !rawNm) continue;
       const prodCd = rawCd || rawNm;
       const prodNm = rawNm || prodCd;
-      const rawQtyVal = item.BAL_QTY ?? item.BAL_QTY_TOT ?? item.QTY ?? item.qty ?? "0";
-      const rawQtyStr = String(rawQtyVal).replace(/,/g, "").trim();
-      const qty = Number(rawQtyStr);
-      const safeQty = isNaN(qty) ? 0 : qty;
+      const safeQty = parseEcountBalQty(item);
       if (productQtyMap.has(prodCd)) {
         const prev = productQtyMap.get(prodCd)!;
         productQtyMap.set(prodCd, {

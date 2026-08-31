@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase"; 
 import { ecountPost, getEcountProxyBaseUrl, ecountFetchHeaders } from "@/lib/ecountClient";
+import { buildInventoryBalanceData } from "@/lib/ecountInventoryPayload";
 
 export { getEcountProxyBaseUrl, ecountFetchHeaders };
 
@@ -359,11 +360,7 @@ export async function getInventoryStatusDetailed(sessionObj: any): Promise<{ dat
       SESSION_ID: actualSessionId,
       COM_CODE: COM_CODE,
       BASE_DATE: baseDateString, 
-      DATA: {
-        BASE_DATE: baseDateString,
-        WH_CD: "",   
-        PROD_CD: ""  
-      }
+      DATA: buildInventoryBalanceData(baseDateString, 1, 200),
     });
 
     const textData = ecountRes.text || ""; 
