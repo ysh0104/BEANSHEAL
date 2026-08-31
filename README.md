@@ -96,6 +96,12 @@ npx tsx scripts/syncStock.ts      # 이카ount API → Supabase
 
 GitHub Actions: `.github/workflows/sync-inventory.yml`
 
+## 이카운트 API + Fixie (Vercel 고정 IP)
+
+재고 동기화 API는 **Fixie** 고정 IP를 통해 이카운트에 연결합니다. 설정 절차: [`docs/fixie-setup.md`](docs/fixie-setup.md)
+
+- 연결 확인: 배포 후 `/api/debug-fixie` 또는 `/inventory` → **Fixie / IP 연결 확인**
+
 ## 기술 스택
 
 Next.js 15 · React 19 · Tailwind CSS 4 · Supabase · Notion API · Playwright · Vercel

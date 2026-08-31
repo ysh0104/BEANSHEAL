@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { ecountPost } from '@/lib/ecountClient';
+import { isFixieConfigured } from '@/lib/fixie';
+
+export const runtime = 'nodejs';
 
 // Fixie 고정 IP 프록시 지원 HTTP POST 함수 (Vercel -> Fixie Static IPv4 -> Ecount 다이렉트 통신)
 async function fetchWithEgressProxy(url: string, body: any, headersExtra: Record<string, string> = {}) {
@@ -42,7 +45,7 @@ export async function POST() {
     }
 
     // 2️⃣ 프록시/호스트 설정
-    const isFixieActive = !!(process.env.FIXIE_URL || process.env.FIXIE_SOCKS_HOST);
+    const isFixieActive = isFixieConfigured();
     const zone = (process.env.ECOUNT_ZONE || "AC").toUpperCase().trim();
     const targetHost = isFixieActive
       ? `https://oapi${zone.toLowerCase()}.ecount.com`

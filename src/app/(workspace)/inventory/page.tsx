@@ -46,6 +46,30 @@ export default function InventoryPage() {
   const [hideZeroQty, setHideZeroQty] = useState(true);
   const [showOnlyLowStock, setShowOnlyLowStock] = useState(false);
   const [safetyConfigs, setSafetyConfigs] = useState<Record<string, number>>({});
+  const [fixieStatus, setFixieStatus] = useState<any>(null);
+  const [fixieChecking, setFixieChecking] = useState(false);
+
+  const handleCheckFixie = async () => {
+    setFixieChecking(true);
+    try {
+      const res = await fetch("/api/debug-fixie");
+      const data = await res.json();
+      setFixieStatus(data);
+      if (data.ecount_login_ok) {
+        alert("Fixie + 이카운트 연동 정상입니다. 재고 동기화 버튼을 사용하세요.");
+      } else if (data.outbound_ips?.length) {
+        alert(
+          `Fixie IP 확인됨: ${data.outbound_ips.join(", ")}\n\n이 IP들을 이카운트 ERP > API인증키발급 > IP등록에 추가한 뒤 다시 확인하세요.`
+        );
+      } else {
+        alert(data.guide || data.error || "Fixie 설정을 확인하세요.");
+      }
+    } catch (e: any) {
+      alert(e?.message || "Fixie 확인 중 오류");
+    } finally {
+      setFixieChecking(false);
+    }
+  };
 
   const handleEditSafetyStock = async (prodCd: string, prodNm: string, currentMinQty: number) => {
     const newVal = prompt(`[${prodNm}] 의 최소 안전재고 수량을 입력하십시오:`, String(currentMinQty));
@@ -351,6 +375,45 @@ export default function InventoryPage() {
           마지막 동기화: <span className="font-semibold text-slate-700">{formatLastSyncedAt(lastSyncedAt)}</span>
           {syncingMaster && <span className="ml-2 text-blue-600 font-medium">동기화 진행 중…</span>}
         </p>
+
+        {canEdit && (
+          <div className="max-w-3xl mx-auto mb-6 rounded-lg border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-sm text-slate-700">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="font-bold text-indigo-900">Fixie 고정 IP 연동</span>
+                <span className="ml-2 text-xs text-slate-500">Vercel → Fixie → 이카운트</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCheckFixie}
+                disabled={fixieChecking}
+                className="text-xs font-bold text-indigo-800 bg-white border border-indigo-300 px-3 py-1.5 rounded hover:bg-indigo-100 disabled:opacity-50"
+              >
+                {fixieChecking ? "확인 중…" : "Fixie / IP 연결 확인"}
+              </button>
+            </div>
+            {fixieStatus && (
+              <div className="mt-2 text-xs space-y-1">
+                <p>
+                  상태:{" "}
+                  <span className={fixieStatus.ecount_login_ok ? "text-emerald-700 font-bold" : "text-amber-800 font-bold"}>
+                    {fixieStatus.ecount_login_ok ? "연동 정상" : fixieStatus.is_fixie_active ? "IP 등록 필요" : "FIXIE_URL 미설정"}
+                  </span>
+                </p>
+                {fixieStatus.outbound_ips?.length > 0 && (
+                  <p>
+                    등록할 IP: <code className="bg-white px-1 rounded">{fixieStatus.outbound_ips.join(", ")}</code>
+                  </p>
+                )}
+                {!fixieStatus.is_fixie_active && (
+                  <p className="text-slate-600">
+                    Vercel → Integrations → <a className="underline text-indigo-700" href="https://vercel.com/integrations/fixie" target="_blank" rel="noreferrer">Fixie</a> 설치 후 Redeploy
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end mb-2">
           

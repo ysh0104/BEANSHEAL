@@ -1,8 +1,10 @@
 import https from "https";
-import { HttpsProxyAgent } from "https-proxy-agent";
+import { createFixieAgent, getFixieUrl, isFixieConfigured } from "@/lib/fixie";
+
+export { getFixieUrl, isFixieConfigured };
 
 export async function getEcountProxyBaseUrl(): Promise<string> {
-  const fixieUrl = process.env.FIXIE_URL || process.env.FIXIE_SOCKS_HOST;
+  const fixieUrl = getFixieUrl();
   const envUrl = process.env.ECOUNT_API_BASE_URL || process.env.ECOUNT_PROXY_URL || "";
 
   // Fixie 프록시 사용 중이거나, 기존 trycloudflare / workers.dev 도메인이 만료된 경우 이카운트 공식 OAPI URL로 우선 자동 변경
@@ -25,41 +27,15 @@ export async function ecountFetchHeaders(extra: Record<string, string> = {}): Pr
 }
 
 /**
- * Fixie 프록시 전용 Agent 생성 헬퍼
- * Proxy-Authorization 기본 인증 헤더 명시적 주입으로 CONNECT 소켓 종료 에러 방지
- */
-function createFixieAgent(fixieUrl: string) {
-  try {
-    const parsed = new URL(fixieUrl);
-    const auth = parsed.username
-      ? `${decodeURIComponent(parsed.username)}:${decodeURIComponent(parsed.password)}`
-      : "";
-
-    const proxyHeaders: Record<string, string> = {};
-    if (auth && auth !== ":") {
-      proxyHeaders["Proxy-Authorization"] = "Basic " + Buffer.from(auth).toString("base64");
-    }
-
-    return new HttpsProxyAgent(fixieUrl, {
-      headers: proxyHeaders,
-      keepAlive: false,
-    });
-  } catch (e) {
-    return new HttpsProxyAgent(fixieUrl);
-  }
-}
-
-/**
  * Fixie 고정 IP 프록시 지원 ECOUNT API 통신 전용 함수
  * FIXIE_URL 설정 시 Fixie 고정 IP(IPv4 2개)를 거쳐 이카운트로 다이렉트 통신
- * 실패 시 표준 fetch(클라우드플레어 터널/오피스 프록시) 폴백 지원
  */
 export async function ecountPost(
   url: string,
   body: any,
   extraHeaders: Record<string, string> = {}
 ): Promise<{ status: number; text: string; data: any }> {
-  const fixieUrl = process.env.FIXIE_URL || process.env.FIXIE_SOCKS_HOST;
+  const fixieUrl = getFixieUrl();
   const headers = await ecountFetchHeaders(extraHeaders);
 
   if (fixieUrl) {
