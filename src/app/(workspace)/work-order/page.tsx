@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe";
-import { getSessionId, getInventoryStatus } from "@/app/actions/ecount";
+import { supabase } from "@/lib/supabase";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import A4MobileScaler from "@/components/A4MobileScaler";
 
@@ -58,10 +58,20 @@ export default function WorkOrder() {
       if (res.success) setRecipes(res.data); // 강제 선택 로직이 없으므로 빈칸으로 시작합니다.
 
       try {
-        const session = await getSessionId();
-        if (session && session.Data) {
-          const invData = await getInventoryStatus(session.Data);
-          setInventory(invData);
+        const { data, error } = await supabase
+          .from("ecount_items")
+          .select("prod_cd, prod_nm, total_qty")
+          .order("prod_cd", { ascending: true });
+        if (!error && data) {
+          setInventory(
+            data.map((item) => ({
+              prodCd: item.prod_cd,
+              prodNm: item.prod_nm,
+              size: "-",
+              qty: Number(item.total_qty || 0).toLocaleString(),
+              unit: "EA",
+            }))
+          );
         }
       } catch (error) {
         console.error("재고 조회 실패:", error);
@@ -247,7 +257,7 @@ export default function WorkOrder() {
             <p className="text-sm text-gray-600 mt-1">제품과 수량, 중량, 로스율을 입력하면 정밀한 불출 지시서가 자동 생성됩니다.</p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
-            {isInvLoading && <span className="text-sm font-bold text-blue-600 self-center mr-2">이카운트 연동 중...</span>}
+            {isInvLoading && <span className="text-sm font-bold text-blue-600 self-center mr-2">재고 불러오는 중...</span>}
             <button 
               onClick={() => window.print()}
               disabled={calculatedMaterials.length === 0}

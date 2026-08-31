@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; 
 import { useCanEdit } from "@/hooks/useCanEdit";
-import { saveProductionInboundToEcount, syncEcountMasterToDb } from "@/app/actions/ecount";
+import { saveProductionInboundToEcount } from "@/app/actions/ecount";
+import { formatLastSyncedAt } from "@/lib/syncTime";
 import { getSafetyStockConfigs, saveSafetyStockConfig, setAllSafetyStockToZero } from "@/app/actions/safetyStockActions";
 import { getDefaultSafetyQty, checkIsLowStock } from "@/lib/safetyStockHelper";
 import { saveItemMasterMapping } from "@/app/actions/itemMasterActions";
@@ -37,6 +38,7 @@ export default function InventoryPage() {
   const [inventory, setInventory] = useState<any[]>([]);
   const [loadingInv, setLoadingInv] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [scrapedItems, setScrapedItems] = useState<any[]>([]);
   const [currentDate, setCurrentDate] = useState("");
   
@@ -165,34 +167,29 @@ export default function InventoryPage() {
   const [rawLogModalData, setRawLogModalData] = useState<any>(null);
 
   const handleSyncMaster = async () => {
-    if (!confirm("이카운트 품목/재고를 DB에 동기화할까요?")) return;
+    if (!confirm("이카운트에서 최신 재고를 가져와 DB에 반영할까요?\n(수 분 걸릴 수 있습니다)")) return;
     setSyncingMaster(true);
     try {
-      const res = await syncEcountMasterToDb();
-      if (res.success) {
-        setRawLogModalData({
-          title: "이카운트 API 수신 원본 JSON 필드 검증 로그",
-          usedEndpoint: res.usedEndpoint,
-          rawResponse: res.rawSample || res,
-          parsedSample: res.parsedSample,
-          count: res.count,
-          error: `성공적으로 ${res.count}건 동기화되었습니다. 아래 원본 JSON을 통해 이카운트 서버의 PROD_CD / PROD_DES 값을 확인하십시오.`
-        });
-        alert(res.message);
+      const res = await fetch("/api/sync-inventory", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        if (data.synced_at) setLastSyncedAt(data.synced_at);
+        else setLastSyncedAt(new Date().toISOString());
+        alert(data.message || "동기화가 완료되었습니다.");
         fetchInventory();
       } else {
         setRawLogModalData({
-          title: "이카운트 API 수신 원본 JSON 로그",
-          error: res.error || "동기화 실패",
-          rawResponse: res.rawResponse || res,
-          proxyBaseUrl: (res as any).proxyBaseUrl || "https://oapiac.ecount.com",
+          title: "이카운트 동기화 오류",
+          error: data.message || data.error || "동기화 실패",
+          rawResponse: data,
         });
+        alert(data.message || data.error || "동기화에 실패했습니다.");
       }
     } catch (err: any) {
       setRawLogModalData({
         title: "이카운트 API 연동 오류 로그",
         error: err.message || "동기화 중 오류",
-        rawResponse: { error: err.message || "네트워크/서버 통신 실패" }
+        rawResponse: { error: err.message || "네트워크/서버 통신 실패" },
       });
     } finally {
       setSyncingMaster(false);
@@ -222,7 +219,7 @@ export default function InventoryPage() {
       ] = await Promise.all([
         supabase
           .from('ecount_items')
-          .select('prod_cd, prod_nm, total_qty')
+          .select('prod_cd, prod_nm, total_qty, last_synced_at')
           .order('prod_cd', { ascending: true }),
         supabase
           .from('ecount_inventory')
@@ -239,6 +236,12 @@ export default function InventoryPage() {
           prodNm: item.prod_nm,
           qty: item.total_qty || 0,
         })));
+        const latest = inventoryRes.data
+          .map((item: any) => item.last_synced_at as string | null)
+          .filter(Boolean)
+          .sort()
+          .pop();
+        if (latest) setLastSyncedAt(latest);
       }
 
       // 로트 데이터
@@ -336,7 +339,7 @@ export default function InventoryPage() {
     <div className="max-w-[1920px] mx-auto py-6 sm:py-8 md:py-10 px-2 sm:px-4 bg-[#f8f9fb] min-h-screen">
       
       <div className="mb-8">
-        <div className="flex items-center justify-center gap-3 mb-6">
+        <div className="flex items-center justify-center gap-3 mb-2">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">재고현황</h1>
           {!canEdit && (
             <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded border border-amber-200 shadow-2xs">
@@ -344,6 +347,10 @@ export default function InventoryPage() {
             </span>
           )}
         </div>
+        <p className="text-center text-sm text-slate-500 mb-4">
+          마지막 동기화: <span className="font-semibold text-slate-700">{formatLastSyncedAt(lastSyncedAt)}</span>
+          {syncingMaster && <span className="ml-2 text-blue-600 font-medium">동기화 진행 중…</span>}
+        </p>
         
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end mb-2">
           
@@ -418,7 +425,7 @@ export default function InventoryPage() {
                   disabled={syncingMaster}
                   className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-2 hover:bg-blue-100 disabled:opacity-50"
                 >
-                  {syncingMaster ? "동기화중..." : "이카운트 API 동기화"}
+                  {syncingMaster ? "동기화중..." : "이카운트 재고 동기화"}
                 </button>
                 <button
                   onClick={handleResetAllSafetyStockToZero}
@@ -442,7 +449,7 @@ export default function InventoryPage() {
               disabled={syncingMaster}
               className="hidden md:inline-flex text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-1.5 hover:bg-blue-100 cursor-pointer disabled:opacity-50 shadow-2xs"
             >
-              {syncingMaster ? "동기화중..." : "이카운트 API 동기화"}
+              {syncingMaster ? "동기화중..." : "이카운트 재고 동기화"}
             </button>
 
             <button

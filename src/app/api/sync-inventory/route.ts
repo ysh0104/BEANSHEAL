@@ -60,7 +60,9 @@ export async function POST() {
 
     return NextResponse.json({ 
       success: true, 
-      message: syncRes.message || "이카운트 API를 통해 최신 품목 및 재고 동기화가 완료되었습니다." 
+      message: syncRes.message || "이카운트 API를 통해 최신 품목 및 재고 동기화가 완료되었습니다.",
+      count: syncRes.count,
+      synced_at: syncRes.synced_at || new Date().toISOString(),
     });
 
   } catch (error: any) {

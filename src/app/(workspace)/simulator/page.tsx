@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { getRecipeList, getRecipeDetails } from "@/app/actions/recipe"; 
 import { savePurchasesToEcount } from "@/app/actions/ecount"; 
 import { findStockForMaterial, StockItem } from "@/lib/stockHelper";
+import { formatLastSyncedAt } from "@/lib/syncTime";
 import { useCanEdit } from "@/hooks/useCanEdit";
 
 // 🌟 사전에 정의된 원료별 포장 규격 (이름에 포함된 키워드 기준)
@@ -45,6 +46,7 @@ export default function ProductionSimulator() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [isSendingPurchase, setIsSendingPurchase] = useState(false);
   const [purchaseWhCd, setPurchaseWhCd] = useState("100");
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [lastCalculatedInfo, setLastCalculatedInfo] = useState({ 
     name: "", 
     inputMode: "kg",
@@ -68,7 +70,17 @@ export default function ProductionSimulator() {
         console.error("레시피 로딩 실패:", error);
       }
     }
+    async function fetchLastSync() {
+      const { data } = await supabase
+        .from("ecount_items")
+        .select("last_synced_at")
+        .order("last_synced_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.last_synced_at) setLastSyncedAt(data.last_synced_at);
+    }
     fetchRecipes();
+    fetchLastSync();
   }, []);
 
   const normalizeName = (name: string) => {
@@ -394,6 +406,7 @@ export default function ProductionSimulator() {
           <div className="min-w-0">
             <h2 className="text-lg sm:text-[22px] font-black text-[#1e293b] tracking-tight">원부자재 소요량 산출 시뮬레이터 (MRP)</h2>
             <p className="text-[13px] sm:text-[14px] font-semibold text-[#64748b] mt-1.5">생산 배합량(kg) 또는 목표 포장수량(포)을 기준으로 필요한 모든 자재의 정밀 발주량을 산출합니다.</p>
+            <p className="text-[12px] text-slate-500 mt-1">재고 기준 시각: {formatLastSyncedAt(lastSyncedAt)}</p>
           </div>
           <button 
             onClick={handleCalculate}

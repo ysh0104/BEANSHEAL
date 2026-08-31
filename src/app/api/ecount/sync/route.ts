@@ -98,7 +98,7 @@ export async function POST() {
 
     const combinedListMap = new Map<string, any>();
     let usedEndpoint = "";
-    const pageSize = 2; // 이카운트 API는 한 번에 2건만 반환
+    const pageSize = 200; // 이카운트 API 페이지당 최대 200건
 
     for (const ep of candidateEndpoints) {
       let pageNo = 1;
