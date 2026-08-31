@@ -228,3 +228,14 @@ export async function updateAuditItemStatusToSupabase(id: string | number, statu
     return { success: false, message: error?.message || "DB 업데이트 오류" };
   }
 }
+
+/** ecount_items 재고 마스터 전량 삭제 (엑셀/API 동기화 데이터) */
+export async function clearAllEcountItems(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from("ecount_items").delete().neq("prod_cd", "___IMPOSSIBLE_CD___");
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: unknown) {
+    return { success: false, error: e instanceof Error ? e.message : "삭제 오류" };
+  }
+}

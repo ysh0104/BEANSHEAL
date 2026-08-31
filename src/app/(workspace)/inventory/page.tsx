@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useCanEdit } from "@/hooks/useCanEdit";
@@ -9,6 +9,8 @@ import { formatLastSyncedAt } from "@/lib/syncTime";
 import { getSafetyStockConfigs, saveSafetyStockConfig, setAllSafetyStockToZero } from "@/app/actions/safetyStockActions";
 import { getDefaultSafetyQty, checkIsLowStock } from "@/lib/safetyStockHelper";
 import { saveItemMasterMapping } from "@/app/actions/itemMasterActions";
+import { clearAllEcountItems } from "@/app/actions/inventoryActions";
+import { isSyncNewerThan, isGithubRunFromTrigger } from "@/lib/syncInventoryStatus";
 import EcountExcelUploadModal from "@/components/EcountExcelUploadModal";
 
 /** 재고수량: 반올림/올림 절대 없음! 최소 3자리 고정 표시 및 4자리 이상 원본 100% 표시 */
@@ -34,12 +36,43 @@ function formatQty(value: number | string) {
   return `${intPart}.${decimalPart}`;
 }
 
+type BotWatchPhase = "idle" | "watching" | "success" | "failed" | "timeout";
+
+type SyncStatusPayload = {
+  last_synced_at: string | null;
+  item_count: number;
+  github_configured?: boolean;
+  github_actions_url?: string | null;
+  github_run?: {
+    status: string;
+    conclusion: string | null;
+    html_url: string;
+    updated_at: string;
+  } | null;
+};
+
+function formatGithubRunLabel(run: SyncStatusPayload["github_run"]): string {
+  if (!run) return "";
+  if (run.status === "queued") return "GitHub: 대기 중";
+  if (run.status === "in_progress") return "GitHub: 실행 중";
+  if (run.status === "completed" && run.conclusion === "success") return "GitHub: 성공";
+  if (run.status === "completed" && run.conclusion === "failure") return "GitHub: 실패";
+  if (run.status === "completed") return "GitHub: 완료";
+  return `GitHub: ${run.status}`;
+}
+
 export default function InventoryPage() {
   const { canEdit } = useCanEdit("inventory");
   const [inventory, setInventory] = useState<any[]>([]);
   const [loadingInv, setLoadingInv] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [itemCount, setItemCount] = useState(0);
+  const [botWatchPhase, setBotWatchPhase] = useState<BotWatchPhase>("idle");
+  const [botStatusLine, setBotStatusLine] = useState("");
+  const [githubActionsUrl, setGithubActionsUrl] = useState<string | null>(null);
+  const botBaselineRef = useRef<string | null>(null);
+  const botTriggeredAtRef = useRef<string | null>(null);
   const [scrapedItems, setScrapedItems] = useState<any[]>([]);
   const [currentDate, setCurrentDate] = useState("");
   
@@ -110,6 +143,48 @@ export default function InventoryPage() {
       }
     } catch (e: any) {
       alert(`오류 발생: ${e.message}`);
+    } finally {
+      setLoadingInv(false);
+    }
+  };
+
+  const refreshSyncStatus = useCallback(async (): Promise<SyncStatusPayload | null> => {
+    try {
+      const res = await fetch("/api/sync-inventory/status", { cache: "no-store" });
+      if (!res.ok) return null;
+      const data: SyncStatusPayload = await res.json();
+      if (data.last_synced_at) setLastSyncedAt(data.last_synced_at);
+      if (typeof data.item_count === "number") setItemCount(data.item_count);
+      if (data.github_actions_url) setGithubActionsUrl(data.github_actions_url);
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const handleClearAllInventory = async () => {
+    if (
+      !confirm(
+        "ecount_items 재고 마스터를 전부 삭제합니다.\n\n· 품목코드/재고수량 전체가 비워집니다\n· 되돌릴 수 없습니다\n\n계속하시겠습니까?"
+      )
+    ) {
+      return;
+    }
+    if (!confirm("정말 삭제하시겠습니까? (두 번째 확인)")) return;
+
+    setLoadingInv(true);
+    try {
+      const res = await clearAllEcountItems();
+      if (res.success) {
+        setInventory([]);
+        setLastSyncedAt(null);
+        setItemCount(0);
+        alert("재고현황 데이터를 모두 삭제했습니다.");
+      } else {
+        alert(`삭제 실패: ${res.error}`);
+      }
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "삭제 중 오류");
     } finally {
       setLoadingInv(false);
     }
@@ -194,19 +269,35 @@ export default function InventoryPage() {
   const handleSyncMaster = async () => {
     if (
       !confirm(
-        "이카ount 재고현황 엑셀 봇을 실행할까요?\n\n· GitHub 클라우드에서 자동 로그인 → 엑셀 다운 → DB 반영\n· 1~3분 후 새로고침\n· PC 설치 불필요"
+        "이카ount 재고현황 엑셀 봇을 실행할까요?\n\n· GitHub 클라우드에서 자동 로그인 → 엑셀 다운 → DB 반영\n· 1~3분 후 화면에서 동기화 시간이 갱신됩니다\n· PC 설치 불필요"
       )
     )
       return;
+
     setSyncingMaster(true);
+    botBaselineRef.current = lastSyncedAt;
+    const triggeredAt = new Date().toISOString();
+    botTriggeredAtRef.current = triggeredAt;
+
+    await refreshSyncStatus();
+
+    setBotWatchPhase("watching");
+    setBotStatusLine("GitHub 봇 시작 요청 중…");
+
     try {
       const res = await fetch("/api/sync-inventory", { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        if (data.synced_at) setLastSyncedAt(data.synced_at);
-        alert(data.message || "봇 동기화를 시작했습니다.");
-        if (data.mode === "api-fallback") fetchInventory();
+        setBotStatusLine("GitHub Actions에서 봇 실행 중… (동기화 시간 갱신 대기)");
+        if (data.mode === "api-fallback") {
+          setBotWatchPhase("success");
+          setBotStatusLine("API(정수) 동기화 완료");
+          if (data.synced_at) setLastSyncedAt(data.synced_at);
+          fetchInventory();
+        }
       } else {
+        setBotWatchPhase("failed");
+        setBotStatusLine(data.message || "봇 시작 실패");
         setRawLogModalData({
           title: "재고 동기화 오류",
           error: data.message || data.error || "동기화 실패",
@@ -214,11 +305,13 @@ export default function InventoryPage() {
         });
         alert(data.message || data.error || "동기화에 실패했습니다.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      setBotWatchPhase("failed");
+      setBotStatusLine("봇 트리거 통신 오류");
       setRawLogModalData({
         title: "재고 동기화 오류",
-        error: err.message || "동기화 중 오류",
-        rawResponse: { error: err.message || "네트워크/서버 통신 실패" },
+        error: err instanceof Error ? err.message : "동기화 중 오류",
+        rawResponse: { error: err instanceof Error ? err.message : "네트워크/서버 통신 실패" },
       });
     } finally {
       setSyncingMaster(false);
@@ -271,6 +364,7 @@ export default function InventoryPage() {
           .sort()
           .pop();
         if (latest) setLastSyncedAt(latest);
+        setItemCount(inventoryRes.data.length);
       }
 
       // 로트 데이터
@@ -297,8 +391,67 @@ export default function InventoryPage() {
     }
   };
 
-  // fetchInventory는 외부에서 호출되므로 fetchAll 로 위임
   const fetchInventory = fetchAll;
+
+  useEffect(() => {
+    refreshSyncStatus();
+    const timer = setInterval(() => refreshSyncStatus(), 15000);
+    return () => clearInterval(timer);
+  }, [refreshSyncStatus]);
+
+  useEffect(() => {
+    if (botWatchPhase !== "watching") return;
+
+    const started = Date.now();
+    const maxMs = 5 * 60 * 1000;
+
+    const poll = async () => {
+      const data = await refreshSyncStatus();
+      if (!data) return;
+
+      const triggeredAt = botTriggeredAtRef.current || new Date().toISOString();
+      const baseline = botBaselineRef.current;
+
+      if (isSyncNewerThan(data.last_synced_at, baseline, triggeredAt)) {
+        setBotWatchPhase("success");
+        setBotStatusLine(`동기화 완료 · ${formatLastSyncedAt(data.last_synced_at)} · ${data.item_count}건`);
+        fetchInventory();
+        return;
+      }
+
+      const run = data.github_run;
+      const runForThisTrigger =
+        run && isGithubRunFromTrigger(run, triggeredAt) ? run : null;
+
+      if (runForThisTrigger?.status === "completed" && runForThisTrigger.conclusion === "failure") {
+        setBotWatchPhase("failed");
+        setBotStatusLine("GitHub 봇 실패 — Actions 로그를 확인하세요");
+        return;
+      }
+
+      if (runForThisTrigger?.status === "completed" && runForThisTrigger.conclusion === "success") {
+        if (!isSyncNewerThan(data.last_synced_at, baseline, triggeredAt)) {
+          setBotStatusLine(`${formatGithubRunLabel(runForThisTrigger)} · DB 반영 대기 중…`);
+        }
+      } else if (
+        runForThisTrigger?.status === "in_progress" ||
+        runForThisTrigger?.status === "queued"
+      ) {
+        setBotStatusLine(`${formatGithubRunLabel(runForThisTrigger)} · Ecount 로그인 → 엑셀 다운로드 중…`);
+      } else {
+        setBotStatusLine("봇 실행 중… 동기화 시간 갱신을 확인합니다 (15초마다 자동 확인)");
+      }
+
+      if (Date.now() - started > maxMs) {
+        setBotWatchPhase("timeout");
+        setBotStatusLine("5분 내 동기화 갱신 없음 — GitHub Actions에서 결과를 확인하세요");
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, [botWatchPhase, refreshSyncStatus]);
 
   // [수정] 검색어, 수량 0 숨기기, 안전재고 미달 필터링 동시 적용
   const filteredInventory = inventory.filter(item => {
@@ -376,10 +529,47 @@ export default function InventoryPage() {
             </span>
           )}
         </div>
-        <p className="text-center text-sm text-slate-500 mb-2">
-          마지막 동기화: <span className="font-semibold text-slate-700">{formatLastSyncedAt(lastSyncedAt)}</span>
-          {syncingMaster && <span className="ml-2 text-emerald-700 font-medium">봇 실행 중… (1~3분)</span>}
-        </p>
+        <div className="text-center mb-3 space-y-2">
+          <p className="text-sm text-slate-600">
+            마지막 동기화:{" "}
+            <span className="font-semibold text-slate-800">{formatLastSyncedAt(lastSyncedAt)}</span>
+            <span className="text-slate-400 mx-2">·</span>
+            <span className="text-slate-600">{itemCount.toLocaleString("ko-KR")}건</span>
+            <span className="ml-2 text-[11px] text-slate-400">(15초마다 자동 갱신)</span>
+          </p>
+
+          {botWatchPhase !== "idle" && botStatusLine && (
+            <p
+              className={`text-sm font-medium max-w-2xl mx-auto px-3 py-2 rounded-lg border ${
+                botWatchPhase === "success"
+                  ? "text-emerald-800 bg-emerald-50 border-emerald-200"
+                  : botWatchPhase === "failed"
+                    ? "text-rose-800 bg-rose-50 border-rose-200"
+                    : botWatchPhase === "timeout"
+                      ? "text-amber-800 bg-amber-50 border-amber-200"
+                      : "text-blue-800 bg-blue-50 border-blue-200"
+              }`}
+            >
+              {botWatchPhase === "watching" && (
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse mr-2 align-middle" />
+              )}
+              {botStatusLine}
+              {githubActionsUrl && (botWatchPhase === "watching" || botWatchPhase === "failed" || botWatchPhase === "timeout") && (
+                <>
+                  {" "}
+                  <a
+                    href={githubActionsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline font-bold whitespace-nowrap"
+                  >
+                    GitHub Actions
+                  </a>
+                </>
+              )}
+            </p>
+          )}
+        </div>
         {canEdit && (
           <p className="text-center text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg max-w-2xl mx-auto px-3 py-2 mb-4">
             <strong>권장:</strong> 이카ount 재고현황 엑셀 →{" "}
@@ -525,6 +715,15 @@ export default function InventoryPage() {
                 >
                   안전재고 전체 0 설정
                 </button>
+                {canEdit && (
+                  <button
+                    onClick={handleClearAllInventory}
+                    disabled={loadingInv}
+                    className="text-sm font-bold text-rose-800 bg-rose-50 border border-rose-300 px-4 py-2 hover:bg-rose-100 disabled:opacity-50"
+                  >
+                    재고현황 전체 삭제
+                  </button>
+                )}
               </div>
             </details>
 
@@ -551,6 +750,17 @@ export default function InventoryPage() {
             >
               안전재고 전체 0 설정
             </button>
+
+            {canEdit && (
+              <button
+                onClick={handleClearAllInventory}
+                disabled={loadingInv}
+                className="hidden md:inline-flex text-sm font-bold text-rose-800 bg-rose-50 border border-rose-300 px-4 py-1.5 hover:bg-rose-100 cursor-pointer disabled:opacity-50 shadow-2xs"
+                title="ecount_items 재고 마스터 전량 삭제"
+              >
+                재고현황 전체 삭제
+              </button>
+            )}
             
             <span className="text-sm text-gray-800 font-mono w-full sm:w-auto sm:ml-2 order-5">{currentDate}</span>
           </div>
