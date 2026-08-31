@@ -70,21 +70,35 @@ export async function GET() {
     ecountLoginMessage = "ECOUNT_COM_CODE / ECOUNT_USER_ID / ECOUNT_API_KEY 환경변수 확인 필요";
   }
 
+  const authFailed =
+    singleProbe.error === "FIXIE_AUTH_FAILED" ||
+    singleProbe.raw?.includes("407") ||
+    singleProbe.ip?.includes("407");
+
   return NextResponse.json({
-    status: errorMsg ? "FIXIE_ERROR" : "FIXIE_ACTIVE",
+    status: authFailed ? "FIXIE_AUTH_FAILED" : errorMsg ? "FIXIE_ERROR" : "FIXIE_ACTIVE",
     is_fixie_active: true,
     fixie_url_masked: `${fixieUrl.substring(0, 20)}...`,
-    current_outbound_ip: singleProbe.ip || outboundIps[0] || "조회 실패",
+    current_outbound_ip: authFailed ? null : singleProbe.ip || outboundIps[0] || null,
     outbound_ips: outboundIps,
     raw_ip_response: singleProbe.raw,
-    error: errorMsg,
+    error: authFailed
+      ? "Fixie 프록시 인증 실패 (407). Vercel의 FIXIE_URL이 깨졌거나 Proxy Application이 없습니다."
+      : errorMsg,
     ecount_login_ok: ecountLoginOk,
     ecount_login_message: ecountLoginMessage,
-    guide: ecountLoginOk
-      ? "Fixie + 이카운트 연동이 정상입니다. /inventory 에서 재고 동기화 버튼을 사용하세요."
-      : outboundIps.length > 0
-        ? `이카운트 ERP > API인증키발급 > IP등록 에 아래 IP를 모두 추가하세요: ${outboundIps.join(", ")}`
-        : "Fixie 프록시 연결을 확인하세요. FIXIE_URL 형식: http://user:pass@host:port",
+    guide: authFailed
+      ? [
+          "1. Vercel → Environment Variables → FIXIE_URL 삭제",
+          "2. Fixie(app.usefixie.com) → NEW PROXY APPLICATION 생성 (또는 Link OFF 후 Proxy URL 수동 복사)",
+          "3. Vercel에 올바른 FIXIE_URL 설정 → Redeploy",
+          "4. 이 페이지 새로고침 → outbound_ips 확인 → 이카운트 IP 등록",
+        ]
+      : ecountLoginOk
+        ? "Fixie + 이카운트 연동이 정상입니다. /inventory 에서 재고 동기화 버튼을 사용하세요."
+        : outboundIps.length > 0
+          ? `이카운트 ERP > API인증키발급 > IP등록 에 아래 IP를 모두 추가하세요: ${outboundIps.join(", ")}`
+          : "Fixie 프록시 연결을 확인하세요. FIXIE_URL 형식: http://user:pass@host:port",
     ecount_ip_register_steps: [
       "이카운트 ERP 로그인",
       "Self-Customizing > 정보관리 > API인증키발급",

@@ -47,7 +47,16 @@ export async function probeFixieOutboundIp(): Promise<{ ip: string; raw: string;
       const req = https.get("https://api.ipify.org?format=json", { agent, timeout: 12000 }, (res) => {
         let text = "";
         res.on("data", (chunk) => (text += chunk));
-        res.on("end", () => resolve({ status: res.statusCode || 200, text }));
+        res.on("end", () => {
+          if (res.statusCode === 407 || text.includes("407 Proxy Authentication")) {
+            resolve({
+              status: 407,
+              text: "407 Proxy Authentication Required — FIXIE_URL 아이디/비밀번호가 잘못되었거나 Proxy Application이 삭제된 상태입니다.",
+            });
+            return;
+          }
+          resolve({ status: res.statusCode || 200, text });
+        });
       });
       req.on("error", reject);
       req.on("timeout", () => {
@@ -56,11 +65,27 @@ export async function probeFixieOutboundIp(): Promise<{ ip: string; raw: string;
       });
     });
 
+    if (res.status === 407) {
+      return {
+        ip: "",
+        raw: res.text,
+        error: "FIXIE_AUTH_FAILED",
+      };
+    }
+
     try {
       const parsed = JSON.parse(res.text);
-      return { ip: parsed.ip || res.text, raw: res.text };
+      const ip = parsed.ip || "";
+      if (!ip || ip.includes("407")) {
+        return { ip: "", raw: res.text, error: "FIXIE_PROBE_FAILED" };
+      }
+      return { ip, raw: res.text };
     } catch {
-      return { ip: res.text.trim(), raw: res.text };
+      const trimmed = res.text.trim();
+      if (trimmed.includes("407")) {
+        return { ip: "", raw: res.text, error: "FIXIE_AUTH_FAILED" };
+      }
+      return { ip: trimmed, raw: res.text };
     }
   } catch (e: any) {
     return { ip: "", raw: "", error: e?.message || "Fixie 프록시 통신 실패" };
@@ -73,7 +98,7 @@ export async function collectFixieOutboundIps(samples = 8): Promise<string[]> {
   const tasks = Array.from({ length: samples }, () => probeFixieOutboundIp());
   const results = await Promise.all(tasks);
   for (const r of results) {
-    if (r.ip) found.add(r.ip);
+    if (r.ip && !r.ip.includes("407") && !r.error) found.add(r.ip);
   }
   return Array.from(found).sort();
 }
