@@ -17,8 +17,8 @@ import { parseEcountStockExcel } from "../src/lib/ecountStockExcelParser";
 import { uploadEcountStockRows } from "../src/lib/ecountStockExcelUpload";
 import { resolveEcountBotCredentials } from "../src/lib/ecountBotConfig";
 import { loginEcountWeb } from "./ecountLogin";
-import { navigateToStockReport } from "./ecountNavigateStock";
-import { clickExcelDownload, findVisibleExcelButton, hasVisibleExcelButton } from "./ecountExcel";
+import { navigateToStockReport, runStockSearchAfterNavigate } from "./ecountNavigateStock";
+import { clickExcelDownload, findVisibleExcelButton, isStockResultsReady } from "./ecountExcel";
 
 const envPath = fs.existsSync(".env.local") ? ".env.local" : ".env";
 require("dotenv").config({ path: envPath });
@@ -45,17 +45,19 @@ async function downloadExcelFromFrames(page: Page, saveAs: string) {
   if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 
   for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      if (await hasVisibleExcelButton(page)) {
-        await clickExcelDownload(page, saveAs);
-        console.log(`✅ 엑셀 저장: ${saveAs}`);
-        return;
-      }
-    } catch {
-      /* retry */
+    if (!(await isStockResultsReady(page))) {
+      console.log(`   → 결과 화면 아님 — 검색(F8) 재시도 (${attempt + 1}/4)`);
+      await runStockSearchAfterNavigate(page);
     }
 
-    console.log(`   엑셀 버튼 재탐색 (${attempt + 1}/4)...`);
+    try {
+      await clickExcelDownload(page, saveAs);
+      console.log(`✅ 엑셀 저장: ${saveAs}`);
+      return;
+    } catch (err) {
+      console.warn(`   Excel 클릭 실패 (${attempt + 1}/4):`, err instanceof Error ? err.message : err);
+    }
+
     for (const frame of page.frames()) {
       await frame.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
     }
@@ -63,11 +65,10 @@ async function downloadExcelFromFrames(page: Page, saveAs: string) {
   }
 
   const found = await findVisibleExcelButton(page);
-  console.log(`   frames=${page.frames().length}, excel=${found ? "found" : "none"}, url=${page.url()}`);
+  const ready = await isStockResultsReady(page);
+  console.log(`   frames=${page.frames().length}, excel=${found ? "found" : "none"}, ready=${ready}, url=${page.url()}`);
 
-  throw new Error(
-    "엑셀 다운로드 버튼을 찾지 못했습니다. 검색(F8) 후 결과 화면까지 이동하지 못했을 수 있습니다."
-  );
+  throw new Error("엑셀 다운로드 실패. 검색(F8) 후 결과 화면(품목코드+Excel)까지 이동하지 못했습니다.");
 }
 
 async function uploadStockExcelFile(filePath: string) {

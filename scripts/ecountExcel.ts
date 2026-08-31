@@ -9,14 +9,83 @@ const EXCEL_SELECTORS = [
   '[title*="Excel"]',
 ];
 
-/** Excel 버튼이 실제로 보이는지 (hidden DOM 제외) */
+/** 재고현황 검색 조건 화면 (기준일자 + 검색 F8) */
+export async function isStockSearchForm(page: Page): Promise<boolean> {
+  for (const frame of page.frames()) {
+    try {
+      const searchBtn = frame.getByText(/검색\s*\(F8\)/i).first();
+      const dateLabel = frame.locator("text=기준일자").first();
+      if ((await searchBtn.count()) > 0 && (await searchBtn.isVisible()) && (await dateLabel.count()) > 0) {
+        return true;
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  return false;
+}
+
+/** 검색 완료 후 결과 테이블 + Excel (검색 F8 화면과 구분) */
+export async function isStockResultsReady(page: Page): Promise<boolean> {
+  if (await isStockSearchForm(page)) return false;
+
+  for (const frame of page.frames()) {
+    try {
+      const itemCode = frame.locator("text=품목코드").first();
+      const qty = frame.locator("text=재고수량").first();
+      if ((await itemCode.count()) === 0 || !(await itemCode.isVisible())) continue;
+      if ((await qty.count()) === 0 || !(await qty.isVisible())) continue;
+
+      for (const sel of EXCEL_SELECTORS) {
+        const excel = frame.locator(sel).first();
+        if ((await excel.count()) > 0 && (await excel.isVisible())) {
+          const box = await excel.boundingBox();
+          if (box && box.width > 2 && box.height > 2) return true;
+        }
+      }
+      const excelText = frame.getByText(/^Excel$/i).first();
+      if ((await excelText.count()) > 0 && (await excelText.isVisible())) return true;
+    } catch {
+      /* skip */
+    }
+  }
+  return false;
+}
+
+async function findExcelInResultsFrame(page: Page): Promise<{ frame: Frame; locator: Locator } | null> {
+  for (const frame of page.frames()) {
+    try {
+      const itemCode = frame.locator("text=품목코드").first();
+      if ((await itemCode.count()) === 0 || !(await itemCode.isVisible())) continue;
+
+      for (const sel of EXCEL_SELECTORS) {
+        const loc = frame.locator(sel).first();
+        if ((await loc.count()) > 0) {
+          await loc.scrollIntoViewIfNeeded().catch(() => {});
+          if (await loc.isVisible()) return { frame, locator: loc };
+        }
+      }
+      const textBtn = frame.getByText(/^Excel$/i).first();
+      if ((await textBtn.count()) > 0 && (await textBtn.isVisible())) {
+        return { frame, locator: textBtn };
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  return null;
+}
+
+/** Excel 버튼이 보이는지 (느슨한 체크 — 검색 생략 판단에는 isStockResultsReady 사용) */
 export async function findVisibleExcelButton(page: Page): Promise<{ frame: Frame; locator: Locator } | null> {
+  const inResults = await findExcelInResultsFrame(page);
+  if (inResults) return inResults;
+
   for (const frame of page.frames()) {
     for (const sel of EXCEL_SELECTORS) {
       try {
         const loc = frame.locator(sel).first();
         if ((await loc.count()) === 0) continue;
-        await loc.scrollIntoViewIfNeeded().catch(() => {});
         if (!(await loc.isVisible())) continue;
         const box = await loc.boundingBox();
         if (!box || box.width < 2 || box.height < 2) continue;
@@ -24,15 +93,6 @@ export async function findVisibleExcelButton(page: Page): Promise<{ frame: Frame
       } catch {
         /* next */
       }
-    }
-    try {
-      const textBtn = frame.getByText(/^Excel$/i).first();
-      if ((await textBtn.count()) > 0 && (await textBtn.isVisible())) {
-        await textBtn.scrollIntoViewIfNeeded().catch(() => {});
-        return { frame, locator: textBtn };
-      }
-    } catch {
-      /* next */
     }
   }
   return null;
@@ -43,25 +103,62 @@ export async function hasVisibleExcelButton(page: Page): Promise<boolean> {
 }
 
 export async function clickExcelDownload(page: Page, saveAs: string): Promise<void> {
-  const found = await findVisibleExcelButton(page);
-  if (!found) throw new Error("EXCEL_BUTTON_NOT_FOUND");
+  const targets: Locator[] = [];
 
-  const [download] = await Promise.all([
-    page.waitForEvent("download", { timeout: 90000 }),
-    found.locator.click({ force: true }),
-  ]);
-  await download.saveAs(saveAs);
+  const inResults = await findExcelInResultsFrame(page);
+  if (inResults) targets.push(inResults.locator);
+
+  const visible = await findVisibleExcelButton(page);
+  if (visible && !targets.includes(visible.locator)) targets.push(visible.locator);
+
+  for (const frame of page.frames()) {
+    const legacy = frame.locator("#outputExcel").first();
+    if ((await legacy.count()) > 0 && !targets.some((t) => t === legacy)) {
+      targets.push(legacy);
+    }
+  }
+
+  let lastErr: unknown;
+  for (const btn of targets) {
+    try {
+      await btn.scrollIntoViewIfNeeded().catch(() => {});
+      const [download] = await Promise.all([
+        page.waitForEvent("download", { timeout: 90000 }),
+        btn.click({ force: true }),
+      ]);
+      await download.saveAs(saveAs);
+      return;
+    } catch (e) {
+      lastErr = e;
+      try {
+        const [download] = await Promise.all([
+          page.waitForEvent("download", { timeout: 90000 }),
+          btn.evaluate((el: HTMLElement) => el.click()),
+        ]);
+        await download.saveAs(saveAs);
+        return;
+      } catch (e2) {
+        lastErr = e2;
+      }
+    }
+  }
+
+  throw lastErr instanceof Error ? lastErr : new Error("EXCEL_CLICK_FAILED");
 }
 
-/** 검색(F8) 후 Excel 버튼 나타날 때까지 대기 */
-export async function waitForExcelButton(page: Page, maxSec = 60): Promise<boolean> {
+export async function waitForStockResultsReady(page: Page, maxSec = 60): Promise<boolean> {
   const steps = Math.ceil(maxSec / 5);
   for (let i = 0; i < steps; i++) {
-    if (await hasVisibleExcelButton(page)) {
-      console.log(`   ✓ Excel 버튼 확인 (${(i + 1) * 5}초)`);
+    if (await isStockResultsReady(page)) {
+      console.log(`   ✓ 재고 결과 화면 확인 (${(i + 1) * 5}초)`);
       return true;
     }
     await page.waitForTimeout(5000);
   }
   return false;
+}
+
+/** @deprecated use waitForStockResultsReady */
+export async function waitForExcelButton(page: Page, maxSec = 60): Promise<boolean> {
+  return waitForStockResultsReady(page, maxSec);
 }
