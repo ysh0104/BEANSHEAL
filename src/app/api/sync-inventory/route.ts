@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { syncEcountMasterToDb, getSessionId } from "@/app/actions/ecount";
+import { getSessionId } from "@/app/actions/ecount";
 
 export async function GET() {
   const sessionRes = await getSessionId();
@@ -8,7 +8,7 @@ export async function GET() {
   const API_KEY = process.env.ECOUNT_API_KEY || process.env.ECOUNT_CERT_KEY || process.env.ECOUNT_API_CERT_KEY;
 
   return NextResponse.json({
-    mode: process.env.GITHUB_TOKEN && process.env.GITHUB_REPO ? "excel-bot" : "api-fallback",
+    mode: "excel-bot",
     envCheck: {
       ECOUNT_COM_CODE: !!COM_CODE,
       ECOUNT_USER_ID: !!USER_ID,
@@ -81,76 +81,57 @@ async function triggerGithubExcelBot(token: string, repo: string): Promise<{ ok:
   };
 }
 
-/** 재고 동기화 — GitHub Actions 엑셀 봇 우선, 미설정 시 OpenAPI(정수) 폴백 */
+/** 재고 동기화 — GitHub Actions 엑셀 봇 전용 */
 export async function POST() {
   const GITHUB_TOKEN = process.env.GITHUB_TOKEN?.trim();
   const GITHUB_REPO = (process.env.GITHUB_REPO || "ysh0104/BEANSHEAL").trim().replace(/^https:\/\/github\.com\//, "");
 
-  if (GITHUB_TOKEN && GITHUB_REPO) {
-    try {
-      const triggered = await triggerGithubExcelBot(GITHUB_TOKEN, GITHUB_REPO);
-
-      if (triggered.ok) {
-        return NextResponse.json({
-          success: true,
-          mode: "excel-bot",
-          trigger: triggered.method,
-          message:
-            "엑셀 봇 동기화를 시작했습니다. GitHub Actions에서 이카ount 로그인 → 재고현황 엑셀 → DB 반영 중입니다. 1~3분 후 새로고침하세요.",
-        });
-      }
-
-      return NextResponse.json(
-        {
-          success: false,
-          mode: "excel-bot",
-          message:
-            "GitHub 토큰 권한이 부족합니다. Fine-grained(agent-token) 대신 Classic 토큰(ghp_...)을 만들고 repo 권한을 켠 뒤 Vercel GITHUB_TOKEN을 교체하세요.",
-          github_detail: triggered.detail,
-          fix_steps: [
-            "GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)",
-            "Generate new token → repo 체크 → ghp_... 복사",
-            "Vercel → GITHUB_TOKEN 값 교체 → Redeploy",
-          ],
-        },
-        { status: 502 }
-      );
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "알 수 없는 오류";
-      console.error("[sync-inventory] GitHub dispatch error:", error);
-      return NextResponse.json(
-        { success: false, mode: "excel-bot", message: `GitHub 봇 트리거 오류: ${msg}` },
-        { status: 502 }
-      );
-    }
+  if (!GITHUB_TOKEN || !GITHUB_REPO) {
+    return NextResponse.json(
+      {
+        success: false,
+        mode: "excel-bot",
+        message:
+          "GitHub 봇이 설정되지 않았습니다. Vercel에 GITHUB_TOKEN·GITHUB_REPO를 설정하고 /admin/ecount-bot 에서 이카ount 로그인 정보를 저장하세요.",
+      },
+      { status: 503 }
+    );
   }
 
   try {
-    const syncRes = await syncEcountMasterToDb();
-    if (!syncRes.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          mode: "api-fallback",
-          message: `API 동기화 실패: ${syncRes.error}. 소수점 재고는 「엑셀 재고 반영」 또는 GitHub 봇 설정을 사용하세요.`,
-        },
-        { status: 400 }
-      );
+    const triggered = await triggerGithubExcelBot(GITHUB_TOKEN, GITHUB_REPO);
+
+    if (triggered.ok) {
+      return NextResponse.json({
+        success: true,
+        mode: "excel-bot",
+        trigger: triggered.method,
+        message:
+          "엑셀 봇 동기화를 시작했습니다. GitHub Actions에서 이카ount 로그인 → 재고현황 엑셀 → DB 반영 중입니다. 1~3분 후 새로고침하세요.",
+      });
     }
 
-    return NextResponse.json({
-      success: true,
-      mode: "api-fallback",
-      message:
-        "⚠️ GitHub 봇 미설정 — OpenAPI(정수)로 동기화했습니다. 소수점 재고는 「엑셀 재고 반영」 또는 GitHub Classic 토큰 설정을 권장합니다.",
-      count: syncRes.count,
-      synced_at: syncRes.synced_at || new Date().toISOString(),
-    });
+    return NextResponse.json(
+      {
+        success: false,
+        mode: "excel-bot",
+        message:
+          "GitHub 토큰 권한이 부족합니다. Fine-grained(agent-token) 대신 Classic 토큰(ghp_...)을 만들고 repo 권한을 켠 뒤 Vercel GITHUB_TOKEN을 교체하세요.",
+        github_detail: triggered.detail,
+        fix_steps: [
+          "GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)",
+          "Generate new token → repo 체크 → ghp_... 복사",
+          "Vercel → GITHUB_TOKEN 값 교체 → Redeploy",
+        ],
+      },
+      { status: 502 }
+    );
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "알 수 없는 오류";
+    console.error("[sync-inventory] GitHub dispatch error:", error);
     return NextResponse.json(
-      { success: false, mode: "api-fallback", message: `동기화 오류: ${msg}` },
-      { status: 500 }
+      { success: false, mode: "excel-bot", message: `GitHub 봇 트리거 오류: ${msg}` },
+      { status: 502 }
     );
   }
 }

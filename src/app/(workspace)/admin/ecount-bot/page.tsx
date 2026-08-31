@@ -7,10 +7,7 @@ import { fetchEcountBotConfigStatus, saveEcountBotConfig } from "@/app/actions/e
 
 export default function EcountBotAdminPage() {
   const { user } = useAuth();
-  const isAdmin =
-    user?.role === "ADMIN" ||
-    !!user?.department?.includes("경영") ||
-    user?.permissionGroupName === "전체관리자";
+  const isSuperAdmin = user?.permissionGroupName === "전체관리자";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,10 +62,10 @@ export default function EcountBotAdminPage() {
     }
   };
 
-  if (!isAdmin) {
+  if (!isSuperAdmin) {
     return (
       <div className="max-w-lg mx-auto mt-20 p-8 bg-white rounded-2xl border text-center">
-        <p className="font-bold text-slate-800">관리자만 접근할 수 있습니다.</p>
+        <p className="font-bold text-slate-800">전체관리자만 접근할 수 있습니다.</p>
         <Link href="/inventory" className="text-emerald-700 underline text-sm mt-2 inline-block">
           재고현황으로
         </Link>
