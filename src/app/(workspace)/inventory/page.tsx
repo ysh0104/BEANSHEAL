@@ -266,7 +266,14 @@ export default function InventoryPage() {
 
   const [rawLogModalData, setRawLogModalData] = useState<any>(null);
 
+  const botSyncInProgress = syncingMaster || botWatchPhase === "watching";
+
   const handleSyncMaster = async () => {
+    if (botSyncInProgress) {
+      alert("이미 엑셀 봇이 GitHub Actions에서 실행 중입니다. 완료될 때까지 기다려 주세요.");
+      return;
+    }
+
     if (
       !confirm(
         "이카ount 재고현황 엑셀 봇을 실행할까요?\n\n· GitHub 클라우드에서 자동 로그인 → 엑셀 다운 → DB 반영\n· 1~3분 후 화면에서 동기화 시간이 갱신됩니다\n· PC 설치 불필요"
@@ -275,14 +282,13 @@ export default function InventoryPage() {
       return;
 
     setSyncingMaster(true);
+    setBotWatchPhase("watching");
+    setBotStatusLine("GitHub 봇 시작 요청 중…");
     botBaselineRef.current = lastSyncedAt;
     const triggeredAt = new Date().toISOString();
     botTriggeredAtRef.current = triggeredAt;
 
     await refreshSyncStatus();
-
-    setBotWatchPhase("watching");
-    setBotStatusLine("GitHub 봇 시작 요청 중…");
 
     try {
       const res = await fetch("/api/sync-inventory", { method: "POST" });
@@ -703,10 +709,11 @@ export default function InventoryPage() {
                 </button>
                 <button
                   onClick={handleSyncMaster}
-                  disabled={syncingMaster}
-                  className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-2 hover:bg-blue-100 disabled:opacity-50"
+                  disabled={botSyncInProgress}
+                  className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-2 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={botSyncInProgress ? "GitHub Actions에서 봇 실행 중" : undefined}
                 >
-                  {syncingMaster ? "봇 실행 중…" : "엑셀 봇 자동 동기화"}
+                  {botSyncInProgress ? "봇 실행 중…" : "엑셀 봇 자동 동기화"}
                 </button>
                 <button
                   onClick={handleResetAllSafetyStockToZero}
@@ -736,10 +743,11 @@ export default function InventoryPage() {
 
             <button
               onClick={handleSyncMaster}
-              disabled={syncingMaster}
-              className="hidden md:inline-flex text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-1.5 hover:bg-blue-100 cursor-pointer disabled:opacity-50 shadow-2xs"
+              disabled={botSyncInProgress}
+              className="hidden md:inline-flex text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-1.5 hover:bg-blue-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
+              title={botSyncInProgress ? "GitHub Actions에서 봇 실행 중" : undefined}
             >
-              {syncingMaster ? "봇 실행 중…" : "엑셀 봇 자동 동기화"}
+              {botSyncInProgress ? "봇 실행 중…" : "엑셀 봇 자동 동기화"}
             </button>
 
             <button
