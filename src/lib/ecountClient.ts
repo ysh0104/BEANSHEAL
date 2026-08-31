@@ -123,12 +123,20 @@ export async function ecountPost(
       }
     });
 
-    // Fixie 프록시 통신 성공 시 즉시 반환
+    // Fixie 프록시 통신 성공 시 즉시 반환 (이카운트 로그인 거절 응답도 포함)
     if (result.status === 200 && result.data) {
       return result;
     }
 
-    console.warn(`[Fixie Proxy Fallback] Fixie 통신 실패 (${result.text}). 표준 fetch로 폴백 시도합니다.`);
+    // Fixie가 설정된 경우 Vercel 동적 IP로 폴백하지 않음 (이카운트 IP 차단·서킷브레이커 방지)
+    console.error(`[Fixie Proxy] Fixie 통신 실패 (${result.text}). FIXIE_URL 설정 시 직접 fetch 폴백을 사용하지 않습니다.`);
+    return {
+      status: result.status || 502,
+      text:
+        result.text ||
+        "Fixie 프록시 통신 실패. Fixie 대시보드 Outbound IP 2개를 이카운트 [API인증키발급 > IP등록]에 추가하거나, /api/debug-fixie 로 확인하세요.",
+      data: result.data,
+    };
   }
 
   // FIXIE_URL 미설정 또는 Fixie 실패 시 표준 fetch 폴백

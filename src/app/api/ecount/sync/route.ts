@@ -66,6 +66,7 @@ export async function POST() {
         loginData.Data?.Message ||
         loginData.Error?.Message ||
         "이카운트 로그인 거절 (인증정보 또는 IP 승인 필요)";
+      const isIpError = /허용되지 않은 IP|IP등록|unauthorized ip/i.test(detailErr);
       return NextResponse.json(
         {
           success: false,
@@ -77,7 +78,12 @@ export async function POST() {
             zone_used: zone,
             is_fixie_active: isFixieActive,
             target_url_used: loginUrl,
-            ecount_login_response: loginData
+            ecount_login_response: loginData,
+            ...(isIpError && {
+              fix_guide: isFixieActive
+                ? "FIXIE_URL이 설정되어 있습니다. Vercel 배포 URL의 /api/debug-fixie 에서 'current_outbound_ip' 2개를 확인한 뒤, 이카운트 ERP > API인증키발급 > IP등록에 모두 추가하세요. (54.x 대역은 Vercel 동적 IP이므로 등록하지 마세요)"
+                : "사무실 PC 프록시(ECOUNT_API_BASE_URL) 또는 Fixie(FIXIE_URL)를 설정하고, 해당 고정 IP를 이카운트 ERP > API인증키발급 > IP등록에 추가하세요.",
+            }),
           }
         },
         { status: 401 }
@@ -114,13 +120,8 @@ export async function POST() {
         try {
           resData = await fetchWithEgressProxy(epUrl, payload, { "X-Ecount-Zone": zone });
         } catch (e) {
-          console.warn(`[Ecount Sync] Endpoint ${ep} proxy fetch failed, fallback to direct fetch:`, e);
-          const raw = await fetch(epUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Ecount-Zone": zone },
-            body: JSON.stringify(payload)
-          });
-          resData = await raw.json();
+          console.warn(`[Ecount Sync] Endpoint ${ep} proxy fetch failed:`, e);
+          break;
         }
         const list = resData.Data?.Result || resData.Data?.List || resData.Data || [];
         if (!Array.isArray(list) || list.length === 0) break;
@@ -161,13 +162,8 @@ export async function POST() {
       try {
         masterRes = await fetchWithEgressProxy(itemMasterEp, masterPayload, { "X-Ecount-Zone": zone });
       } catch (e) {
-        console.warn("[Ecount Item Master] Proxy fetch failed, fallback to direct fetch:", e);
-        const raw = await fetch(itemMasterEp, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Ecount-Zone": zone },
-          body: JSON.stringify(masterPayload)
-        });
-        masterRes = await raw.json();
+        console.warn("[Ecount Item Master] Proxy fetch failed:", e);
+        break;
       }
       const masterList = masterRes.Data?.Result || masterRes.Data?.List || masterRes.Data || [];
       if (!Array.isArray(masterList) || masterList.length === 0) break;
