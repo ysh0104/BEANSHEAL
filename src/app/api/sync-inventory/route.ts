@@ -14,14 +14,13 @@ export async function GET() {
       ECOUNT_USER_ID: !!USER_ID,
       ECOUNT_API_KEY: !!API_KEY,
       GITHUB_TOKEN: !!process.env.GITHUB_TOKEN,
-      GITHUB_REPO: !!process.env.GITHUB_REPO,
+      GITHUB_REPO: process.env.GITHUB_REPO || "ysh0104/BEANSHEAL",
     },
     loginResult: sessionRes,
     setupGuide: "/docs/ecount-bot-setup.md",
   });
 }
 
-/** GitHub REST — fine-grained PAT는 Bearer + User-Agent 필수 */
 function githubApiHeaders(token: string): HeadersInit {
   return {
     Accept: "application/vnd.github+json",
@@ -32,6 +31,56 @@ function githubApiHeaders(token: string): HeadersInit {
   };
 }
 
+async function parseGithubError(res: Response): Promise<string> {
+  try {
+    const j = await res.json();
+    return j.message || JSON.stringify(j);
+  } catch {
+    return res.text();
+  }
+}
+
+/** repository_dispatch → 실패 시 workflow_dispatch 폴백 */
+async function triggerGithubExcelBot(token: string, repo: string): Promise<{ ok: true; method: string } | { ok: false; detail: string }> {
+  const headers = githubApiHeaders(token);
+
+  const dispatchRes = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      event_type: "trigger-sync",
+      client_payload: { target: "stock", source: "inventory-ui" },
+    }),
+  });
+
+  if (dispatchRes.ok) return { ok: true, method: "repository_dispatch" };
+
+  const dispatchErr = await parseGithubError(dispatchRes);
+  console.warn("[sync-inventory] repository_dispatch failed:", dispatchRes.status, dispatchErr);
+
+  const workflowRes = await fetch(
+    `https://api.github.com/repos/${repo}/actions/workflows/sync-inventory.yml/dispatches`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        ref: "main",
+        inputs: { target: "stock" },
+      }),
+    }
+  );
+
+  if (workflowRes.ok) return { ok: true, method: "workflow_dispatch" };
+
+  const workflowErr = await parseGithubError(workflowRes);
+  console.error("[sync-inventory] workflow_dispatch failed:", workflowRes.status, workflowErr);
+
+  return {
+    ok: false,
+    detail: `repository_dispatch: ${dispatchErr} / workflow_dispatch: ${workflowErr}`,
+  };
+}
+
 /** 재고 동기화 — GitHub Actions 엑셀 봇 우선, 미설정 시 OpenAPI(정수) 폴백 */
 export async function POST() {
   const GITHUB_TOKEN = process.env.GITHUB_TOKEN?.trim();
@@ -39,39 +88,30 @@ export async function POST() {
 
   if (GITHUB_TOKEN && GITHUB_REPO) {
     try {
-      const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
-        method: "POST",
-        headers: githubApiHeaders(GITHUB_TOKEN),
-        body: JSON.stringify({
-          event_type: "trigger-sync",
-          client_payload: { target: "stock", source: "inventory-ui" },
-        }),
-      });
+      const triggered = await triggerGithubExcelBot(GITHUB_TOKEN, GITHUB_REPO);
 
-      if (response.ok) {
+      if (triggered.ok) {
         return NextResponse.json({
           success: true,
           mode: "excel-bot",
+          trigger: triggered.method,
           message:
             "엑셀 봇 동기화를 시작했습니다. GitHub Actions에서 이카ount 로그인 → 재고현황 엑셀 → DB 반영 중입니다. 1~3분 후 새로고침하세요.",
         });
       }
 
-      let detail = "";
-      try {
-        const errJson = await response.json();
-        detail = errJson.message || JSON.stringify(errJson);
-      } catch {
-        detail = await response.text();
-      }
-      console.error("[sync-inventory] GitHub dispatch failed:", response.status, detail);
       return NextResponse.json(
         {
           success: false,
           mode: "excel-bot",
-          message: `GitHub 봇 트리거 실패 (${response.status}): ${detail || "권한 없음"}. Fine-grained 토큰은 BEANSHEAL repo + Actions Read and write 필요.`,
-          github_status: response.status,
-          github_detail: detail,
+          message:
+            "GitHub 토큰 권한이 부족합니다. Fine-grained(agent-token) 대신 Classic 토큰(ghp_...)을 만들고 repo 권한을 켠 뒤 Vercel GITHUB_TOKEN을 교체하세요.",
+          github_detail: triggered.detail,
+          fix_steps: [
+            "GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)",
+            "Generate new token → repo 체크 → ghp_... 복사",
+            "Vercel → GITHUB_TOKEN 값 교체 → Redeploy",
+          ],
         },
         { status: 502 }
       );
@@ -85,7 +125,6 @@ export async function POST() {
     }
   }
 
-  // GitHub 미설정 — OpenAPI 폴백 (정수만, docs/ecount-bot-setup.md 참고)
   try {
     const syncRes = await syncEcountMasterToDb();
     if (!syncRes.success) {
@@ -93,7 +132,7 @@ export async function POST() {
         {
           success: false,
           mode: "api-fallback",
-          message: `API 동기화 실패: ${syncRes.error}. 소수점 재고는 「엑셀 재고 반영」 또는 GitHub 봇 설정(docs/ecount-bot-setup.md)을 사용하세요.`,
+          message: `API 동기화 실패: ${syncRes.error}. 소수점 재고는 「엑셀 재고 반영」 또는 GitHub 봇 설정을 사용하세요.`,
         },
         { status: 400 }
       );
@@ -103,7 +142,7 @@ export async function POST() {
       success: true,
       mode: "api-fallback",
       message:
-        "⚠️ GitHub 봇 미설정 — OpenAPI(정수)로 동기화했습니다. 소수점 재고는 「엑셀 재고 반영」 또는 docs/ecount-bot-setup.md 봇 설정을 권장합니다.",
+        "⚠️ GitHub 봇 미설정 — OpenAPI(정수)로 동기화했습니다. 소수점 재고는 「엑셀 재고 반영」 또는 GitHub Classic 토큰 설정을 권장합니다.",
       count: syncRes.count,
       synced_at: syncRes.synced_at || new Date().toISOString(),
     });
