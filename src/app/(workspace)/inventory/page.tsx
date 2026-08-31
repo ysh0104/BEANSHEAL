@@ -406,9 +406,16 @@ export default function InventoryPage() {
                   </p>
                 )}
                 {!fixieStatus.is_fixie_active && (
-                  <p className="text-slate-600">
-                    Vercel → Integrations → <a className="underline text-indigo-700" href="https://vercel.com/integrations/fixie" target="_blank" rel="noreferrer">Fixie</a> 설치 후 Redeploy
-                  </p>
+                  <div className="text-slate-600 space-y-1">
+                    <p>
+                      Fixie Apps에 앱이 없으면: Vercel Environment Variables에서 <strong>FIXIE_URL</strong> 삭제 → Fixie에서 Proxy 새로 만들기
+                    </p>
+                    <p>
+                      <a className="underline text-indigo-700" href="https://vercel.com/integrations/fixie" target="_blank" rel="noreferrer">Fixie 연동</a>
+                      {" · "}
+                      production 체크가 회색이면 Vercel에 FIXIE_URL이 이미 있어서 충돌 중입니다.
+                    </p>
+                  </div>
                 )}
               </div>
             )}
