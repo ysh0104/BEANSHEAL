@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "upload-stock-excel": "npx tsx scripts/uploadEcountStockExcel.ts"
   },
   "dependencies": {
     "@notionhq/client": "^5.23.3",

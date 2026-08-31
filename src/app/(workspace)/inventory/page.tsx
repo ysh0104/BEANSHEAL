@@ -371,10 +371,23 @@ export default function InventoryPage() {
             </span>
           )}
         </div>
-        <p className="text-center text-sm text-slate-500 mb-4">
+        <p className="text-center text-sm text-slate-500 mb-2">
           마지막 동기화: <span className="font-semibold text-slate-700">{formatLastSyncedAt(lastSyncedAt)}</span>
           {syncingMaster && <span className="ml-2 text-blue-600 font-medium">동기화 진행 중…</span>}
         </p>
+        {canEdit && (
+          <p className="text-center text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg max-w-2xl mx-auto px-3 py-2 mb-4">
+            <strong>권장:</strong> 이카ount 재고현황 엑셀 →{" "}
+            <button
+              type="button"
+              onClick={() => setIsExcelModalOpen(true)}
+              className="underline font-bold hover:text-emerald-950 cursor-pointer"
+            >
+              엑셀 재고 반영
+            </button>
+            {" "}(소수점 100%). API 동기화는 정수만 반영됩니다.
+          </p>
+        )}
 
         {canEdit && (
           <div className="max-w-3xl mx-auto mb-6 rounded-lg border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-sm text-slate-700">
