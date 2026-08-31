@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { parseStockMenuUrl } from "../src/lib/ecountStockMenuUrl";
 
 async function clickInAnyFrame(page: Page, selector: string): Promise<boolean> {
   for (const frame of page.frames()) {
@@ -71,6 +72,38 @@ export type StockNavOptions = {
   stock_menu_depth2?: string | null;
 };
 
+/** 로그인 직후 현재 세션 URL에 hash만 적용 (ec_req_sid는 세션마다 다름) */
+async function gotoStockViaHash(page: Page, savedUrl: string): Promise<boolean> {
+  const parsed = parseStockMenuUrl(savedUrl);
+  if (!parsed?.hash) return false;
+
+  const current = new URL(page.url());
+  current.hash = parsed.hash;
+  const target = current.toString();
+  console.log(`   → hash 네비게이션: ${target.slice(0, 100)}...`);
+  await page.goto(target, { waitUntil: "networkidle", timeout: 90000 });
+  await page.waitForTimeout(3000);
+  return true;
+}
+
+async function clickMenuIdsFromUrl(page: Page, savedUrl: string): Promise<boolean> {
+  const parsed = parseStockMenuUrl(savedUrl);
+  if (!parsed) return false;
+
+  const selectors = [parsed.depth1Selector, parsed.depth2Selector].filter(Boolean) as string[];
+  if (selectors.length === 0) return false;
+
+  console.log(`   → 메뉴 ID 클릭: ${selectors.join(" → ")}`);
+  for (const sel of selectors) {
+    if (!(await clickInAnyFrame(page, sel))) {
+      console.warn(`   ⚠ 클릭 실패: ${sel}`);
+      return false;
+    }
+    await page.waitForTimeout(2000);
+  }
+  return true;
+}
+
 /** 재고현황(엑셀 다운로드) 화면까지 이동 */
 export async function navigateToStockReport(page: Page, opts: StockNavOptions = {}) {
   console.log("2. 재고현황 화면 이동...");
@@ -78,13 +111,28 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
 
   const menuUrl = (opts.stock_menu_url || process.env.ECOUNT_STOCK_MENU_URL || "").trim();
   if (menuUrl) {
-    console.log(`   → 저장된 URL로 이동: ${menuUrl.slice(0, 80)}...`);
-    await page.goto(menuUrl, { waitUntil: "networkidle", timeout: 90000 });
-    await page.waitForTimeout(3000);
+    const parsed = parseStockMenuUrl(menuUrl);
+    console.log(`   → 저장된 URL (정규화): ${(parsed?.normalized || menuUrl).slice(0, 90)}...`);
+
+    let opened =
+      (await gotoStockViaHash(page, menuUrl)) ||
+      (await clickMenuIdsFromUrl(page, menuUrl));
+
+    if (!opened && parsed?.normalized && !parsed.normalized.includes("ec_req_sid")) {
+      console.log("   → 정규화 URL 직접 이동 시도...");
+      await page.goto(parsed.normalized, { waitUntil: "networkidle", timeout: 90000 });
+      opened = true;
+    }
+
+    if (!opened) {
+      throw new Error("저장된 재고현황 URL로 화면 이동 실패");
+    }
+
     await dismissEcountPopups(page);
     console.log(`   현재 URL: ${page.url()}`);
     await clickTextInAnyFrame(page, /^조회$|^검색$|F8/i);
-    await page.waitForTimeout(15000);
+    console.log("3. 데이터 로딩 대기 (20초)...");
+    await page.waitForTimeout(20000);
     return;
   }
 
@@ -104,6 +152,7 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
       (await clickTextInAnyFrame(page, /재고\s*\(1\)/));
 
     if (!topClicked) {
+      await clickInAnyFrame(page, "#link_depth1_MENUTREE_000004");
       await clickInAnyFrame(page, "#link_depth1_MENUTREE_000782");
       await clickInAnyFrame(page, "#link_depth1_MENUTREE_000783");
     }
@@ -112,9 +161,11 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
     await dismissEcountPopups(page);
 
     if (!(await clickTextInAnyFrame(page, /재고현황/))) {
-      throw new Error(
-        "재고현황 메뉴 자동 이동 실패. PC에서 재고현황 화면 주소(URL)를 복사해 /admin/ecount-bot → 재고현황 URL 에 저장하세요."
-      );
+      if (!(await clickInAnyFrame(page, "#link_depth2_MENUTREE_000035"))) {
+        throw new Error(
+          "재고현황 메뉴 자동 이동 실패. PC에서 재고현황 화면 주소(URL)를 복사해 /admin/ecount-bot → 재고현황 URL 에 저장하세요."
+        );
+      }
     }
   }
 

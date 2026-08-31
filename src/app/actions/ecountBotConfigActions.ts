@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { getEcountBotConfigPublic } from "@/lib/ecountBotConfig";
+import { normalizeStockMenuUrl } from "@/lib/ecountStockMenuUrl";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -51,13 +52,16 @@ export async function saveEcountBotConfig(input: {
     return { success: false, error: "웹 로그인 비밀번호를 입력하세요." };
   }
 
+  const stockMenuUrlRaw = (input.stock_menu_url || "").trim();
+  const stock_menu_url = stockMenuUrlRaw ? normalizeStockMenuUrl(stockMenuUrlRaw) : null;
+
   const { error } = await supabase.from("ecount_bot_config").upsert(
     {
       id: 1,
       com_code,
       login_id,
       login_pw,
-      stock_menu_url: (input.stock_menu_url || "").trim() || null,
+      stock_menu_url,
       stock_menu_depth1: (input.stock_menu_depth1 || "").trim() || null,
       stock_menu_depth2: (input.stock_menu_depth2 || "").trim() || null,
       updated_at: new Date().toISOString(),
