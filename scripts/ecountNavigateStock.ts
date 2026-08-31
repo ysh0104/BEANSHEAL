@@ -31,6 +31,106 @@ async function clickTextInAnyFrame(page: Page, pattern: RegExp | string): Promis
   return false;
 }
 
+/** 실제 재고현황 보고서(엑셀·품목코드 컬럼)인지 확인 */
+async function hasStockReportScreen(page: Page): Promise<boolean> {
+  const markers = [
+    "#outputExcel",
+    '[id*="outputExcel"]',
+    'button:has-text("Excel")',
+    'text=품목코드',
+    'text=재고수량',
+    'button:has-text("Search")',
+  ];
+  for (const frame of page.frames()) {
+    for (const sel of markers) {
+      try {
+        const loc = frame.locator(sel).first();
+        if ((await loc.count()) > 0 && (await loc.isVisible())) return true;
+      } catch {
+        /* skip */
+      }
+    }
+  }
+  return false;
+}
+
+/** 출력물 메뉴판 → 실제 「재고현황」 보고서 열기 (URL hash만으로는 폴더까지만 열림) */
+async function openStockReportProgram(page: Page, prgId?: string | null): Promise<boolean> {
+  if (await hasStockReportScreen(page)) {
+    console.log("   ✓ 이미 재고현황 보고서 화면");
+    return true;
+  }
+
+  console.log("   → 출력물 메뉴에서 「재고현황」 보고서 클릭...");
+
+  if (prgId) {
+    const prgSelectors = [
+      `#link_prg_${prgId}`,
+      `[id*="${prgId}"]`,
+      `a[onclick*="${prgId}"]`,
+      `a[href*="${prgId}"]`,
+    ];
+    for (const sel of prgSelectors) {
+      if (await clickInAnyFrame(page, sel)) {
+        console.log(`   ✓ prgId 링크: ${prgId}`);
+        await page.waitForTimeout(4000);
+        if (await hasStockReportScreen(page)) return true;
+      }
+    }
+  }
+
+  // 왼쪽 사이드바 leaf — 「재고현황」 링크 (마지막 visible 우선)
+  for (const frame of page.frames()) {
+    const links = frame.locator("a").filter({ hasText: /^재고현황$/ });
+    const count = await links.count();
+    for (let i = count - 1; i >= 0; i--) {
+      try {
+        const link = links.nth(i);
+        if (await link.isVisible()) {
+          await link.click();
+          console.log(`   ✓ 사이드바 재고현황 클릭 (${i + 1}/${count})`);
+          await page.waitForTimeout(4000);
+          if (await hasStockReportScreen(page)) return true;
+        }
+      } catch {
+        /* try next */
+      }
+    }
+  }
+
+  // 출력물 본문 — 재고현황 링크 (사이드바 제외, 본문 영역 우선)
+  for (const frame of page.frames()) {
+    try {
+      const contentLinks = frame.locator('#contents a, .contents a, [class*="content"] a, main a').filter({
+        hasText: /^재고현황$/,
+      });
+      if ((await contentLinks.count()) > 0) {
+        await contentLinks.first().click();
+        console.log("   ✓ 본문 재고현황 링크 클릭");
+        await page.waitForTimeout(4000);
+        if (await hasStockReportScreen(page)) return true;
+      }
+    } catch {
+      /* skip */
+    }
+  }
+
+  if (await clickTextInAnyFrame(page, /^재고현황$/)) {
+    await page.waitForTimeout(4000);
+    return await hasStockReportScreen(page);
+  }
+
+  return false;
+}
+
+async function clickSearchButton(page: Page): Promise<boolean> {
+  const patterns = [/^Search/i, /^조회$/, /^검색$/, /F3/i, /F8/i];
+  for (const p of patterns) {
+    if (await clickTextInAnyFrame(page, p)) return true;
+  }
+  return false;
+}
+
 export async function dismissEcountPopups(page: Page) {
   await page.keyboard.press("Escape").catch(() => {});
   for (const pattern of [/확인/, /닫기/, /오늘 하루/, /close/i]) {
@@ -130,7 +230,12 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
 
     await dismissEcountPopups(page);
     console.log(`   현재 URL: ${page.url()}`);
-    await clickTextInAnyFrame(page, /^조회$|^검색$|F8/i);
+
+    if (!(await openStockReportProgram(page, parsed?.prgId))) {
+      console.warn("   ⚠ 재고현황 보고서 자동 클릭 실패 — 조회만 시도");
+    }
+
+    await clickSearchButton(page);
     console.log("3. 데이터 로딩 대기 (20초)...");
     await page.waitForTimeout(20000);
     return;
@@ -171,7 +276,8 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
 
   await page.waitForTimeout(2000);
   await dismissEcountPopups(page);
-  await clickTextInAnyFrame(page, /^조회$|^검색$|F8/i);
+  await openStockReportProgram(page, "C000035");
+  await clickSearchButton(page);
   console.log("3. 데이터 로딩 대기 (20초)...");
   console.log(`   현재 URL: ${page.url()}`);
   await page.waitForTimeout(20000);

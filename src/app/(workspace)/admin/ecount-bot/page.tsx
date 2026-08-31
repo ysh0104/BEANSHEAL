@@ -147,9 +147,11 @@ export default function EcountBotAdminPage() {
               재고현황 화면 URL <span className="font-normal text-amber-700">(봇이 메뉴 못 찾을 때 필수)</span>
             </label>
             <p className="text-[11px] text-slate-500 mt-1 mb-1.5 leading-relaxed">
-              PC에서 이카ount 로그인 → <strong>재고(1)</strong> → <strong>재고현황</strong> 화면까지 이동 →
+              PC에서 이카ount 로그인 → <strong>재고(1)</strong> → <strong>재고현황</strong> 화면(표+Excel 버튼)까지 이동 →
               브라우저 <strong>주소창 URL 전체</strong>를 복사해 붙여넣기.{" "}
-              <span className="text-slate-400">(ec_req_sid 세션 ID는 저장 시 자동 제거됩니다)</span>
+              <span className="text-slate-400">
+                (새 창에 붙여넣으면 「출력물」 메뉴만 보여도 정상입니다. 봇이 로그인 후 「재고현황」을 클릭합니다)
+              </span>
             </p>
             <input
               value={menuUrl}
