@@ -1,14 +1,23 @@
-name: Sync Ecount Inventory
+name: Sync Ecount Inventory (Excel Bot)
 
 on:
   repository_dispatch:
     types: [trigger-sync]
   workflow_dispatch:
+    inputs:
+      target:
+        description: "stock = 재고현황(소수점), lot = 시리얼/로트"
+        required: false
+        default: "stock"
+        type: choice
+        options:
+          - stock
+          - lot
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -26,15 +35,23 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install chromium --with-deps
 
-      - name: Run Ecount bot and upload to Supabase
+      - name: Run Ecount Excel bot
         run: npx tsx scripts/ecountBot.ts
         env:
+          ECOUNT_BOT_TARGET: ${{ github.event.inputs.target || 'stock' }}
           ECOUNT_COM_CODE: ${{ secrets.ECOUNT_COM_CODE }}
           ECOUNT_ID: ${{ secrets.ECOUNT_ID }}
           ECOUNT_PW: ${{ secrets.ECOUNT_PW }}
+          ECOUNT_STOCK_MENU_DEPTH1: ${{ secrets.ECOUNT_STOCK_MENU_DEPTH1 }}
+          ECOUNT_STOCK_MENU_DEPTH2: ${{ secrets.ECOUNT_STOCK_MENU_DEPTH2 }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Upload debug screenshot on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecount-bot-debug
+          path: downloads/
+          if-no-files-found: ignore

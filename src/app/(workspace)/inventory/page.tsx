@@ -191,19 +191,23 @@ export default function InventoryPage() {
   const [rawLogModalData, setRawLogModalData] = useState<any>(null);
 
   const handleSyncMaster = async () => {
-    if (!confirm("이카운트에서 최신 재고를 가져와 DB에 반영할까요?\n(수 분 걸릴 수 있습니다)")) return;
+    if (
+      !confirm(
+        "이카ount 재고현황 엑셀 봇을 실행할까요?\n\n· GitHub 클라우드에서 자동 로그인 → 엑셀 다운 → DB 반영\n· 1~3분 후 새로고침\n· PC 설치 불필요"
+      )
+    )
+      return;
     setSyncingMaster(true);
     try {
       const res = await fetch("/api/sync-inventory", { method: "POST" });
       const data = await res.json();
       if (data.success) {
         if (data.synced_at) setLastSyncedAt(data.synced_at);
-        else setLastSyncedAt(new Date().toISOString());
-        alert(data.message || "동기화가 완료되었습니다.");
-        fetchInventory();
+        alert(data.message || "봇 동기화를 시작했습니다.");
+        if (data.mode === "api-fallback") fetchInventory();
       } else {
         setRawLogModalData({
-          title: "이카운트 동기화 오류",
+          title: "재고 동기화 오류",
           error: data.message || data.error || "동기화 실패",
           rawResponse: data,
         });
@@ -211,7 +215,7 @@ export default function InventoryPage() {
       }
     } catch (err: any) {
       setRawLogModalData({
-        title: "이카운트 API 연동 오류 로그",
+        title: "재고 동기화 오류",
         error: err.message || "동기화 중 오류",
         rawResponse: { error: err.message || "네트워크/서버 통신 실패" },
       });
@@ -373,7 +377,7 @@ export default function InventoryPage() {
         </div>
         <p className="text-center text-sm text-slate-500 mb-2">
           마지막 동기화: <span className="font-semibold text-slate-700">{formatLastSyncedAt(lastSyncedAt)}</span>
-          {syncingMaster && <span className="ml-2 text-blue-600 font-medium">동기화 진행 중…</span>}
+          {syncingMaster && <span className="ml-2 text-emerald-700 font-medium">봇 실행 중… (1~3분)</span>}
         </p>
         {canEdit && (
           <p className="text-center text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg max-w-2xl mx-auto px-3 py-2 mb-4">
@@ -508,7 +512,7 @@ export default function InventoryPage() {
                   disabled={syncingMaster}
                   className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-2 hover:bg-blue-100 disabled:opacity-50"
                 >
-                  {syncingMaster ? "동기화중..." : "이카운트 재고 동기화"}
+                  {syncingMaster ? "봇 실행 중…" : "엑셀 봇 자동 동기화"}
                 </button>
                 <button
                   onClick={handleResetAllSafetyStockToZero}
@@ -532,7 +536,7 @@ export default function InventoryPage() {
               disabled={syncingMaster}
               className="hidden md:inline-flex text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-1.5 hover:bg-blue-100 cursor-pointer disabled:opacity-50 shadow-2xs"
             >
-              {syncingMaster ? "동기화중..." : "이카운트 재고 동기화"}
+              {syncingMaster ? "봇 실행 중…" : "엑셀 봇 자동 동기화"}
             </button>
 
             <button
