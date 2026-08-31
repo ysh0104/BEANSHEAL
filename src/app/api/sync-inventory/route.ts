@@ -21,20 +21,27 @@ export async function GET() {
   });
 }
 
+/** GitHub REST — fine-grained PAT는 Bearer + User-Agent 필수 */
+function githubApiHeaders(token: string): HeadersInit {
+  return {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token.trim()}`,
+    "Content-Type": "application/json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "BEANSHEAL-Platform",
+  };
+}
+
 /** 재고 동기화 — GitHub Actions 엑셀 봇 우선, 미설정 시 OpenAPI(정수) 폴백 */
 export async function POST() {
-  const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-  const GITHUB_REPO = process.env.GITHUB_REPO;
+  const GITHUB_TOKEN = process.env.GITHUB_TOKEN?.trim();
+  const GITHUB_REPO = (process.env.GITHUB_REPO || "ysh0104/BEANSHEAL").trim().replace(/^https:\/\/github\.com\//, "");
 
   if (GITHUB_TOKEN && GITHUB_REPO) {
     try {
       const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/dispatches`, {
         method: "POST",
-        headers: {
-          Accept: "application/vnd.github.v3+json",
-          Authorization: `token ${GITHUB_TOKEN}`,
-          "Content-Type": "application/json",
-        },
+        headers: githubApiHeaders(GITHUB_TOKEN),
         body: JSON.stringify({
           event_type: "trigger-sync",
           client_payload: { target: "stock", source: "inventory-ui" },
@@ -50,13 +57,21 @@ export async function POST() {
         });
       }
 
-      const errText = await response.text();
-      console.error("[sync-inventory] GitHub dispatch failed:", response.status, errText);
+      let detail = "";
+      try {
+        const errJson = await response.json();
+        detail = errJson.message || JSON.stringify(errJson);
+      } catch {
+        detail = await response.text();
+      }
+      console.error("[sync-inventory] GitHub dispatch failed:", response.status, detail);
       return NextResponse.json(
         {
           success: false,
           mode: "excel-bot",
-          message: `GitHub 봇 트리거 실패 (${response.status}). GITHUB_TOKEN 권한(Actions write)과 GITHUB_REPO(ysh0104/BEANSHEAL)를 확인하세요.`,
+          message: `GitHub 봇 트리거 실패 (${response.status}): ${detail || "권한 없음"}. Fine-grained 토큰은 BEANSHEAL repo + Actions Read and write 필요.`,
+          github_status: response.status,
+          github_detail: detail,
         },
         { status: 502 }
       );
