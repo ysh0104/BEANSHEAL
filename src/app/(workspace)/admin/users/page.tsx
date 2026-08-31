@@ -1030,7 +1030,7 @@ export default function UserManagementPage() {
                   <th className="py-3 px-3 text-left min-w-[8.5rem]">권한 그룹</th>
                   <th className="py-3 px-3 text-left min-w-[13rem]">이카운트 매칭</th>
                   <th className="py-3 px-3 text-left min-w-[7.5rem]">최근 수정</th>
-                  <th className="py-3 px-3 text-right min-w-[9.5rem]">작업</th>
+                  <th className="py-3 px-3 text-right min-w-[11rem]">작업</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-normal">
@@ -1179,19 +1179,22 @@ export default function UserManagementPage() {
                           {p.updated_at ? p.updated_at.slice(0, 10) : "-"}
                         </td>
 
-                        <td className="py-3 px-3 align-middle" style={{ whiteSpace: "nowrap" }}>
-                          <div className="flex items-center justify-end gap-2 flex-nowrap">
+                        <td className="py-3 px-3 align-middle">
+                          <div className="flex items-center justify-end gap-2 flex-nowrap min-w-max ml-auto">
                             {isChanged ? (
                               <button
                                 type="button"
                                 onClick={() => handleSaveProfile(p)}
                                 disabled={savingId === p.id}
-                                className="shrink-0 whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white animate-pulse cursor-pointer disabled:opacity-50"
+                                className="shrink-0 text-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white animate-pulse cursor-pointer disabled:opacity-50"
                               >
                                 {savingId === p.id ? "저장 중…" : "저장"}
                               </button>
                             ) : (
-                              <span className="shrink-0 whitespace-nowrap inline-flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                              <span
+                                className="shrink-0 text-nowrap inline-block text-[11px] font-semibold leading-none text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg"
+                                style={{ wordBreak: "keep-all" }}
+                              >
                                 저장됨
                               </span>
                             )}
@@ -1199,7 +1202,7 @@ export default function UserManagementPage() {
                               type="button"
                               onClick={() => handleDeleteEmployee(p)}
                               disabled={deletingId === p.id}
-                              className="shrink-0 whitespace-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer disabled:opacity-50"
+                              className="shrink-0 text-nowrap px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all cursor-pointer disabled:opacity-50"
                               title="사원 삭제"
                             >
                               {deletingId === p.id ? "삭제 중…" : "삭제"}
