@@ -6,6 +6,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { exec } from "child_process";
 import { chromium } from "playwright";
+import { loginEcountWeb } from "./ecountLogin";
 
 const envPath = fs.existsSync(".env.local") ? ".env.local" : ".env";
 require("dotenv").config({ path: envPath });
@@ -24,13 +25,11 @@ export async function runEcountLotBotLegacy() {
   const page = await context.newPage();
 
   try {
-    await page.goto("https://login.ecount.com/Login/");
-    await page.fill('input[name="com_code"]', process.env.ECOUNT_COM_CODE);
-    await page.fill('input[name="id"]', process.env.ECOUNT_ID);
-    await page.fill('input[name="passwd"]', process.env.ECOUNT_PW);
-    await page.press('input[name="passwd"]', "Enter");
-    await page.waitForURL(/.*(OnetLogin\/Main|view\/erp).*/, { timeout: 45000 });
-    await page.waitForTimeout(3000);
+    await loginEcountWeb(page, {
+      com_code: process.env.ECOUNT_COM_CODE!,
+      login_id: process.env.ECOUNT_ID!,
+      login_pw: process.env.ECOUNT_PW!,
+    });
 
     await page.locator("#link_depth1_MENUTREE_000783").click();
     await page.waitForTimeout(1500);

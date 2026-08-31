@@ -15,6 +15,7 @@ import { chromium, type Page } from "playwright";
 import { parseEcountStockExcel } from "../src/lib/ecountStockExcelParser";
 import { uploadEcountStockRows } from "../src/lib/ecountStockExcelUpload";
 import { resolveEcountBotCredentials } from "../src/lib/ecountBotConfig";
+import { loginEcountWeb } from "./ecountLogin";
 
 const envPath = fs.existsSync(".env.local") ? ".env.local" : ".env";
 require("dotenv").config({ path: envPath });
@@ -63,15 +64,7 @@ async function loginEcount(
   page: Page,
   creds: { com_code: string; login_id: string; login_pw: string }
 ) {
-  console.log("1. 이카ount 로그인...");
-  await page.goto("https://login.ecount.com/Login/", { waitUntil: "domcontentloaded" });
-  await page.fill('input[name="com_code"]', creds.com_code);
-  await page.fill('input[name="id"]', creds.login_id);
-  await page.fill('input[name="passwd"]', creds.login_pw);
-  await page.press('input[name="passwd"]', "Enter");
-  await page.waitForURL(/.*(OnetLogin\/Main|view\/erp).*/, { timeout: 45000 });
-  console.log("✅ 로그인 성공");
-  await page.waitForTimeout(3000);
+  await loginEcountWeb(page, creds);
 }
 
 async function openStockBalanceReport(
