@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 import { parseStockMenuUrl } from "../src/lib/ecountStockMenuUrl";
+import { hasVisibleExcelButton, waitForExcelButton } from "./ecountExcel";
 
 async function clickInAnyFrame(page: Page, selector: string): Promise<boolean> {
   for (const frame of page.frames()) {
@@ -45,42 +46,10 @@ async function isStockSearchForm(page: Page): Promise<boolean> {
   return false;
 }
 
-/** 검색 후 결과 화면 (품목 테이블 + Excel 버튼) */
-async function hasStockReportResults(page: Page): Promise<boolean> {
-  const markers = [
-    "#outputExcel",
-    '[id*="outputExcel"]',
-    'button:has-text("Excel")',
-    'a:has-text("Excel")',
-    'span:has-text("Excel")',
-  ];
-  for (const frame of page.frames()) {
-    for (const sel of markers) {
-      try {
-        const loc = frame.locator(sel).first();
-        if ((await loc.count()) > 0 && (await loc.isVisible())) return true;
-      } catch {
-        /* skip */
-      }
-    }
-    try {
-      const table = frame.locator("text=품목코드").first();
-      const qty = frame.locator("text=재고수량").first();
-      const searchDone = frame.locator('button:has-text("Search")').first();
-      if ((await table.count()) > 0 && (await qty.count()) > 0 && (await searchDone.count()) > 0) {
-        return true;
-      }
-    } catch {
-      /* skip */
-    }
-  }
-  return false;
-}
-
 /** 출력물 메뉴판 → 실제 「재고현황」 보고서 열기 (URL hash만으로는 폴더까지만 열림) */
 async function openStockReportProgram(page: Page, prgId?: string | null): Promise<boolean> {
-  if (await hasStockReportResults(page)) {
-    console.log("   ✓ 이미 재고현황 결과 화면");
+  if (await hasVisibleExcelButton(page)) {
+    console.log("   ✓ Excel 버튼 있는 결과 화면");
     return true;
   }
   if (await isStockSearchForm(page)) {
@@ -101,7 +70,7 @@ async function openStockReportProgram(page: Page, prgId?: string | null): Promis
       if (await clickInAnyFrame(page, sel)) {
         console.log(`   ✓ prgId 링크: ${prgId}`);
         await page.waitForTimeout(4000);
-        if (await hasStockReportResults(page) || (await isStockSearchForm(page))) return true;
+        if (await hasVisibleExcelButton(page) || (await isStockSearchForm(page))) return true;
       }
     }
   }
@@ -117,7 +86,7 @@ async function openStockReportProgram(page: Page, prgId?: string | null): Promis
           await link.click();
           console.log(`   ✓ 사이드바 재고현황 클릭 (${i + 1}/${count})`);
           await page.waitForTimeout(4000);
-          if (await hasStockReportResults(page) || (await isStockSearchForm(page))) return true;
+          if (await hasVisibleExcelButton(page) || (await isStockSearchForm(page))) return true;
         }
       } catch {
         /* try next */
@@ -135,7 +104,7 @@ async function openStockReportProgram(page: Page, prgId?: string | null): Promis
         await contentLinks.first().click();
         console.log("   ✓ 본문 재고현황 링크 클릭");
         await page.waitForTimeout(4000);
-        if (await hasStockReportResults(page) || (await isStockSearchForm(page))) return true;
+        if (await hasVisibleExcelButton(page) || (await isStockSearchForm(page))) return true;
       }
     } catch {
       /* skip */
@@ -144,7 +113,7 @@ async function openStockReportProgram(page: Page, prgId?: string | null): Promis
 
   if (await clickTextInAnyFrame(page, /^재고현황$/)) {
     await page.waitForTimeout(4000);
-    return (await hasStockReportResults(page)) || (await isStockSearchForm(page));
+    return (await hasVisibleExcelButton(page)) || (await isStockSearchForm(page));
   }
 
   return false;
@@ -154,19 +123,18 @@ async function clickSearchButton(page: Page): Promise<boolean> {
   console.log("   → 검색(F8) 실행...");
 
   for (const frame of page.frames()) {
-    const selectors = [
-      'button:has-text("검색(F8)")',
-      'a:has-text("검색(F8)")',
-      'span:has-text("검색(F8)")',
-      'button:has-text("검색")',
-      'button:has-text("Search")',
+    const locators = [
+      frame.getByText(/검색\s*\(F8\)/i).first(),
+      frame.locator('button, a, span, div[role="button"]').filter({ hasText: /검색\s*\(F8\)/i }).first(),
+      frame.locator('button:has-text("검색")').first(),
+      frame.locator('button:has-text("Search")').first(),
     ];
-    for (const sel of selectors) {
+    for (const btn of locators) {
       try {
-        const btn = frame.locator(sel).first();
         if ((await btn.count()) > 0 && (await btn.isVisible())) {
-          await btn.click();
-          console.log(`   ✓ ${sel} 클릭`);
+          await btn.scrollIntoViewIfNeeded().catch(() => {});
+          await btn.click({ force: true });
+          console.log("   ✓ 검색(F8) 클릭");
           return true;
         }
       } catch {
@@ -180,15 +148,24 @@ async function clickSearchButton(page: Page): Promise<boolean> {
   return true;
 }
 
-/** 검색 조건 화면이면 F8, 아니면 Search(F3) 등도 시도 */
+/** 검색(F8) 실행 후 Excel 버튼 대기 */
 async function runStockSearch(page: Page) {
-  if (await hasStockReportResults(page)) {
-    console.log("   ✓ 검색 결과 이미 표시됨");
+  if (await hasVisibleExcelButton(page)) {
+    console.log("   ✓ Excel 버튼 이미 표시 — 검색 생략");
     return;
   }
+
+  if (!(await isStockSearchForm(page))) {
+    console.log("   → 검색 조건 화면 아님 — 재고현황 메뉴 재클릭");
+    await openStockReportProgram(page, "C000035");
+  }
+
   await clickSearchButton(page);
-  console.log("3. 데이터 로딩 대기 (20초)...");
-  await page.waitForTimeout(20000);
+  console.log("3. 검색 결과 로딩 대기...");
+
+  if (!(await waitForExcelButton(page, 60))) {
+    console.warn("   ⚠ Excel 버튼 60초 내 미표시 — 다운로드 재시도 예정");
+  }
 }
 
 export async function dismissEcountPopups(page: Page) {

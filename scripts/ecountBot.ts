@@ -18,6 +18,7 @@ import { uploadEcountStockRows } from "../src/lib/ecountStockExcelUpload";
 import { resolveEcountBotCredentials } from "../src/lib/ecountBotConfig";
 import { loginEcountWeb } from "./ecountLogin";
 import { navigateToStockReport } from "./ecountNavigateStock";
+import { clickExcelDownload, findVisibleExcelButton, hasVisibleExcelButton } from "./ecountExcel";
 
 const envPath = fs.existsSync(".env.local") ? ".env.local" : ".env";
 require("dotenv").config({ path: envPath });
@@ -41,46 +42,31 @@ async function loginEcount(
 
 async function downloadExcelFromFrames(page: Page, saveAs: string) {
   console.log("4. 엑셀 다운로드 버튼 탐색...");
-  const selectors = [
-    "#outputExcel",
-    '[id*="outputExcel"]',
-    "#btnExcel",
-    '[id*="btnExcel"]',
-    '[title*="엑셀"]',
-    '[title*="Excel"]',
-    'button:has-text("엑셀")',
-    'a:has-text("엑셀")',
-    'span:has-text("엑셀")',
-    'img[alt*="엑셀"]',
-    'img[alt*="excel" i]',
-  ];
+  if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    for (const frame of page.frames()) {
-      for (const sel of selectors) {
-        const btn = frame.locator(sel).first();
-        try {
-          if ((await btn.count()) > 0 && (await btn.isVisible())) {
-            const [download] = await Promise.all([
-              page.waitForEvent("download", { timeout: 90000 }),
-              btn.click(),
-            ]);
-            if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
-            await download.saveAs(saveAs);
-            console.log(`✅ 엑셀 저장: ${saveAs}`);
-            return;
-          }
-        } catch {
-          /* retry */
-        }
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      if (await hasVisibleExcelButton(page)) {
+        await clickExcelDownload(page, saveAs);
+        console.log(`✅ 엑셀 저장: ${saveAs}`);
+        return;
       }
+    } catch {
+      /* retry */
     }
-    console.log(`   엑셀 버튼 재탐색 (${attempt + 1}/3)...`);
+
+    console.log(`   엑셀 버튼 재탐색 (${attempt + 1}/4)...`);
+    for (const frame of page.frames()) {
+      await frame.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
+    }
     await page.waitForTimeout(5000);
   }
 
+  const found = await findVisibleExcelButton(page);
+  console.log(`   frames=${page.frames().length}, excel=${found ? "found" : "none"}, url=${page.url()}`);
+
   throw new Error(
-    "엑셀 다운로드 버튼을 찾지 못했습니다. PC에서 재고현황 화면 URL을 /admin/ecount-bot 에 저장하세요."
+    "엑셀 다운로드 버튼을 찾지 못했습니다. 검색(F8) 후 결과 화면까지 이동하지 못했을 수 있습니다."
   );
 }
 
