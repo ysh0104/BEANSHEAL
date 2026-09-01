@@ -248,7 +248,7 @@ export default function InventoryPage() {
 
     if (
       !confirm(
-        "재고수불부 일괄 동기화를 실행할까요?\n\n· 재고 > 0 품목 전체를 순차 처리합니다\n· 최초: 2025/01/01~, 이후: 6개월 롤링\n· 품목 수에 따라 10~60분 이상 소요될 수 있습니다\n· 완료 후 품목명 클릭 시 수불부·시리얼/로트가 바로 표시됩니다"
+        "재고수불부 일괄 동기화를 실행할까요?\n\n· 품목코드 없이 전체 품목을 한 번에 조회합니다\n· 생산불출/창고이동포함 체크 후 검색\n· 최초: 2025/01/01~, 이후: 6개월 롤링\n· 데이터 양에 따라 수 분~30분 이상 소요될 수 있습니다\n· 완료 후 품목명 클릭 시 수불부·시리얼/로트가 바로 표시됩니다"
       )
     )
       return;
@@ -825,7 +825,7 @@ export default function InventoryPage() {
               onClick={handleSyncLedger}
               disabled={botSyncInProgress}
               className="hidden md:inline-flex text-sm font-bold text-violet-800 bg-violet-50 border border-violet-300 px-4 py-1.5 hover:bg-violet-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
-              title="재고 > 0 품목 재고수불부·시리얼/로트 일괄 동기화"
+              title="전체 품목 재고수불부·시리얼/로트 일괄 동기화"
             >
               {syncingLedger || ledgerBotWatchPhase === "watching" ? "수불부 봇 실행 중…" : "수불부 봇 동기화"}
             </button>

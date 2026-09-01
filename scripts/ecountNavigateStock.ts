@@ -166,6 +166,19 @@ async function runStockSearch(page: Page) {
 
 export async function dismissEcountPopups(page: Page) {
   await page.keyboard.press("Escape").catch(() => {});
+
+  // 재고수불부 '조회품목 재지정' 알림은 확인(재지정)이 아니라 취소로 처리해야 함
+  for (const frame of page.frames()) {
+    try {
+      const redesign = frame.locator("text=/조회품목을 재지정|품목개수가 많을 경우/").first();
+      if ((await redesign.count()) > 0 && (await redesign.isVisible())) {
+        return;
+      }
+    } catch {
+      /* skip */
+    }
+  }
+
   for (const pattern of [/확인/, /닫기/, /오늘 하루/, /close/i]) {
     await clickTextInAnyFrame(page, pattern);
     await page.waitForTimeout(400);

@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { EcountLedgerExcelRow } from "@/lib/ecountLedgerExcelParser";
+import type { EcountLedgerExcelRow, EcountLedgerParseResult } from "@/lib/ecountLedgerExcelParser";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -7,6 +7,8 @@ function getServiceSupabase() {
   if (!url || !key) return null;
   return createClient(url, key);
 }
+
+const INSERT_BATCH = 400;
 
 export async function uploadEcountLedgerRows(params: {
   prod_cd: string;
@@ -48,13 +50,84 @@ export async function uploadEcountLedgerRows(params: {
     synced_at,
   }));
 
-  const { error: insErr } = await supabase.from("ecount_stock_ledger").insert(payload);
-  if (insErr) return { success: false, error: insErr.message };
+  for (let i = 0; i < payload.length; i += INSERT_BATCH) {
+    const batch = payload.slice(i, i + INSERT_BATCH);
+    const { error: insErr } = await supabase.from("ecount_stock_ledger").insert(batch);
+    if (insErr) return { success: false, error: insErr.message };
+  }
 
   await upsertMeta(supabase, params, synced_at);
   await syncLotsFromLedger(supabase, params.prod_cd, params.prod_nm, params.rows);
 
   return { success: true, count: payload.length, synced_at };
+}
+
+/** 전체 품목 재고수불부 일괄 업로드 (기존 데이터 전체 교체) */
+export async function uploadEcountLedgerBulk(params: {
+  period_from: string;
+  period_to: string;
+  items: EcountLedgerParseResult[];
+}): Promise<{
+  success: boolean;
+  item_count?: number;
+  row_count?: number;
+  synced_at?: string;
+  error?: string;
+}> {
+  const supabase = getServiceSupabase();
+  if (!supabase) return { success: false, error: "Supabase service role 미설정" };
+
+  const synced_at = new Date().toISOString();
+  const validItems = params.items.filter((it) => it.rows.length > 0 && !it.prod_cd.startsWith("__UNKNOWN_"));
+
+  const { error: delErr } = await supabase.from("ecount_stock_ledger").delete().neq("prod_cd", "");
+  if (delErr) return { success: false, error: delErr.message };
+
+  let row_count = 0;
+  const allPayload: Record<string, unknown>[] = [];
+
+  for (const item of validItems) {
+    for (const r of item.rows) {
+      allPayload.push({
+        prod_cd: item.prod_cd,
+        prod_nm: item.prod_nm || null,
+        txn_date: r.txn_date,
+        partner_name: r.partner_name,
+        remarks: r.remarks,
+        in_qty: r.in_qty,
+        out_qty: r.out_qty,
+        balance_qty: r.balance_qty,
+        lot_no: r.lot_no || null,
+        row_kind: r.row_kind,
+        period_from: params.period_from,
+        period_to: params.period_to,
+        synced_at,
+      });
+    }
+  }
+
+  for (let i = 0; i < allPayload.length; i += INSERT_BATCH) {
+    const batch = allPayload.slice(i, i + INSERT_BATCH);
+    const { error: insErr } = await supabase.from("ecount_stock_ledger").insert(batch);
+    if (insErr) return { success: false, error: insErr.message };
+  }
+  row_count = allPayload.length;
+
+  for (const item of validItems) {
+    await upsertMeta(
+      supabase,
+      {
+        prod_cd: item.prod_cd,
+        prod_nm: item.prod_nm,
+        period_from: params.period_from,
+        period_to: params.period_to,
+      },
+      synced_at
+    );
+    await syncLotsFromLedger(supabase, item.prod_cd, item.prod_nm, item.rows);
+  }
+
+  return { success: true, item_count: validItems.length, row_count, synced_at };
 }
 
 async function upsertMeta(
