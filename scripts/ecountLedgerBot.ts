@@ -15,16 +15,20 @@ import {
   dismissLedgerItemRedesignModal,
 } from "./ecountNavigateLedger";
 import { dismissEcountPopups } from "./ecountNavigateStock";
-import { isLedgerResultsTableReady } from "./ecountExcel";
+import { isLedgerResultsReady, isLedgerResultsTableReady, waitForLedgerResultsReady } from "./ecountExcel";
 
 const DOWNLOAD_DIR = path.join(process.cwd(), "downloads");
 
 export type LedgerItemOpts = {
   stock_menu_url?: string | null;
+  ledger_menu_url?: string | null;
+  stock_menu_depth1?: string | null;
+  stock_menu_depth2?: string | null;
   period_from: string;
   period_to: string;
   prod_cd?: string;
   prod_nm?: string;
+  results_wait_sec?: number;
 };
 
 function getSupabase() {
@@ -70,9 +74,16 @@ async function downloadAndParseLedger(
   let lastErr: unknown;
 
   for (let attempt = 0; attempt < 4; attempt++) {
-    if (!(await isLedgerResultsTableReady(page))) {
-      console.log(`   → 재고수불부 결과 테이블 재확인 (${attempt + 1}/4)`);
-      await runLedgerSearchAfterNavigate(page, navOpts);
+    const ready = (await isLedgerResultsTableReady(page)) || (await isLedgerResultsReady(page));
+    if (!ready) {
+      console.log(`   → 재고수불부 결과 대기 (${attempt + 1}/4)`);
+      const waitSec = navOpts.results_wait_sec ?? (navOpts.prod_cd ? 90 : 300);
+      const polled = await waitForLedgerResultsReady(page, Math.min(waitSec, 120), {
+        dismissModal: () => dismissLedgerItemRedesignModal(page),
+      });
+      if (!polled) {
+        await runLedgerSearchAfterNavigate(page, navOpts);
+      }
     }
 
     try {
@@ -95,7 +106,19 @@ async function downloadAndParseLedger(
       throw new Error("파싱 0행");
     } catch (err) {
       lastErr = err;
-      console.warn(`   Excel/파싱 재시도 ${attempt + 1}/4:`, err instanceof Error ? err.message : err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`   Excel/파싱 재시도 ${attempt + 1}/4:`, msg);
+
+      if (msg === "LEDGER_SEARCH_LOADING" || msg === "LEDGER_TABLE_NOT_READY") {
+        await dismissLedgerItemRedesignModal(page);
+        await dismissEcountPopups(page);
+        const waitSec = navOpts.results_wait_sec ?? (navOpts.prod_cd ? 90 : 300);
+        const waited = await waitForLedgerResultsReady(page, Math.min(waitSec, 90), {
+          dismissModal: () => dismissLedgerItemRedesignModal(page),
+        });
+        if (waited) continue;
+      }
+
       await dismissLedgerItemRedesignModal(page);
       await dismissEcountPopups(page);
       await runLedgerSearchAfterNavigate(page, navOpts);
@@ -242,7 +265,7 @@ export async function runEcountLedgerBulkBot() {
         stock_menu_depth2: creds.stock_menu_depth2,
         period_from,
         period_to,
-        results_wait_sec: 120,
+        results_wait_sec: 300,
       },
       saveAs,
       { bulk: true, isFirstInSession: true }

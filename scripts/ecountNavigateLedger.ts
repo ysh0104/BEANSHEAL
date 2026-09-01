@@ -3,8 +3,10 @@ import { parseStockMenuUrl } from "../src/lib/ecountStockMenuUrl";
 import { dismissEcountPopups } from "./ecountNavigateStock";
 import {
   isLedgerProgramPage,
+  isLedgerResultsReady,
   isLedgerResultsTableReady,
   isLedgerSearchForm,
+  isLedgerSearchLoading,
   isReportsListingPage,
   SEARCH_BTN_PATTERN,
   waitForLedgerResultsReady,
@@ -410,39 +412,63 @@ async function fillDateRange(page: Page, from: string, to: string): Promise<void
   await fillInputNearLabel(page, /종료|to/i, to);
 }
 
-/** 생산불출/창고이동포함 체크 (미체크 시 체크) */
+/** 생산불출/창고이동포함 체크 (미체크 시 체크) — 「기타」 탭 우선 */
 async function ensureProductionTransferIncluded(page: Page): Promise<void> {
-  const labelPattern = /생산불출\s*\/\s*창고이동포함/;
+  const labelPatterns = [
+    /생산불출\s*\/\s*창고이동\s*포함/,
+    /생산불출\s*\/\s*창고이동포함/,
+    /생산불출.*창고이동.*포함/,
+  ];
 
+  // 체크박스는 「기타」 탭에 있는 경우가 많음
   for (const frame of page.frames()) {
     try {
-      const label = frame.locator("label, span, td, div").filter({ hasText: labelPattern }).first();
-      if ((await label.count()) === 0 || !(await label.isVisible())) continue;
-
-      const container = label
-        .locator("xpath=ancestor::tr[1] | ancestor::label[1] | ancestor::div[contains(@class,'row')][1]")
+      const etcTab = frame
+        .locator('a, button, span, li, div[role="tab"]')
+        .filter({ hasText: /^기타$/ })
         .first();
-      const checkbox = container.locator('input[type="checkbox"]').first();
-
-      if ((await checkbox.count()) > 0) {
-        if (!(await checkbox.isChecked())) {
-          await checkbox.click({ force: true });
-          console.log("   ✓ 생산불출/창고이동포함 체크");
-        } else {
-          console.log("   ✓ 생산불출/창고이동포함 이미 체크됨");
-        }
-        return;
+      if ((await etcTab.count()) > 0 && (await etcTab.isVisible())) {
+        await etcTab.click({ force: true });
+        await page.waitForTimeout(800);
+        console.log("   ✓ 기타 탭 클릭");
+        break;
       }
-
-      await label.click({ force: true });
-      console.log("   ✓ 생산불출/창고이동포함 (라벨 클릭)");
-      return;
     } catch {
       /* next frame */
     }
   }
 
-  console.warn("   ⚠ 생산불출/창고이동포함 체크박스를 찾지 못함");
+  for (const labelPattern of labelPatterns) {
+    for (const frame of page.frames()) {
+      try {
+        const label = frame.locator("label, span, td, div").filter({ hasText: labelPattern }).first();
+        if ((await label.count()) === 0 || !(await label.isVisible())) continue;
+
+        const container = label
+          .locator("xpath=ancestor::tr[1] | ancestor::label[1] | ancestor::div[contains(@class,'row')][1]")
+          .first();
+        const checkbox = container.locator('input[type="checkbox"]').first();
+
+        if ((await checkbox.count()) > 0) {
+          if (!(await checkbox.isChecked())) {
+            await checkbox.click({ force: true });
+            console.log("   ✓ 생산불출/창고이동포함 체크");
+          } else {
+            console.log("   ✓ 생산불출/창고이동포함 이미 체크됨");
+          }
+          return;
+        }
+
+        await label.click({ force: true });
+        console.log("   ✓ 생산불출/창고이동포함 (라벨 클릭)");
+        return;
+      } catch {
+        /* next frame */
+      }
+    }
+  }
+
+  console.warn("   ⚠ 생산불출/창고이동포함 체크박스를 찾지 못함 (기본값으로 조회 계속)");
 }
 
 /** 품목 많을 때 뜨는 알림 — 취소(전체 조회 계속) */
@@ -601,7 +627,11 @@ async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
 
   console.log("   → 검색 결과 로딩 대기...");
   const waitSec = opts.results_wait_sec ?? (opts.prod_cd ? 90 : 300);
-  if (!(await waitForLedgerResultsReady(page, waitSec))) {
+  if (
+    !(await waitForLedgerResultsReady(page, waitSec, {
+      dismissModal: () => dismissLedgerItemRedesignModal(page),
+    }))
+  ) {
     console.warn(`   ⚠ 재고수불부 결과 ${waitSec}초 내 미확인`);
   }
 }
@@ -682,17 +712,50 @@ export async function navigateToLedgerReport(page: Page, opts: LedgerNavOptions)
   await runLedgerSearch(page, opts);
 }
 
-/** 엑셀 실패 시 — 메뉴 검색 없이 검색만 재실행 */
+/** 엑셀 실패 시 — 불필요한 메뉴 재클릭 없이 검색·대기만 재실행 */
 export async function runLedgerSearchAfterNavigate(page: Page, opts: LedgerNavOptions) {
   await dismissEcountPopups(page);
+  await dismissLedgerItemRedesignModal(page);
 
-  if (await isLedgerResultsTableReady(page)) {
+  if ((await isLedgerResultsTableReady(page)) || (await isLedgerResultsReady(page))) {
     return;
   }
 
+  const bulkWait = opts.results_wait_sec ?? (opts.prod_cd ? 90 : 300);
+
+  if (await isLedgerSearchLoading(page)) {
+    console.log("   → 검색 처리 중 — 결과 대기...");
+    if (await waitForLedgerResultsReady(page, bulkWait, { dismissModal: () => dismissLedgerItemRedesignModal(page) })) {
+      return;
+    }
+  }
+
+  if ((await isLedgerProgramPage(page)) && !(await isLedgerSearchForm(page))) {
+    console.log("   → 재고수불부 결과 화면 — 추가 대기...");
+    if (await waitForLedgerResultsReady(page, bulkWait, { dismissModal: () => dismissLedgerItemRedesignModal(page) })) {
+      return;
+    }
+  }
+
   if (!(await isLedgerSearchForm(page))) {
-    await openLedgerProgram(page, parseStockMenuUrl(opts.ledger_menu_url || "")?.prgId);
-    await page.waitForTimeout(2000);
+    if (await isReportsListingPage(page)) {
+      console.log("   → 출력물 목록 — 재고수불부 재진입");
+      await openLedgerProgram(page, parseStockMenuUrl(opts.ledger_menu_url || "")?.prgId);
+      await page.waitForTimeout(2000);
+    } else if (!(await isLedgerProgramPage(page))) {
+      console.log("   → 재고수불부 화면 아님 — 보고서 재클릭");
+      await openLedgerProgram(page, parseStockMenuUrl(opts.ledger_menu_url || "")?.prgId);
+      await page.waitForTimeout(2000);
+    } else {
+      console.log("   → 검색 조건 미감지 — 결과 추가 대기 (재클릭 생략)");
+      if (await waitForLedgerResultsReady(page, 60, { dismissModal: () => dismissLedgerItemRedesignModal(page) })) {
+        return;
+      }
+    }
+  }
+
+  if ((await isLedgerResultsTableReady(page)) || (await isLedgerResultsReady(page))) {
+    return;
   }
 
   await fillDateRange(page, opts.period_from, opts.period_to);
@@ -700,8 +763,7 @@ export async function runLedgerSearchAfterNavigate(page: Page, opts: LedgerNavOp
   await fillProdCode(page, opts.prod_cd || "");
   await clickSearch(page);
   await waitAndDismissLedgerModal(page);
-  const waitSec = opts.results_wait_sec ?? (opts.prod_cd ? 60 : 180);
-  await waitForLedgerResultsReady(page, waitSec);
+  await waitForLedgerResultsReady(page, bulkWait, { dismissModal: () => dismissLedgerItemRedesignModal(page) });
 }
 
 export async function downloadLedgerExcel(page: Page, saveAs: string) {

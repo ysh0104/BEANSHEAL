@@ -210,6 +210,51 @@ export async function isLedgerProgramPage(page: Page): Promise<boolean> {
   return false;
 }
 
+/** 검색 실행 후 로딩 중 (재네비게이션 방지) */
+export async function isLedgerSearchLoading(page: Page): Promise<boolean> {
+  if (await isReportsListingPage(page)) return false;
+  if (await isStockResultsReady(page) || (await isStockSearchForm(page))) return false;
+
+  for (const frame of page.frames()) {
+    try {
+      const loadingHints = [
+        frame.locator("text=/조회\\s*중|로딩|Loading|처리\\s*중/").first(),
+        frame.locator('[class*="loading"], [class*="spinner"], [class*="progress"]').first(),
+      ];
+      for (const hint of loadingHints) {
+        if ((await hint.count()) > 0 && (await hint.isVisible())) return true;
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  return false;
+}
+
+async function countVisibleLedgerHeaderCells(frame: Frame): Promise<number> {
+  const headerPatterns = [
+    "거래처명",
+    "적요",
+    /입고수량/,
+    /출고수량/,
+    /전일재고/,
+    /재고수량/,
+    /^일자$/,
+    "품목코드",
+    "품목명",
+  ];
+  let hits = 0;
+  for (const pattern of headerPatterns) {
+    try {
+      const cell = typeof pattern === "string" ? frame.getByText(pattern, { exact: true }).first() : frame.getByText(pattern).first();
+      if ((await cell.count()) > 0 && (await cell.isVisible())) hits++;
+    } catch {
+      /* skip */
+    }
+  }
+  return hits;
+}
+
 /** 재고수불부 결과 테이블 (일자·거래처명·적요·입고 등 — Excel 버튼 불필요) */
 export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
   if (await isReportsListingPage(page)) return false;
@@ -217,29 +262,28 @@ export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
 
   for (const frame of page.frames()) {
     try {
-      const partner = frame.getByText("거래처명", { exact: true }).first();
-      const remarks = frame.getByText("적요", { exact: true }).first();
-      const inQty = frame.getByText(/입고수량/).first();
-      const opening = frame.getByText(/전일재고/).first();
-
-      const hasPartner = (await partner.count()) > 0 && (await partner.isVisible());
-      const hasRemarks = (await remarks.count()) > 0 && (await remarks.isVisible());
-      const hasInQty = (await inQty.count()) > 0 && (await inQty.isVisible());
-      const hasOpening = (await opening.count()) > 0 && (await opening.isVisible());
-
-      if (hasOpening) return true;
-      if (hasPartner && (hasRemarks || hasInQty)) return true;
+      const headerHits = await countVisibleLedgerHeaderCells(frame);
+      if (headerHits >= 2) return true;
 
       const title = frame.getByText(/^재고\s*수불부$/).first();
       const dateRow = frame.locator("text=/\\d{4}\\/\\d{2}\\/\\d{2}/").first();
       const monthTotal = frame.locator("text=/\\d{4}\\/\\d{2}\\s*계/").first();
+      const itemBlock = frame.locator("text=/\\[\\s*\\d{5,}\\s*\\]/").first();
+
       if ((await title.count()) > 0 && (await title.isVisible())) {
         if (
           ((await dateRow.count()) > 0 && (await dateRow.isVisible())) ||
-          ((await monthTotal.count()) > 0 && (await monthTotal.isVisible()))
+          ((await monthTotal.count()) > 0 && (await monthTotal.isVisible())) ||
+          ((await itemBlock.count()) > 0 && (await itemBlock.isVisible()))
         ) {
           return true;
         }
+      }
+
+      // 전체 품목 조회: 품목별 구분 헤더 + 데이터 행
+      if (headerHits >= 1) {
+        const dataRow = frame.locator("td, [class*='grid'] div").filter({ hasText: /^\d{4}\/\d{2}\/\d{2}/ }).first();
+        if ((await dataRow.count()) > 0 && (await dataRow.isVisible())) return true;
       }
     } catch {
       /* skip */
@@ -290,30 +334,26 @@ export async function isLedgerSearchForm(page: Page): Promise<boolean> {
   return false;
 }
 
+async function hasVisibleLedgerExcel(page: Page): Promise<boolean> {
+  if (await isStockResultsReady(page)) return false;
+  return (await findVisibleExcelButton(page)) !== null;
+}
+
 /** 재고수불부 결과 (테이블 + Excel) */
 export async function isLedgerResultsReady(page: Page): Promise<boolean> {
-  if (!(await isLedgerResultsTableReady(page))) return false;
-
-  for (const frame of page.frames()) {
-    try {
-      for (const sel of EXCEL_SELECTORS) {
-        const excel = frame.locator(sel).first();
-        if ((await excel.count()) > 0 && (await excel.isVisible())) {
-          const box = await excel.boundingBox();
-          if (box && box.width > 2 && box.height > 2) return true;
-        }
-      }
-      const excelText = frame.getByText(/^Excel$/i).first();
-      if ((await excelText.count()) > 0 && (await excelText.isVisible())) return true;
-    } catch {
-      /* skip */
-    }
-  }
+  const tableReady = await isLedgerResultsTableReady(page);
+  const excelReady = await hasVisibleLedgerExcel(page);
+  if (tableReady && excelReady) return true;
+  if (excelReady && (await isLedgerProgramPage(page))) return true;
   return false;
 }
 
 async function findExcelInLedgerResultsFrame(page: Page): Promise<{ frame: Frame; locator: Locator } | null> {
-  if (!(await isLedgerResultsTableReady(page))) return null;
+  const onLedger =
+    (await isLedgerResultsTableReady(page)) ||
+    ((await isLedgerProgramPage(page)) && !(await isLedgerSearchForm(page)));
+
+  if (!onLedger) return null;
 
   for (const frame of page.frames()) {
     try {
@@ -340,7 +380,12 @@ export async function clickLedgerExcelDownload(page: Page, saveAs: string): Prom
     throw new Error("WRONG_REPORT: 재고현황 화면입니다. 재고수불부로 이동 후 다시 시도하세요.");
   }
 
-  if (!(await isLedgerResultsTableReady(page))) {
+  const tableReady = await isLedgerResultsTableReady(page);
+  const excelVisible = await hasVisibleLedgerExcel(page);
+  if (!tableReady && !excelVisible) {
+    if (await isLedgerSearchLoading(page)) {
+      throw new Error("LEDGER_SEARCH_LOADING");
+    }
     throw new Error("LEDGER_TABLE_NOT_READY");
   }
 
@@ -393,14 +438,36 @@ export async function clickLedgerExcelDownload(page: Page, saveAs: string): Prom
   throw lastErr instanceof Error ? lastErr : new Error("LEDGER_EXCEL_CLICK_FAILED");
 }
 
-export async function waitForLedgerResultsReady(page: Page, maxSec = 90): Promise<boolean> {
-  const steps = Math.ceil(maxSec / 3);
+export type LedgerWaitOptions = {
+  dismissModal?: () => Promise<boolean | void>;
+};
+
+export async function waitForLedgerResultsReady(
+  page: Page,
+  maxSec = 90,
+  opts: LedgerWaitOptions = {}
+): Promise<boolean> {
+  const intervalMs = 3000;
+  const steps = Math.ceil((maxSec * 1000) / intervalMs);
   for (let i = 0; i < steps; i++) {
-    if (await isLedgerResultsTableReady(page)) {
-      console.log(`   ✓ 재고수불부 결과 테이블 확인 (${(i + 1) * 3}초)`);
+    if (opts.dismissModal) {
+      await opts.dismissModal().catch(() => {});
+    }
+
+    if (await isLedgerResultsReady(page)) {
+      console.log(`   ✓ 재고수불부 결과+Excel 확인 (${Math.min((i + 1) * 3, maxSec)}초)`);
       return true;
     }
-    await page.waitForTimeout(3000);
+    if (await isLedgerResultsTableReady(page)) {
+      console.log(`   ✓ 재고수불부 결과 테이블 확인 (${Math.min((i + 1) * 3, maxSec)}초)`);
+      return true;
+    }
+    if (await hasVisibleLedgerExcel(page)) {
+      console.log(`   ✓ 재고수불부 Excel 버튼 확인 (${Math.min((i + 1) * 3, maxSec)}초)`);
+      return true;
+    }
+
+    await page.waitForTimeout(intervalMs);
   }
   return false;
 }
