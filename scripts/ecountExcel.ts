@@ -158,8 +158,51 @@ export async function waitForStockResultsReady(page: Page, maxSec = 60): Promise
   return false;
 }
 
+const SEARCH_BTN_PATTERN = /(?:검색|Search)\s*\(F\d+\)/i;
+
+/** 출력물 목록(재고수불부·재고현황 링크 카드) 화면 */
+export async function isReportsListingPage(page: Page): Promise<boolean> {
+  for (const frame of page.frames()) {
+    try {
+      const folderTitle = frame.getByText(/^출력물$/).first();
+      const hasTitle = (await folderTitle.count()) > 0 && (await folderTitle.isVisible());
+      if (!hasTitle) continue;
+
+      const ledgerInContent = frame
+        .locator('#contents a, .contents a, [class*="content"] a, main a')
+        .filter({ hasText: /^재고\s*수불부$/ });
+      if ((await ledgerInContent.count()) > 0) return true;
+    } catch {
+      /* skip */
+    }
+  }
+  return false;
+}
+
+/** 재고수불부 프로그램 화면 (검색/결과) — 제목 기준 */
+export async function isLedgerProgramPage(page: Page): Promise<boolean> {
+  if (await isReportsListingPage(page)) return false;
+  if (await isStockResultsReady(page) || (await isStockSearchForm(page))) return false;
+
+  for (const frame of page.frames()) {
+    try {
+      const title = frame.getByText(/^재고\s*수불부$/).first();
+      if ((await title.count()) === 0 || !(await title.isVisible())) continue;
+
+      const searchBtn = frame.getByText(SEARCH_BTN_PATTERN).first();
+      if ((await searchBtn.count()) > 0 && (await searchBtn.isVisible())) return true;
+
+      if (await isLedgerResultsTableReady(page)) return true;
+    } catch {
+      /* skip */
+    }
+  }
+  return false;
+}
+
 /** 재고수불부 결과 테이블 (일자·거래처명·적요·입고 등 — Excel 버튼 불필요) */
 export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
+  if (await isReportsListingPage(page)) return false;
   if (await isStockResultsReady(page) || (await isStockSearchForm(page))) return false;
 
   for (const frame of page.frames()) {
