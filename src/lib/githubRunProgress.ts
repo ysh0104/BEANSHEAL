@@ -156,11 +156,19 @@ function fallbackProgressFromRun(run: GithubWorkflowRunStatus, botTarget: string
 
 /** 트리거 직후 GitHub run 이 아직 없을 때 */
 export function estimateTriggerProgress(elapsedMs: number, botTarget: string): GithubRunProgress {
-  const warmUpMs = 20_000;
-  const ratio = Math.min(1, elapsedMs / warmUpMs);
+  const percent = estimateWatchProgress(elapsedMs, botTarget);
   return {
-    percent: clampPercent(1 + ratio * 6),
+    percent,
     step_label:
       botTarget === "ledger_bulk" ? "재고수불부 봇 시작 요청 중…" : "재고 봇 시작 요청 중…",
   };
+}
+
+/** UI 폴링용 — 경과 시간 기반 하한 (단조 증가, 최대 90%) */
+export function estimateWatchProgress(elapsedMs: number, botTarget: string): number {
+  const setupMs = 45_000;
+  const botMs = BOT_STEP_ESTIMATE_MS[botTarget] ?? BOT_STEP_ESTIMATE_MS.stock;
+  const totalMs = setupMs + botMs;
+  const ratio = Math.min(1, Math.max(0, elapsedMs / totalMs));
+  return clampPercent(5 + ratio * 85);
 }

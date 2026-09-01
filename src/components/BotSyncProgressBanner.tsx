@@ -15,7 +15,7 @@ export function BotSyncProgressBanner({
   githubActionsUrl,
   tone = "blue",
 }: BotSyncProgressBannerProps) {
-  if (phase === "idle" || !statusLine) return null;
+  if (phase === "idle" || (!statusLine && !stepLabel)) return null;
 
   const safePercent = Math.round(Math.max(0, Math.min(100, percent)));
   const isError = phase === "failed";
