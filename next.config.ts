@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "100mb",
+    },
+  },
   outputFileTracingRoot: path.join(__dirname),
   outputFileTracingIncludes: {
     '/api/**/*': ['./public/templates/**/*', './src/templates/**/*', './templates/**/*'],

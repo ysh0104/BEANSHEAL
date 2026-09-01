@@ -3,9 +3,9 @@ import * as fs from "fs";
 import * as path from "path";
 import { createClient } from "@supabase/supabase-js";
 import { resolveEcountBotCredentials } from "../src/lib/ecountBotConfig";
-import { getLedgerDateRange } from "../src/lib/ecountLedgerDateRange";
+import { getLedgerBotDateRange } from "../src/lib/ecountLedgerDateRange";
 import { parseEcountLedgerExcel, parseEcountLedgerExcelBulk } from "../src/lib/ecountLedgerExcelParser";
-import { uploadEcountLedgerBulk, uploadEcountLedgerRows } from "../src/lib/ecountLedgerUpload";
+import { uploadEcountLedgerBotBatch, uploadEcountLedgerRows } from "../src/lib/ecountLedgerUpload";
 import { LEDGER_BULK_META_CD, upsertLedgerBulkMeta } from "../src/lib/ledgerSyncStatus";
 import { loginEcountWeb } from "./ecountLogin";
 import {
@@ -206,17 +206,10 @@ export async function runEcountLedgerBulkBot() {
   const supabase = getSupabase();
   if (!supabase) throw new Error("Supabase service role 미설정");
 
-  const { data: bulkMeta } = await supabase
-    .from("ecount_ledger_sync_meta")
-    .select("first_synced_at")
-    .eq("prod_cd", LEDGER_BULK_META_CD)
-    .maybeSingle();
-
-  const hasPriorBulk = !!bulkMeta?.first_synced_at;
-  const { from: period_from, to: period_to } = getLedgerDateRange(hasPriorBulk);
+  const { from: period_from, to: period_to } = getLedgerBotDateRange();
 
   console.log(`\n🤖 재고수불부 일괄 봇: 전체 품목 (${period_from} ~ ${period_to})\n`);
-  console.log("   · 품목코드 미지정 — 전체 조회");
+  console.log("   · 조회 기간: 전월 1일 ~ 오늘");
   console.log("   · 생산불출/창고이동포함 체크");
   console.log("   · 조회품목 재지정 알림 → 취소\n");
 
@@ -239,7 +232,7 @@ export async function runEcountLedgerBulkBot() {
 
     const { bulk } = await downloadAndParseLedger(
       page,
-      { stock_menu_url: creds.stock_menu_url, period_from, period_to, results_wait_sec: 300 },
+      { stock_menu_url: creds.stock_menu_url, period_from, period_to, results_wait_sec: 120 },
       saveAs,
       { bulk: true, isFirstInSession: true }
     );
@@ -248,7 +241,7 @@ export async function runEcountLedgerBulkBot() {
 
     console.log(`   파싱: ${bulk.items.length}품목, ${bulk.total_rows}행`);
 
-    const upload = await uploadEcountLedgerBulk({
+    const upload = await uploadEcountLedgerBotBatch({
       period_from,
       period_to,
       items: bulk.items,

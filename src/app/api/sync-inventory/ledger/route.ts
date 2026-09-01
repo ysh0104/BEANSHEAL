@@ -102,6 +102,6 @@ export async function POST() {
     mode: "ledger_bulk",
     trigger: triggered.method,
     message:
-      "재고수불부 일괄 동기화를 시작했습니다. 품목코드 없이 전체를 한 번에 조회합니다. 데이터 양에 따라 수 분~30분 이상 걸릴 수 있습니다.",
+      "재고수불부 봇 동기화를 시작했습니다. 전월 1일~오늘 기간으로 전체 품목을 조회합니다. 약 2~5분 소요됩니다.",
   });
 }

@@ -94,6 +94,8 @@ export default function InventoryPage() {
   const [safetyConfigs, setSafetyConfigs] = useState<Record<string, number>>({});
   const [syncingMaster, setSyncingMaster] = useState(false);
   const [syncingLedger, setSyncingLedger] = useState(false);
+  const [uploadingLedger, setUploadingLedger] = useState(false);
+  const ledgerFileInputRef = useRef<HTMLInputElement>(null);
   const [ledgerLastSyncedAt, setLedgerLastSyncedAt] = useState<string | null>(null);
   const [ledgerSyncedCount, setLedgerSyncedCount] = useState(0);
   const [ledgerBotWatchPhase, setLedgerBotWatchPhase] = useState<BotWatchPhase>("idle");
@@ -188,7 +190,7 @@ export default function InventoryPage() {
   };
 
   const botSyncInProgress =
-    syncingMaster || syncingLedger || botWatchPhase === "watching" || ledgerBotWatchPhase === "watching";
+    syncingMaster || syncingLedger || uploadingLedger || botWatchPhase === "watching" || ledgerBotWatchPhase === "watching";
 
   const handleSyncMaster = async () => {
     if (botSyncInProgress) {
@@ -248,7 +250,7 @@ export default function InventoryPage() {
 
     if (
       !confirm(
-        "재고수불부 일괄 동기화를 실행할까요?\n\n· 품목코드 없이 전체 품목을 한 번에 조회합니다\n· 생산불출/창고이동포함 체크 후 검색\n· 최초: 2025/01/01~, 이후: 6개월 롤링\n· 데이터 양에 따라 수 분~30분 이상 소요될 수 있습니다\n· 완료 후 품목명 클릭 시 수불부·시리얼/로트가 바로 표시됩니다"
+        "재고수불부 봇 동기화를 실행할까요?\n\n· 조회 기간: 전월 1일 ~ 오늘 (전체 품목)\n· 생산불출/창고이동포함 체크 후 검색\n· 약 2~5분 소요 (데이터 양에 따라 다름)\n· 2년치 등 과거 데이터는 「수불부 엑셀 업로드」로 직접 올려주세요"
       )
     )
       return;
@@ -276,6 +278,53 @@ export default function InventoryPage() {
       setLedgerBotStatusLine("봇 트리거 통신 오류");
     } finally {
       setSyncingLedger(false);
+    }
+  };
+
+  const handleLedgerUploadClick = () => {
+    if (!canEdit) {
+      alert("수불부 엑셀 업로드는 수정 권한이 필요합니다.");
+      return;
+    }
+    ledgerFileInputRef.current?.click();
+  };
+
+  const handleLedgerFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList?.length) return;
+
+    const files = Array.from(fileList);
+    if (
+      !confirm(
+        `재고수불부 엑셀 ${files.length}개를 업로드할까요?\n\n· 이카ount에서 받은 재고수불부 xlsx 파일\n· 품목별 기존 수불부는 파일 내용으로 교체됩니다\n· 2년치 등 여러 파일은 한 번에 선택하는 것을 권장합니다`
+      )
+    ) {
+      e.target.value = "";
+      return;
+    }
+
+    setUploadingLedger(true);
+    const formData = new FormData();
+    for (const f of files) formData.append("files", f);
+
+    try {
+      const res = await fetch("/api/inventory/ledger/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success) {
+        const warn =
+          data.errors?.length > 0
+            ? `\n\n일부 경고:\n${data.errors.slice(0, 5).join("\n")}`
+            : "";
+        alert(`${data.message || "업로드 완료"}${warn}`);
+        await refreshLedgerStatus();
+      } else {
+        alert(data.message || "수불부 엑셀 업로드에 실패했습니다.");
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "업로드 중 오류");
+    } finally {
+      setUploadingLedger(false);
+      e.target.value = "";
     }
   };
 
@@ -658,6 +707,7 @@ export default function InventoryPage() {
             <span className="font-semibold text-slate-800">{formatLastSyncedAt(ledgerLastSyncedAt)}</span>
             <span className="text-slate-400 mx-2">·</span>
             <span className="text-slate-600">{ledgerSyncedCount.toLocaleString("ko-KR")}품목</span>
+            <span className="ml-2 text-[11px] text-slate-400">봇=전월~오늘 · 과거=엑셀 업로드</span>
           </p>
 
           {botWatchPhase !== "idle" && botStatusLine && (
@@ -792,6 +842,15 @@ export default function InventoryPage() {
                 >
                   {syncingLedger || ledgerBotWatchPhase === "watching" ? "수불부 봇 실행 중…" : "수불부 봇 동기화"}
                 </button>
+                {canEdit && (
+                  <button
+                    onClick={handleLedgerUploadClick}
+                    disabled={botSyncInProgress}
+                    className="text-sm font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-4 py-2 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {uploadingLedger ? "수불부 엑셀 업로드 중…" : "수불부 엑셀 업로드"}
+                  </button>
+                )}
                 <button
                   onClick={handleResetAllSafetyStockToZero}
                   disabled={loadingInv}
@@ -825,10 +884,21 @@ export default function InventoryPage() {
               onClick={handleSyncLedger}
               disabled={botSyncInProgress}
               className="hidden md:inline-flex text-sm font-bold text-violet-800 bg-violet-50 border border-violet-300 px-4 py-1.5 hover:bg-violet-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
-              title="전체 품목 재고수불부·시리얼/로트 일괄 동기화"
+              title="전월~오늘 재고수불부 자동 동기화"
             >
               {syncingLedger || ledgerBotWatchPhase === "watching" ? "수불부 봇 실행 중…" : "수불부 봇 동기화"}
             </button>
+
+            {canEdit && (
+              <button
+                onClick={handleLedgerUploadClick}
+                disabled={botSyncInProgress}
+                className="hidden md:inline-flex text-sm font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-4 py-1.5 hover:bg-emerald-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
+                title="이카ount 재고수불부 xlsx 직접 업로드 (복수 파일 가능)"
+              >
+                {uploadingLedger ? "수불부 엑셀 업로드 중…" : "수불부 엑셀 업로드"}
+              </button>
+            )}
 
             <button
               onClick={handleResetAllSafetyStockToZero}
@@ -854,6 +924,16 @@ export default function InventoryPage() {
           </div>
         </div>
       </div>
+
+      {/* 재고수불부 엑셀 업로드 (숨김 input) */}
+      <input
+        ref={ledgerFileInputRef}
+        type="file"
+        accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+        multiple
+        className="hidden"
+        onChange={handleLedgerFilesSelected}
+      />
 
       {/* 모바일 카드 목록 */}
       <div className="md:hidden space-y-3 mb-4">
