@@ -9,11 +9,13 @@ import {
 } from "../src/lib/ecountStockMenuUrl";
 import { dismissEcountPopups } from "./ecountNavigateStock";
 import {
+  findLedgerFrames,
   getPagePrgId,
   isKnownLedgerPrgId,
   isLedgerResultsTableReady,
   isLedgerScreenReady,
   isLedgerSearchForm,
+  isOnStockReportPage,
   isReportsListingPage,
   SEARCH_BTN_PATTERN,
   waitForLedgerResultsReady,
@@ -213,9 +215,39 @@ async function clickMenuIdsFromUrl(page: Page, savedUrl: string): Promise<boolea
   return true;
 }
 
+async function gotoLedgerDirect(page: Page, menuUrl: string): Promise<boolean> {
+  const ledgerPrgId = process.env.ECOUNT_LEDGER_PRG_ID?.trim() || "E040702";
+  const ledgerUrl = buildProgramMenuUrl(menuUrl, ledgerPrgId);
+  const target = applyMenuHashFromSaved(page.url(), ledgerUrl);
+  if (!target) return false;
+  console.log(`   → 재고수불부 직접 이동: ${ledgerPrgId}`);
+  await page.goto(target, { waitUntil: "networkidle", timeout: 90000 });
+  await page.waitForTimeout(5000);
+  await dismissEcountPopups(page);
+  return waitForLedgerSearchForm(page, 40);
+}
+
+/** 재고현황(C000650)에 있으면 재고수불부(E040702)로 복귀 */
+async function ensureOnLedgerScreen(page: Page, menuUrl: string): Promise<void> {
+  if (await isOnStockReportPage(page)) {
+    console.warn(`   ⚠ 재고현황 화면 — 재고수불부로 재이동 (prgId=${getPagePrgId(page)})`);
+    if (menuUrl && (await gotoLedgerDirect(page, menuUrl))) return;
+    await openLedgerReportProgram(page);
+    await waitForLedgerSearchForm(page, 30);
+    return;
+  }
+
+  if (!(await isLedgerSearchForm(page)) && !(await isLedgerResultsTableReady(page))) {
+    if (menuUrl && (await gotoLedgerDirect(page, menuUrl))) return;
+    await openLedgerReportProgram(page);
+    await waitForLedgerSearchForm(page, 30);
+  }
+}
+
 async function fillDateRange(page: Page, from: string, to: string): Promise<void> {
   console.log(`   → 기간: ${from} ~ ${to}`);
-  for (const frame of page.frames()) {
+  const ledgerFrames = await findLedgerFrames(page);
+  for (const frame of ledgerFrames) {
     try {
       const inputs = frame.locator('input[type="text"]:visible');
       const n = await inputs.count();
@@ -237,7 +269,8 @@ async function fillDateRange(page: Page, from: string, to: string): Promise<void
 }
 
 async function ensureProductionTransferIncluded(page: Page): Promise<void> {
-  for (const frame of page.frames()) {
+  const ledgerFrames = await findLedgerFrames(page);
+  for (const frame of ledgerFrames) {
     const etcTab = frame.locator('a, button, span, li').filter({ hasText: /^기타$/ }).first();
     try {
       if ((await etcTab.count()) > 0 && (await etcTab.isVisible())) {
@@ -250,7 +283,7 @@ async function ensureProductionTransferIncluded(page: Page): Promise<void> {
     }
   }
 
-  for (const frame of page.frames()) {
+  for (const frame of ledgerFrames) {
     try {
       const label = frame.locator("label, span, td").filter({ hasText: /생산불출.*창고이동.*포함/ }).first();
       if ((await label.count()) === 0 || !(await label.isVisible())) continue;
@@ -286,22 +319,36 @@ export async function dismissLedgerItemRedesignModal(page: Page): Promise<boolea
 }
 
 async function clickSearch(page: Page): Promise<void> {
-  console.log("   → 검색(F8)...");
-  for (const frame of page.frames()) {
+  console.log("   → 검색(F8) — 재고수불부 프레임만...");
+  const ledgerFrames = await findLedgerFrames(page);
+
+  for (const frame of ledgerFrames) {
     const btn = frame.getByText(SEARCH_BTN_PATTERN).first();
     try {
       if ((await btn.count()) > 0 && (await btn.isVisible())) {
+        await frame.locator("body").click({ position: { x: 30, y: 30 }, force: true }).catch(() => {});
+        await btn.scrollIntoViewIfNeeded().catch(() => {});
         await btn.click({ force: true });
-        console.log("   ✓ 검색 클릭");
+        console.log("   ✓ 재고수불부 프레임 검색 클릭");
         return;
       }
     } catch {
       /* next */
     }
   }
-  await page.keyboard.press("F8").catch(() => {});
-  await page.keyboard.press("F3").catch(() => {});
-  console.log("   ✓ F8/F3 키 입력");
+
+  for (const frame of ledgerFrames) {
+    try {
+      await frame.locator("body").click({ position: { x: 30, y: 30 }, force: true });
+      await page.keyboard.press("F8");
+      console.log("   ✓ 재고수불부 프레임 포커스 + F8");
+      return;
+    } catch {
+      /* next */
+    }
+  }
+
+  throw new Error("재고수불부 검색 버튼을 찾지 못했습니다.");
 }
 
 export type LedgerNavOptions = {
@@ -316,15 +363,30 @@ export type LedgerNavOptions = {
 };
 
 async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
+  const menuUrl = (
+    opts.ledger_menu_url ||
+    opts.stock_menu_url ||
+    process.env.ECOUNT_LEDGER_MENU_URL ||
+    process.env.ECOUNT_STOCK_MENU_URL ||
+    ""
+  ).trim();
+
   if (await isLedgerResultsTableReady(page)) {
     console.log("   ✓ 결과 테이블 있음 — 검색 생략");
     return;
   }
 
+  await ensureOnLedgerScreen(page, menuUrl);
+
   if (!(await isLedgerSearchForm(page))) {
     console.log("   → 검색 화면 대기/재클릭...");
-    await openLedgerReportProgram(page);
-    await waitForLedgerSearchForm(page, 20);
+    if (menuUrl) await gotoLedgerDirect(page, menuUrl);
+    else await openLedgerReportProgram(page);
+    await waitForLedgerSearchForm(page, 30);
+  }
+
+  if (!(await isLedgerSearchForm(page))) {
+    throw new Error("재고수불부 검색 조건 화면을 찾지 못했습니다.");
   }
 
   await fillDateRange(page, opts.period_from, opts.period_to);
@@ -346,6 +408,9 @@ async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
   console.log("3. 검색 결과 대기...");
   const waitSec = opts.results_wait_sec ?? (opts.prod_cd ? 90 : 300);
   if (!(await waitForLedgerResultsReady(page, waitSec))) {
+    if (await isOnStockReportPage(page)) {
+      throw new Error("WRONG_REPORT: 검색 후 재고현황 화면으로 이동했습니다.");
+    }
     console.warn(`   ⚠ 결과 ${waitSec}초 내 미확인`);
   }
 }
@@ -388,9 +453,9 @@ export async function navigateToLedgerReport(page: Page, opts: LedgerNavOptions)
 
     if (!ready) {
       const prgId = getPagePrgId(page);
-      if (isKnownLedgerPrgId(prgId) && !(await isReportsListingPage(page))) {
-        console.log(`   ✓ prgId=${prgId} — URL 기준 진입 허용`);
-        ready = true;
+      if (isKnownLedgerPrgId(prgId) && !(await isReportsListingPage(page)) && !(await isOnStockReportPage(page))) {
+        console.log(`   ✓ prgId=${prgId} — URL 기준 진입, 검색 화면 대기`);
+        ready = await waitForLedgerSearchForm(page, 40);
       }
     }
 
