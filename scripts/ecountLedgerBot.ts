@@ -57,12 +57,12 @@ async function downloadLedgerExcel(page: Page, saveAs: string, navOpts: LedgerIt
   console.log("4. 엑셀 다운로드...");
   if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     if (await isOnStockReportPage(page)) {
-      console.warn(`   → 재고현황 화면 — 재고수불부 재이동 (${attempt + 1}/4, prgId=${getPagePrgId(page)})`);
-      await navigateToLedgerReport(page, navOpts);
-    } else if (!(await isLedgerResultsTableReady(page))) {
-      console.log(`   → 결과 아님 — 검색 재시도 (${attempt + 1}/4)`);
+      console.warn(`   → 재고현황 화면 — 검색만 재시도 (${attempt + 1}/3)`);
+      await runLedgerSearchAfterNavigate(page, navOpts);
+    } else if (attempt > 0 && !(await isLedgerResultsTableReady(page))) {
+      console.log(`   → 결과 미확인 — 검색 재시도 (${attempt + 1}/3)`);
       await runLedgerSearchAfterNavigate(page, navOpts);
     }
 
@@ -72,9 +72,10 @@ async function downloadLedgerExcel(page: Page, saveAs: string, navOpts: LedgerIt
       return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`   Excel 실패 (${attempt + 1}/4):`, msg);
-      if (msg.includes("WRONG_REPORT")) {
-        await navigateToLedgerReport(page, navOpts);
+      console.warn(`   Excel 실패 (${attempt + 1}/3):`, msg);
+      if (msg.includes("LEDGER_SEARCH_LOADING")) {
+        await page.waitForTimeout(15000);
+        continue;
       }
     }
 

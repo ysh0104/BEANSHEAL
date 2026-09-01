@@ -26,8 +26,7 @@ const OUTPUT_FOLDER_PRG_ID = "C000035";
 
 function getLedgerPrgCandidates(): string[] {
   const configured = process.env.ECOUNT_LEDGER_PRG_ID?.trim();
-  if (configured) return [configured];
-  return ["E040702", "C000036", "C000037", "C000034"];
+  return [configured || "E040702"];
 }
 
 async function clickInAnyFrame(page: Page, selector: string): Promise<boolean> {
@@ -66,13 +65,13 @@ async function tryClickLedgerLink(page: Page, link: Locator, label: string): Pro
     await link.scrollIntoViewIfNeeded().catch(() => {});
     await link.click({ force: true });
     console.log(`   ✓ ${label}`);
-    await page.waitForTimeout(8000);
+    await page.waitForTimeout(4000);
     await dismissEcountPopups(page);
-    if (await waitForLedgerSearchForm(page, 30)) return true;
+    if (await waitForLedgerSearchForm(page, 20)) return true;
     await link.evaluate((el: HTMLElement) => el.click());
-    await page.waitForTimeout(8000);
+    await page.waitForTimeout(4000);
     await dismissEcountPopups(page);
-    return await waitForLedgerSearchForm(page, 30);
+    return await waitForLedgerSearchForm(page, 15);
   } catch {
     return false;
   }
@@ -142,11 +141,11 @@ async function tryDirectLedgerUrl(page: Page, menuUrl: string): Promise<boolean>
     console.log(`   → 재고수불부 URL 직접: ${prgId}`);
     try {
       await page.goto(target, { waitUntil: "networkidle", timeout: 90000 });
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(3000);
       await dismissEcountPopups(page);
-      if (await waitForLedgerSearchForm(page, 35)) return true;
+      if (await waitForLedgerSearchForm(page, 15)) return true;
     } catch {
-      /* next prgId */
+      /* next */
     }
   }
   return false;
@@ -322,17 +321,22 @@ async function clickSearch(page: Page): Promise<void> {
   const ledgerFrames = await findLedgerFrames(page);
 
   for (const frame of ledgerFrames) {
-    const btn = frame.getByText(SEARCH_BTN_PATTERN).first();
-    try {
-      if ((await btn.count()) > 0 && (await btn.isVisible())) {
-        await frame.locator("body").click({ position: { x: 30, y: 30 }, force: true }).catch(() => {});
-        await btn.scrollIntoViewIfNeeded().catch(() => {});
-        await btn.click({ force: true });
-        console.log("   ✓ 재고수불부 프레임 검색 클릭");
-        return;
+    const locators = [
+      frame.getByText(SEARCH_BTN_PATTERN).first(),
+      frame.locator('button, a, span, div[role="button"]').filter({ hasText: SEARCH_BTN_PATTERN }).first(),
+    ];
+    for (const btn of locators) {
+      try {
+        if ((await btn.count()) > 0 && (await btn.isVisible())) {
+          await frame.locator("body").click({ position: { x: 30, y: 30 }, force: true }).catch(() => {});
+          await btn.scrollIntoViewIfNeeded().catch(() => {});
+          await btn.click({ force: true });
+          console.log("   ✓ 재고수불부 검색 버튼 클릭");
+          return;
+        }
+      } catch {
+        /* next */
       }
-    } catch {
-      /* next */
     }
   }
 
@@ -437,13 +441,11 @@ export async function navigateToLedgerReport(page: Page, opts: LedgerNavOptions)
     await dismissEcountPopups(page);
     console.log(`   현재 URL: ${page.url()}`);
 
-    let ready = await tryDirectLedgerUrl(page, menuUrl);
+    // 카드 클릭 우선 (URL 직접 이동은 hash만으로 iframe 로딩 실패하는 경우 많음)
+    let ready = await openLedgerReportProgram(page);
     if (!ready) {
-      await gotoFolderViaHash(page, menuUrl);
-      await dismissEcountPopups(page);
-      ready = await openLedgerReportProgram(page);
+      ready = await tryDirectLedgerUrl(page, menuUrl);
     }
-
     if (!ready) {
       await gotoFolderViaHash(page, menuUrl);
       await dismissEcountPopups(page);

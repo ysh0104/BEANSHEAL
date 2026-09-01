@@ -381,10 +381,49 @@ async function countVisibleLedgerHeaderCells(frame: Frame): Promise<number> {
   return hits;
 }
 
-/** 재고수불부 결과 테이블 (Excel 버튼 불필요) */
+async function hasVisibleLedgerExcel(page: Page): Promise<boolean> {
+  if (await isStockResultsReady(page)) return false;
+
+  const scanFrames = async (frames: Frame[]) => {
+    for (const frame of frames) {
+      try {
+        if (await isStockFrame(frame)) continue;
+        for (const sel of EXCEL_SELECTORS) {
+          const excel = frame.locator(sel).first();
+          if ((await excel.count()) > 0 && (await excel.isVisible())) {
+            const box = await excel.boundingBox();
+            if (box && box.width > 2 && box.height > 2) return true;
+          }
+        }
+        const excelText = frame.getByText(/^Excel$/i).first();
+        if ((await excelText.count()) > 0 && (await excelText.isVisible())) return true;
+      } catch {
+        /* skip */
+      }
+    }
+    return false;
+  };
+
+  const ledgerFrames = await findLedgerFrames(page);
+  if (await scanFrames(ledgerFrames)) return true;
+
+  if (isKnownLedgerPrgId(getPagePrgId(page))) {
+    const nonStock = [];
+    for (const frame of page.frames()) {
+      if (!(await isStockFrame(frame))) nonStock.push(frame);
+    }
+    if (await scanFrames(nonStock)) return true;
+  }
+
+  const visible = await findVisibleExcelButton(page);
+  return visible !== null && !(await isStockResultsReady(page));
+}
+
+/** 재고수불부 결과 테이블 또는 Excel 버튼 */
 export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
   if (await isReportsListingPage(page)) return false;
   if (await isStockResultsReady(page)) return false;
+  if (await hasVisibleLedgerExcel(page)) return true;
 
   for (const frame of page.frames()) {
     try {
@@ -475,11 +514,6 @@ export async function waitForLedgerSearchForm(page: Page, maxSec = 45): Promise<
   return (await isLedgerSearchForm(page)) || (await isLedgerResultsTableReady(page));
 }
 
-async function hasVisibleLedgerExcel(page: Page): Promise<boolean> {
-  if (await isStockResultsReady(page)) return false;
-  return (await findVisibleExcelButton(page)) !== null;
-}
-
 /** 재고수불부 결과 (테이블 + Excel) */
 export async function isLedgerResultsReady(page: Page): Promise<boolean> {
   const tableReady = await isLedgerResultsTableReady(page);
@@ -490,13 +524,12 @@ export async function isLedgerResultsReady(page: Page): Promise<boolean> {
 }
 
 async function findExcelInLedgerResultsFrame(page: Page): Promise<{ frame: Frame; locator: Locator } | null> {
-  const onLedger =
-    (await isLedgerResultsTableReady(page)) ||
-    ((await isLedgerProgramPage(page)) && !(await isLedgerSearchForm(page)));
+  if (await isStockResultsReady(page)) return null;
 
-  if (!onLedger) return null;
+  const ledgerFrames = await findLedgerFrames(page);
+  const framesToScan = ledgerFrames.length > 0 ? ledgerFrames : page.frames();
 
-  for (const frame of page.frames()) {
+  for (const frame of framesToScan) {
     try {
       for (const sel of EXCEL_SELECTORS) {
         const loc = frame.locator(sel).first();
@@ -587,13 +620,14 @@ export async function waitForLedgerResultsReady(page: Page, maxSec = 90): Promis
       return false;
     }
     if (await isLedgerResultsTableReady(page)) {
-      console.log(`   ✓ 재고수불부 결과 확인 (${(i + 1) * 5}초)`);
+      const viaExcel = await hasVisibleLedgerExcel(page);
+      console.log(`   ✓ 재고수불부 결과 확인 (${(i + 1) * 5}초${viaExcel ? ", Excel" : ""})`);
       return true;
     }
     if (await isLedgerSearchLoading(page)) {
       console.log(`   … 조회 중 (${(i + 1) * 5}초)`);
-      await page.waitForTimeout(5000);
-      continue;
+    } else if (i > 0 && i % 6 === 0) {
+      console.log(`   … 결과 대기 (${(i + 1) * 5}초 / ${maxSec}초)`);
     }
     await page.waitForTimeout(5000);
   }
