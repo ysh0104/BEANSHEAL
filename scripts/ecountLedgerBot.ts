@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { createClient } from "@supabase/supabase-js";
 import { resolveEcountBotCredentials } from "../src/lib/ecountBotConfig";
-import { getLedgerBotDateRange } from "../src/lib/ecountLedgerDateRange";
+import { getLedgerBotDateRange, getLedgerDateRange } from "../src/lib/ecountLedgerDateRange";
 import { parseEcountLedgerExcel, parseEcountLedgerExcelBulk } from "../src/lib/ecountLedgerExcelParser";
 import { uploadEcountLedgerBotBatch, uploadEcountLedgerRows } from "../src/lib/ecountLedgerUpload";
 import { LEDGER_BULK_META_CD, upsertLedgerBulkMeta } from "../src/lib/ledgerSyncStatus";
@@ -66,24 +66,17 @@ async function downloadAndParseLedger(
 
   if (opts.isFirstInSession) {
     await navigateToLedgerReport(page, navOpts);
-  } else {
-    await dismissEcountPopups(page);
-    await runLedgerSearchAfterNavigate(page, navOpts);
   }
 
   let lastErr: unknown;
 
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const ready = (await isLedgerResultsTableReady(page)) || (await isLedgerResultsReady(page));
-    if (!ready) {
-      console.log(`   → 재고수불부 결과 대기 (${attempt + 1}/4)`);
-      const waitSec = navOpts.results_wait_sec ?? (navOpts.prod_cd ? 90 : 300);
-      const polled = await waitForLedgerResultsReady(page, Math.min(waitSec, 120), {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const waitSec = navOpts.results_wait_sec ?? (navOpts.prod_cd ? 90 : 300);
+    if (!(await isLedgerResultsTableReady(page)) && !(await isLedgerResultsReady(page))) {
+      console.log(`   → 결과 대기 (${attempt + 1}/2)...`);
+      await waitForLedgerResultsReady(page, Math.min(waitSec, 120), {
         dismissModal: () => dismissLedgerItemRedesignModal(page),
       });
-      if (!polled) {
-        await runLedgerSearchAfterNavigate(page, navOpts);
-      }
     }
 
     try {
@@ -107,27 +100,25 @@ async function downloadAndParseLedger(
     } catch (err) {
       lastErr = err;
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`   Excel/파싱 재시도 ${attempt + 1}/4:`, msg);
+      console.warn(`   Excel/파싱 재시도 ${attempt + 1}/2:`, msg);
 
-      if (msg === "LEDGER_SEARCH_LOADING" || msg === "LEDGER_TABLE_NOT_READY") {
+      if (attempt === 0 && (msg === "LEDGER_TABLE_NOT_READY" || msg === "LEDGER_SEARCH_LOADING")) {
         await dismissLedgerItemRedesignModal(page);
         await dismissEcountPopups(page);
-        const waitSec = navOpts.results_wait_sec ?? (navOpts.prod_cd ? 90 : 300);
-        const waited = await waitForLedgerResultsReady(page, Math.min(waitSec, 90), {
-          dismissModal: () => dismissLedgerItemRedesignModal(page),
-        });
-        if (waited) continue;
+        continue;
       }
 
-      await dismissLedgerItemRedesignModal(page);
-      await dismissEcountPopups(page);
-      await runLedgerSearchAfterNavigate(page, navOpts);
+      if (attempt === 0) {
+        await dismissLedgerItemRedesignModal(page);
+        await dismissEcountPopups(page);
+        await runLedgerSearchAfterNavigate(page, navOpts);
+      }
     }
   }
 
   throw lastErr instanceof Error
     ? lastErr
-    : new Error("재고수불부 엑셀 파싱 실패 — 재고수불부 화면(일자·입고·출고)인지 GitHub 아티팩트 스크린샷을 확인하세요.");
+    : new Error("재고수불부 엑셀 파싱 실패 — GitHub 아티팩트 스크린샷을 확인하세요.");
 }
 
 /** 단일 품목 재고수불부 동기화 (브라우저 세션 내, prod_cd 지정 시) */

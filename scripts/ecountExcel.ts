@@ -301,22 +301,7 @@ export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
 
 /** 재고수불부 검색 조건 화면 */
 export async function isLedgerSearchForm(page: Page): Promise<boolean> {
-  if (await isLedgerResultsTableReady(page)) return false;
-  if (await isStockResultsReady(page)) return false;
-  if (await isReportsListingPage(page)) return false;
-
-  if (await isLedgerProgramPage(page)) {
-    for (const frame of page.frames()) {
-      try {
-        const periodHint = frame.locator("text=/조회기간|기간|품목코드/").first();
-        if ((await periodHint.count()) > 0 && (await periodHint.isVisible())) return true;
-        const dateInputs = frame.locator('input[type="text"]:visible');
-        if ((await dateInputs.count()) >= 2) return true;
-      } catch {
-        /* skip */
-      }
-    }
-  }
+  if (await isStockResultsReady(page) || (await isStockSearchForm(page))) return false;
 
   for (const frame of page.frames()) {
     try {
@@ -329,10 +314,12 @@ export async function isLedgerSearchForm(page: Page): Promise<boolean> {
       const stockQty = frame.locator("text=재고수량").first();
       if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) continue;
 
-      const periodHint = frame.locator("text=/조회기간|기간|품목코드/").first();
+      const ledgerTitle = frame.getByText(/재고\s*수불부/).first();
+      const periodHint = frame.locator("text=/조회기간|품목코드/").first();
+      if ((await ledgerTitle.count()) > 0 && (await ledgerTitle.isVisible())) return true;
       if ((await periodHint.count()) > 0 && (await periodHint.isVisible())) return true;
 
-      const dateInputs = frame.locator('input[type="text"]');
+      const dateInputs = frame.locator('input[type="text"]:visible');
       if ((await dateInputs.count()) >= 2) return true;
     } catch {
       /* skip */
