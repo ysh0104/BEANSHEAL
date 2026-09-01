@@ -66,6 +66,7 @@ jobs:
           ECOUNT_PW: ${{ secrets.ECOUNT_PW }}
           ECOUNT_STOCK_MENU_DEPTH1: ${{ secrets.ECOUNT_STOCK_MENU_DEPTH1 }}
           ECOUNT_STOCK_MENU_DEPTH2: ${{ secrets.ECOUNT_STOCK_MENU_DEPTH2 }}
+          ECOUNT_STOCK_MENU_URL: ${{ secrets.ECOUNT_STOCK_MENU_URL }}
           ECOUNT_LEDGER_MENU_URL: ${{ secrets.ECOUNT_LEDGER_MENU_URL }}
           ECOUNT_LEDGER_PRG_ID: ${{ secrets.ECOUNT_LEDGER_PRG_ID }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}

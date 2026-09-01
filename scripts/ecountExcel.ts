@@ -166,6 +166,14 @@ export { SEARCH_BTN_PATTERN };
 export async function isReportsListingPage(page: Page): Promise<boolean> {
   for (const frame of page.frames()) {
     try {
+      const searchBtn = frame.getByText(SEARCH_BTN_PATTERN).first();
+      if ((await searchBtn.count()) > 0 && (await searchBtn.isVisible())) {
+        const ledgerPeriod = frame.locator("text=/조회기간|품목코드/").first();
+        const stockDate = frame.locator("text=기준일자").first();
+        if ((await ledgerPeriod.count()) > 0 && (await ledgerPeriod.isVisible())) return false;
+        if ((await stockDate.count()) > 0 && (await stockDate.isVisible())) return false;
+      }
+
       const folderTitle = frame.getByText(/^출력물$/).first();
       const hasTitle = (await folderTitle.count()) > 0 && (await folderTitle.isVisible());
 
@@ -180,7 +188,6 @@ export async function isReportsListingPage(page: Page): Promise<boolean> {
       const hasStock = (await stockInContent.count()) > 0;
 
       if (hasTitle && hasLedger) return true;
-      // 제목 iframe 밖일 때: 재고현황+재고수불부 카드 링크가 함께 있으면 출력물 목록
       if (hasLedger && hasStock) return true;
     } catch {
       /* skip */

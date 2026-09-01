@@ -39,6 +39,22 @@ export function normalizeStockMenuUrl(raw: string): string {
   return parsed?.normalized?.trim() || raw.trim();
 }
 
+/** hash의 prgId를 바꿔 특정 보고서 프로그램 URL 생성 */
+export function buildProgramMenuUrl(raw: string, prgId: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed || !prgId.trim()) return trimmed;
+  try {
+    const u = new URL(trimmed);
+    u.searchParams.delete("ec_req_sid");
+    const hashRaw = u.hash.startsWith("#") ? u.hash.slice(1) : u.hash;
+    const params = new URLSearchParams(hashRaw);
+    params.set("prgId", prgId.trim());
+    u.hash = params.toString() ? `#${params.toString()}` : "";
+    return u.toString();
+  } catch {
+    return trimmed;
+  }
+}
 /** 재고현황 prgId 제거 — 출력물 폴더만 열기 (재고수불부 등 sibling 메뉴 클릭용) */
 export function stripPrgIdFromMenuUrl(raw: string): string {
   const trimmed = raw.trim();

@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { parseStockMenuUrl } from "../src/lib/ecountStockMenuUrl";
+import { buildProgramMenuUrl, parseStockMenuUrl } from "../src/lib/ecountStockMenuUrl";
 import { dismissEcountPopups } from "./ecountNavigateStock";
 import {
   isLedgerProgramPage,
@@ -12,14 +12,27 @@ import {
   waitForLedgerResultsReady,
 } from "./ecountExcel";
 
+const OUTPUT_FOLDER_PRG_IDS = new Set(["C000035"]);
+
 const LEDGER_PRG_ID_CANDIDATES = [
-  process.env.ECOUNT_LEDGER_PRG_ID?.trim(),
   "C000036",
   "C000037",
   "C000034",
   "C000038",
   "C000039",
-].filter(Boolean) as string[];
+];
+
+function ledgerDirectPrgIds(opts: { ledgerUrl: string; explicitPrgId?: string | null }): string[] {
+  const fromEnv = process.env.ECOUNT_LEDGER_PRG_ID?.trim();
+  const fromUrl = opts.ledgerUrl ? parseStockMenuUrl(opts.ledgerUrl)?.prgId : null;
+  const candidates = [
+    opts.explicitPrgId?.trim(),
+    fromEnv,
+    fromUrl && !OUTPUT_FOLDER_PRG_IDS.has(fromUrl) ? fromUrl : null,
+    ...LEDGER_PRG_ID_CANDIDATES,
+  ].filter(Boolean) as string[];
+  return [...new Set(candidates)];
+}
 
 const LEDGER_MENUTREE_CANDIDATES = [
   "MENUTREE_000036",
@@ -99,6 +112,33 @@ async function isLedgerScreenReady(page: Page): Promise<boolean> {
   );
 }
 
+async function waitForLedgerScreenReady(page: Page, maxSec = 30): Promise<boolean> {
+  const steps = Math.ceil(maxSec / 2);
+  for (let i = 0; i < steps; i++) {
+    await dismissEcountPopups(page);
+    if (await isLedgerScreenReady(page)) {
+      console.log(`   ✓ 재고수불부 화면 확인 (${(i + 1) * 2}초)`);
+      return true;
+    }
+    await page.waitForTimeout(2000);
+  }
+  return false;
+}
+
+async function gotoLedgerProgramUrl(page: Page, baseUrl: string, prgId: string): Promise<boolean> {
+  const target = buildProgramMenuUrl(baseUrl, prgId);
+  console.log(`   → prgId 직접 이동: ${prgId}`);
+  try {
+    await page.goto(target, { waitUntil: "networkidle", timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await dismissEcountPopups(page);
+    return await waitForLedgerScreenReady(page, 25);
+  } catch (e) {
+    console.warn(`   ⚠ prgId URL 이동 실패 (${prgId}):`, e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
 async function openInventoryReportsFolder(page: Page, menuUrl: string): Promise<void> {
   console.log(`   → 출력물 폴더 URL 이동 (prgId 포함)`);
 
@@ -117,18 +157,18 @@ async function openInventoryReportsFolder(page: Page, menuUrl: string): Promise<
   await dismissEcountPopups(page);
 }
 
-/** 출력물 카드 목록 → 「재고수불부」 클릭 (본문 카드 → 왼쪽 트리 순) */
+/** 출력물 카드 목록 → 「재고수불부」 클릭 (좌측 트리 → 본문 카드 순) */
 async function tryClickLedgerLink(page: Page, link: import("playwright").Locator, label: string): Promise<boolean> {
   try {
     if (!(await link.isVisible())) return false;
     await link.scrollIntoViewIfNeeded().catch(() => {});
     await link.click({ force: true });
-    console.log(`   ✓ ${label}`);
-    await page.waitForTimeout(8000);
-    if (await isLedgerScreenReady(page)) return true;
+    console.log(`   ✓ ${label} 클릭`);
+    if (await waitForLedgerScreenReady(page, 20)) return true;
+
     await link.evaluate((el: HTMLElement) => el.click());
-    await page.waitForTimeout(8000);
-    return await isLedgerScreenReady(page);
+    console.log(`   → ${label} JS 재클릭`);
+    return await waitForLedgerScreenReady(page, 20);
   } catch {
     return false;
   }
@@ -156,29 +196,21 @@ async function clickLedgerFromReportsListing(page: Page): Promise<boolean> {
     "main a",
   ].join(", ");
 
-  const sidebarSelectors = [
-    "#sideTab a",
-    '[class*="side"] a',
-    '[class*="tree"] a',
-    '[class*="menu-tree"] a',
-    "nav a",
-  ].join(", ");
-
   for (const frame of page.frames()) {
-    // 1) 본문 카드 링크 (2번째 스크린샷 중앙 그리드)
-    const contentLinks = frame.locator(contentSelectors).filter({ hasText: /^재고\s*수불부$/ });
-    const contentCount = await contentLinks.count();
-    for (let i = 0; i < contentCount; i++) {
-      if (await tryClickLedgerLink(page, contentLinks.nth(i), `본문 카드 재고수불부 (${i + 1}/${contentCount})`)) {
+    // 1) 왼쪽 트리 메뉴 (재고현황 봇과 동일 — leaf 링크 우선)
+    const sidebarLinks = frame.locator("a").filter({ hasText: /^재고\s*수불부$/ });
+    const sideCount = await sidebarLinks.count();
+    for (let i = sideCount - 1; i >= 0; i--) {
+      if (await tryClickLedgerLink(page, sidebarLinks.nth(i), `좌측 메뉴 재고수불부 (${i + 1}/${sideCount})`)) {
         return true;
       }
     }
 
-    // 2) 왼쪽 트리 메뉴 (2번째 스크린샷 좌측 — 1번째 스크린으로 이동)
-    const sidebarLinks = frame.locator(sidebarSelectors).filter({ hasText: /^재고\s*수불부$/ });
-    const sideCount = await sidebarLinks.count();
-    for (let i = 0; i < sideCount; i++) {
-      if (await tryClickLedgerLink(page, sidebarLinks.nth(i), `좌측 메뉴 재고수불부 (${i + 1}/${sideCount})`)) {
+    // 2) 본문 카드 링크
+    const contentLinks = frame.locator(contentSelectors).filter({ hasText: /^재고\s*수불부$/ });
+    const contentCount = await contentLinks.count();
+    for (let i = 0; i < contentCount; i++) {
+      if (await tryClickLedgerLink(page, contentLinks.nth(i), `본문 카드 재고수불부 (${i + 1}/${contentCount})`)) {
         return true;
       }
     }
@@ -295,8 +327,25 @@ export async function openLedgerProgram(page: Page, prgId?: string | null): Prom
     for (const sel of prgSelectors) {
       if (await clickInAnyFrame(page, sel)) {
         console.log(`   ✓ prgId 링크: ${id}`);
-        await page.waitForTimeout(4000);
-        if (await isLedgerScreenReady(page)) return true;
+        if (await waitForLedgerScreenReady(page, 20)) return true;
+      }
+    }
+  }
+
+  // 사이드바 leaf 링크 (재고현황 봇 패턴)
+  for (const frame of page.frames()) {
+    const links = frame.locator("a").filter({ hasText: /^재고\s*수불부$/ });
+    const count = await links.count();
+    for (let i = count - 1; i >= 0; i--) {
+      try {
+        const link = links.nth(i);
+        if (await link.isVisible()) {
+          await link.click({ force: true });
+          console.log(`   ✓ 사이드바 재고수불부 클릭 (${i + 1}/${count})`);
+          if (await waitForLedgerScreenReady(page, 20)) return true;
+        }
+      } catch {
+        /* next */
       }
     }
   }
@@ -646,12 +695,18 @@ async function ensureLedgerScreen(page: Page, opts: LedgerNavOptions): Promise<b
   ).trim();
   const stockUrl = (opts.stock_menu_url || process.env.ECOUNT_STOCK_MENU_URL || "").trim();
   const folderUrl = ledgerUrl || stockUrl;
-  const ledgerPrgId = ledgerUrl ? parseStockMenuUrl(ledgerUrl)?.prgId : null;
+  const directPrgIds = ledgerDirectPrgIds({ ledgerUrl });
 
-  // 1) 저장된 URL(prgId 포함) → 출력물 목록 → 카드에서 재고수불부 클릭
+  // 1) 저장된 URL(prgId 포함) → 출력물 목록 → 재고수불부 클릭
   if (folderUrl) {
     await openInventoryReportsFolder(page, folderUrl);
     if (await clickLedgerFromReportsListing(page)) return true;
+    if (await openLedgerProgram(page, directPrgIds[0])) return true;
+
+    // 2) prgId URL 직접 이동 (카드 클릭 실패 시)
+    for (const id of directPrgIds) {
+      if (await gotoLedgerProgramUrl(page, folderUrl, id)) return true;
+    }
     if (await isLedgerScreenReady(page)) return true;
   }
 
@@ -664,7 +719,7 @@ async function ensureLedgerScreen(page: Page, opts: LedgerNavOptions): Promise<b
     console.log(`   → 재고수불부 전용 URL 재시도`);
     await openInventoryReportsFolder(page, ledgerUrl);
     if (await clickLedgerFromReportsListing(page)) return true;
-    if (await openLedgerProgram(page, ledgerPrgId)) return true;
+    if (await openLedgerProgram(page, directPrgIds[0])) return true;
   }
 
   const d1 = opts.stock_menu_depth1 || process.env.ECOUNT_STOCK_MENU_DEPTH1;
@@ -685,11 +740,11 @@ async function ensureLedgerScreen(page: Page, opts: LedgerNavOptions): Promise<b
   }
 
   if (await clickLedgerFromReportsListing(page)) return true;
-  if (await openLedgerProgram(page, ledgerPrgId)) return true;
+  if (await openLedgerProgram(page, directPrgIds[0])) return true;
 
   if (await tryMenuSearchLedger(page)) {
     await clickLedgerMenuSearchResult(page);
-    if (await openLedgerProgram(page, ledgerPrgId)) return true;
+    if (await openLedgerProgram(page, directPrgIds[0])) return true;
   }
 
   return await isLedgerScreenReady(page);
@@ -701,6 +756,10 @@ export async function navigateToLedgerReport(page: Page, opts: LedgerNavOptions)
   await dismissEcountPopups(page);
 
   if (!(await ensureLedgerScreen(page, opts))) {
+    const listing = await isReportsListingPage(page);
+    const program = await isLedgerProgramPage(page);
+    const searchForm = await isLedgerSearchForm(page);
+    console.warn(`   ⚠ 화면 상태: listing=${listing}, program=${program}, searchForm=${searchForm}, url=${page.url()}`);
     throw new Error(
       "재고수불부 메뉴를 찾지 못했습니다. /admin/ecount-bot 에 재고현황 URL을 저장했거나, GitHub Secret ECOUNT_LEDGER_MENU_URL(재고수불부 화면 URL)을 설정하세요."
     );
