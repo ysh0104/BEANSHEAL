@@ -17,7 +17,7 @@ import { navigateToLedgerReport, runLedgerSearchAfterNavigate } from "./ecountNa
 import {
   clickLedgerExcelDownload,
   findVisibleExcelButton,
-  isLedgerResultsReady,
+  isLedgerResultsTableReady,
 } from "./ecountExcel";
 
 const DOWNLOAD_DIR = path.join(process.cwd(), "downloads");
@@ -56,7 +56,7 @@ async function downloadLedgerExcel(page: Page, saveAs: string, navOpts: LedgerIt
   if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 
   for (let attempt = 0; attempt < 4; attempt++) {
-    if (!(await isLedgerResultsReady(page))) {
+    if (!(await isLedgerResultsTableReady(page))) {
       console.log(`   → 결과 아님 — 검색 재시도 (${attempt + 1}/4)`);
       await runLedgerSearchAfterNavigate(page, navOpts);
     }
@@ -73,7 +73,7 @@ async function downloadLedgerExcel(page: Page, saveAs: string, navOpts: LedgerIt
   }
 
   const found = await findVisibleExcelButton(page);
-  const ready = await isLedgerResultsReady(page);
+  const ready = await isLedgerResultsTableReady(page);
   console.log(`   excel=${found ? "found" : "none"}, ready=${ready}, url=${page.url()}`);
   throw new Error("재고수불부 엑셀 다운로드 실패");
 }
