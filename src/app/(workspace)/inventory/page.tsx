@@ -93,6 +93,13 @@ export default function InventoryPage() {
   const [showOnlyLowStock, setShowOnlyLowStock] = useState(false);
   const [safetyConfigs, setSafetyConfigs] = useState<Record<string, number>>({});
   const [syncingMaster, setSyncingMaster] = useState(false);
+  const [syncingLedger, setSyncingLedger] = useState(false);
+  const [ledgerLastSyncedAt, setLedgerLastSyncedAt] = useState<string | null>(null);
+  const [ledgerSyncedCount, setLedgerSyncedCount] = useState(0);
+  const [ledgerBotWatchPhase, setLedgerBotWatchPhase] = useState<BotWatchPhase>("idle");
+  const [ledgerBotStatusLine, setLedgerBotStatusLine] = useState("");
+  const ledgerBaselineRef = useRef<string | null>(null);
+  const ledgerTriggeredAtRef = useRef<string | null>(null);
   const [rawLogModalData, setRawLogModalData] = useState<any>(null);
   const [ledgerModal, setLedgerModal] = useState<{
     prodCd: string;
@@ -103,7 +110,6 @@ export default function InventoryPage() {
     periodLabel: string;
     error: string;
   } | null>(null);
-  const ledgerPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const handleResetAllSafetyStockToZero = async () => {
     if (!confirm("모든 품목의 안전재고 기준을 0으로 일괄 저장하시겠습니까?")) return;
     setLoadingInv(true);
@@ -125,6 +131,19 @@ export default function InventoryPage() {
       setLoadingInv(false);
     }
   };
+
+  const refreshLedgerStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/sync-inventory/ledger", { cache: "no-store" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.last_synced_at) setLedgerLastSyncedAt(data.last_synced_at);
+      if (typeof data.synced_item_count === "number") setLedgerSyncedCount(data.synced_item_count);
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const refreshSyncStatus = useCallback(async (): Promise<SyncStatusPayload | null> => {
     try {
@@ -168,7 +187,8 @@ export default function InventoryPage() {
     }
   };
 
-  const botSyncInProgress = syncingMaster || botWatchPhase === "watching";
+  const botSyncInProgress =
+    syncingMaster || syncingLedger || botWatchPhase === "watching" || ledgerBotWatchPhase === "watching";
 
   const handleSyncMaster = async () => {
     if (botSyncInProgress) {
@@ -217,6 +237,45 @@ export default function InventoryPage() {
       });
     } finally {
       setSyncingMaster(false);
+    }
+  };
+
+  const handleSyncLedger = async () => {
+    if (botSyncInProgress) {
+      alert("이미 GitHub 봇이 실행 중입니다. 완료될 때까지 기다려 주세요.");
+      return;
+    }
+
+    if (
+      !confirm(
+        "재고수불부 일괄 동기화를 실행할까요?\n\n· 재고 > 0 품목 전체를 순차 처리합니다\n· 최초: 2025/01/01~, 이후: 6개월 롤링\n· 품목 수에 따라 10~60분 이상 소요될 수 있습니다\n· 완료 후 품목명 클릭 시 수불부·시리얼/로트가 바로 표시됩니다"
+      )
+    )
+      return;
+
+    setSyncingLedger(true);
+    setLedgerBotWatchPhase("watching");
+    setLedgerBotStatusLine("GitHub 재고수불부 봇 시작 요청 중…");
+    ledgerBaselineRef.current = ledgerLastSyncedAt;
+    ledgerTriggeredAtRef.current = new Date().toISOString();
+
+    await refreshLedgerStatus();
+
+    try {
+      const res = await fetch("/api/sync-inventory/ledger", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setLedgerBotStatusLine("GitHub Actions에서 재고수불부 일괄 동기화 중…");
+      } else {
+        setLedgerBotWatchPhase("failed");
+        setLedgerBotStatusLine(data.message || "봇 시작 실패");
+        alert(data.message || "재고수불부 동기화 시작에 실패했습니다.");
+      }
+    } catch (err: unknown) {
+      setLedgerBotWatchPhase("failed");
+      setLedgerBotStatusLine("봇 트리거 통신 오류");
+    } finally {
+      setSyncingLedger(false);
     }
   };
 
@@ -298,9 +357,13 @@ export default function InventoryPage() {
 
   useEffect(() => {
     refreshSyncStatus();
-    const timer = setInterval(() => refreshSyncStatus(), 15000);
+    refreshLedgerStatus();
+    const timer = setInterval(() => {
+      refreshSyncStatus();
+      refreshLedgerStatus();
+    }, 15000);
     return () => clearInterval(timer);
-  }, [refreshSyncStatus]);
+  }, [refreshSyncStatus, refreshLedgerStatus]);
 
   useEffect(() => {
     if (botWatchPhase !== "watching") return;
@@ -357,6 +420,59 @@ export default function InventoryPage() {
     const interval = setInterval(poll, 5000);
     return () => clearInterval(interval);
   }, [botWatchPhase, refreshSyncStatus]);
+
+  useEffect(() => {
+    if (ledgerBotWatchPhase !== "watching") return;
+
+    const started = Date.now();
+    const maxMs = 120 * 60 * 1000;
+
+    const poll = async () => {
+      const data = await refreshLedgerStatus();
+      if (!data) return;
+
+      const triggeredAt = ledgerTriggeredAtRef.current || new Date().toISOString();
+      const baseline = ledgerBaselineRef.current;
+
+      const bulkNewer =
+        data.last_synced_at &&
+        (!baseline || new Date(data.last_synced_at).getTime() > new Date(baseline).getTime() - 3000);
+
+      if (bulkNewer) {
+        setLedgerBotWatchPhase("idle");
+        setLedgerBotStatusLine("");
+        setLedgerLastSyncedAt(data.last_synced_at);
+        setLedgerSyncedCount(data.synced_item_count);
+        fetchInventory();
+        return;
+      }
+
+      const run = data.github_run;
+      const runForThisTrigger =
+        run && isGithubRunFromTrigger(run, triggeredAt) ? run : null;
+
+      if (runForThisTrigger?.status === "completed" && runForThisTrigger.conclusion === "failure") {
+        setLedgerBotWatchPhase("failed");
+        setLedgerBotStatusLine("재고수불부 봇 실패 — Actions 로그 확인");
+        return;
+      }
+
+      if (runForThisTrigger?.status === "in_progress" || runForThisTrigger?.status === "queued") {
+        setLedgerBotStatusLine(`${formatGithubRunLabel(runForThisTrigger)} · 품목별 수불부 동기화 중…`);
+      } else {
+        setLedgerBotStatusLine("재고수불부 봇 실행 중… (15초마다 자동 확인)");
+      }
+
+      if (Date.now() - started > maxMs) {
+        setLedgerBotWatchPhase("timeout");
+        setLedgerBotStatusLine("2시간 내 완료 신호 없음 — GitHub Actions에서 진행 상황을 확인하세요");
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, [ledgerBotWatchPhase, refreshLedgerStatus]);
 
   // [수정] 검색어, 수량 0 숨기기, 안전재고 미달 필터링 동시 적용
   const filteredInventory = inventory.filter(item => {
@@ -429,17 +545,7 @@ export default function InventoryPage() {
     return `${nums[0]} 외 ${nums.length - 1}건`;
   };
 
-  const stopLedgerPoll = () => {
-    if (ledgerPollRef.current) {
-      clearInterval(ledgerPollRef.current);
-      ledgerPollRef.current = null;
-    }
-  };
-
-  useEffect(() => () => stopLedgerPoll(), []);
-
-  const openLedgerModal = async (prodCd: string, prodNm: string, force = false) => {
-    stopLedgerPoll();
+  const openLedgerModal = async (prodCd: string, prodNm: string) => {
     setLedgerModal({
       prodCd,
       prodNm,
@@ -456,7 +562,7 @@ export default function InventoryPage() {
       });
       const getData = await getRes.json();
 
-      if (!force && getData.success && getData.has_data) {
+      if (getData.success && getData.has_data) {
         const p = getData.planned_period;
         setLedgerModal({
           prodCd,
@@ -464,88 +570,38 @@ export default function InventoryPage() {
           loading: false,
           syncing: false,
           rows: getData.rows,
-          periodLabel: p ? `${p.from} ~ ${p.to}` : "",
+          periodLabel: p ? `${p.from} ~ ${p.to}` : getData.meta?.period_from ? `${getData.meta.period_from} ~ ${getData.meta.period_to}` : "",
           error: "",
         });
         return;
       }
 
-      setLedgerModal((m) =>
-        m ? { ...m, loading: false, syncing: true, periodLabel: getData.planned_period ? `${getData.planned_period.from} ~ ${getData.planned_period.to}` : "" } : m
-      );
-
-      const postRes = await fetch("/api/inventory/ledger", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prod_cd: prodCd, prod_nm: prodNm, force }),
+      setLedgerModal({
+        prodCd,
+        prodNm,
+        loading: false,
+        syncing: false,
+        rows: [],
+        periodLabel: getData.planned_period ? `${getData.planned_period.from} ~ ${getData.planned_period.to}` : "",
+        error:
+          ledgerBotWatchPhase === "watching"
+            ? "재고수불부 일괄 동기화가 진행 중입니다. 완료 후 다시 열어주세요."
+            : "수불부 데이터가 없습니다. 상단 「수불부 봇 동기화」 버튼을 먼저 실행하세요.",
       });
-      const postData = await postRes.json();
-
-      if (postData.cached && postData.rows?.length) {
-        const p = postData.planned_period;
-        setLedgerModal({
-          prodCd,
-          prodNm,
-          loading: false,
-          syncing: false,
-          rows: postData.rows,
-          periodLabel: p ? `${p.from} ~ ${p.to}` : "",
-          error: "",
-        });
-        return;
-      }
-
-      if (!postData.success) {
-        setLedgerModal((m) =>
-          m ? { ...m, loading: false, syncing: false, error: postData.message || "동기화 시작 실패" } : m
-        );
-        return;
-      }
-
-      const baseline = getData.meta?.last_synced_at || null;
-      let attempts = 0;
-      ledgerPollRef.current = setInterval(async () => {
-        attempts += 1;
-        const pollRes = await fetch(`/api/inventory/ledger?prod_cd=${encodeURIComponent(prodCd)}`, {
-          cache: "no-store",
-        });
-        const pollData = await pollRes.json();
-        const newer =
-          pollData.success &&
-          pollData.has_data &&
-          (!baseline || pollData.meta?.last_synced_at !== baseline);
-
-        if (newer || attempts >= 36) {
-          stopLedgerPoll();
-          const p = pollData.planned_period;
-          setLedgerModal({
-            prodCd,
-            prodNm,
-            loading: false,
-            syncing: false,
-            rows: pollData.rows || [],
-            periodLabel: p ? `${p.from} ~ ${p.to}` : postData.planned_period ? `${postData.planned_period.from} ~ ${postData.planned_period.to}` : "",
-            error: pollData.rows?.length ? "" : "동기화 시간 초과 — GitHub Actions에서 결과를 확인하세요.",
-          });
-          if (pollData.rows?.length) fetchInventory();
-        }
-      }, 5000);
     } catch (e) {
-      setLedgerModal((m) =>
-        m
-          ? {
-              ...m,
-              loading: false,
-              syncing: false,
-              error: e instanceof Error ? e.message : "재고수불부 조회 오류",
-            }
-          : m
-      );
+      setLedgerModal({
+        prodCd,
+        prodNm,
+        loading: false,
+        syncing: false,
+        rows: [],
+        periodLabel: "",
+        error: e instanceof Error ? e.message : "재고수불부 조회 오류",
+      });
     }
   };
 
   const closeLedgerModal = () => {
-    stopLedgerPoll();
     setLedgerModal(null);
   };
 
@@ -597,6 +653,12 @@ export default function InventoryPage() {
             <span className="text-slate-600">{itemCount.toLocaleString("ko-KR")}건</span>
             <span className="ml-2 text-[11px] text-slate-400">(15초마다 자동 갱신)</span>
           </p>
+          <p className="text-sm text-slate-600">
+            수불부 동기화:{" "}
+            <span className="font-semibold text-slate-800">{formatLastSyncedAt(ledgerLastSyncedAt)}</span>
+            <span className="text-slate-400 mx-2">·</span>
+            <span className="text-slate-600">{ledgerSyncedCount.toLocaleString("ko-KR")}품목</span>
+          </p>
 
           {botWatchPhase !== "idle" && botStatusLine && (
             <p
@@ -613,6 +675,36 @@ export default function InventoryPage() {
               )}
               {botStatusLine}
               {githubActionsUrl && (botWatchPhase === "watching" || botWatchPhase === "failed" || botWatchPhase === "timeout") && (
+                <>
+                  {" "}
+                  <a
+                    href={githubActionsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline font-bold whitespace-nowrap"
+                  >
+                    GitHub Actions
+                  </a>
+                </>
+              )}
+            </p>
+          )}
+
+          {ledgerBotWatchPhase !== "idle" && ledgerBotStatusLine && (
+            <p
+              className={`text-sm font-medium max-w-2xl px-3 py-2 rounded-lg border ${
+                ledgerBotWatchPhase === "failed"
+                  ? "text-rose-800 bg-rose-50 border-rose-200"
+                  : ledgerBotWatchPhase === "timeout"
+                    ? "text-amber-800 bg-amber-50 border-amber-200"
+                    : "text-violet-800 bg-violet-50 border-violet-200"
+              }`}
+            >
+              {ledgerBotWatchPhase === "watching" && (
+                <span className="inline-block w-2 h-2 rounded-full bg-violet-500 animate-pulse mr-2 align-middle" />
+              )}
+              {ledgerBotStatusLine}
+              {githubActionsUrl && (ledgerBotWatchPhase === "watching" || ledgerBotWatchPhase === "failed" || ledgerBotWatchPhase === "timeout") && (
                 <>
                   {" "}
                   <a
@@ -690,7 +782,15 @@ export default function InventoryPage() {
                   className="text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-2 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   title={botSyncInProgress ? "GitHub Actions에서 봇 실행 중" : undefined}
                 >
-                  {botSyncInProgress ? "봇 실행 중…" : "엑셀 봇 자동 동기화"}
+                  {syncingMaster || botWatchPhase === "watching" ? "재고 봇 실행 중…" : "엑셀 봇 자동 동기화"}
+                </button>
+                <button
+                  onClick={handleSyncLedger}
+                  disabled={botSyncInProgress}
+                  className="text-sm font-bold text-violet-800 bg-violet-50 border border-violet-300 px-4 py-2 hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={botSyncInProgress ? "GitHub Actions에서 봇 실행 중" : undefined}
+                >
+                  {syncingLedger || ledgerBotWatchPhase === "watching" ? "수불부 봇 실행 중…" : "수불부 봇 동기화"}
                 </button>
                 <button
                   onClick={handleResetAllSafetyStockToZero}
@@ -718,7 +818,16 @@ export default function InventoryPage() {
               className="hidden md:inline-flex text-sm font-bold text-blue-700 bg-blue-50 border border-blue-300 px-4 py-1.5 hover:bg-blue-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
               title={botSyncInProgress ? "GitHub Actions에서 봇 실행 중" : undefined}
             >
-              {botSyncInProgress ? "봇 실행 중…" : "엑셀 봇 자동 동기화"}
+              {syncingMaster || botWatchPhase === "watching" ? "재고 봇 실행 중…" : "엑셀 봇 자동 동기화"}
+            </button>
+
+            <button
+              onClick={handleSyncLedger}
+              disabled={botSyncInProgress}
+              className="hidden md:inline-flex text-sm font-bold text-violet-800 bg-violet-50 border border-violet-300 px-4 py-1.5 hover:bg-violet-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
+              title="재고 > 0 품목 재고수불부·시리얼/로트 일괄 동기화"
+            >
+              {syncingLedger || ledgerBotWatchPhase === "watching" ? "수불부 봇 실행 중…" : "수불부 봇 동기화"}
             </button>
 
             <button
@@ -1019,11 +1128,11 @@ export default function InventoryPage() {
             <div className="border-t border-gray-200 px-4 py-3 flex justify-end gap-2 bg-gray-50">
               <button
                 type="button"
-                onClick={() => openLedgerModal(ledgerModal.prodCd, ledgerModal.prodNm, true)}
-                disabled={ledgerModal.loading || ledgerModal.syncing}
+                onClick={() => ledgerModal && openLedgerModal(ledgerModal.prodCd, ledgerModal.prodNm)}
+                disabled={ledgerModal.loading}
                 className="text-xs font-bold text-blue-700 border border-blue-300 bg-blue-50 px-3 py-1.5 rounded hover:bg-blue-100 disabled:opacity-50 cursor-pointer"
               >
-                새로고침
+                다시 불러오기
               </button>
               <button
                 type="button"

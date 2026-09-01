@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "stock = 재고현황, lot = 시리얼/로트, ledger = 재고수불부"
+        description: "stock = 재고현황, ledger_bulk = 재고수불부 일괄"
         required: false
         default: "stock"
         type: choice
@@ -14,6 +14,7 @@ on:
           - stock
           - lot
           - ledger
+          - ledger_bulk
       prod_cd:
         description: "재고수불부 품목코드 (ledger 전용)"
         required: false
@@ -34,7 +35,7 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 360
 
     steps:
       - name: Checkout

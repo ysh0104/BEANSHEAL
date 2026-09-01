@@ -134,6 +134,9 @@ async function main() {
   } else if (target === "ledger") {
     const { runEcountLedgerBot } = await import("./ecountLedgerBot");
     await runEcountLedgerBot();
+  } else if (target === "ledger_bulk") {
+    const { runEcountLedgerBulkBot } = await import("./ecountLedgerBot");
+    await runEcountLedgerBulkBot();
   } else {
     await runEcountStockBot();
   }
