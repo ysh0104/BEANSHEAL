@@ -39,6 +39,46 @@ export function normalizeStockMenuUrl(raw: string): string {
   return parsed?.normalized?.trim() || raw.trim();
 }
 
+/** 로그인 세션(ec_req_sid)을 유지하면서 저장 URL 기준으로 ERP 이동 URL 생성 */
+export function resolveErpNavigationTarget(currentPageUrl: string, savedMenuUrl: string): string | null {
+  const trimmed = savedMenuUrl.trim();
+  if (!trimmed) return null;
+
+  try {
+    const target = new URL(trimmed);
+    target.searchParams.delete("ec_req_sid");
+
+    try {
+      const current = new URL(currentPageUrl);
+      const sid = current.searchParams.get("ec_req_sid");
+      if (sid) target.searchParams.set("ec_req_sid", sid);
+    } catch {
+      /* ignore */
+    }
+
+    return target.toString();
+  } catch {
+    return null;
+  }
+}
+
+/** 저장 URL의 hash를 ERP 베이스(loginac…/ec5/view/erp)에 적용 */
+export function applyMenuHashFromSaved(currentPageUrl: string, savedMenuUrl: string): string | null {
+  const parsed = parseStockMenuUrl(savedMenuUrl);
+  if (!parsed?.hash) return resolveErpNavigationTarget(currentPageUrl, savedMenuUrl);
+
+  const base = resolveErpNavigationTarget(currentPageUrl, savedMenuUrl);
+  if (!base) return null;
+
+  try {
+    const u = new URL(base);
+    u.hash = parsed.hash.startsWith("#") ? parsed.hash : `#${parsed.hash}`;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
 /** hash의 prgId를 바꿔 특정 보고서 프로그램 URL 생성 */
 export function buildProgramMenuUrl(raw: string, prgId: string): string {
   const trimmed = raw.trim();

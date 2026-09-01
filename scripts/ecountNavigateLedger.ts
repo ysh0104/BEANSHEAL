@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { buildProgramMenuUrl, parseStockMenuUrl } from "../src/lib/ecountStockMenuUrl";
+import { buildProgramMenuUrl, applyMenuHashFromSaved, parseStockMenuUrl, resolveErpNavigationTarget } from "../src/lib/ecountStockMenuUrl";
 import { dismissEcountPopups } from "./ecountNavigateStock";
 import {
   isLedgerProgramPage,
@@ -9,6 +9,8 @@ import {
   isLedgerSearchLoading,
   isReportsListingPage,
   SEARCH_BTN_PATTERN,
+  isStockResultsReady,
+  isStockSearchForm,
   waitForLedgerResultsReady,
 } from "./ecountExcel";
 
@@ -74,14 +76,59 @@ async function clickTextInAnyFrame(page: Page, pattern: RegExp | string): Promis
 }
 
 async function gotoViaHash(page: Page, savedUrl: string): Promise<boolean> {
-  const parsed = parseStockMenuUrl(savedUrl);
-  if (!parsed?.hash) return false;
-  const current = new URL(page.url());
-  current.hash = parsed.hash.startsWith("#") ? parsed.hash : `#${parsed.hash}`;
-  console.log(`   → hash 네비게이션: ${current.toString().slice(0, 100)}...`);
-  await page.goto(current.toString(), { waitUntil: "networkidle", timeout: 90000 });
+  const target = applyMenuHashFromSaved(page.url(), savedUrl);
+  if (!target) return false;
+  console.log(`   → ERP hash 네비게이션: ${target.slice(0, 120)}...`);
+  await page.goto(target, { waitUntil: "networkidle", timeout: 90000 });
   await page.waitForTimeout(3000);
   return true;
+}
+
+async function gotoErpUrl(page: Page, savedUrl: string): Promise<boolean> {
+  const target = resolveErpNavigationTarget(page.url(), savedUrl);
+  if (!target) return false;
+  console.log(`   → ERP URL 이동: ${target.slice(0, 120)}...`);
+  await page.goto(target, { waitUntil: "networkidle", timeout: 90000 });
+  await page.waitForTimeout(3000);
+  return true;
+}
+
+async function ensureErpShell(page: Page, menuUrl: string): Promise<void> {
+  const current = page.url();
+  const onErp = /view\/erp|ECERP|OnetLogin\/Main/i.test(current);
+  const onLoginac = /loginac\.ecount\.com/i.test(current);
+  if (onErp && onLoginac) return;
+
+  console.log("   → ERP 셸 확보 (loginac /ec5/view/erp)...");
+  await gotoErpUrl(page, menuUrl);
+  await dismissEcountPopups(page);
+}
+
+/** 재고 I → 출력물 → 재고수불부 (수동 클릭과 동일) */
+async function navigateLedgerMenuTree(page: Page): Promise<boolean> {
+  console.log("   → 메뉴 트리: 재고 I → 출력물 → 재고수불부");
+
+  const topClicked =
+    (await clickInAnyFrame(page, "#link_depth1_MENUTREE_000004")) ||
+    (await clickTextInAnyFrame(page, /^재고\s*I$/)) ||
+    (await clickTextInAnyFrame(page, /^재고\s*Ⅰ$/)) ||
+    (await clickTextInAnyFrame(page, /재고\s*\(1\)/));
+
+  if (!topClicked) console.warn("   ⚠ 재고 I 메뉴 클릭 실패");
+  await page.waitForTimeout(2500);
+  await dismissEcountPopups(page);
+
+  const folderClicked =
+    (await clickInAnyFrame(page, "#link_depth2_MENUTREE_000035")) ||
+    (await clickTextInAnyFrame(page, /^출력물$/));
+
+  if (!folderClicked) console.warn("   ⚠ 출력물 폴더 클릭 실패");
+  await page.waitForTimeout(3000);
+  await dismissEcountPopups(page);
+
+  if (await clickLedgerFromReportsListing(page)) return true;
+  if (await openLedgerProgram(page, null)) return true;
+  return await waitForLedgerScreenReady(page, 20);
 }
 
 async function clickMenuIdsFromUrl(page: Page, savedUrl: string, skipDepth2 = false): Promise<boolean> {
@@ -105,11 +152,35 @@ async function clickMenuIdsFromUrl(page: Page, savedUrl: string, skipDepth2 = fa
 }
 
 async function isLedgerScreenReady(page: Page): Promise<boolean> {
+  if (await isLedgerSearchFormLoose(page)) return true;
   return (
     (await isLedgerProgramPage(page)) ||
     (await isLedgerSearchForm(page)) ||
     (await isLedgerResultsTableReady(page))
   );
+}
+
+/** 재고수불부 검색 화면 (느슨한 판별 — iframe·제목 변형 대응) */
+export async function isLedgerSearchFormLoose(page: Page): Promise<boolean> {
+  if (await isStockResultsReady(page) || (await isStockSearchForm(page))) return false;
+  if (await isReportsListingPage(page)) return false;
+
+  for (const frame of page.frames()) {
+    try {
+      const title = frame.getByText(/재고\s*수불부/).first();
+      const searchBtn = frame.getByText(SEARCH_BTN_PATTERN).first();
+      if ((await title.count()) === 0 || (await searchBtn.count()) === 0) continue;
+      if (!(await title.isVisible()) || !(await searchBtn.isVisible())) continue;
+
+      const stockDate = frame.locator("text=기준일자").first();
+      if ((await stockDate.count()) > 0 && (await stockDate.isVisible())) continue;
+
+      return true;
+    } catch {
+      /* skip */
+    }
+  }
+  return false;
 }
 
 async function waitForLedgerScreenReady(page: Page, maxSec = 30): Promise<boolean> {
@@ -126,13 +197,25 @@ async function waitForLedgerScreenReady(page: Page, maxSec = 30): Promise<boolea
 }
 
 async function gotoLedgerProgramUrl(page: Page, baseUrl: string, prgId: string): Promise<boolean> {
-  const target = buildProgramMenuUrl(baseUrl, prgId);
+  const withPrg = buildProgramMenuUrl(baseUrl, prgId);
+  const target = resolveErpNavigationTarget(page.url(), withPrg) || withPrg;
   console.log(`   → prgId 직접 이동: ${prgId}`);
   try {
     await page.goto(target, { waitUntil: "networkidle", timeout: 90000 });
     await page.waitForTimeout(3000);
     await dismissEcountPopups(page);
-    return await waitForLedgerScreenReady(page, 25);
+    if (await waitForLedgerScreenReady(page, 25)) return true;
+
+    // hash만 바꿔 재시도 (이미 ERP 위일 때)
+    const hashTarget = applyMenuHashFromSaved(page.url(), withPrg);
+    if (hashTarget && hashTarget !== target) {
+      console.log(`   → prgId hash 재시도: ${prgId}`);
+      await page.goto(hashTarget, { waitUntil: "networkidle", timeout: 90000 });
+      await page.waitForTimeout(3000);
+      await dismissEcountPopups(page);
+      return await waitForLedgerScreenReady(page, 25);
+    }
+    return false;
   } catch (e) {
     console.warn(`   ⚠ prgId URL 이동 실패 (${prgId}):`, e instanceof Error ? e.message : e);
     return false;
@@ -142,15 +225,14 @@ async function gotoLedgerProgramUrl(page: Page, baseUrl: string, prgId: string):
 async function openInventoryReportsFolder(page: Page, menuUrl: string): Promise<void> {
   console.log(`   → 출력물 폴더 URL 이동 (prgId 포함)`);
 
+  await ensureErpShell(page, menuUrl);
+
   const opened =
-    (await gotoViaHash(page, menuUrl)) || (await clickMenuIdsFromUrl(page, menuUrl, true));
+    (await gotoViaHash(page, menuUrl)) ||
+    (await clickMenuIdsFromUrl(page, menuUrl, true));
 
   if (!opened) {
-    const parsed = parseStockMenuUrl(menuUrl);
-    if (parsed?.normalized && !parsed.normalized.includes("ec_req_sid")) {
-      console.log("   → 정규화 URL 직접 이동 시도...");
-      await page.goto(parsed.normalized, { waitUntil: "networkidle", timeout: 90000 });
-    }
+    await gotoErpUrl(page, menuUrl);
   }
 
   await page.waitForTimeout(2500);
@@ -697,7 +779,14 @@ async function ensureLedgerScreen(page: Page, opts: LedgerNavOptions): Promise<b
   const folderUrl = ledgerUrl || stockUrl;
   const directPrgIds = ledgerDirectPrgIds({ ledgerUrl });
 
-  // 1) 저장된 URL(prgId 포함) → 출력물 목록 → 재고수불부 클릭
+  if (folderUrl) {
+    await ensureErpShell(page, folderUrl);
+  }
+
+  // 0) 메뉴 트리 클릭 (재고 I → 출력물 → 재고수불부)
+  if (await navigateLedgerMenuTree(page)) return true;
+
+  // 1) 저장된 URL → 출력물 목록 → 재고수불부 클릭
   if (folderUrl) {
     await openInventoryReportsFolder(page, folderUrl);
     if (await clickLedgerFromReportsListing(page)) return true;
@@ -728,9 +817,7 @@ async function ensureLedgerScreen(page: Page, opts: LedgerNavOptions): Promise<b
   if (d1) {
     if (await clickInAnyFrame(page, d1)) {
       await page.waitForTimeout(2000);
-      if (d2 && d2.includes("000035")) {
-        console.log("   → depth2(재고현황) 스킵 — 재고수불부 탐색");
-      } else if (d2) {
+      if (d2) {
         await clickInAnyFrame(page, d2);
         await page.waitForTimeout(2000);
       }
@@ -739,7 +826,7 @@ async function ensureLedgerScreen(page: Page, opts: LedgerNavOptions): Promise<b
     await tryDefaultInventoryMenuTree(page);
   }
 
-  if (await clickLedgerFromReportsListing(page)) return true;
+  if (await navigateLedgerMenuTree(page)) return true;
   if (await openLedgerProgram(page, directPrgIds[0])) return true;
 
   if (await tryMenuSearchLedger(page)) {
@@ -759,7 +846,10 @@ export async function navigateToLedgerReport(page: Page, opts: LedgerNavOptions)
     const listing = await isReportsListingPage(page);
     const program = await isLedgerProgramPage(page);
     const searchForm = await isLedgerSearchForm(page);
-    console.warn(`   ⚠ 화면 상태: listing=${listing}, program=${program}, searchForm=${searchForm}, url=${page.url()}`);
+    const searchLoose = await isLedgerSearchFormLoose(page);
+    console.warn(
+      `   ⚠ 화면 상태: listing=${listing}, program=${program}, searchForm=${searchForm}, searchLoose=${searchLoose}, url=${page.url()}`
+    );
     throw new Error(
       "재고수불부 메뉴를 찾지 못했습니다. /admin/ecount-bot 에 재고현황 URL을 저장했거나, GitHub Secret ECOUNT_LEDGER_MENU_URL(재고수불부 화면 URL)을 설정하세요."
     );

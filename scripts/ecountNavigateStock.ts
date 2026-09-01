@@ -1,5 +1,5 @@
 import type { Page } from "playwright";
-import { parseStockMenuUrl } from "../src/lib/ecountStockMenuUrl";
+import { parseStockMenuUrl, applyMenuHashFromSaved, resolveErpNavigationTarget } from "../src/lib/ecountStockMenuUrl";
 import { isStockResultsReady, isStockSearchForm, waitForStockResultsReady } from "./ecountExcel";
 
 async function clickInAnyFrame(page: Page, selector: string): Promise<boolean> {
@@ -220,13 +220,10 @@ export type StockNavOptions = {
 
 /** 로그인 직후 현재 세션 URL에 hash만 적용 (ec_req_sid는 세션마다 다름) */
 async function gotoStockViaHash(page: Page, savedUrl: string): Promise<boolean> {
-  const parsed = parseStockMenuUrl(savedUrl);
-  if (!parsed?.hash) return false;
+  const target = applyMenuHashFromSaved(page.url(), savedUrl);
+  if (!target) return false;
 
-  const current = new URL(page.url());
-  current.hash = parsed.hash;
-  const target = current.toString();
-  console.log(`   → hash 네비게이션: ${target.slice(0, 100)}...`);
+  console.log(`   → ERP hash 네비게이션: ${target.slice(0, 120)}...`);
   await page.goto(target, { waitUntil: "networkidle", timeout: 90000 });
   await page.waitForTimeout(3000);
   return true;
@@ -266,7 +263,8 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
 
     if (!opened && parsed?.normalized && !parsed.normalized.includes("ec_req_sid")) {
       console.log("   → 정규화 URL 직접 이동 시도...");
-      await page.goto(parsed.normalized, { waitUntil: "networkidle", timeout: 90000 });
+      const direct = resolveErpNavigationTarget(page.url(), parsed.normalized) || parsed.normalized;
+      await page.goto(direct, { waitUntil: "networkidle", timeout: 90000 });
       opened = true;
     }
 
