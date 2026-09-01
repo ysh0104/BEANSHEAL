@@ -160,18 +160,28 @@ export async function waitForStockResultsReady(page: Page, maxSec = 60): Promise
 
 const SEARCH_BTN_PATTERN = /(?:검색|Search)\s*\(F\d+\)/i;
 
+export { SEARCH_BTN_PATTERN };
+
 /** 출력물 목록(재고수불부·재고현황 링크 카드) 화면 */
 export async function isReportsListingPage(page: Page): Promise<boolean> {
   for (const frame of page.frames()) {
     try {
       const folderTitle = frame.getByText(/^출력물$/).first();
       const hasTitle = (await folderTitle.count()) > 0 && (await folderTitle.isVisible());
-      if (!hasTitle) continue;
 
       const ledgerInContent = frame
-        .locator('#contents a, .contents a, [class*="content"] a, main a')
+        .locator('#contents a, .contents a, [class*="content"] a, main a, [class*="program"] a')
         .filter({ hasText: /^재고\s*수불부$/ });
-      if ((await ledgerInContent.count()) > 0) return true;
+      const stockInContent = frame
+        .locator('#contents a, .contents a, [class*="content"] a, main a, [class*="program"] a')
+        .filter({ hasText: /^재고현황$/ });
+
+      const hasLedger = (await ledgerInContent.count()) > 0;
+      const hasStock = (await stockInContent.count()) > 0;
+
+      if (hasTitle && hasLedger) return true;
+      // 제목 iframe 밖일 때: 재고현황+재고수불부 카드 링크가 함께 있으면 출력물 목록
+      if (hasLedger && hasStock) return true;
     } catch {
       /* skip */
     }
@@ -219,6 +229,18 @@ export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
 
       if (hasOpening) return true;
       if (hasPartner && (hasRemarks || hasInQty)) return true;
+
+      const title = frame.getByText(/^재고\s*수불부$/).first();
+      const dateRow = frame.locator("text=/\\d{4}\\/\\d{2}\\/\\d{2}/").first();
+      const monthTotal = frame.locator("text=/\\d{4}\\/\\d{2}\\s*계/").first();
+      if ((await title.count()) > 0 && (await title.isVisible())) {
+        if (
+          ((await dateRow.count()) > 0 && (await dateRow.isVisible())) ||
+          ((await monthTotal.count()) > 0 && (await monthTotal.isVisible()))
+        ) {
+          return true;
+        }
+      }
     } catch {
       /* skip */
     }
@@ -230,10 +252,24 @@ export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
 export async function isLedgerSearchForm(page: Page): Promise<boolean> {
   if (await isLedgerResultsTableReady(page)) return false;
   if (await isStockResultsReady(page)) return false;
+  if (await isReportsListingPage(page)) return false;
+
+  if (await isLedgerProgramPage(page)) {
+    for (const frame of page.frames()) {
+      try {
+        const periodHint = frame.locator("text=/조회기간|기간|품목코드/").first();
+        if ((await periodHint.count()) > 0 && (await periodHint.isVisible())) return true;
+        const dateInputs = frame.locator('input[type="text"]:visible');
+        if ((await dateInputs.count()) >= 2) return true;
+      } catch {
+        /* skip */
+      }
+    }
+  }
 
   for (const frame of page.frames()) {
     try {
-      const searchBtn = frame.getByText(/검색\s*\(F8\)/i).first();
+      const searchBtn = frame.getByText(SEARCH_BTN_PATTERN).first();
       if ((await searchBtn.count()) === 0 || !(await searchBtn.isVisible())) continue;
 
       const stockDate = frame.locator("text=기준일자").first();

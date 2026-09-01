@@ -1,9 +1,12 @@
 import type { Page } from "playwright";
-import { parseStockMenuUrl, stripPrgIdFromMenuUrl } from "../src/lib/ecountStockMenuUrl";
+import { parseStockMenuUrl } from "../src/lib/ecountStockMenuUrl";
 import { dismissEcountPopups } from "./ecountNavigateStock";
 import {
+  isLedgerProgramPage,
   isLedgerResultsTableReady,
   isLedgerSearchForm,
+  isReportsListingPage,
+  SEARCH_BTN_PATTERN,
   waitForLedgerResultsReady,
 } from "./ecountExcel";
 
@@ -86,23 +89,79 @@ async function clickMenuIdsFromUrl(page: Page, savedUrl: string, skipDepth2 = fa
   return true;
 }
 
+async function isLedgerScreenReady(page: Page): Promise<boolean> {
+  return (
+    (await isLedgerProgramPage(page)) ||
+    (await isLedgerSearchForm(page)) ||
+    (await isLedgerResultsTableReady(page))
+  );
+}
+
 async function openInventoryReportsFolder(page: Page, menuUrl: string): Promise<void> {
-  const folderUrl = stripPrgIdFromMenuUrl(menuUrl);
-  console.log(`   → 출력물 폴더 이동 (prgId 제외)`);
+  console.log(`   → 출력물 폴더 URL 이동 (prgId 포함)`);
 
   const opened =
-    (await gotoViaHash(page, folderUrl)) || (await clickMenuIdsFromUrl(page, folderUrl, true));
+    (await gotoViaHash(page, menuUrl)) || (await clickMenuIdsFromUrl(page, menuUrl, true));
 
   if (!opened) {
-    const parsed = parseStockMenuUrl(folderUrl);
+    const parsed = parseStockMenuUrl(menuUrl);
     if (parsed?.normalized && !parsed.normalized.includes("ec_req_sid")) {
       console.log("   → 정규화 URL 직접 이동 시도...");
       await page.goto(parsed.normalized, { waitUntil: "networkidle", timeout: 90000 });
     }
   }
 
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(2500);
   await dismissEcountPopups(page);
+}
+
+/** 출력물 카드 목록 → 본문 「재고수불부」 링크 클릭 */
+async function clickLedgerFromReportsListing(page: Page): Promise<boolean> {
+  let hasLedgerLink = false;
+  for (const frame of page.frames()) {
+    if ((await frame.locator("text=재고수불부").count()) > 0) {
+      hasLedgerLink = true;
+      break;
+    }
+  }
+  const onListing = (await isReportsListingPage(page)) || hasLedgerLink;
+  if (!onListing) return false;
+
+  console.log("   → 출력물 목록에서 재고수불부 클릭...");
+
+  const contentSelectors = [
+    '#contents a',
+    '.contents a',
+    '[class*="content"] a',
+    '[class*="program"] a',
+    '[class*="wrapper"] a',
+    "main a",
+  ].join(", ");
+
+  for (const frame of page.frames()) {
+    const contentLinks = frame.locator(contentSelectors).filter({ hasText: /^재고\s*수불부$/ });
+    const count = await contentLinks.count();
+
+    for (let i = 0; i < count; i++) {
+      const link = contentLinks.nth(i);
+      try {
+        if (!(await link.isVisible())) continue;
+        await link.scrollIntoViewIfNeeded().catch(() => {});
+        await link.click({ force: true });
+        console.log(`   ✓ 본문 재고수불부 클릭 (${i + 1}/${count})`);
+        await page.waitForTimeout(8000);
+        if (await isLedgerScreenReady(page)) return true;
+
+        await link.evaluate((el: HTMLElement) => el.click());
+        await page.waitForTimeout(8000);
+        if (await isLedgerScreenReady(page)) return true;
+      } catch {
+        /* next link */
+      }
+    }
+  }
+
+  return false;
 }
 
 async function tryMenuSearchLedger(page: Page): Promise<boolean> {
@@ -175,13 +234,13 @@ async function tryDefaultInventoryMenuTree(page: Page): Promise<void> {
 }
 
 export async function openLedgerProgram(page: Page, prgId?: string | null): Promise<boolean> {
-  if (await isLedgerResultsTableReady(page)) {
-    console.log("   ✓ 재고수불부 결과 화면 준비됨");
+  if (await isLedgerScreenReady(page)) {
+    console.log("   ✓ 재고수불부 화면 준비됨");
     return true;
   }
-  if (await isLedgerSearchForm(page)) {
-    console.log("   ✓ 재고수불부 검색 조건 화면");
-    return true;
+
+  if (await isReportsListingPage(page)) {
+    if (await clickLedgerFromReportsListing(page)) return true;
   }
 
   console.log("   → 「재고수불부」 보고서 클릭...");
@@ -198,7 +257,7 @@ export async function openLedgerProgram(page: Page, prgId?: string | null): Prom
       if (await clickInAnyFrame(page, sel)) {
         console.log(`   ✓ prgId 링크: ${id}`);
         await page.waitForTimeout(4000);
-        if ((await isLedgerResultsTableReady(page)) || (await isLedgerSearchForm(page))) return true;
+        if (await isLedgerScreenReady(page)) return true;
       }
     }
   }
@@ -222,7 +281,7 @@ export async function openLedgerProgram(page: Page, prgId?: string | null): Prom
             await link.click();
             console.log(`   ✓ 재고수불부 링크 클릭 (${i + 1}/${count})`);
             await page.waitForTimeout(4000);
-            if ((await isLedgerResultsTableReady(page)) || (await isLedgerSearchForm(page))) return true;
+            if (await isLedgerScreenReady(page)) return true;
           }
         } catch {
           /* next */
@@ -243,7 +302,7 @@ export async function openLedgerProgram(page: Page, prgId?: string | null): Prom
           await link.click();
           console.log(`   ✓ 본문 재고수불부 링크 클릭 (${i + 1}/${count})`);
           await page.waitForTimeout(4000);
-          if ((await isLedgerResultsTableReady(page)) || (await isLedgerSearchForm(page))) return true;
+          if (await isLedgerScreenReady(page)) return true;
         }
       }
     } catch {
@@ -252,8 +311,8 @@ export async function openLedgerProgram(page: Page, prgId?: string | null): Prom
   }
 
   if (await clickTextInAnyFrame(page, /재고\s*수불부/)) {
-    await page.waitForTimeout(4000);
-    return (await isLedgerResultsTableReady(page)) || (await isLedgerSearchForm(page));
+    await page.waitForTimeout(8000);
+    return await isLedgerScreenReady(page);
   }
 
   return false;
@@ -445,19 +504,19 @@ async function focusLedgerFrame(page: Page) {
 }
 
 async function clickSearch(page: Page): Promise<void> {
-  console.log("   → 검색(F8) 실행...");
+  console.log("   → 검색 실행...");
 
   for (const frame of page.frames()) {
     const locators = [
-      frame.getByText(/검색\s*\(F8\)/i).first(),
-      frame.locator('button, a, span, div[role="button"]').filter({ hasText: /검색\s*\(F8\)/i }).first(),
+      frame.getByText(SEARCH_BTN_PATTERN).first(),
+      frame.locator('button, a, span, div[role="button"]').filter({ hasText: SEARCH_BTN_PATTERN }).first(),
     ];
     for (const btn of locators) {
       try {
         if ((await btn.count()) > 0 && (await btn.isVisible())) {
           await btn.scrollIntoViewIfNeeded().catch(() => {});
           await btn.click({ force: true });
-          console.log("   ✓ 검색(F8) 클릭");
+          console.log("   ✓ 검색 버튼 클릭");
           return;
         }
       } catch {
@@ -468,7 +527,8 @@ async function clickSearch(page: Page): Promise<void> {
 
   await focusLedgerFrame(page);
   await page.keyboard.press("F8").catch(() => {});
-  console.log("   ✓ F8 키 입력");
+  await page.keyboard.press("F3").catch(() => {});
+  console.log("   ✓ F8/F3 키 입력");
 }
 
 export type LedgerNavOptions = {
@@ -510,9 +570,7 @@ async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
 }
 
 async function ensureLedgerScreen(page: Page, opts: LedgerNavOptions): Promise<boolean> {
-  if (await isLedgerSearchForm(page) || (await isLedgerResultsTableReady(page))) {
-    return true;
-  }
+  if (await isLedgerScreenReady(page)) return true;
 
   const ledgerUrl = (
     opts.ledger_menu_url ||
@@ -520,29 +578,25 @@ async function ensureLedgerScreen(page: Page, opts: LedgerNavOptions): Promise<b
     ""
   ).trim();
   const stockUrl = (opts.stock_menu_url || process.env.ECOUNT_STOCK_MENU_URL || "").trim();
+  const folderUrl = ledgerUrl || stockUrl;
   const ledgerPrgId = ledgerUrl ? parseStockMenuUrl(ledgerUrl)?.prgId : null;
 
-  if (await openLedgerProgram(page, ledgerPrgId)) {
-    return true;
+  // 1) 저장된 URL(prgId 포함) → 출력물 목록 → 카드에서 재고수불부 클릭
+  if (folderUrl) {
+    await openInventoryReportsFolder(page, folderUrl);
+    if (await clickLedgerFromReportsListing(page)) return true;
+    if (await isLedgerScreenReady(page)) return true;
   }
 
   if (await tryMenuSearchLedger(page)) {
     await clickLedgerMenuSearchResult(page);
-    if (await openLedgerProgram(page, ledgerPrgId)) return true;
+    if (await isLedgerScreenReady(page)) return true;
   }
 
   if (ledgerUrl) {
-    console.log(`   → 재고수불부 전용 URL 사용`);
+    console.log(`   → 재고수불부 전용 URL 재시도`);
     await openInventoryReportsFolder(page, ledgerUrl);
-    if (await openLedgerProgram(page, ledgerPrgId)) return true;
-    if (await clickMenuIdsFromUrl(page, ledgerUrl)) {
-      await page.waitForTimeout(2000);
-      if (await openLedgerProgram(page, ledgerPrgId)) return true;
-    }
-  }
-
-  if (stockUrl) {
-    await openInventoryReportsFolder(page, stockUrl);
+    if (await clickLedgerFromReportsListing(page)) return true;
     if (await openLedgerProgram(page, ledgerPrgId)) return true;
   }
 
@@ -563,6 +617,7 @@ async function ensureLedgerScreen(page: Page, opts: LedgerNavOptions): Promise<b
     await tryDefaultInventoryMenuTree(page);
   }
 
+  if (await clickLedgerFromReportsListing(page)) return true;
   if (await openLedgerProgram(page, ledgerPrgId)) return true;
 
   if (await tryMenuSearchLedger(page)) {
@@ -570,7 +625,7 @@ async function ensureLedgerScreen(page: Page, opts: LedgerNavOptions): Promise<b
     if (await openLedgerProgram(page, ledgerPrgId)) return true;
   }
 
-  return (await isLedgerSearchForm(page)) || (await isLedgerResultsTableReady(page));
+  return await isLedgerScreenReady(page);
 }
 
 /** 재고수불부 화면 → 기간·품목 설정 → 검색 */
