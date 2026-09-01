@@ -1,9 +1,8 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js';
-import { CalibrationItem, DEFAULT_CALIBRATION_ITEMS } from '@/lib/calibrationData';
-
-export type { CalibrationItem };
+import { DEFAULT_CALIBRATION_ITEMS } from '@/lib/calibrationData';
+import type { CalibrationItem } from '@/lib/calibrationData';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";

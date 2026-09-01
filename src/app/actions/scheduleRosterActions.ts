@@ -278,5 +278,3 @@ export async function syncScheduleRosterFromRows(
     return { success: false, message: e instanceof Error ? e.message : "로스터 동기화 실패" };
   }
 }
-
-export type { RosterProfile } from "@/lib/scheduleRosterTypes";
