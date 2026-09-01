@@ -115,7 +115,23 @@ async function openInventoryReportsFolder(page: Page, menuUrl: string): Promise<
   await dismissEcountPopups(page);
 }
 
-/** 출력물 카드 목록 → 본문 「재고수불부」 링크 클릭 */
+/** 출력물 카드 목록 → 「재고수불부」 클릭 (본문 카드 → 왼쪽 트리 순) */
+async function tryClickLedgerLink(page: Page, link: import("playwright").Locator, label: string): Promise<boolean> {
+  try {
+    if (!(await link.isVisible())) return false;
+    await link.scrollIntoViewIfNeeded().catch(() => {});
+    await link.click({ force: true });
+    console.log(`   ✓ ${label}`);
+    await page.waitForTimeout(8000);
+    if (await isLedgerScreenReady(page)) return true;
+    await link.evaluate((el: HTMLElement) => el.click());
+    await page.waitForTimeout(8000);
+    return await isLedgerScreenReady(page);
+  } catch {
+    return false;
+  }
+}
+
 async function clickLedgerFromReportsListing(page: Page): Promise<boolean> {
   let hasLedgerLink = false;
   for (const frame of page.frames()) {
@@ -127,37 +143,58 @@ async function clickLedgerFromReportsListing(page: Page): Promise<boolean> {
   const onListing = (await isReportsListingPage(page)) || hasLedgerLink;
   if (!onListing) return false;
 
-  console.log("   → 출력물 목록에서 재고수불부 클릭...");
+  console.log("   → 출력물 목록(2단계)에서 재고수불부 클릭...");
 
   const contentSelectors = [
-    '#contents a',
-    '.contents a',
+    "#contents a",
+    ".contents a",
     '[class*="content"] a',
     '[class*="program"] a',
     '[class*="wrapper"] a',
     "main a",
   ].join(", ");
 
+  const sidebarSelectors = [
+    "#sideTab a",
+    '[class*="side"] a',
+    '[class*="tree"] a',
+    '[class*="menu-tree"] a',
+    "nav a",
+  ].join(", ");
+
   for (const frame of page.frames()) {
+    // 1) 본문 카드 링크 (2번째 스크린샷 중앙 그리드)
     const contentLinks = frame.locator(contentSelectors).filter({ hasText: /^재고\s*수불부$/ });
-    const count = await contentLinks.count();
-
-    for (let i = 0; i < count; i++) {
-      const link = contentLinks.nth(i);
-      try {
-        if (!(await link.isVisible())) continue;
-        await link.scrollIntoViewIfNeeded().catch(() => {});
-        await link.click({ force: true });
-        console.log(`   ✓ 본문 재고수불부 클릭 (${i + 1}/${count})`);
-        await page.waitForTimeout(8000);
-        if (await isLedgerScreenReady(page)) return true;
-
-        await link.evaluate((el: HTMLElement) => el.click());
-        await page.waitForTimeout(8000);
-        if (await isLedgerScreenReady(page)) return true;
-      } catch {
-        /* next link */
+    const contentCount = await contentLinks.count();
+    for (let i = 0; i < contentCount; i++) {
+      if (await tryClickLedgerLink(page, contentLinks.nth(i), `본문 카드 재고수불부 (${i + 1}/${contentCount})`)) {
+        return true;
       }
+    }
+
+    // 2) 왼쪽 트리 메뉴 (2번째 스크린샷 좌측 — 1번째 스크린으로 이동)
+    const sidebarLinks = frame.locator(sidebarSelectors).filter({ hasText: /^재고\s*수불부$/ });
+    const sideCount = await sidebarLinks.count();
+    for (let i = 0; i < sideCount; i++) {
+      if (await tryClickLedgerLink(page, sidebarLinks.nth(i), `좌측 메뉴 재고수불부 (${i + 1}/${sideCount})`)) {
+        return true;
+      }
+    }
+
+    // 3) a 태그가 아닌 클릭 가능 요소
+    const genericLinks = frame
+      .locator('a, span, li, div[role="link"], div[role="button"]')
+      .filter({ hasText: /^재고\s*수불부$/ });
+    const genericCount = await genericLinks.count();
+    for (let i = 0; i < genericCount; i++) {
+      if (await tryClickLedgerLink(page, genericLinks.nth(i), `재고수불부 요소 (${i + 1}/${genericCount})`)) {
+        return true;
+      }
+    }
+
+    const roleLink = frame.getByRole("link", { name: /^재고\s*수불부$/ });
+    if ((await roleLink.count()) > 0) {
+      if (await tryClickLedgerLink(page, roleLink.first(), "role=link 재고수불부")) return true;
     }
   }
 
