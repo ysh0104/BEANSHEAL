@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { EcountLedgerExcelRow, EcountLedgerParseResult } from "@/lib/ecountLedgerExcelParser";
+import { getFifoLotBalances } from "@/lib/ecountLedgerFifo";
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -331,7 +332,7 @@ async function upsertMeta(
   );
 }
 
-/** 수불부 txn 행에서 품목별 로트 스냅샷을 ecount_inventory에 반영 (목록 시리얼/로트 컬럼용) */
+/** 수불부 txn 행 FIFO 기준 로트 잔량 → ecount_inventory 반영 */
 async function syncLotsFromLedger(
   supabase: ReturnType<typeof createClient>,
   prod_cd: string,
@@ -340,17 +341,9 @@ async function syncLotsFromLedger(
 ) {
   if (!prod_nm) return;
 
-  const lotLastBalance = new Map<string, number>();
-  for (const r of rows) {
-    if (r.row_kind !== "txn" || !r.lot_no) continue;
-    const lot = r.lot_no.trim();
-    if (!lot) continue;
-    if (r.balance_qty !== null && Number.isFinite(r.balance_qty)) {
-      lotLastBalance.set(lot, r.balance_qty);
-    }
-  }
+  const lotBalances = getFifoLotBalances(rows);
 
-  for (const [lot_no, quantity] of lotLastBalance.entries()) {
+  for (const [lot_no, quantity] of lotBalances.entries()) {
     if (quantity <= 0) continue;
     const { data: existing } = await supabase
       .from("ecount_inventory")

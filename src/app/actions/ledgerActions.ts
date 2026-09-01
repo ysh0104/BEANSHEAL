@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { getLedgerBotDateRange, getLedgerDateRange } from "@/lib/ecountLedgerDateRange";
+import { applyLedgerFifoLots } from "@/lib/ecountLedgerFifo";
 import { parseEcountLedgerExcelBulk } from "@/lib/ecountLedgerExcelParser";
 import { uploadEcountLedgerImportedFiles } from "@/lib/ecountLedgerUpload";
 import { LEDGER_BULK_META_CD } from "@/lib/ledgerSyncStatus";
@@ -22,6 +23,8 @@ export type LedgerRow = {
   out_qty: number;
   balance_qty: number | null;
   lot_no: string | null;
+  /** FIFO 선입선출 계산 로트 (출고 포함, 복수 시 줄바꿈) */
+  fifo_lot_no?: string | null;
   row_kind: string;
 };
 
@@ -81,9 +84,21 @@ export async function getStockLedgerRows(prodCd: string, prodNm?: string) {
 
   const metaRes = await getLedgerSyncMeta(prodCd);
 
+  const withFifo = applyLedgerFifoLots(
+    rows.map((r) => ({
+      ...r,
+      in_qty: Number(r.in_qty) || 0,
+      out_qty: Number(r.out_qty) || 0,
+    }))
+  );
+
   return {
     success: true as const,
-    rows,
+    rows: withFifo.map((r) => ({
+      ...r,
+      lot_no: r.lot_no,
+      fifo_lot_no: r.fifo_lot_no || null,
+    })),
     meta: metaRes.success ? metaRes.data : null,
   };
 }

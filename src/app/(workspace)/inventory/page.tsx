@@ -58,6 +58,7 @@ type LedgerRow = {
   out_qty: number;
   balance_qty: number | null;
   lot_no: string | null;
+  fifo_lot_no?: string | null;
   row_kind: string;
 };
 
@@ -563,7 +564,7 @@ export default function InventoryPage() {
     let matchingLots = Array.from(uniqueLotsMap.values()).sort((a, b) => {
       const lotA = String(a.lotNo || '').trim();
       const lotB = String(b.lotNo || '').trim();
-      return lotB.localeCompare(lotA); 
+      return lotA.localeCompare(lotB);
     });
     
     let neededQty = totalQty;
@@ -1164,7 +1165,7 @@ export default function InventoryPage() {
                       <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">입고</th>
                       <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">출고</th>
                       <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">재고</th>
-                      <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">시리얼/로트</th>
+                      <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">시험번호</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1194,7 +1195,9 @@ export default function InventoryPage() {
                           <td className="border border-gray-300 px-2 py-1 text-right font-mono font-bold">
                             {row.balance_qty !== null ? formatQty(row.balance_qty) : ""}
                           </td>
-                          <td className="border border-gray-300 px-2 py-1 font-mono text-center">{row.lot_no || ""}</td>
+                          <td className="border border-gray-300 px-2 py-1 font-mono text-center whitespace-pre-line leading-snug">
+                            {(row.fifo_lot_no || row.lot_no || "").replace(/^—$/,"") || ""}
+                          </td>
                         </tr>
                       );
                     })}
