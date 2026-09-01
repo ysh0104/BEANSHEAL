@@ -3,9 +3,9 @@
  */
 import type { Frame, Page } from "playwright";
 import {
+  findLedgerFrames as findLedgerFramesInExcel,
   isLedgerResultsReady,
-  isLedgerResultsTableReady,
-  isOnStockReportPage,
+  isLedgerSearchForm,
 } from "./ecountExcel";
 
 export { clickLedgerExcelDownload } from "./ecountExcel";
@@ -14,34 +14,12 @@ const SEARCH_BTN = /(?:검색|Search|조회)\s*\(F\d+\)/i;
 const BULK_ITEM_HINT = /조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
 
 export async function findLedgerFrames(page: Page): Promise<Frame[]> {
-  const frames: Frame[] = [];
-  for (const frame of page.frames()) {
-    try {
-      const title = frame.getByText(/^재고\s*수불부$/).first();
-      if ((await title.count()) > 0 && (await title.isVisible())) {
-        frames.push(frame);
-      }
-    } catch {
-      /* skip */
-    }
-  }
-  return frames;
+  return findLedgerFramesInExcel(page);
 }
 
-/** 「재고수불부」 제목 + 검색(F8) 또는 기준일자 */
+/** 「재고수불부」 검색 조건 화면 */
 export async function isLedgerSearchScreen(page: Page): Promise<boolean> {
-  for (const frame of await findLedgerFrames(page)) {
-    try {
-      const searchBtn = frame.getByText(SEARCH_BTN).first();
-      const dateLabel = frame.locator("text=기준일자").first();
-      const hasSearch = (await searchBtn.count()) > 0 && (await searchBtn.isVisible());
-      const hasDate = (await dateLabel.count()) > 0 && (await dateLabel.isVisible());
-      if (hasSearch || hasDate) return true;
-    } catch {
-      /* skip */
-    }
-  }
-  return false;
+  return isLedgerSearchForm(page);
 }
 
 export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promise<boolean> {
@@ -276,8 +254,7 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
 }
 
 export async function isLedgerExcelReady(page: Page): Promise<boolean> {
-  if (await isOnStockReportPage(page)) return false;
-  return await isLedgerResultsReady(page);
+  return isLedgerResultsReady(page);
 }
 
 /** 검색 후 결과 대기 — 2초 간격, 테이블·Excel 모두 감지 */
@@ -299,8 +276,7 @@ export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<bo
     }
 
     if (await isLedgerExcelReady(page)) {
-      const viaTable = await isLedgerResultsTableReady(page);
-      console.log(`   ✓ 결과 확인 (${elapsed}초${viaTable ? ", 테이블" : ", Excel"})`);
+      console.log(`   ✓ 결과 확인 (${elapsed}초)`);
       return true;
     }
 
