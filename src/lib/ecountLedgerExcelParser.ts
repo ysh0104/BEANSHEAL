@@ -191,7 +191,7 @@ export function parseEcountLedgerExcelBulk(input: ArrayBuffer | Uint8Array): Eco
       const joined = row.map((c) => String(c)).join(" ");
       if (/품목코드/.test(joined) && /재고수량/.test(joined)) {
         throw new Error(
-          "재고현황 엑셀이 다운로드되었습니다. 봇이 재고수불부가 아닌 재고현황 화면에서 저장했을 수 있습니다."
+          "「재고현황」 엑셀입니다. 수불부 업로드에는 이카ount 출력물 → 재고수불부 화면에서 Excel로 받은 파일이 필요합니다. (일자·거래처명·적요·입고·출고 컬럼)"
         );
       }
     }

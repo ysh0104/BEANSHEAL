@@ -296,7 +296,7 @@ export default function InventoryPage() {
     const files = Array.from(fileList);
     if (
       !confirm(
-        `재고수불부 엑셀 ${files.length}개를 업로드할까요?\n\n· 이카ount에서 받은 재고수불부 xlsx 파일\n· 품목별 기존 수불부는 파일 내용으로 교체됩니다\n· 2년치 등 여러 파일은 한 번에 선택하는 것을 권장합니다`
+        `재고수불부 엑셀 ${files.length}개를 업로드할까요?\n\n✓ 올바른 파일: 이카ount → 출력물 → 「재고수불부」 → Excel\n  (일자·거래처명·적요·입고·출고 컬럼)\n\n✗ 안 되는 파일: 「재고현황」 엑셀 (품목코드·품목명·재고수량만 있는 것)\n\n· 품목별 기존 수불부는 파일 내용으로 교체됩니다\n· 여러 파일은 한 번에 선택 권장`
       )
     ) {
       e.target.value = "";
@@ -894,7 +894,7 @@ export default function InventoryPage() {
                 onClick={handleLedgerUploadClick}
                 disabled={botSyncInProgress}
                 className="hidden md:inline-flex text-sm font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-4 py-1.5 hover:bg-emerald-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
-                title="이카ount 재고수불부 xlsx 직접 업로드 (복수 파일 가능)"
+                title="이카ount 출력물 → 재고수불부 화면에서 받은 xlsx (재고현황 엑셀 아님)"
               >
                 {uploadingLedger ? "수불부 엑셀 업로드 중…" : "수불부 엑셀 업로드"}
               </button>
