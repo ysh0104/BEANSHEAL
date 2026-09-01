@@ -23,13 +23,12 @@ import {
 } from "./ecountExcel";
 
 const OUTPUT_FOLDER_PRG_ID = "C000035";
-const LEDGER_PRG_CANDIDATES = [
-  process.env.ECOUNT_LEDGER_PRG_ID?.trim(),
-  "E040702",
-  "C000036",
-  "C000037",
-  "C000034",
-].filter(Boolean) as string[];
+
+function getLedgerPrgCandidates(): string[] {
+  const configured = process.env.ECOUNT_LEDGER_PRG_ID?.trim();
+  if (configured) return [configured];
+  return ["E040702", "C000036", "C000037", "C000034"];
+}
 
 async function clickInAnyFrame(page: Page, selector: string): Promise<boolean> {
   for (const frame of page.frames()) {
@@ -136,7 +135,7 @@ async function clickLedgerFromReportsListing(page: Page): Promise<boolean> {
 }
 
 async function tryDirectLedgerUrl(page: Page, menuUrl: string): Promise<boolean> {
-  for (const prgId of [...new Set(LEDGER_PRG_CANDIDATES)]) {
+  for (const prgId of getLedgerPrgCandidates()) {
     const ledgerUrl = buildProgramMenuUrl(menuUrl, prgId);
     const target = applyMenuHashFromSaved(page.url(), ledgerUrl);
     if (!target) continue;
@@ -165,7 +164,7 @@ async function openLedgerReportProgram(page: Page): Promise<boolean> {
 
   console.log("   → 「재고수불부」 클릭...");
 
-  for (const prgId of [...new Set(LEDGER_PRG_CANDIDATES)]) {
+  for (const prgId of getLedgerPrgCandidates()) {
     for (const sel of [`#link_prg_${prgId}`, `[id*="${prgId}"]`, `a[onclick*="${prgId}"]`, `a[href*="${prgId}"]`]) {
       if (await clickInAnyFrame(page, sel)) {
         console.log(`   ✓ prgId 링크: ${prgId}`);
@@ -229,6 +228,8 @@ async function gotoLedgerDirect(page: Page, menuUrl: string): Promise<boolean> {
 
 /** 재고현황(C000650)에 있으면 재고수불부(E040702)로 복귀 */
 async function ensureOnLedgerScreen(page: Page, menuUrl: string): Promise<void> {
+  if (await isLedgerSearchForm(page) || (await isLedgerResultsTableReady(page))) return;
+
   if (await isOnStockReportPage(page)) {
     console.warn(`   ⚠ 재고현황 화면 — 재고수불부로 재이동 (prgId=${getPagePrgId(page)})`);
     if (menuUrl && (await gotoLedgerDirect(page, menuUrl))) return;
@@ -237,11 +238,9 @@ async function ensureOnLedgerScreen(page: Page, menuUrl: string): Promise<void> 
     return;
   }
 
-  if (!(await isLedgerSearchForm(page)) && !(await isLedgerResultsTableReady(page))) {
-    if (menuUrl && (await gotoLedgerDirect(page, menuUrl))) return;
-    await openLedgerReportProgram(page);
-    await waitForLedgerSearchForm(page, 30);
-  }
+  if (menuUrl && (await gotoLedgerDirect(page, menuUrl))) return;
+  await openLedgerReportProgram(page);
+  await waitForLedgerSearchForm(page, 30);
 }
 
 async function fillDateRange(page: Page, from: string, to: string): Promise<void> {

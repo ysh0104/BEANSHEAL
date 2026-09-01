@@ -9,18 +9,13 @@ const EXCEL_SELECTORS = [
   '[title*="Excel"]',
 ];
 
-/** 재고현황 검색 조건 화면 (기준일자 + 검색 F8) */
+/** 재고현황 검색 조건 — 재고수불부(기준일자+검색 동일)와 제목으로 구분 */
 export async function isStockSearchForm(page: Page): Promise<boolean> {
+  if (isKnownLedgerPrgId(getPagePrgId(page))) return false;
+  if (await isLedgerSearchForm(page)) return false;
+
   for (const frame of page.frames()) {
-    try {
-      const searchBtn = frame.getByText(/검색\s*\(F8\)/i).first();
-      const dateLabel = frame.locator("text=기준일자").first();
-      if ((await searchBtn.count()) > 0 && (await searchBtn.isVisible()) && (await dateLabel.count()) > 0) {
-        return true;
-      }
-    } catch {
-      /* skip */
-    }
+    if (await isStockSearchFormInFrame(frame)) return true;
   }
   return false;
 }
@@ -194,42 +189,111 @@ export function isKnownStockPrgId(prgId: string | null | undefined): boolean {
 }
 
 export async function isOnStockReportPage(page: Page): Promise<boolean> {
-  if (await isStockSearchForm(page) || (await isStockResultsReady(page))) return true;
-  return isKnownStockPrgId(getPagePrgId(page));
+  const prgId = getPagePrgId(page);
+  if (isKnownLedgerPrgId(prgId)) {
+    if (await isLedgerSearchForm(page) || (await isLedgerResultsTableReady(page))) return false;
+    return false;
+  }
+  if (await isStockResultsReady(page)) return true;
+  if (await isLedgerSearchForm(page)) return false;
+  if (await isStockSearchForm(page)) return true;
+  return isKnownStockPrgId(prgId);
 }
 
-async function isStockFrame(frame: Frame): Promise<boolean> {
+async function frameHasVisibleLedgerTitle(frame: Frame): Promise<boolean> {
   try {
-    const stockDate = frame.locator("text=기준일자").first();
-    const stockQty = frame.locator("text=재고수량").first();
-    const hasStockDate = (await stockDate.count()) > 0 && (await stockDate.isVisible());
-    const hasStockQty = (await stockQty.count()) > 0 && (await stockQty.isVisible());
-    return hasStockDate || hasStockQty;
+    const title = frame.getByText(/^재고\s*수불부$/).first();
+    return (await title.count()) > 0 && (await title.isVisible());
   } catch {
     return false;
   }
 }
 
-/** 재고수불부 검색/결과가 있는 iframe (재고현황 iframe 제외) */
+async function frameHasVisibleStockTitle(frame: Frame): Promise<boolean> {
+  try {
+    const title = frame.getByText(/^재고현황$/).first();
+    return (await title.count()) > 0 && (await title.isVisible());
+  } catch {
+    return false;
+  }
+}
+
+/** 재고수불부 검색 iframe — 제목 「재고수불부」+ 기준일자/검색(F8) */
+async function isLedgerSearchFormInFrame(frame: Frame): Promise<boolean> {
+  try {
+    if (!(await frameHasVisibleLedgerTitle(frame))) return false;
+    const searchBtn = frame.getByText(SEARCH_BTN_PATTERN).first();
+    const dateLabel = frame.locator("text=기준일자").first();
+    const hasSearch = (await searchBtn.count()) > 0 && (await searchBtn.isVisible());
+    const hasDate = (await dateLabel.count()) > 0 && (await dateLabel.isVisible());
+    return hasSearch || hasDate;
+  } catch {
+    return false;
+  }
+}
+
+/** 재고현황 검색 iframe — 재고수불부 제목이 없을 때만 */
+async function isStockSearchFormInFrame(frame: Frame): Promise<boolean> {
+  try {
+    if (await frameHasVisibleLedgerTitle(frame)) return false;
+
+    const searchBtn = frame.getByText(/검색\s*\(F8\)/i).first();
+    const dateLabel = frame.locator("text=기준일자").first();
+    const hasSearch = (await searchBtn.count()) > 0 && (await searchBtn.isVisible());
+    const hasDate = (await dateLabel.count()) > 0 && (await dateLabel.isVisible());
+
+    if (await frameHasVisibleStockTitle(frame) && hasSearch) return true;
+    return hasDate && hasSearch;
+  } catch {
+    return false;
+  }
+}
+
+async function isStockFrame(frame: Frame): Promise<boolean> {
+  try {
+    if (await frameHasVisibleLedgerTitle(frame)) return false;
+    if (await frameHasVisibleStockTitle(frame)) return true;
+    const stockQty = frame.locator("text=재고수량").first();
+    if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) return true;
+    return await isStockSearchFormInFrame(frame);
+  } catch {
+    return false;
+  }
+}
+
+/** 재고수불부 검색/결과 iframe */
 export async function findLedgerFrames(page: Page): Promise<Frame[]> {
   const frames: Frame[] = [];
   for (const frame of page.frames()) {
     try {
       if (await isStockFrame(frame)) continue;
 
+      if (await isLedgerSearchFormInFrame(frame)) {
+        frames.push(frame);
+        continue;
+      }
+
       const title = frame.getByText(/^재고\s*수불부$/).first();
-      const period = frame.locator("text=/조회기간|품목코드|시작일|종료일/").first();
+      const warehouse = frame.locator("text=창고").first();
       const searchBtn = frame.getByText(SEARCH_BTN_PATTERN).first();
+      const dateLabel = frame.locator("text=기준일자").first();
       const ledgerHeader = frame.locator("text=/거래처명|적요|입고수량|전일재고/").first();
 
       const hasTitle = (await title.count()) > 0 && (await title.isVisible());
-      const hasPeriod = (await period.count()) > 0 && (await period.isVisible());
+      const hasWarehouse = (await warehouse.count()) > 0 && (await warehouse.isVisible());
       const hasSearch = (await searchBtn.count()) > 0 && (await searchBtn.isVisible());
+      const hasDate = (await dateLabel.count()) > 0 && (await dateLabel.isVisible());
       const hasHeader = (await ledgerHeader.count()) > 0 && (await ledgerHeader.isVisible());
 
-      if (hasTitle || hasPeriod || hasSearch || hasHeader) {
+      if (hasTitle) {
         frames.push(frame);
+        continue;
       }
+      if (hasWarehouse && hasDate && hasSearch) {
+        frames.push(frame);
+        continue;
+      }
+      if (hasHeader) frames.push(frame);
     } catch {
       /* skip */
     }
@@ -320,7 +384,7 @@ async function countVisibleLedgerHeaderCells(frame: Frame): Promise<number> {
 /** 재고수불부 결과 테이블 (Excel 버튼 불필요) */
 export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
   if (await isReportsListingPage(page)) return false;
-  if (await isStockResultsReady(page) || (await isStockSearchForm(page))) return false;
+  if (await isStockResultsReady(page)) return false;
 
   for (const frame of page.frames()) {
     try {
@@ -356,20 +420,20 @@ export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
 /** 재고수불부 검색 조건 화면 */
 export async function isLedgerSearchForm(page: Page): Promise<boolean> {
   if (await isLedgerResultsTableReady(page)) return false;
-  if (await isOnStockReportPage(page)) return false;
   if (await isReportsListingPage(page)) return false;
+
+  for (const frame of page.frames()) {
+    if (await isLedgerSearchFormInFrame(frame)) return true;
+  }
 
   const ledgerFrames = await findLedgerFrames(page);
   for (const frame of ledgerFrames) {
     try {
-      const periodHint = frame.locator("text=/조회기간|기간|품목코드|시작일|종료일/").first();
-      if ((await periodHint.count()) > 0 && (await periodHint.isVisible())) return true;
-
-      const dateInputs = frame.locator('input[type="text"]:visible');
-      if ((await dateInputs.count()) >= 2) return true;
-
       const searchBtn = frame.getByText(SEARCH_BTN_PATTERN).first();
-      if ((await searchBtn.count()) > 0 && (await searchBtn.isVisible())) return true;
+      const dateLabel = frame.locator("text=기준일자").first();
+      const hasSearch = (await searchBtn.count()) > 0 && (await searchBtn.isVisible());
+      const hasDate = (await dateLabel.count()) > 0 && (await dateLabel.isVisible());
+      if (hasSearch && hasDate) return true;
     } catch {
       /* skip */
     }
@@ -389,16 +453,19 @@ export async function isLedgerScreenReady(page: Page): Promise<boolean> {
 export async function waitForLedgerSearchForm(page: Page, maxSec = 45): Promise<boolean> {
   const steps = Math.ceil(maxSec / 3);
   for (let i = 0; i < steps; i++) {
-    if (await isOnStockReportPage(page)) {
-      console.warn(`   ⚠ 재고현황 화면 감지 (prgId=${getPagePrgId(page)})`);
-      return false;
-    }
     if (await isLedgerScreenReady(page)) {
       console.log(`   ✓ 재고수불부 화면 (${(i + 1) * 3}초)`);
       return true;
     }
 
     const prgId = getPagePrgId(page);
+    if (isKnownLedgerPrgId(prgId) && i >= 2) {
+      if (await isLedgerSearchForm(page)) {
+        console.log(`   ✓ 재고수불부 검색 화면 (prgId=${prgId}, ${(i + 1) * 3}초)`);
+        return true;
+      }
+    }
+
     if (prgId && prgId !== "C000035" && i > 0 && i % 2 === 0) {
       console.log(`   … prgId=${prgId} 로딩 (${(i + 1) * 3}초)`);
     }
