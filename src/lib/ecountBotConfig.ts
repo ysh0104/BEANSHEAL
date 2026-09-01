@@ -43,6 +43,7 @@ export async function resolveEcountBotCredentials(): Promise<{
   stock_menu_url?: string;
   stock_menu_depth1?: string;
   stock_menu_depth2?: string;
+  ledger_menu_url?: string;
   source: "env" | "database";
 } | null> {
   const comEnv = process.env.ECOUNT_COM_CODE?.trim();
@@ -68,6 +69,7 @@ export async function resolveEcountBotCredentials(): Promise<{
     stock_menu_url: menuFromEnv.stock_menu_url || menuFromDb.stock_menu_url,
     stock_menu_depth1: menuFromEnv.stock_menu_depth1 || menuFromDb.stock_menu_depth1,
     stock_menu_depth2: menuFromEnv.stock_menu_depth2 || menuFromDb.stock_menu_depth2,
+    ledger_menu_url: process.env.ECOUNT_LEDGER_MENU_URL?.trim() || undefined,
   };
 
   if (comEnv && idEnv && pwEnv) {

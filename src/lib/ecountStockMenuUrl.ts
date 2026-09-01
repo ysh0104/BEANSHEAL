@@ -38,3 +38,21 @@ export function normalizeStockMenuUrl(raw: string): string {
   const parsed = parseStockMenuUrl(raw);
   return parsed?.normalized?.trim() || raw.trim();
 }
+
+/** 재고현황 prgId 제거 — 출력물 폴더만 열기 (재고수불부 등 sibling 메뉴 클릭용) */
+export function stripPrgIdFromMenuUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  try {
+    const u = new URL(trimmed);
+    u.searchParams.delete("ec_req_sid");
+    if (u.hash) {
+      const params = new URLSearchParams(u.hash.startsWith("#") ? u.hash.slice(1) : u.hash);
+      params.delete("prgId");
+      u.hash = params.toString() ? `#${params.toString()}` : "";
+    }
+    return u.toString();
+  } catch {
+    return trimmed;
+  }
+}

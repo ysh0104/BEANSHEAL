@@ -182,6 +182,9 @@ export async function runEcountLedgerBot() {
       page,
       {
         stock_menu_url: creds.stock_menu_url,
+        ledger_menu_url: creds.ledger_menu_url,
+        stock_menu_depth1: creds.stock_menu_depth1,
+        stock_menu_depth2: creds.stock_menu_depth2,
         period_from,
         period_to,
         prod_cd,
@@ -232,7 +235,15 @@ export async function runEcountLedgerBulkBot() {
 
     const { bulk } = await downloadAndParseLedger(
       page,
-      { stock_menu_url: creds.stock_menu_url, period_from, period_to, results_wait_sec: 120 },
+      {
+        stock_menu_url: creds.stock_menu_url,
+        ledger_menu_url: creds.ledger_menu_url,
+        stock_menu_depth1: creds.stock_menu_depth1,
+        stock_menu_depth2: creds.stock_menu_depth2,
+        period_from,
+        period_to,
+        results_wait_sec: 120,
+      },
       saveAs,
       { bulk: true, isFirstInSession: true }
     );
