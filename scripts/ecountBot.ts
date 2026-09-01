@@ -9,6 +9,7 @@
  *   ECOUNT_STOCK_MENU_URL (권장)           — 재고현황 화면 URL (브라우저 주소창 복사)
  *   ECOUNT_STOCK_MENU_DEPTH1/2 (선택)      — 메뉴 CSS selector (URL 없을 때)
  *   ECOUNT_BOT_TARGET=lot                  — 로트/시리얼 봇(legacy) 실행
+ *   ECOUNT_BOT_TARGET=ledger               — 재고수불부 (ECOUNT_LEDGER_PROD_CD 필수)
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -130,6 +131,9 @@ async function main() {
   const target = (process.env.ECOUNT_BOT_TARGET || "stock").toLowerCase();
   if (target === "lot") {
     await runEcountLotBot();
+  } else if (target === "ledger") {
+    const { runEcountLedgerBot } = await import("./ecountLedgerBot");
+    await runEcountLedgerBot();
   } else {
     await runEcountStockBot();
   }

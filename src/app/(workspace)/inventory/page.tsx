@@ -49,6 +49,18 @@ type SyncStatusPayload = {
   } | null;
 };
 
+type LedgerRow = {
+  id: string;
+  txn_date: string;
+  partner_name: string;
+  remarks: string;
+  in_qty: number;
+  out_qty: number;
+  balance_qty: number | null;
+  lot_no: string | null;
+  row_kind: string;
+};
+
 function formatGithubRunLabel(run: SyncStatusPayload["github_run"]): string {
   if (!run) return "";
   if (run.status === "queued") return "GitHub: 대기 중";
@@ -82,6 +94,16 @@ export default function InventoryPage() {
   const [safetyConfigs, setSafetyConfigs] = useState<Record<string, number>>({});
   const [syncingMaster, setSyncingMaster] = useState(false);
   const [rawLogModalData, setRawLogModalData] = useState<any>(null);
+  const [ledgerModal, setLedgerModal] = useState<{
+    prodCd: string;
+    prodNm: string;
+    loading: boolean;
+    syncing: boolean;
+    rows: LedgerRow[];
+    periodLabel: string;
+    error: string;
+  } | null>(null);
+  const ledgerPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const handleResetAllSafetyStockToZero = async () => {
     if (!confirm("모든 품목의 안전재고 기준을 0으로 일괄 저장하시겠습니까?")) return;
     setLoadingInv(true);
@@ -226,8 +248,9 @@ export default function InventoryPage() {
         supabase
           .from('ecount_inventory')
           .select('item_name, lot_no, expiry_date, quantity')
+          .gt('quantity', 0)
           .order('created_at', { ascending: false })
-          .limit(500),  // 3000 → 500 (화면 표시에 충분한 양)
+          .limit(5000),
         getSafetyStockConfigs(),
       ]);
 
@@ -397,6 +420,149 @@ export default function InventoryPage() {
     const unassignedQty = Math.max(Math.round(neededQty * 1000) / 1000, 0); 
 
     return { totalQty, matchingLots: finalLots, unassignedQty };
+  };
+
+  const formatLotColumn = (lots: { lotNo: string }[]): string => {
+    const nums = lots.map((l) => String(l.lotNo || "").trim()).filter(Boolean);
+    if (nums.length === 0) return "—";
+    if (nums.length <= 2) return nums.join(", ");
+    return `${nums[0]} 외 ${nums.length - 1}건`;
+  };
+
+  const stopLedgerPoll = () => {
+    if (ledgerPollRef.current) {
+      clearInterval(ledgerPollRef.current);
+      ledgerPollRef.current = null;
+    }
+  };
+
+  useEffect(() => () => stopLedgerPoll(), []);
+
+  const openLedgerModal = async (prodCd: string, prodNm: string, force = false) => {
+    stopLedgerPoll();
+    setLedgerModal({
+      prodCd,
+      prodNm,
+      loading: true,
+      syncing: false,
+      rows: [],
+      periodLabel: "",
+      error: "",
+    });
+
+    try {
+      const getRes = await fetch(`/api/inventory/ledger?prod_cd=${encodeURIComponent(prodCd)}`, {
+        cache: "no-store",
+      });
+      const getData = await getRes.json();
+
+      if (!force && getData.success && getData.has_data) {
+        const p = getData.planned_period;
+        setLedgerModal({
+          prodCd,
+          prodNm,
+          loading: false,
+          syncing: false,
+          rows: getData.rows,
+          periodLabel: p ? `${p.from} ~ ${p.to}` : "",
+          error: "",
+        });
+        return;
+      }
+
+      setLedgerModal((m) =>
+        m ? { ...m, loading: false, syncing: true, periodLabel: getData.planned_period ? `${getData.planned_period.from} ~ ${getData.planned_period.to}` : "" } : m
+      );
+
+      const postRes = await fetch("/api/inventory/ledger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prod_cd: prodCd, prod_nm: prodNm, force }),
+      });
+      const postData = await postRes.json();
+
+      if (postData.cached && postData.rows?.length) {
+        const p = postData.planned_period;
+        setLedgerModal({
+          prodCd,
+          prodNm,
+          loading: false,
+          syncing: false,
+          rows: postData.rows,
+          periodLabel: p ? `${p.from} ~ ${p.to}` : "",
+          error: "",
+        });
+        return;
+      }
+
+      if (!postData.success) {
+        setLedgerModal((m) =>
+          m ? { ...m, loading: false, syncing: false, error: postData.message || "동기화 시작 실패" } : m
+        );
+        return;
+      }
+
+      const baseline = getData.meta?.last_synced_at || null;
+      let attempts = 0;
+      ledgerPollRef.current = setInterval(async () => {
+        attempts += 1;
+        const pollRes = await fetch(`/api/inventory/ledger?prod_cd=${encodeURIComponent(prodCd)}`, {
+          cache: "no-store",
+        });
+        const pollData = await pollRes.json();
+        const newer =
+          pollData.success &&
+          pollData.has_data &&
+          (!baseline || pollData.meta?.last_synced_at !== baseline);
+
+        if (newer || attempts >= 36) {
+          stopLedgerPoll();
+          const p = pollData.planned_period;
+          setLedgerModal({
+            prodCd,
+            prodNm,
+            loading: false,
+            syncing: false,
+            rows: pollData.rows || [],
+            periodLabel: p ? `${p.from} ~ ${p.to}` : postData.planned_period ? `${postData.planned_period.from} ~ ${postData.planned_period.to}` : "",
+            error: pollData.rows?.length ? "" : "동기화 시간 초과 — GitHub Actions에서 결과를 확인하세요.",
+          });
+          if (pollData.rows?.length) fetchInventory();
+        }
+      }, 5000);
+    } catch (e) {
+      setLedgerModal((m) =>
+        m
+          ? {
+              ...m,
+              loading: false,
+              syncing: false,
+              error: e instanceof Error ? e.message : "재고수불부 조회 오류",
+            }
+          : m
+      );
+    }
+  };
+
+  const closeLedgerModal = () => {
+    stopLedgerPoll();
+    setLedgerModal(null);
+  };
+
+  const renderItemNameButton = (prodCd: string, prodNm: string) => {
+    const label = prodNm && prodNm !== prodCd ? prodNm : "(품목명 미지정)";
+    return (
+      <button
+        type="button"
+        onClick={() => openLedgerModal(prodCd, prodNm)}
+        className={`text-left hover:underline hover:text-blue-700 cursor-pointer truncate max-w-full ${
+          prodNm && prodNm !== prodCd ? "font-bold text-gray-900" : "text-amber-800 text-xs font-normal italic"
+        }`}
+        title="재고수불부 보기"
+      >
+        {label}
+      </button>
+    );
   };
 
   return (
@@ -602,24 +768,19 @@ export default function InventoryPage() {
               </div>
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="min-w-0 flex-1">
-                  <p className="font-bold text-gray-900 text-sm truncate">
-                    {item.prodNm && item.prodNm !== item.prodCd ? item.prodNm : "(품목명 미지정)"}
-                  </p>
+                  {renderItemNameButton(item.prodCd, item.prodNm)}
                 </div>
                 <p className="font-extrabold text-lg text-gray-900 shrink-0">{formatQty(breakdown.totalQty)}</p>
               </div>
-              <div className="flex items-center justify-between text-xs border-t border-gray-100 pt-2">
-                <span className="text-gray-500">안전재고: <span className="font-mono font-bold">{formatQty(minQty)}</span></span>
+              <div className="flex items-center justify-between text-xs border-t border-gray-100 pt-2 gap-2">
+                <span className="text-gray-500 shrink-0">
+                  시리얼/로트:{" "}
+                  <span className="font-mono font-bold text-slate-700">{formatLotColumn(breakdown.matchingLots)}</span>
+                </span>
+                <span className="text-gray-500 shrink-0">
+                  안전재고: <span className="font-mono font-bold">{formatQty(minQty)}</span>
+                </span>
               </div>
-              {breakdown.matchingLots.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-dashed border-gray-200 space-y-1">
-                  {breakdown.matchingLots.map((lot, lotIdx) => (
-                    <p key={lotIdx} className="text-[11px] text-gray-500">
-                      LOT {lot.lotNo} · {lot.expDate} · {formatQty(lot.qty)}
-                    </p>
-                  ))}
-                </div>
-              )}
             </article>
           );
         })}
@@ -632,10 +793,11 @@ export default function InventoryPage() {
         <table className="w-full text-sm border-collapse border border-gray-300 table-fixed bg-[#f8f9fb]">
           
           <colgroup>
+            <col className="w-[12%]" />
+            <col className="w-[30%]" />
+            <col className="w-[18%]" />
             <col className="w-[15%]" />
-            <col className="w-[45%]" />
-            <col className="w-[20%]" />
-            <col className="w-[20%]" />
+            <col className="w-[25%]" />
           </colgroup>
 
           <thead>
@@ -647,6 +809,9 @@ export default function InventoryPage() {
                 품목명[규격] <span className="text-[10px]">▼</span>
               </th>
               <th className="border border-gray-300 py-2 text-center text-[#203366] font-bold text-[13px]">
+                시리얼/로트
+              </th>
+              <th className="border border-gray-300 py-2 text-center text-[#203366] font-bold text-[13px]">
                 재고수량 <span className="text-[10px]">▼</span>
               </th>
               <th className="border border-gray-300 py-2 text-center text-[#203366] font-bold text-[13px]">
@@ -655,28 +820,24 @@ export default function InventoryPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredInventory.flatMap((item, idx) => {
+            {filteredInventory.map((item, idx) => {
               const breakdown = getInventoryBreakdown(item.prodNm, item.qty);
               const minQty = safetyConfigs[item.prodCd] ?? getDefaultSafetyQty(item.prodNm);
               const isLowStock = checkIsLowStock(breakdown.totalQty, minQty);
-              const rows = [];
 
-              rows.push(
-                <tr key={`parent-${idx}`} className={`bg-[#f8f9fb] transition-colors ${isLowStock ? 'bg-amber-50/70 hover:bg-amber-100/80' : 'hover:bg-yellow-50'}`}>
+              return (
+                <tr
+                  key={`row-${idx}`}
+                  className={`bg-[#f8f9fb] transition-colors ${isLowStock ? "bg-amber-50/70 hover:bg-amber-100/80" : "hover:bg-yellow-50"}`}
+                >
                   <td className="border border-gray-300 px-2 py-1.5 text-[#203366] font-medium text-[13px] whitespace-nowrap overflow-hidden text-ellipsis text-center">
-{item.prodCd}
+                    {item.prodCd}
                   </td>
-                  <td className="border border-gray-300 px-2 py-1.5 text-gray-900 text-[13px] whitespace-nowrap overflow-hidden text-ellipsis font-bold">
-                    <div className="flex items-center justify-between gap-2">
-                      {item.prodNm && item.prodNm !== item.prodCd ? (
-                        <span>{item.prodNm}</span>
-                      ) : (
-                        <span className="text-amber-800 text-xs font-normal italic">
-                          (품목명 미지정)
-                        </span>
-                      )}
-
-                    </div>
+                  <td className="border border-gray-300 px-2 py-1.5 text-[13px] whitespace-nowrap overflow-hidden text-ellipsis">
+                    {renderItemNameButton(item.prodCd, item.prodNm)}
+                  </td>
+                  <td className="border border-gray-300 px-2 py-1.5 text-center text-xs font-mono text-slate-700">
+                    {formatLotColumn(breakdown.matchingLots)}
                   </td>
                   <td className="border border-gray-300 px-2 py-1.5 text-right font-bold text-[13px] text-gray-900">
                     {formatQty(breakdown.totalQty)}
@@ -693,45 +854,11 @@ export default function InventoryPage() {
                   </td>
                 </tr>
               );
-
-              breakdown.matchingLots.forEach((lot, lotIdx) => {
-                rows.push(
-                  <tr key={`child-${idx}-${lotIdx}`} className="bg-[#f8f9fb]">
-                    <td className="border border-gray-300 px-2 py-1 text-center text-gray-300">
-                    </td>
-                    <td className="border border-gray-300 px-2 py-1 pl-6 text-gray-500 text-xs flex items-center gap-2 border-t-0 border-b-0">
-                      <span className="text-gray-400">└</span>
-                      <span>[LOT: {lot.lotNo}]</span>
-                      <span className="text-gray-400">/ 소비기한: {lot.expDate}</span>
-                    </td>
-                    <td className="border border-gray-300 px-2 py-1 text-right text-gray-500 text-xs font-mono border-t-dashed">
-                      {formatQty(lot.qty)}
-                    </td>
-                  </tr>
-                );
-              });
-
-              if (breakdown.unassignedQty > 0 && breakdown.matchingLots.length > 0) {
-                rows.push(
-                  <tr key={`unassigned-${idx}`} className="bg-[#f8f9fb]">
-                    <td className="border border-gray-300 px-2 py-1 text-center"></td>
-                    <td className="border border-gray-300 px-2 py-1 pl-6 text-gray-500 text-xs flex items-center gap-2 border-t-0 border-b-0">
-                      <span className="text-gray-400">└</span>
-                      <span className="text-red-400">[미지정 재고]</span>
-                    </td>
-                    <td className="border border-gray-300 px-2 py-1 text-right text-red-400 text-xs font-mono border-t-dashed">
-                      {formatQty(breakdown.unassignedQty)}
-                    </td>
-                  </tr>
-                );
-              }
-
-              return rows;
             })}
             
             {filteredInventory.length === 0 && !loadingInv && (
               <tr>
-                <td colSpan={3} className="border border-gray-300 bg-[#f8f9fb] text-center py-10 text-gray-500 text-sm">
+                <td colSpan={5} className="border border-gray-300 bg-[#f8f9fb] text-center py-10 text-gray-500 text-sm">
                   조회된 데이터가 없습니다.
                 </td>
               </tr>
@@ -795,6 +922,115 @@ export default function InventoryPage() {
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs rounded-lg cursor-pointer"
               >
                 확인 / 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ledgerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4">
+          <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-4 py-3 border-b border-gray-200 bg-[#f0f2f5]">
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-extrabold text-[#203366]">재고수불부</h3>
+                <p className="text-xs sm:text-sm text-slate-600 mt-0.5 truncate">
+                  {ledgerModal.prodNm} ({ledgerModal.prodCd})
+                </p>
+                {ledgerModal.periodLabel && (
+                  <p className="text-[11px] text-slate-500 mt-1">기간: {ledgerModal.periodLabel}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={closeLedgerModal}
+                className="shrink-0 text-gray-400 hover:text-gray-800 p-1 rounded cursor-pointer"
+                aria-label="닫기"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-2 sm:p-4">
+              {(ledgerModal.loading || ledgerModal.syncing) && (
+                <div className="flex items-center justify-center gap-2 py-16 text-sm text-blue-700">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                  {ledgerModal.loading ? "불러오는 중…" : "GitHub 봇으로 재고수불부 동기화 중… (최대 3분)"}
+                </div>
+              )}
+
+              {ledgerModal.error && !ledgerModal.loading && (
+                <p className="text-center text-sm text-rose-700 py-8">{ledgerModal.error}</p>
+              )}
+
+              {!ledgerModal.loading && !ledgerModal.syncing && ledgerModal.rows.length > 0 && (
+                <table className="w-full text-xs sm:text-sm border-collapse border border-gray-300">
+                  <thead>
+                    <tr className="bg-[#f0f2f5]">
+                      <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">일자</th>
+                      <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">거래처명</th>
+                      <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">적요</th>
+                      <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">입고</th>
+                      <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">출고</th>
+                      <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">재고</th>
+                      <th className="border border-gray-300 px-2 py-1.5 text-[#203366] font-bold">시리얼/로트</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledgerModal.rows.map((row) => {
+                      const isOpening = row.row_kind === "opening";
+                      const isTotal = row.row_kind === "total" || row.row_kind === "subtotal";
+                      return (
+                        <tr
+                          key={row.id}
+                          className={
+                            isOpening
+                              ? "bg-rose-50/60 text-rose-900"
+                              : isTotal
+                                ? "bg-slate-100 font-bold"
+                                : "hover:bg-yellow-50/50"
+                          }
+                        >
+                          <td className="border border-gray-300 px-2 py-1 whitespace-nowrap">{row.txn_date}</td>
+                          <td className="border border-gray-300 px-2 py-1">{row.partner_name}</td>
+                          <td className="border border-gray-300 px-2 py-1">{row.remarks}</td>
+                          <td className="border border-gray-300 px-2 py-1 text-right font-mono">
+                            {row.in_qty ? formatQty(row.in_qty) : ""}
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1 text-right font-mono">
+                            {row.out_qty ? formatQty(row.out_qty) : ""}
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1 text-right font-mono font-bold">
+                            {row.balance_qty !== null ? formatQty(row.balance_qty) : ""}
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1 font-mono text-center">{row.lot_no || ""}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+
+              {!ledgerModal.loading && !ledgerModal.syncing && !ledgerModal.error && ledgerModal.rows.length === 0 && (
+                <p className="text-center text-sm text-gray-500 py-12">해당 기간 수불 내역이 없습니다.</p>
+              )}
+            </div>
+
+            <div className="border-t border-gray-200 px-4 py-3 flex justify-end gap-2 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => openLedgerModal(ledgerModal.prodCd, ledgerModal.prodNm, true)}
+                disabled={ledgerModal.loading || ledgerModal.syncing}
+                className="text-xs font-bold text-blue-700 border border-blue-300 bg-blue-50 px-3 py-1.5 rounded hover:bg-blue-100 disabled:opacity-50 cursor-pointer"
+              >
+                새로고침
+              </button>
+              <button
+                type="button"
+                onClick={closeLedgerModal}
+                className="text-xs font-bold text-white bg-slate-800 px-4 py-1.5 rounded hover:bg-slate-900 cursor-pointer"
+              >
+                닫기
               </button>
             </div>
           </div>

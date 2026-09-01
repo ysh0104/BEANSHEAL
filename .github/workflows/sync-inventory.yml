@@ -6,13 +6,30 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "stock = 재고현황(소수점), lot = 시리얼/로트"
+        description: "stock = 재고현황, lot = 시리얼/로트, ledger = 재고수불부"
         required: false
         default: "stock"
         type: choice
         options:
           - stock
           - lot
+          - ledger
+      prod_cd:
+        description: "재고수불부 품목코드 (ledger 전용)"
+        required: false
+        type: string
+      prod_nm:
+        description: "품목명 (ledger 전용, 선택)"
+        required: false
+        type: string
+      period_from:
+        description: "조회 시작일 YYYY/MM/DD (ledger, 비우면 자동)"
+        required: false
+        type: string
+      period_to:
+        description: "조회 종료일 YYYY/MM/DD (ledger, 비우면 자동)"
+        required: false
+        type: string
 
 jobs:
   sync:
@@ -38,7 +55,11 @@ jobs:
       - name: Run Ecount Excel bot
         run: npx tsx scripts/ecountBot.ts
         env:
-          ECOUNT_BOT_TARGET: ${{ github.event.inputs.target || 'stock' }}
+          ECOUNT_BOT_TARGET: ${{ github.event.inputs.target || github.event.client_payload.target || 'stock' }}
+          ECOUNT_LEDGER_PROD_CD: ${{ github.event.inputs.prod_cd || github.event.client_payload.prod_cd || '' }}
+          ECOUNT_LEDGER_PROD_NM: ${{ github.event.inputs.prod_nm || github.event.client_payload.prod_nm || '' }}
+          ECOUNT_LEDGER_FROM: ${{ github.event.inputs.period_from || github.event.client_payload.period_from || '' }}
+          ECOUNT_LEDGER_TO: ${{ github.event.inputs.period_to || github.event.client_payload.period_to || '' }}
           ECOUNT_COM_CODE: ${{ secrets.ECOUNT_COM_CODE }}
           ECOUNT_ID: ${{ secrets.ECOUNT_ID }}
           ECOUNT_PW: ${{ secrets.ECOUNT_PW }}
