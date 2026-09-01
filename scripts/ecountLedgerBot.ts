@@ -1,5 +1,5 @@
 /**
- * 재고수불부 봇 — ecountBot.ts(재고현황) 미러
+ * 재고수불부 봇
  *
  * 로컬: ECOUNT_BOT_TARGET=ledger_bulk npx tsx scripts/ecountBot.ts
  */
@@ -13,28 +13,10 @@ import { parseEcountLedgerExcel, parseEcountLedgerExcelBulk } from "../src/lib/e
 import { uploadEcountLedgerBotBatch, uploadEcountLedgerRows } from "../src/lib/ecountLedgerUpload";
 import { upsertLedgerBulkMeta } from "../src/lib/ledgerSyncStatus";
 import { loginEcountWeb } from "./ecountLogin";
-import { navigateToLedgerReport, runLedgerSearchAfterNavigate } from "./ecountNavigateLedger";
-import {
-  clickLedgerExcelDownload,
-  findVisibleExcelButton,
-  getPagePrgId,
-  isLedgerResultsTableReady,
-  isOnStockReportPage,
-} from "./ecountExcel";
+import { clickLedgerExcelDownload, isLedgerExcelReady } from "./ecountLedgerScreen";
+import { navigateToLedgerReport, runLedgerSearchAfterNavigate, type LedgerNavOptions } from "./ecountNavigateLedger";
 
 const DOWNLOAD_DIR = path.join(process.cwd(), "downloads");
-
-export type LedgerItemOpts = {
-  stock_menu_url?: string | null;
-  ledger_menu_url?: string | null;
-  stock_menu_depth1?: string | null;
-  stock_menu_depth2?: string | null;
-  period_from: string;
-  period_to: string;
-  prod_cd?: string;
-  prod_nm?: string;
-  results_wait_sec?: number;
-};
 
 function browserContext() {
   return {
@@ -53,16 +35,13 @@ async function saveDebugScreenshot(page: Page, name: string) {
   console.log(`📸 ${file}`);
 }
 
-async function downloadLedgerExcel(page: Page, saveAs: string, navOpts: LedgerItemOpts) {
+async function downloadLedgerExcel(page: Page, saveAs: string, navOpts: LedgerNavOptions) {
   console.log("4. 엑셀 다운로드...");
   if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    if (await isOnStockReportPage(page)) {
-      console.warn(`   → 재고현황 화면 — 검색만 재시도 (${attempt + 1}/3)`);
-      await runLedgerSearchAfterNavigate(page, navOpts);
-    } else if (attempt > 0 && !(await isLedgerResultsTableReady(page))) {
-      console.log(`   → 결과 미확인 — 검색 재시도 (${attempt + 1}/3)`);
+    if (!(await isLedgerExcelReady(page))) {
+      console.log(`   → Excel 없음 — 검색 재시도 (${attempt + 1}/3)`);
       await runLedgerSearchAfterNavigate(page, navOpts);
     }
 
@@ -71,20 +50,12 @@ async function downloadLedgerExcel(page: Page, saveAs: string, navOpts: LedgerIt
       console.log(`✅ 엑셀 저장: ${saveAs}`);
       return;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`   Excel 실패 (${attempt + 1}/3):`, msg);
-      if (msg.includes("LEDGER_SEARCH_LOADING")) {
-        await page.waitForTimeout(15000);
-        continue;
-      }
+      console.warn(`   Excel 실패 (${attempt + 1}/3):`, err instanceof Error ? err.message : err);
     }
 
     await page.waitForTimeout(5000);
   }
 
-  const found = await findVisibleExcelButton(page);
-  const ready = await isLedgerResultsTableReady(page);
-  console.log(`   excel=${found ? "found" : "none"}, ready=${ready}, url=${page.url()}`);
   throw new Error("재고수불부 엑셀 다운로드 실패");
 }
 
@@ -101,7 +72,7 @@ export async function runEcountLedgerBulkBot() {
   if (!supabase) throw new Error("Supabase service role 미설정");
 
   const { from: period_from, to: period_to } = getLedgerBotDateRange();
-  console.log(`\n🤖 재고수불부 일괄 봇 (${period_from} ~ ${period_to})\n`);
+  console.log(`\n🤖 재고수불부 일괄 봇 (DB 기간 메타: ${period_from} ~ ${period_to})\n`);
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext(browserContext());
@@ -115,14 +86,14 @@ export async function runEcountLedgerBulkBot() {
     console.log(`   로그인: ${creds.source === "database" ? "DB" : "env"}`);
     await loginEcountWeb(page, creds);
 
-    const navOpts: LedgerItemOpts = {
+    const navOpts: LedgerNavOptions = {
       stock_menu_url: creds.stock_menu_url,
       ledger_menu_url: creds.ledger_menu_url,
       stock_menu_depth1: creds.stock_menu_depth1,
       stock_menu_depth2: creds.stock_menu_depth2,
       period_from,
       period_to,
-      results_wait_sec: 300,
+      results_wait_sec: 600,
     };
 
     await navigateToLedgerReport(page, navOpts);
@@ -183,7 +154,7 @@ export async function runEcountLedgerBot() {
     if (!creds) throw new Error("로그인 정보 없음");
     await loginEcountWeb(page, creds);
 
-    const navOpts: LedgerItemOpts = {
+    const navOpts: LedgerNavOptions = {
       stock_menu_url: creds.stock_menu_url,
       ledger_menu_url: creds.ledger_menu_url,
       stock_menu_depth1: creds.stock_menu_depth1,
@@ -192,6 +163,7 @@ export async function runEcountLedgerBot() {
       period_to,
       prod_cd,
       prod_nm,
+      results_wait_sec: 120,
     };
 
     await navigateToLedgerReport(page, navOpts);
