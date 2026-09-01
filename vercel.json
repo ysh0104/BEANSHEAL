@@ -4,5 +4,10 @@
       "path": "/api/ecount/sync",
       "schedule": "0 18 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "src/app/api/inventory/ledger/upload/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }

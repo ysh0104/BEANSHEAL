@@ -1,20 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
-import { uploadLedgerExcelFiles } from "@/app/actions/ledgerActions";
+import { importLedgerExcelFiles, importParsedLedgerItems } from "@/lib/ecountLedgerImport";
+import type { EcountLedgerParseResult } from "@/lib/ecountLedgerExcelParser";
 
 export const maxDuration = 300;
 
-/** POST multipart/form-data — files: 재고수불부 xlsx (복수 가능) */
+async function readJsonBody(req: NextRequest): Promise<{ items?: EcountLedgerParseResult[]; file_count?: number } | null> {
+  const ct = req.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) return null;
+  try {
+    return await req.json();
+  } catch {
+    return null;
+  }
+}
+
+/** POST — JSON { items } (브라우저 파싱) 또는 multipart files */
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const result = await uploadLedgerExcelFiles(formData);
+    const jsonBody = await readJsonBody(req);
 
-    if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+    if (jsonBody?.items && Array.isArray(jsonBody.items)) {
+      const result = await importParsedLedgerItems(jsonBody.items);
+      const status = result.success ? 200 : 400;
+      return NextResponse.json(
+        {
+          ...result,
+          file_count: jsonBody.file_count,
+          message: jsonBody.file_count
+            ? `${jsonBody.file_count}개 파일 · ${result.message || "반영 완료"}`
+            : result.message,
+        },
+        { status }
+      );
     }
 
-    return NextResponse.json(result);
+    const formData = await req.formData();
+    const result = await importLedgerExcelFiles(formData);
+    const status = result.success ? 200 : 400;
+    return NextResponse.json(result, { status });
   } catch (e) {
+    console.error("[ledger upload]", e);
     return NextResponse.json(
       { success: false, message: e instanceof Error ? e.message : "업로드 처리 오류" },
       { status: 500 }

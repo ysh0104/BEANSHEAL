@@ -10,6 +10,23 @@ import { getSafetyStockConfigs, setAllSafetyStockToZero } from "@/app/actions/sa
 import { getDefaultSafetyQty, checkIsLowStock } from "@/lib/safetyStockHelper";
 import { clearAllEcountItems } from "@/app/actions/inventoryActions";
 import { isSyncNewerThan, isGithubRunFromTrigger } from "@/lib/syncInventoryStatus";
+import { parseLedgerFilesOnClient } from "@/lib/ecountLedgerImportClient";
+
+async function parseUploadResponse(res: Response): Promise<{ success?: boolean; message?: string; errors?: string[]; item_count?: number; row_count?: number }> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    const snippet = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+    throw new Error(
+      res.status === 413
+        ? "파일이 너무 큽니다. 브라우저에서 파싱 후 전송하도록 자동 처리됩니다 — 페이지 새로고침 후 다시 시도해 주세요."
+        : snippet.startsWith("An error")
+          ? `서버 오류 (${res.status}): 요청 시간 초과 또는 용량 제한일 수 있습니다. 잠시 후 다시 시도해 주세요.`
+          : `서버 응답 오류 (${res.status}): ${snippet || "JSON 아님"}`
+    );
+  }
+}
 
 /** 재고수량: 반올림/올림 절대 없음! 최소 3자리 고정 표시 및 4자리 이상 원본 100% 표시 */
 function formatQty(value: number | string) {
@@ -305,24 +322,40 @@ export default function InventoryPage() {
     }
 
     setUploadingLedger(true);
-    const formData = new FormData();
-    for (const f of files) formData.append("files", f);
 
     try {
-      const res = await fetch("/api/inventory/ledger/upload", { method: "POST", body: formData });
-      const data = await res.json();
+      setLedgerBotStatusLine("엑셀 파일 분석 중…");
+      const { items, errors: parseErrors } = await parseLedgerFilesOnClient(files);
+
+      if (items.length === 0) {
+        alert(parseErrors.join("\n") || "파싱된 수불부 데이터가 없습니다.");
+        return;
+      }
+
+      setLedgerBotStatusLine(`DB 반영 중… (${items.length}품목)`);
+
+      const res = await fetch("/api/inventory/ledger/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, file_count: files.length }),
+      });
+      const data = await parseUploadResponse(res);
+
       if (data.success) {
         const warn =
-          data.errors?.length > 0
-            ? `\n\n일부 경고:\n${data.errors.slice(0, 5).join("\n")}`
+          data.errors?.length || parseErrors.length
+            ? `\n\n일부 경고:\n${[...parseErrors, ...(data.errors || [])].slice(0, 5).join("\n")}`
             : "";
         alert(`${data.message || "업로드 완료"}${warn}`);
         await refreshLedgerStatus();
+        setLedgerBotStatusLine("");
       } else {
         alert(data.message || "수불부 엑셀 업로드에 실패했습니다.");
+        setLedgerBotStatusLine("");
       }
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "업로드 중 오류");
+      setLedgerBotStatusLine("");
     } finally {
       setUploadingLedger(false);
       e.target.value = "";

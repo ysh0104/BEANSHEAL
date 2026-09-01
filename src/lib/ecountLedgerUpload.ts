@@ -221,7 +221,7 @@ function inferPeriodFromRows(rows: EcountLedgerExcelRow[]): { from: string; to: 
   return { from: dates[0], to: dates[dates.length - 1] };
 }
 
-/** 엑셀 파일 직접 업로드 — 품목별 전체 교체 (여러 파일은 품목코드 기준 병합) */
+/** 엑셀 파일 직접 업로드 — 품목별 전체 교체 (배치 DB) */
 export async function uploadEcountLedgerImportedFiles(
   parsedItems: EcountLedgerParseResult[]
 ): Promise<{
@@ -237,9 +237,9 @@ export async function uploadEcountLedgerImportedFiles(
   let skipped = 0;
 
   const supabase = getServiceSupabase();
-  const { data: inventoryRows } = supabase
-    ? await supabase.from("ecount_items").select("prod_cd, prod_nm")
-    : { data: [] as InventoryItem[] };
+  if (!supabase) return { success: false, error: "Supabase service role 미설정" };
+
+  const { data: inventoryRows } = await supabase.from("ecount_items").select("prod_cd, prod_nm");
   const inventory = inventoryRows || [];
 
   for (const item of parsedItems) {
@@ -273,38 +273,86 @@ export async function uploadEcountLedgerImportedFiles(
     return { success: false, error: "업로드할 수불부 데이터가 없습니다." };
   }
 
-  let row_count = 0;
-  const errors: string[] = [];
-  let synced_at = new Date().toISOString();
+  const synced_at = new Date().toISOString();
+  const prodCds = [...merged.keys()];
+
+  // 품목별 기존 수불부 삭제 (배치)
+  for (let i = 0; i < prodCds.length; i += 50) {
+    const batch = prodCds.slice(i, i + 50);
+    const { error: delErr } = await supabase.from("ecount_stock_ledger").delete().in("prod_cd", batch);
+    if (delErr) return { success: false, error: delErr.message };
+  }
+
+  const allPayload: Record<string, unknown>[] = [];
+  const metaItems: { prod_cd: string; prod_nm: string; period_from: string; period_to: string }[] = [];
 
   for (const [prod_cd, { prod_nm, rows }] of merged) {
     const { from, to } = inferPeriodFromRows(rows);
-    const res = await uploadEcountLedgerRows({
-      prod_cd,
-      prod_nm,
-      period_from: from,
-      period_to: to,
-      rows,
-    });
-    if (!res.success) {
-      errors.push(`${prod_cd}: ${res.error}`);
-      continue;
+    metaItems.push({ prod_cd, prod_nm, period_from: from, period_to: to });
+
+    for (const r of rows) {
+      allPayload.push({
+        prod_cd,
+        prod_nm: prod_nm || null,
+        txn_date: r.txn_date,
+        partner_name: r.partner_name,
+        remarks: r.remarks,
+        in_qty: r.in_qty,
+        out_qty: r.out_qty,
+        balance_qty: r.balance_qty,
+        lot_no: r.lot_no || null,
+        row_kind: r.row_kind,
+        period_from: from,
+        period_to: to,
+        synced_at,
+      });
     }
-    row_count += res.count || 0;
-    if (res.synced_at) synced_at = res.synced_at;
   }
 
-  if (row_count === 0 && errors.length > 0) {
-    return { success: false, error: errors.join("\n"), errors };
+  for (let i = 0; i < allPayload.length; i += INSERT_BATCH) {
+    const batch = allPayload.slice(i, i + INSERT_BATCH);
+    const { error: insErr } = await supabase.from("ecount_stock_ledger").insert(batch);
+    if (insErr) return { success: false, error: insErr.message };
+  }
+
+  // 메타 upsert (배치)
+  for (const meta of metaItems) {
+    const { data: existing } = await supabase
+      .from("ecount_ledger_sync_meta")
+      .select("first_synced_at")
+      .eq("prod_cd", meta.prod_cd)
+      .maybeSingle();
+
+    await supabase.from("ecount_ledger_sync_meta").upsert(
+      {
+        prod_cd: meta.prod_cd,
+        prod_nm: meta.prod_nm || null,
+        first_synced_at: existing?.first_synced_at || synced_at,
+        last_synced_at: synced_at,
+        period_from: meta.period_from,
+        period_to: meta.period_to,
+      },
+      { onConflict: "prod_cd" }
+    );
+  }
+
+  // FIFO 로트 → ecount_inventory (품목별, 삭제/insert는 이미 완료)
+  const lotErrors: string[] = [];
+  for (const [prod_cd, { prod_nm, rows }] of merged) {
+    try {
+      await syncLotsFromLedger(supabase, prod_cd, prod_nm, rows);
+    } catch (e) {
+      lotErrors.push(`${prod_cd}: ${e instanceof Error ? e.message : "로트 동기화 실패"}`);
+    }
   }
 
   return {
     success: true,
-    item_count: merged.size - errors.length,
-    row_count,
+    item_count: merged.size,
+    row_count: allPayload.length,
     synced_at,
     skipped: skipped > 0 ? skipped : undefined,
-    errors: errors.length > 0 ? errors : undefined,
+    errors: lotErrors.length > 0 ? lotErrors : undefined,
   };
 }
 
