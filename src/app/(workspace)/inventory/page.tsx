@@ -10,7 +10,9 @@ import { getSafetyStockConfigs } from "@/app/actions/safetyStockActions";
 import { getDefaultSafetyQty, checkIsLowStock } from "@/lib/safetyStockHelper";
 import { clearAllEcountItems } from "@/app/actions/inventoryActions";
 import { isSyncNewerThan, isGithubRunFromTrigger } from "@/lib/syncInventoryStatus";
+import { estimateTriggerProgress } from "@/lib/githubRunProgress";
 import { parseLedgerFilesOnClient } from "@/lib/ecountLedgerImportClient";
+import { BotSyncProgressBanner } from "@/components/BotSyncProgressBanner";
 
 async function parseUploadResponse(res: Response): Promise<{ success?: boolean; message?: string; errors?: string[]; item_count?: number; row_count?: number }> {
   const text = await res.text();
@@ -59,10 +61,16 @@ type SyncStatusPayload = {
   github_configured?: boolean;
   github_actions_url?: string | null;
   github_run?: {
+    id?: number;
     status: string;
     conclusion: string | null;
     html_url: string;
     updated_at: string;
+    created_at?: string;
+  } | null;
+  github_progress?: {
+    percent: number;
+    step_label: string;
   } | null;
 };
 
@@ -89,6 +97,28 @@ function formatGithubRunLabel(run: SyncStatusPayload["github_run"]): string {
   return `GitHub: ${run.status}`;
 }
 
+function applyMonotonicProgress(
+  nextPercent: number,
+  maxRef: { current: number },
+  setPercent: (value: number) => void
+) {
+  const clamped = Math.max(0, Math.min(100, Math.round(nextPercent)));
+  if (clamped >= maxRef.current) {
+    maxRef.current = clamped;
+    setPercent(clamped);
+  }
+}
+
+function resetBotProgress(
+  maxRef: { current: number },
+  setPercent: (value: number) => void,
+  setStepLabel: (value: string) => void
+) {
+  maxRef.current = 0;
+  setPercent(0);
+  setStepLabel("");
+}
+
 export default function InventoryPage() {
   const { canEdit } = useCanEdit("inventory");
   const { user } = useAuth();
@@ -100,6 +130,9 @@ export default function InventoryPage() {
   const [itemCount, setItemCount] = useState(0);
   const [botWatchPhase, setBotWatchPhase] = useState<BotWatchPhase>("idle");
   const [botStatusLine, setBotStatusLine] = useState("");
+  const [botProgressPercent, setBotProgressPercent] = useState(0);
+  const [botStepLabel, setBotStepLabel] = useState("");
+  const botProgressMaxRef = useRef(0);
   const [githubActionsUrl, setGithubActionsUrl] = useState<string | null>(null);
   const botBaselineRef = useRef<string | null>(null);
   const botTriggeredAtRef = useRef<string | null>(null);
@@ -118,6 +151,9 @@ export default function InventoryPage() {
   const [ledgerSyncedCount, setLedgerSyncedCount] = useState(0);
   const [ledgerBotWatchPhase, setLedgerBotWatchPhase] = useState<BotWatchPhase>("idle");
   const [ledgerBotStatusLine, setLedgerBotStatusLine] = useState("");
+  const [ledgerBotProgressPercent, setLedgerBotProgressPercent] = useState(0);
+  const [ledgerBotStepLabel, setLedgerBotStepLabel] = useState("");
+  const ledgerProgressMaxRef = useRef(0);
   const ledgerBaselineRef = useRef<string | null>(null);
   const ledgerTriggeredAtRef = useRef<string | null>(null);
   const [rawLogModalData, setRawLogModalData] = useState<any>(null);
@@ -209,6 +245,9 @@ export default function InventoryPage() {
     setSyncingMaster(true);
     setBotWatchPhase("watching");
     setBotStatusLine("GitHub 봇 시작 요청 중…");
+    resetBotProgress(botProgressMaxRef, setBotProgressPercent, setBotStepLabel);
+    applyMonotonicProgress(1, botProgressMaxRef, setBotProgressPercent);
+    setBotStepLabel("재고 봇 시작 요청 중…");
     botBaselineRef.current = lastSyncedAt;
     const triggeredAt = new Date().toISOString();
     botTriggeredAtRef.current = triggeredAt;
@@ -259,6 +298,9 @@ export default function InventoryPage() {
     setSyncingLedger(true);
     setLedgerBotWatchPhase("watching");
     setLedgerBotStatusLine("GitHub 재고수불부 봇 시작 요청 중…");
+    resetBotProgress(ledgerProgressMaxRef, setLedgerBotProgressPercent, setLedgerBotStepLabel);
+    applyMonotonicProgress(1, ledgerProgressMaxRef, setLedgerBotProgressPercent);
+    setLedgerBotStepLabel("재고수불부 봇 시작 요청 중…");
     ledgerBaselineRef.current = ledgerLastSyncedAt;
     ledgerTriggeredAtRef.current = new Date().toISOString();
 
@@ -433,6 +475,34 @@ export default function InventoryPage() {
 
   useEffect(() => {
     if (botWatchPhase !== "watching") return;
+    const timer = setInterval(() => {
+      setBotProgressPercent((prev) => {
+        const target = botProgressMaxRef.current;
+        if (prev >= target && target >= 99) return prev;
+        if (prev >= target) return Math.min(prev + 0.4, 98);
+        const step = target - prev > 8 ? 2 : 1;
+        return Math.min(prev + step, Math.max(target, prev + 0.4));
+      });
+    }, 500);
+    return () => clearInterval(timer);
+  }, [botWatchPhase]);
+
+  useEffect(() => {
+    if (ledgerBotWatchPhase !== "watching") return;
+    const timer = setInterval(() => {
+      setLedgerBotProgressPercent((prev) => {
+        const target = ledgerProgressMaxRef.current;
+        if (prev >= target && target >= 99) return prev;
+        if (prev >= target) return Math.min(prev + 0.4, 98);
+        const step = target - prev > 8 ? 2 : 1;
+        return Math.min(prev + step, Math.max(target, prev + 0.4));
+      });
+    }, 500);
+    return () => clearInterval(timer);
+  }, [ledgerBotWatchPhase]);
+
+  useEffect(() => {
+    if (botWatchPhase !== "watching") return;
 
     const started = Date.now();
     const maxMs = 5 * 60 * 1000;
@@ -445,8 +515,11 @@ export default function InventoryPage() {
       const baseline = botBaselineRef.current;
 
       if (isSyncNewerThan(data.last_synced_at, baseline, triggeredAt)) {
+        applyMonotonicProgress(100, botProgressMaxRef, setBotProgressPercent);
+        setBotStepLabel("동기화 완료");
         setBotWatchPhase("idle");
         setBotStatusLine("");
+        resetBotProgress(botProgressMaxRef, setBotProgressPercent, setBotStepLabel);
         setLastSyncedAt(data.last_synced_at);
         setItemCount(data.item_count);
         fetchInventory();
@@ -460,25 +533,44 @@ export default function InventoryPage() {
       if (runForThisTrigger?.status === "completed" && runForThisTrigger.conclusion === "failure") {
         setBotWatchPhase("failed");
         setBotStatusLine("GitHub 봇 실패 — Actions 로그를 확인하세요");
+        setBotStepLabel("GitHub 봇 실패");
+        applyMonotonicProgress(100, botProgressMaxRef, setBotProgressPercent);
         return;
       }
 
       if (runForThisTrigger?.status === "completed" && runForThisTrigger.conclusion === "success") {
         if (!isSyncNewerThan(data.last_synced_at, baseline, triggeredAt)) {
           setBotStatusLine(`${formatGithubRunLabel(runForThisTrigger)} · DB 반영 대기 중…`);
+          applyMonotonicProgress(
+            data.github_progress?.percent ?? 95,
+            botProgressMaxRef,
+            setBotProgressPercent
+          );
+          setBotStepLabel(data.github_progress?.step_label || "DB 반영 대기 중…");
         }
       } else if (
         runForThisTrigger?.status === "in_progress" ||
         runForThisTrigger?.status === "queued"
       ) {
         setBotStatusLine(`${formatGithubRunLabel(runForThisTrigger)} · Ecount 로그인 → 엑셀 다운로드 중…`);
+        applyMonotonicProgress(
+          data.github_progress?.percent ?? botProgressMaxRef.current,
+          botProgressMaxRef,
+          setBotProgressPercent
+        );
+        setBotStepLabel(data.github_progress?.step_label || "Ecount 로그인 → 엑셀 다운로드 중…");
       } else {
-        setBotStatusLine("봇 실행 중… 동기화 시간 갱신을 확인합니다 (15초마다 자동 확인)");
+        const warm = estimateTriggerProgress(Date.now() - started, "stock");
+        setBotStatusLine("봇 실행 중… 동기화 시간 갱신을 확인합니다 (5초마다 자동 확인)");
+        applyMonotonicProgress(warm.percent, botProgressMaxRef, setBotProgressPercent);
+        setBotStepLabel(warm.step_label);
       }
 
       if (Date.now() - started > maxMs) {
         setBotWatchPhase("timeout");
         setBotStatusLine("5분 내 동기화 갱신 없음 — GitHub Actions에서 결과를 확인하세요");
+        setBotStepLabel("동기화 시간 갱신 없음");
+        applyMonotonicProgress(Math.max(botProgressMaxRef.current, 95), botProgressMaxRef, setBotProgressPercent);
       }
     };
 
@@ -505,8 +597,11 @@ export default function InventoryPage() {
         (!baseline || new Date(data.last_synced_at).getTime() > new Date(baseline).getTime() - 3000);
 
       if (bulkNewer) {
+        applyMonotonicProgress(100, ledgerProgressMaxRef, setLedgerBotProgressPercent);
+        setLedgerBotStepLabel("동기화 완료");
         setLedgerBotWatchPhase("idle");
         setLedgerBotStatusLine("");
+        resetBotProgress(ledgerProgressMaxRef, setLedgerBotProgressPercent, setLedgerBotStepLabel);
         setLedgerLastSyncedAt(data.last_synced_at);
         setLedgerSyncedCount(data.synced_item_count);
         fetchInventory();
@@ -520,18 +615,39 @@ export default function InventoryPage() {
       if (runForThisTrigger?.status === "completed" && runForThisTrigger.conclusion === "failure") {
         setLedgerBotWatchPhase("failed");
         setLedgerBotStatusLine("재고수불부 봇 실패 — Actions 로그 확인");
+        setLedgerBotStepLabel("재고수불부 봇 실패");
+        applyMonotonicProgress(100, ledgerProgressMaxRef, setLedgerBotProgressPercent);
         return;
       }
 
       if (runForThisTrigger?.status === "in_progress" || runForThisTrigger?.status === "queued") {
         setLedgerBotStatusLine(`${formatGithubRunLabel(runForThisTrigger)} · 품목별 수불부 동기화 중…`);
+        applyMonotonicProgress(
+          data.github_progress?.percent ?? ledgerProgressMaxRef.current,
+          ledgerProgressMaxRef,
+          setLedgerBotProgressPercent
+        );
+        setLedgerBotStepLabel(data.github_progress?.step_label || "품목별 수불부 동기화 중…");
+      } else if (runForThisTrigger?.status === "completed" && runForThisTrigger.conclusion === "success") {
+        setLedgerBotStatusLine(`${formatGithubRunLabel(runForThisTrigger)} · DB 반영 대기 중…`);
+        applyMonotonicProgress(
+          data.github_progress?.percent ?? 95,
+          ledgerProgressMaxRef,
+          setLedgerBotProgressPercent
+        );
+        setLedgerBotStepLabel(data.github_progress?.step_label || "DB 반영 대기 중…");
       } else {
-        setLedgerBotStatusLine("재고수불부 봇 실행 중… (15초마다 자동 확인)");
+        const warm = estimateTriggerProgress(Date.now() - started, "ledger_bulk");
+        setLedgerBotStatusLine("재고수불부 봇 실행 중… (5초마다 자동 확인)");
+        applyMonotonicProgress(warm.percent, ledgerProgressMaxRef, setLedgerBotProgressPercent);
+        setLedgerBotStepLabel(warm.step_label);
       }
 
       if (Date.now() - started > maxMs) {
         setLedgerBotWatchPhase("timeout");
         setLedgerBotStatusLine("2시간 내 완료 신호 없음 — GitHub Actions에서 진행 상황을 확인하세요");
+        setLedgerBotStepLabel("완료 신호 없음");
+        applyMonotonicProgress(Math.max(ledgerProgressMaxRef.current, 95), ledgerProgressMaxRef, setLedgerBotProgressPercent);
       }
     };
 
@@ -729,65 +845,23 @@ export default function InventoryPage() {
             <span className="ml-2 text-[11px] text-slate-400">봇=전월~오늘 · 과거=엑셀 업로드</span>
           </p>
 
-          {botWatchPhase !== "idle" && botStatusLine && (
-            <p
-              className={`text-sm font-medium max-w-2xl px-3 py-2 rounded-lg border ${
-                botWatchPhase === "failed"
-                  ? "text-rose-800 bg-rose-50 border-rose-200"
-                  : botWatchPhase === "timeout"
-                    ? "text-amber-800 bg-amber-50 border-amber-200"
-                    : "text-blue-800 bg-blue-50 border-blue-200"
-              }`}
-            >
-              {botWatchPhase === "watching" && (
-                <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse mr-2 align-middle" />
-              )}
-              {botStatusLine}
-              {githubActionsUrl && (botWatchPhase === "watching" || botWatchPhase === "failed" || botWatchPhase === "timeout") && (
-                <>
-                  {" "}
-                  <a
-                    href={githubActionsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline font-bold whitespace-nowrap"
-                  >
-                    GitHub Actions
-                  </a>
-                </>
-              )}
-            </p>
-          )}
+          <BotSyncProgressBanner
+            phase={botWatchPhase}
+            statusLine={botStatusLine}
+            stepLabel={botStepLabel}
+            percent={botProgressPercent}
+            githubActionsUrl={githubActionsUrl}
+            tone="blue"
+          />
 
-          {ledgerBotWatchPhase !== "idle" && ledgerBotStatusLine && (
-            <p
-              className={`text-sm font-medium max-w-2xl px-3 py-2 rounded-lg border ${
-                ledgerBotWatchPhase === "failed"
-                  ? "text-rose-800 bg-rose-50 border-rose-200"
-                  : ledgerBotWatchPhase === "timeout"
-                    ? "text-amber-800 bg-amber-50 border-amber-200"
-                    : "text-violet-800 bg-violet-50 border-violet-200"
-              }`}
-            >
-              {ledgerBotWatchPhase === "watching" && (
-                <span className="inline-block w-2 h-2 rounded-full bg-violet-500 animate-pulse mr-2 align-middle" />
-              )}
-              {ledgerBotStatusLine}
-              {githubActionsUrl && (ledgerBotWatchPhase === "watching" || ledgerBotWatchPhase === "failed" || ledgerBotWatchPhase === "timeout") && (
-                <>
-                  {" "}
-                  <a
-                    href={githubActionsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline font-bold whitespace-nowrap"
-                  >
-                    GitHub Actions
-                  </a>
-                </>
-              )}
-            </p>
-          )}
+          <BotSyncProgressBanner
+            phase={ledgerBotWatchPhase}
+            statusLine={ledgerBotStatusLine}
+            stepLabel={ledgerBotStepLabel}
+            percent={ledgerBotProgressPercent}
+            githubActionsUrl={githubActionsUrl}
+            tone="violet"
+          />
         </div>
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-end mb-2">
           

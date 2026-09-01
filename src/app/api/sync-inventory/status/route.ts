@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchGithubRunProgress } from "@/lib/githubRunProgress";
 import {
   fetchLatestGithubBotRun,
   fetchSyncInventoryDbStatus,
@@ -12,8 +13,14 @@ export async function GET() {
   const repo = (process.env.GITHUB_REPO || "ysh0104/BEANSHEAL").trim().replace(/^https:\/\/github\.com\//, "");
 
   let github_run = null;
+  let github_progress = null;
   if (token && repo) {
     github_run = await fetchLatestGithubBotRun(token, repo);
+    if (github_run) {
+      github_progress = await fetchGithubRunProgress(token, repo, github_run, {
+        botTarget: "stock",
+      });
+    }
   }
 
   return NextResponse.json({
@@ -22,5 +29,6 @@ export async function GET() {
     github_repo: repo,
     github_actions_url: repo ? `https://github.com/${repo}/actions/workflows/sync-inventory.yml` : null,
     github_run,
+    github_progress,
   });
 }
