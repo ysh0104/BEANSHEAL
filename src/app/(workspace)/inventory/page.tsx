@@ -479,9 +479,9 @@ export default function InventoryPage() {
       setBotProgressPercent((prev) => {
         const target = botProgressMaxRef.current;
         if (prev >= target && target >= 99) return prev;
-        if (prev >= target) return Math.min(prev + 0.4, 98);
+        if (prev >= target) return Math.min(prev + 1, 98);
         const step = target - prev > 8 ? 2 : 1;
-        return Math.min(prev + step, Math.max(target, prev + 0.4));
+        return Math.min(prev + step, target);
       });
     }, 500);
     return () => clearInterval(timer);
@@ -493,9 +493,9 @@ export default function InventoryPage() {
       setLedgerBotProgressPercent((prev) => {
         const target = ledgerProgressMaxRef.current;
         if (prev >= target && target >= 99) return prev;
-        if (prev >= target) return Math.min(prev + 0.4, 98);
+        if (prev >= target) return Math.min(prev + 1, 98);
         const step = target - prev > 8 ? 2 : 1;
-        return Math.min(prev + step, Math.max(target, prev + 0.4));
+        return Math.min(prev + step, target);
       });
     }, 500);
     return () => clearInterval(timer);

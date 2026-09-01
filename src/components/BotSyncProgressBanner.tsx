@@ -17,7 +17,7 @@ export function BotSyncProgressBanner({
 }: BotSyncProgressBannerProps) {
   if (phase === "idle" || !statusLine) return null;
 
-  const safePercent = Math.max(0, Math.min(100, percent));
+  const safePercent = Math.round(Math.max(0, Math.min(100, percent)));
   const isError = phase === "failed";
   const isTimeout = phase === "timeout";
   const isWarning = isError || isTimeout;
