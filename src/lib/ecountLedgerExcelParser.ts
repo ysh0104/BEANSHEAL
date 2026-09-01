@@ -59,16 +59,33 @@ export function parseEcountLedgerExcel(
   });
 
   let headerRowIndex = -1;
-  for (let i = 0; i < Math.min(30, allRows.length); i++) {
+  for (let i = 0; i < Math.min(80, allRows.length); i++) {
     const row = allRows[i];
     if (!Array.isArray(row)) continue;
-    const joined = row.map((c) => String(c)).join(" ");
-    if (/일자/.test(joined) && /(입고|출고|재고)/.test(joined)) {
+    const cells = row.map((c) => String(c).trim());
+    const joined = cells.join(" ");
+    const hasDate = cells.some((c) => /^일자$/.test(c.replace(/\s+/g, ""))) || /일자/.test(joined);
+    const hasIn = cells.some((c) => /입고/.test(c)) || /입고/.test(joined);
+    const hasOut = cells.some((c) => /출고/.test(c)) || /출고/.test(joined);
+    if (hasDate && (hasIn || hasOut)) {
       headerRowIndex = i;
       break;
     }
   }
-  if (headerRowIndex < 0) throw new Error("재고수불부 헤더 행을 찾을 수 없습니다.");
+
+  if (headerRowIndex < 0) {
+    for (let i = 0; i < Math.min(80, allRows.length); i++) {
+      const row = allRows[i];
+      if (!Array.isArray(row)) continue;
+      const joined = row.map((c) => String(c)).join(" ");
+      if (/품목코드/.test(joined) && /재고수량/.test(joined)) {
+        throw new Error(
+          "재고현황 엑셀이 다운로드되었습니다. 봇이 재고수불부가 아닌 재고현황 화면에서 저장했을 수 있습니다."
+        );
+      }
+    }
+    throw new Error("재고수불부 헤더 행을 찾을 수 없습니다. (일자·입고·출고 컬럼 확인)");
+  }
 
   const headers = allRows[headerRowIndex].map((h) => String(h).trim());
 

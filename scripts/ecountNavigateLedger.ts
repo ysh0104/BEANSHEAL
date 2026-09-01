@@ -1,7 +1,12 @@
 import type { Page } from "playwright";
 import { parseStockMenuUrl } from "../src/lib/ecountStockMenuUrl";
 import { dismissEcountPopups } from "./ecountNavigateStock";
-import { clickExcelDownload, waitForStockResultsReady } from "./ecountExcel";
+import {
+  clickLedgerExcelDownload,
+  isLedgerResultsReady,
+  isLedgerSearchForm,
+  waitForLedgerResultsReady,
+} from "./ecountExcel";
 
 async function clickInAnyFrame(page: Page, selector: string): Promise<boolean> {
   for (const frame of page.frames()) {
@@ -43,7 +48,7 @@ async function gotoViaHash(page: Page, savedUrl: string): Promise<boolean> {
   return true;
 }
 
-async function openLedgerProgram(page: Page): Promise<boolean> {
+export async function openLedgerProgram(page: Page): Promise<boolean> {
   console.log("   → 「재고수불부」 보고서 클릭...");
 
   for (const frame of page.frames()) {
@@ -90,25 +95,6 @@ async function fillInputNearLabel(page: Page, labelPattern: RegExp, value: strin
     } catch {
       /* continue */
     }
-
-    try {
-      const inputs = frame.locator('input[type="text"], input:not([type="hidden"])');
-      const n = await inputs.count();
-      for (let i = 0; i < n; i++) {
-        const input = inputs.nth(i);
-        const placeholder = ((await input.getAttribute("placeholder")) || "").toLowerCase();
-        const name = ((await input.getAttribute("name")) || "").toLowerCase();
-        const id = ((await input.getAttribute("id")) || "").toLowerCase();
-        const hint = `${placeholder}${name}${id}`;
-        if (labelPattern.test(hint)) {
-          await input.click({ force: true });
-          await input.fill(value);
-          return true;
-        }
-      }
-    } catch {
-      /* continue */
-    }
   }
   return false;
 }
@@ -116,47 +102,60 @@ async function fillInputNearLabel(page: Page, labelPattern: RegExp, value: strin
 async function fillDateRange(page: Page, from: string, to: string): Promise<void> {
   console.log(`   → 기간 설정: ${from} ~ ${to}`);
 
-  let filled = false;
   for (const frame of page.frames()) {
     try {
-      const dateInputs = frame.locator('input[type="text"], input:not([type="hidden"])').filter({
-        has: frame.locator("xpath=.."),
-      });
-      const inputs = frame.locator('input[type="text"]');
+      const inputs = frame.locator('input[type="text"]:visible');
       const n = await inputs.count();
-      const candidates: { idx: number; el: ReturnType<Page["locator"]> }[] = [];
+      const dateInputs: ReturnType<Page["locator"]>[] = [];
       for (let i = 0; i < n; i++) {
         const el = inputs.nth(i);
         const val = await el.inputValue().catch(() => "");
         if (/\d{4}[\/.\-]\d{1,2}/.test(val) || val === "") {
-          candidates.push({ idx: i, el });
+          dateInputs.push(el);
         }
       }
-      if (candidates.length >= 2) {
-        await candidates[0].el.click({ force: true });
-        await candidates[0].el.fill(from);
-        await candidates[1].el.click({ force: true });
-        await candidates[1].el.fill(to);
-        filled = true;
-        break;
+      if (dateInputs.length >= 2) {
+        await dateInputs[0].click({ force: true });
+        await dateInputs[0].fill(from);
+        await dateInputs[1].click({ force: true });
+        await dateInputs[1].fill(to);
+        return;
       }
     } catch {
       /* next frame */
     }
   }
 
-  if (!filled) {
-    await fillInputNearLabel(page, /기간|시작|from|date/i, from);
-    await fillInputNearLabel(page, /종료|to|date/i, to);
-  }
+  await fillInputNearLabel(page, /시작|from/i, from);
+  await fillInputNearLabel(page, /종료|to/i, to);
 }
 
 async function fillProdCode(page: Page, prodCd: string): Promise<void> {
   console.log(`   → 품목코드: ${prodCd}`);
-  const patterns = [/품목코드/, /품목/, /prod/i, /code/i];
-  for (const p of patterns) {
-    if (await fillInputNearLabel(page, p, prodCd)) return;
+
+  for (const frame of page.frames()) {
+    try {
+      const codeLabel = frame.locator("text=/품목코드/").first();
+      if ((await codeLabel.count()) > 0) {
+        const row = codeLabel.locator("xpath=ancestor::tr[1]").first();
+        const input = row.locator('input[type="text"]').first();
+        if ((await input.count()) > 0 && (await input.isVisible())) {
+          await input.fill(prodCd);
+          return;
+        }
+        const nextInput = codeLabel.locator("xpath=following::input[1]").first();
+        if ((await nextInput.count()) > 0 && (await nextInput.isVisible())) {
+          await nextInput.fill(prodCd);
+          return;
+        }
+      }
+    } catch {
+      /* skip */
+    }
   }
+
+  if (await fillInputNearLabel(page, /^품목코드$/, prodCd)) return;
+  if (await fillInputNearLabel(page, /품목코드/, prodCd)) return;
 
   for (const frame of page.frames()) {
     const byPlaceholder = frame.locator('input[placeholder*="품목"], input[placeholder*="코드"]').first();
@@ -194,6 +193,45 @@ export type LedgerNavOptions = {
   prod_cd: string;
 };
 
+async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
+  if (await isLedgerResultsReady(page)) {
+    console.log("   ✓ 재고수불부 결과 화면 — 검색 생략");
+    return;
+  }
+
+  if (!(await isLedgerSearchForm(page))) {
+    console.log("   → 재고수불부 검색 화면 아님 — 메뉴 재클릭");
+    if (!(await openLedgerProgram(page))) {
+      await tryMenuSearchLedger(page);
+    }
+    await page.waitForTimeout(2000);
+  }
+
+  await fillDateRange(page, opts.period_from, opts.period_to);
+  await fillProdCode(page, opts.prod_cd);
+  await clickSearch(page);
+}
+
+async function tryMenuSearchLedger(page: Page): Promise<boolean> {
+  for (const frame of page.frames()) {
+    for (const sel of ['input[placeholder*="메뉴"]', "#txtMenuSearch", "#menuSearch", 'input[type="search"]']) {
+      const input = frame.locator(sel).first();
+      try {
+        if ((await input.count()) > 0 && (await input.isVisible())) {
+          await input.fill("재고수불부");
+          await input.press("Enter");
+          await page.waitForTimeout(4000);
+          console.log("   ✓ 메뉴 검색: 재고수불부");
+          return true;
+        }
+      } catch {
+        /* continue */
+      }
+    }
+  }
+  return false;
+}
+
 /** 재고수불부 화면 → 기간·품목 설정 → 검색 */
 export async function navigateToLedgerReport(page: Page, opts: LedgerNavOptions) {
   console.log("2. 재고수불부 화면 이동...");
@@ -206,25 +244,42 @@ export async function navigateToLedgerReport(page: Page, opts: LedgerNavOptions)
   }
 
   if (!(await openLedgerProgram(page))) {
-    throw new Error(
-      "재고수불부 메뉴를 찾지 못했습니다. 출력물 메뉴에서 재고수불부 URL/메뉴 경로를 확인하세요."
-    );
+    if (!(await tryMenuSearchLedger(page)) || !(await openLedgerProgram(page))) {
+      const parsed = menuUrl ? parseStockMenuUrl(menuUrl) : null;
+      if (parsed?.depth2Selector) {
+        await clickInAnyFrame(page, parsed.depth2Selector);
+        await page.waitForTimeout(2000);
+        if (!(await openLedgerProgram(page))) {
+          throw new Error("재고수불부 메뉴를 찾지 못했습니다.");
+        }
+      } else {
+        throw new Error("재고수불부 메뉴를 찾지 못했습니다. 출력물 메뉴에서 재고수불부를 확인하세요.");
+      }
+    }
   }
 
   await page.waitForTimeout(2000);
   await dismissEcountPopups(page);
-  await fillDateRange(page, opts.period_from, opts.period_to);
-  await fillProdCode(page, opts.prod_cd);
-  await clickSearch(page);
+  await runLedgerSearch(page, opts);
 
   console.log("3. 재고수불부 결과 대기...");
-  if (!(await waitForStockResultsReady(page, 90))) {
-    console.warn("   ⚠ 결과 화면 미확인 — 엑셀 다운로드 재시도 예정");
+  if (!(await waitForLedgerResultsReady(page, 90))) {
+    console.warn("   ⚠ 재고수불부 결과 90초 내 미확인 — 엑셀 단계에서 재시도");
   }
+}
+
+/** 엑셀 다운로드 실패 시 재고수불부 검색 재실행 (재고현황 폴백 금지) */
+export async function runLedgerSearchAfterNavigate(page: Page, opts: LedgerNavOptions) {
+  await dismissEcountPopups(page);
+  if (!(await openLedgerProgram(page))) {
+    await tryMenuSearchLedger(page);
+  }
+  await runLedgerSearch(page, opts);
+  await waitForLedgerResultsReady(page, 60);
 }
 
 export async function downloadLedgerExcel(page: Page, saveAs: string) {
   console.log("4. 재고수불부 엑셀 다운로드...");
-  await clickExcelDownload(page, saveAs);
+  await clickLedgerExcelDownload(page, saveAs);
   console.log(`✅ 엑셀 저장: ${saveAs}`);
 }

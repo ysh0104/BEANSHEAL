@@ -15,8 +15,13 @@ import { getLedgerDateRange } from "../src/lib/ecountLedgerDateRange";
 import { parseEcountLedgerExcel } from "../src/lib/ecountLedgerExcelParser";
 import { uploadEcountLedgerRows } from "../src/lib/ecountLedgerUpload";
 import { loginEcountWeb } from "./ecountLogin";
-import { navigateToLedgerReport, downloadLedgerExcel } from "./ecountNavigateLedger";
-import { dismissEcountPopups, runStockSearchAfterNavigate } from "./ecountNavigateStock";
+import {
+  navigateToLedgerReport,
+  downloadLedgerExcel,
+  runLedgerSearchAfterNavigate,
+} from "./ecountNavigateLedger";
+import { dismissEcountPopups } from "./ecountNavigateStock";
+import { isLedgerResultsReady } from "./ecountExcel";
 
 const envPath = fs.existsSync(".env.local") ? ".env.local" : ".env";
 require("dotenv").config({ path: envPath });
@@ -82,29 +87,42 @@ export async function runEcountLedgerBot() {
       throw new Error("이카ount 로그인 정보 없음 (/admin/ecount-bot 또는 GitHub Secrets)");
     }
 
-    await loginEcountWeb(page, creds);
-    await navigateToLedgerReport(page, {
+    const navOpts = {
       stock_menu_url: creds.stock_menu_url,
       period_from,
       period_to,
       prod_cd,
-    });
+    };
 
-    for (let attempt = 0; attempt < 3; attempt++) {
+    await loginEcountWeb(page, creds);
+    await navigateToLedgerReport(page, navOpts);
+
+    let parsed: ReturnType<typeof parseEcountLedgerExcel> | null = null;
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (!(await isLedgerResultsReady(page))) {
+        console.log(`   → 재고수불부 결과 화면 재확인 (${attempt + 1}/4)`);
+        await runLedgerSearchAfterNavigate(page, navOpts);
+      }
+
       try {
+        if (fs.existsSync(saveAs)) fs.unlinkSync(saveAs);
         await downloadLedgerExcel(page, saveAs);
-        break;
+        const buffer = fs.readFileSync(saveAs);
+        parsed = parseEcountLedgerExcel(buffer, prod_cd);
+        if (parsed.rows.length > 0) break;
+        console.warn(`   ⚠ 파싱 0행 — 재시도 (${attempt + 1}/4)`);
       } catch (err) {
-        console.warn(`   Excel 재시도 ${attempt + 1}/3:`, err instanceof Error ? err.message : err);
+        console.warn(`   Excel/파싱 재시도 ${attempt + 1}/4:`, err instanceof Error ? err.message : err);
         await dismissEcountPopups(page);
-        await runStockSearchAfterNavigate(page);
+        await runLedgerSearchAfterNavigate(page, navOpts);
       }
     }
 
-    if (!fs.existsSync(saveAs)) throw new Error("재고수불부 엑셀 파일이 생성되지 않았습니다.");
+    if (!parsed || parsed.rows.length === 0) {
+      throw new Error("재고수불부 엑셀 파싱 실패 — 재고수불부 화면(일자·입고·출고)인지 GitHub 아티팩트 스크린샷을 확인하세요.");
+    }
 
-    const buffer = fs.readFileSync(saveAs);
-    const parsed = parseEcountLedgerExcel(buffer, prod_cd);
     console.log(`   파싱 ${parsed.rows.length}행 (품목: ${parsed.prod_nm || prod_nm || prod_cd})`);
 
     const upload = await uploadEcountLedgerRows({
