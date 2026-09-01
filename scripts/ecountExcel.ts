@@ -168,19 +168,47 @@ export async function isLedgerSearchForm(page: Page): Promise<boolean> {
 
   for (const frame of page.frames()) {
     try {
-      const searchBtn = frame.getByText(SEARCH_BTN_PATTERN).first();
-      if ((await searchBtn.count()) === 0 || !(await searchBtn.isVisible())) continue;
-
       const stockDate = frame.locator("text=기준일자").first();
       if ((await stockDate.count()) > 0 && (await stockDate.isVisible())) continue;
 
       const stockQty = frame.locator("text=재고수량").first();
       if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) continue;
 
-      return true;
+      const title = frame.getByText(/재고\s*수불부/).first();
+      const period = frame.locator("text=/조회기간|품목코드/").first();
+      const searchBtn = frame.getByText(SEARCH_BTN_PATTERN).first();
+      const dateInputs = frame.locator('input[type="text"]:visible');
+
+      const hasTitle = (await title.count()) > 0 && (await title.isVisible());
+      const hasPeriod = (await period.count()) > 0 && (await period.isVisible());
+      const hasSearch = (await searchBtn.count()) > 0 && (await searchBtn.isVisible());
+      const hasDates = (await dateInputs.count()) >= 2;
+
+      if (hasSearch) return true;
+      if (hasTitle && (hasPeriod || hasDates)) return true;
+      if (hasPeriod && hasDates) return true;
     } catch {
       /* skip */
     }
+  }
+  return false;
+}
+
+export async function waitForLedgerSearchForm(page: Page, maxSec = 25): Promise<boolean> {
+  const steps = Math.ceil(maxSec / 2);
+  for (let i = 0; i < steps; i++) {
+    if ((await isLedgerSearchForm(page)) || (await isLedgerResultsReady(page))) {
+      console.log(`   ✓ 재고수불부 화면 (${(i + 1) * 2}초)`);
+      return true;
+    }
+    if (i > 0 && i % 3 === 0) {
+      const hash = page.url().split("#")[1] || "";
+      const prgId = new URLSearchParams(hash).get("prgId");
+      if (prgId && prgId !== "C000035") {
+        console.log(`   … prgId=${prgId} 로딩 대기 (${(i + 1) * 2}초)`);
+      }
+    }
+    await page.waitForTimeout(2000);
   }
   return false;
 }
