@@ -156,7 +156,8 @@ export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
 
   await clickLedgerSearch(page);
 
-  for (let i = 0; i < 20; i++) {
+  console.log("   → 품목 재지정 알림 대기 (취소 클릭)...");
+  for (let i = 0; i < 30; i++) {
     if (await dismissBulkItemModal(page)) break;
     await page.waitForTimeout(500);
   }

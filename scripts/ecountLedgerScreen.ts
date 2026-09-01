@@ -99,19 +99,51 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
   }
 }
 
+const BULK_ITEM_HINT = /조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
+
+function bulkItemModalScopes(ctx: Page | Frame) {
+  return [
+    ctx.locator('[role="dialog"], .ui-dialog, .modal, .layer_popup, .popup').filter({ hasText: BULK_ITEM_HINT }),
+    ctx.locator("body"),
+  ];
+}
+
+async function hasBulkItemModal(ctx: Page | Frame): Promise<boolean> {
+  const hint = ctx.getByText(BULK_ITEM_HINT).first();
+  if ((await hint.count()) > 0 && (await hint.isVisible())) return true;
+
+  const titled = ctx
+    .locator('[role="dialog"], .ui-dialog, .modal, .layer_popup')
+    .filter({ hasText: /알림/ })
+    .filter({ hasText: BULK_ITEM_HINT })
+    .first();
+  return (await titled.count()) > 0 && (await titled.isVisible());
+}
+
+async function clickBulkItemCancel(ctx: Page | Frame): Promise<boolean> {
+  for (const scope of bulkItemModalScopes(ctx)) {
+    if ((await scope.count()) === 0) continue;
+
+    const cancel = scope
+      .getByRole("button", { name: "취소" })
+      .or(scope.locator('button, a, span, div[role="button"]').filter({ hasText: /^취소$/ }))
+      .first();
+    if ((await cancel.count()) === 0 || !(await cancel.isVisible())) continue;
+
+    await cancel.click({ force: true });
+    return true;
+  }
+  return false;
+}
+
 /** 「품목개수가 많을 경우…」 알림 → 취소 (확인 누르면 품목 재지정으로 빠짐) */
 export async function dismissBulkItemModal(page: Page): Promise<boolean> {
-  for (const frame of page.frames()) {
-    try {
-      const hint = frame.locator("text=/조회품목을 재지정|품목개수가 많을 경우/").first();
-      if ((await hint.count()) === 0 || !(await hint.isVisible())) continue;
+  const contexts: Array<Page | Frame> = [page, ...page.frames()];
 
-      const cancel = frame
-        .locator('button, a, span, div[role="button"]')
-        .filter({ hasText: /^취소$/ })
-        .first();
-      if ((await cancel.count()) > 0 && (await cancel.isVisible())) {
-        await cancel.click({ force: true });
+  for (const ctx of contexts) {
+    try {
+      if (!(await hasBulkItemModal(ctx))) continue;
+      if (await clickBulkItemCancel(ctx)) {
         console.log("   ✓ 품목 재지정 알림 → 취소");
         await page.waitForTimeout(1000);
         return true;
@@ -139,6 +171,7 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
           await btn.scrollIntoViewIfNeeded().catch(() => {});
           await btn.click({ force: true });
           console.log("   ✓ 검색(F8) 클릭");
+          await page.waitForTimeout(1500);
           return;
         }
       } catch {
@@ -152,6 +185,7 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
       await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true });
       await page.keyboard.press("F8");
       console.log("   ✓ F8 키 입력");
+      await page.waitForTimeout(1500);
       return;
     } catch {
       /* next */
