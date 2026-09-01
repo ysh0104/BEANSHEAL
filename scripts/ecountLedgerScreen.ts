@@ -1,17 +1,17 @@
 /**
  * 재고수불부 화면 전용 — 재고현황(ecountExcel)과 분리
  */
-import type { Frame, Locator, Page } from "playwright";
+import type { Frame, Page } from "playwright";
+import {
+  isLedgerResultsReady,
+  isLedgerResultsTableReady,
+  isOnStockReportPage,
+} from "./ecountExcel";
+
+export { clickLedgerExcelDownload } from "./ecountExcel";
 
 const SEARCH_BTN = /(?:검색|Search|조회)\s*\(F\d+\)/i;
-const EXCEL_SELECTORS = [
-  "#outputExcel",
-  '[id*="outputExcel"]',
-  "#btnExcel",
-  '[id*="btnExcel"]',
-  '[title*="엑셀"]',
-  '[title*="Excel"]',
-];
+const BULK_ITEM_HINT = /조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
 
 export async function findLedgerFrames(page: Page): Promise<Frame[]> {
   const frames: Frame[] = [];
@@ -99,13 +99,11 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
   }
 }
 
-const BULK_ITEM_HINT = /조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
-
-function bulkItemModalScopes(ctx: Page | Frame) {
-  return [
-    ctx.locator('[role="dialog"], .ui-dialog, .modal, .layer_popup, .popup').filter({ hasText: BULK_ITEM_HINT }),
-    ctx.locator("body"),
-  ];
+async function isBulkItemModalVisible(page: Page): Promise<boolean> {
+  for (const ctx of [page, ...page.frames()]) {
+    if (await hasBulkItemModal(ctx)) return true;
+  }
+  return false;
 }
 
 async function hasBulkItemModal(ctx: Page | Frame): Promise<boolean> {
@@ -113,46 +111,128 @@ async function hasBulkItemModal(ctx: Page | Frame): Promise<boolean> {
   if ((await hint.count()) > 0 && (await hint.isVisible())) return true;
 
   const titled = ctx
-    .locator('[role="dialog"], .ui-dialog, .modal, .layer_popup')
+    .locator('[role="dialog"], .ui-dialog, .modal, .layer_popup, [class*="dialog"]')
     .filter({ hasText: /알림/ })
     .filter({ hasText: BULK_ITEM_HINT })
     .first();
   return (await titled.count()) > 0 && (await titled.isVisible());
 }
 
-async function clickBulkItemCancel(ctx: Page | Frame): Promise<boolean> {
-  for (const scope of bulkItemModalScopes(ctx)) {
-    if ((await scope.count()) === 0) continue;
+async function clickBulkItemCancelInContext(ctx: Page | Frame): Promise<boolean> {
+  const dialog = ctx
+    .locator('[role="dialog"], .ui-dialog, .modal, .layer_popup, [class*="dialog"], [class*="layer"]')
+    .filter({ hasText: BULK_ITEM_HINT })
+    .first();
 
-    const cancel = scope
-      .getByRole("button", { name: "취소" })
-      .or(scope.locator('button, a, span, div[role="button"]').filter({ hasText: /^취소$/ }))
-      .first();
-    if ((await cancel.count()) === 0 || !(await cancel.isVisible())) continue;
+  if ((await dialog.count()) > 0 && (await dialog.isVisible())) {
+    const cancels = dialog.locator("button, a, input[type='button'], span, div").filter({ hasText: /취소/ });
+    const n = await cancels.count();
+    for (let i = n - 1; i >= 0; i--) {
+      const btn = cancels.nth(i);
+      try {
+        if (!(await btn.isVisible())) continue;
+        const text = ((await btn.innerText()) || "").trim();
+        if (text !== "취소") continue;
+        await btn.click({ force: true });
+        return true;
+      } catch {
+        /* next */
+      }
+    }
+  }
 
+  const cancel = ctx.getByText("취소", { exact: true }).first();
+  if ((await cancel.count()) > 0 && (await cancel.isVisible())) {
     await cancel.click({ force: true });
     return true;
+  }
+
+  return false;
+}
+
+/** DOM evaluate — Ecount 알림 레이어가 Playwright locator로 안 잡힐 때 */
+async function clickBulkItemCancelViaEvaluate(page: Page): Promise<boolean> {
+  for (const frame of page.frames()) {
+    try {
+      const clicked = await frame.evaluate(() => {
+        const hintRe = /조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
+        const roots = Array.from(
+          document.querySelectorAll(
+            '.ui-dialog, [role="dialog"], .modal, .layer_popup, .popup, [class*="dialog"], [class*="layer"]'
+          )
+        );
+        roots.push(document.body);
+
+        for (const root of roots) {
+          const text = root.textContent || "";
+          if (!hintRe.test(text)) continue;
+
+          const candidates = Array.from(root.querySelectorAll("button, a, input[type='button'], span, div"));
+          const cancels: HTMLElement[] = [];
+          for (const el of candidates) {
+            const t = (el.textContent || "").trim();
+            if (t !== "취소") continue;
+            const html = el as HTMLElement;
+            if (html.offsetParent === null && getComputedStyle(html).display === "none") continue;
+            cancels.push(html);
+          }
+          if (cancels.length > 0) {
+            cancels[cancels.length - 1].click();
+            return true;
+          }
+        }
+        return false;
+      });
+      if (clicked) return true;
+    } catch {
+      /* skip */
+    }
   }
   return false;
 }
 
 /** 「품목개수가 많을 경우…」 알림 → 취소 (확인 누르면 품목 재지정으로 빠짐) */
 export async function dismissBulkItemModal(page: Page): Promise<boolean> {
-  const contexts: Array<Page | Frame> = [page, ...page.frames()];
+  if (!(await isBulkItemModalVisible(page))) return false;
 
+  const contexts: Array<Page | Frame> = [page, ...page.frames()];
   for (const ctx of contexts) {
     try {
       if (!(await hasBulkItemModal(ctx))) continue;
-      if (await clickBulkItemCancel(ctx)) {
+      if (await clickBulkItemCancelInContext(ctx)) {
         console.log("   ✓ 품목 재지정 알림 → 취소");
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(800);
         return true;
       }
     } catch {
       /* skip */
     }
   }
+
+  if (await clickBulkItemCancelViaEvaluate(page)) {
+    console.log("   ✓ 품목 재지정 알림 → 취소 (evaluate)");
+    await page.waitForTimeout(800);
+    return true;
+  }
+
   return false;
+}
+
+/** 검색 후 알림이 뜰 때까지 대기 후 취소 */
+export async function waitAndDismissBulkItemModal(page: Page, maxSec = 20): Promise<boolean> {
+  const steps = Math.ceil(maxSec / 0.5);
+  for (let i = 0; i < steps; i++) {
+    if (await dismissBulkItemModal(page)) return true;
+    await page.waitForTimeout(500);
+  }
+
+  if (await isBulkItemModalVisible(page)) {
+    console.warn("   ⚠ 품목 재지정 알림 취소 실패 — 조회가 진행되지 않을 수 있음");
+    return false;
+  }
+
+  console.log("   → 품목 재지정 알림 없음 (바로 조회)");
+  return true;
 }
 
 export async function clickLedgerSearch(page: Page): Promise<void> {
@@ -171,7 +251,7 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
           await btn.scrollIntoViewIfNeeded().catch(() => {});
           await btn.click({ force: true });
           console.log("   ✓ 검색(F8) 클릭");
-          await page.waitForTimeout(1500);
+          await page.waitForTimeout(1000);
           return;
         }
       } catch {
@@ -185,7 +265,7 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
       await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true });
       await page.keyboard.press("F8");
       console.log("   ✓ F8 키 입력");
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(1000);
       return;
     } catch {
       /* next */
@@ -195,45 +275,32 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
   throw new Error("재고수불부 검색 버튼을 찾지 못했습니다.");
 }
 
-async function findLedgerExcelButton(page: Page): Promise<Locator | null> {
-  const frames = await findLedgerFrames(page);
-  const scan = frames.length > 0 ? frames : page.frames();
-
-  for (const frame of scan) {
-    try {
-      const stockQty = frame.locator("text=재고수량").first();
-      if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) continue;
-
-      for (const sel of EXCEL_SELECTORS) {
-        const loc = frame.locator(sel).first();
-        if ((await loc.count()) > 0 && (await loc.isVisible())) {
-          const box = await loc.boundingBox();
-          if (box && box.width > 2 && box.height > 2) return loc;
-        }
-      }
-      const textBtn = frame.getByText(/^Excel$/i).first();
-      if ((await textBtn.count()) > 0 && (await textBtn.isVisible())) return textBtn;
-    } catch {
-      /* skip */
-    }
-  }
-  return null;
-}
-
 export async function isLedgerExcelReady(page: Page): Promise<boolean> {
-  return (await findLedgerExcelButton(page)) !== null;
+  if (await isOnStockReportPage(page)) return false;
+  return await isLedgerResultsReady(page);
 }
 
-/** 검색 후 결과 대기 — 대기 중에도 품목 재지정 알림 취소 반복 */
+/** 검색 후 결과 대기 — 2초 간격, 테이블·Excel 모두 감지 */
 export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<boolean> {
   console.log(`3. 검색 결과 대기 (최대 ${maxSec}초)...`);
-  const steps = Math.ceil(maxSec / 5);
+  const intervalSec = 2;
+  const steps = Math.ceil(maxSec / intervalSec);
 
   for (let i = 0; i < steps; i++) {
-    await dismissBulkItemModal(page);
+    const elapsed = (i + 1) * intervalSec;
+
+    if (await isBulkItemModalVisible(page)) {
+      await dismissBulkItemModal(page);
+      if (i > 0 && i % 5 === 0) {
+        console.log(`   … 품목 재지정 알림 처리 중 (${elapsed}초)`);
+      }
+      await page.waitForTimeout(intervalSec * 1000);
+      continue;
+    }
 
     if (await isLedgerExcelReady(page)) {
-      console.log(`   ✓ Excel 버튼 확인 (${(i + 1) * 5}초)`);
+      const viaTable = await isLedgerResultsTableReady(page);
+      console.log(`   ✓ 결과 확인 (${elapsed}초${viaTable ? ", 테이블" : ", Excel"})`);
       return true;
     }
 
@@ -243,34 +310,13 @@ export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<bo
       .isVisible()
       .catch(() => false);
     if (loading) {
-      console.log(`   … 조회 중 (${(i + 1) * 5}초)`);
-    } else if (i > 0 && i % 6 === 0) {
-      console.log(`   … 결과 대기 (${(i + 1) * 5}초 / ${maxSec}초)`);
+      console.log(`   … 조회 중 (${elapsed}초)`);
+    } else if (elapsed >= 10 && elapsed % 10 === 0) {
+      console.log(`   … 결과 대기 (${elapsed}초 / ${maxSec}초)`);
     }
 
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(intervalSec * 1000);
   }
 
   return await isLedgerExcelReady(page);
-}
-
-export async function clickLedgerExcelDownload(page: Page, saveAs: string): Promise<void> {
-  const btn = await findLedgerExcelButton(page);
-  if (!btn) throw new Error("LEDGER_EXCEL_NOT_FOUND");
-
-  await btn.scrollIntoViewIfNeeded().catch(() => {});
-  try {
-    const [download] = await Promise.all([
-      page.waitForEvent("download", { timeout: 120000 }),
-      btn.click({ force: true }),
-    ]);
-    await download.saveAs(saveAs);
-    return;
-  } catch (e) {
-    const [download] = await Promise.all([
-      page.waitForEvent("download", { timeout: 120000 }),
-      btn.evaluate((el: HTMLElement) => el.click()),
-    ]);
-    await download.saveAs(saveAs);
-  }
 }

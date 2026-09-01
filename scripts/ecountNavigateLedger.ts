@@ -15,6 +15,7 @@ import {
   ensureProductionTransferIncluded,
   isLedgerExcelReady,
   isLedgerSearchScreen,
+  waitAndDismissBulkItemModal,
   waitForLedgerResults,
   waitForLedgerSearchScreen,
 } from "./ecountLedgerScreen";
@@ -156,11 +157,7 @@ export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
 
   await clickLedgerSearch(page);
 
-  console.log("   → 품목 재지정 알림 대기 (취소 클릭)...");
-  for (let i = 0; i < 30; i++) {
-    if (await dismissBulkItemModal(page)) break;
-    await page.waitForTimeout(500);
-  }
+  await waitAndDismissBulkItemModal(page, 20);
 
   const waitSec = opts.results_wait_sec ?? (opts.prod_cd ? 120 : 600);
   if (!(await waitForLedgerResults(page, waitSec))) {
