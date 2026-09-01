@@ -11,6 +11,7 @@ import {
 import { getUserPermissionMap } from "@/app/actions/permissionActions";
 
 export interface UserProfile {
+  id?: string;
   name: string;
   email: string;
   department: string;
@@ -176,6 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const userProfile: UserProfile = {
+        id: authUser.id,
         name: fullName,
         email: authUser.email || "",
         department,

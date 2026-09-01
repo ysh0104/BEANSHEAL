@@ -1291,7 +1291,7 @@ export default function Home() {
         </div>
       )}
 
-      <MyWeeklyShiftStrip userName={user?.name} />
+      <MyWeeklyShiftStrip userName={user?.name} userId={user?.id} />
 
       {/* 🌟 2D 자유형 드래그 앤 드롭 & 코너 리사이즈 그리드 컨테이너 */}
       <div 

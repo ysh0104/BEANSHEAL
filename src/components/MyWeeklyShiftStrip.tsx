@@ -22,10 +22,32 @@ function readCachedWorkSchedule(yearMonth: string): ScheduleEmployeeRow[] {
   }
 }
 
-function findMyRow(rows: ScheduleEmployeeRow[], userName: string): ScheduleEmployeeRow | null {
+function findMyRow(rows: ScheduleEmployeeRow[], userName: string, userId?: string): ScheduleEmployeeRow | null {
+  if (userId) {
+    const byId = rows.find((r) => r.profileId === userId || r.id === userId);
+    if (byId) return byId;
+  }
+
   const key = normalizePersonName(userName);
   if (!key) return null;
-  return rows.find((r) => normalizePersonName(r.name) === key) ?? null;
+
+  const exact = rows.find((r) => normalizePersonName(r.name) === key);
+  if (exact) return exact;
+
+  // 성 제외 매칭 (임화랑 ↔ 화랑)
+  if (key.length >= 2) {
+    const withoutSurname = key.slice(1);
+    const byShort = rows.find((r) => normalizePersonName(r.name) === withoutSurname);
+    if (byShort) return byShort;
+
+    const byContains = rows.find((r) => {
+      const n = normalizePersonName(r.name);
+      return n.length >= 2 && (key.includes(n) || n.includes(key));
+    });
+    if (byContains) return byContains;
+  }
+
+  return null;
 }
 
 function yearMonthFromDateStr(dateStr: string): string {
@@ -35,9 +57,10 @@ function yearMonthFromDateStr(dateStr: string): string {
 
 type Props = {
   userName?: string;
+  userId?: string;
 };
 
-export default function MyWeeklyShiftStrip({ userName }: Props) {
+export default function MyWeeklyShiftStrip({ userName, userId }: Props) {
   const [myRowsByMonth, setMyRowsByMonth] = useState<Record<string, ScheduleEmployeeRow | null>>({});
   const [loading, setLoading] = useState(true);
 
@@ -68,7 +91,7 @@ export default function MyWeeklyShiftStrip({ userName }: Props) {
     const cachedByMonth: Record<string, ScheduleEmployeeRow | null> = {};
     let hasCached = false;
     for (const key of yearMonthKeys) {
-      const mine = findMyRow(readCachedWorkSchedule(key), userName);
+      const mine = findMyRow(readCachedWorkSchedule(key), userName, userId);
       cachedByMonth[key] = mine;
       if (mine) hasCached = true;
     }
@@ -86,7 +109,7 @@ export default function MyWeeklyShiftStrip({ userName }: Props) {
         yearMonthKeys.map(async (key) => {
           const res = await getWorkSchedule(key);
           const rows = res.success && res.data ? res.data : readCachedWorkSchedule(key);
-          next[key] = findMyRow(rows, userName);
+          next[key] = findMyRow(rows, userName, userId);
         })
       );
       if (cancelled) return;
@@ -97,11 +120,9 @@ export default function MyWeeklyShiftStrip({ userName }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [userName, yearMonthKeys]);
+  }, [userName, userId, yearMonthKeys]);
 
   if (!userName?.trim()) return null;
-
-  if (!loading && !hasAnyRow) return null;
 
   const getShiftCode = (day: (typeof days)[number]) => {
     const row = myRowsByMonth[yearMonthFromDateStr(day.dateStr)];
@@ -129,6 +150,18 @@ export default function MyWeeklyShiftStrip({ userName }: Props) {
 
       {loading ? (
         <div className="px-3 py-4 text-[11px] text-slate-400 font-medium">근무표 불러오는 중…</div>
+      ) : !hasAnyRow ? (
+        <div className="px-3 py-4 text-center">
+          <p className="text-[11px] text-slate-500 font-medium">
+            근무표에 &apos;{userName}&apos; 이름이 없습니다.
+          </p>
+          <a
+            href="#work-schedule-dashboard"
+            className="inline-block mt-1 text-[10px] font-bold text-blue-600 hover:text-blue-800"
+          >
+            근무스케줄표에서 확인 →
+          </a>
+        </div>
       ) : (
         <div className="grid grid-cols-8 gap-1 p-2">
           {days.map((day) => {
