@@ -229,9 +229,43 @@ export async function updateAuditItemStatusToSupabase(id: string | number, statu
   }
 }
 
-/** ecount_items 재고 마스터 전량 삭제 (엑셀/API 동기화 데이터) */
-export async function clearAllEcountItems(): Promise<{ success: boolean; error?: string }> {
+/** ecount_items 재고 마스터 전량 삭제 (전체관리자만) */
+async function assertSuperAdmin(actorUserId: string | undefined | null): Promise<{ ok: boolean; error?: string }> {
+  if (!actorUserId) {
+    return { ok: false, error: "로그인이 필요합니다." };
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("permission_group_id, role")
+    .eq("id", actorUserId)
+    .maybeSingle();
+
+  if (!profile) {
+    return { ok: false, error: "사용자 프로필을 찾을 수 없습니다." };
+  }
+
+  if (profile.permission_group_id) {
+    const { data: group } = await supabase
+      .from("permission_groups")
+      .select("name")
+      .eq("id", profile.permission_group_id)
+      .maybeSingle();
+    if (group?.name === "전체관리자") return { ok: true };
+  } else if (profile.role === "ADMIN") {
+    return { ok: true };
+  }
+
+  return { ok: false, error: "전체관리자만 재고현황 전체 삭제가 가능합니다." };
+}
+
+export async function clearAllEcountItems(
+  actorUserId?: string | null
+): Promise<{ success: boolean; error?: string }> {
   try {
+    const guard = await assertSuperAdmin(actorUserId);
+    if (!guard.ok) return { success: false, error: guard.error };
+
     const { error } = await supabase.from("ecount_items").delete().neq("prod_cd", "___IMPOSSIBLE_CD___");
     if (error) return { success: false, error: error.message };
     return { success: true };

@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { useAuth } from "@/context/AuthContext";
 import { formatLastSyncedAt } from "@/lib/syncTime";
-import { getSafetyStockConfigs, setAllSafetyStockToZero } from "@/app/actions/safetyStockActions";
+import { getSafetyStockConfigs } from "@/app/actions/safetyStockActions";
 import { getDefaultSafetyQty, checkIsLowStock } from "@/lib/safetyStockHelper";
 import { clearAllEcountItems } from "@/app/actions/inventoryActions";
 import { isSyncNewerThan, isGithubRunFromTrigger } from "@/lib/syncInventoryStatus";
@@ -130,27 +130,6 @@ export default function InventoryPage() {
     periodLabel: string;
     error: string;
   } | null>(null);
-  const handleResetAllSafetyStockToZero = async () => {
-    if (!confirm("모든 품목의 안전재고 기준을 0으로 일괄 저장하시겠습니까?")) return;
-    setLoadingInv(true);
-    try {
-      const res = await setAllSafetyStockToZero();
-      if (res.success) {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("beansheal_safety_configs");
-        }
-        setSafetyConfigs({});
-        alert(`총 ${res.count || 0}개 품목의 안전재고 기준이 성공적으로 0으로 일괄 변경되었습니다!`);
-        fetchInventory();
-      } else {
-        alert(`일괄 변경 실패: ${res.error}`);
-      }
-    } catch (e: any) {
-      alert(`오류 발생: ${e.message}`);
-    } finally {
-      setLoadingInv(false);
-    }
-  };
 
   const refreshLedgerStatus = useCallback(async () => {
     try {
@@ -180,6 +159,10 @@ export default function InventoryPage() {
   }, []);
 
   const handleClearAllInventory = async () => {
+    if (!isSuperAdmin) {
+      alert("재고현황 전체 삭제는 전체관리자만 가능합니다.");
+      return;
+    }
     if (
       !confirm(
         "ecount_items 재고 마스터를 전부 삭제합니다.\n\n· 품목코드/재고수량 전체가 비워집니다\n· 되돌릴 수 없습니다\n\n계속하시겠습니까?"
@@ -191,7 +174,7 @@ export default function InventoryPage() {
 
     setLoadingInv(true);
     try {
-      const res = await clearAllEcountItems();
+      const res = await clearAllEcountItems(user?.id);
       if (res.success) {
         setInventory([]);
         setLastSyncedAt(null);
@@ -887,14 +870,7 @@ export default function InventoryPage() {
                     {uploadingLedger ? "수불부 엑셀 업로드 중…" : "수불부 엑셀 업로드"}
                   </button>
                 )}
-                <button
-                  onClick={handleResetAllSafetyStockToZero}
-                  disabled={loadingInv}
-                  className="text-sm font-bold text-amber-800 bg-amber-50 border border-amber-300 px-4 py-2 hover:bg-amber-100 disabled:opacity-50"
-                >
-                  안전재고 전체 0 설정
-                </button>
-                {canEdit && (
+                {isSuperAdmin && (
                   <button
                     onClick={handleClearAllInventory}
                     disabled={loadingInv}
@@ -936,21 +912,12 @@ export default function InventoryPage() {
               </button>
             )}
 
-            <button
-              onClick={handleResetAllSafetyStockToZero}
-              disabled={loadingInv}
-              className="hidden md:inline-flex text-sm font-bold text-amber-800 bg-amber-50 border border-amber-300 px-4 py-1.5 hover:bg-amber-100 cursor-pointer shadow-2xs"
-              title="모든 품목의 안전재고 기준 수량을 0으로 일괄 저장합니다"
-            >
-              안전재고 전체 0 설정
-            </button>
-
-            {canEdit && (
+            {isSuperAdmin && (
               <button
                 onClick={handleClearAllInventory}
                 disabled={loadingInv}
                 className="hidden md:inline-flex text-sm font-bold text-rose-800 bg-rose-50 border border-rose-300 px-4 py-1.5 hover:bg-rose-100 cursor-pointer disabled:opacity-50 shadow-2xs"
-                title="ecount_items 재고 마스터 전량 삭제"
+                title="ecount_items 재고 마스터 전량 삭제 (전체관리자)"
               >
                 재고현황 전체 삭제
               </button>
