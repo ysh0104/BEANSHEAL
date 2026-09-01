@@ -39,6 +39,50 @@ export function normalizeStockMenuUrl(raw: string): string {
   return parsed?.normalized?.trim() || raw.trim();
 }
 
+/** 붙여넣기 URL이 출력물 폴더(수불부·재고현황 봇 공용)인지 검사 */
+export function validateStockMenuUrl(raw: string): {
+  ok: boolean;
+  normalized: string;
+  prgId: string | null;
+  menuSeq: string | null;
+  hint?: string;
+} {
+  const parsed = parseStockMenuUrl(raw);
+  if (!parsed?.menuType || !parsed.menuSeq) {
+    return {
+      ok: false,
+      normalized: normalizeStockMenuUrl(raw),
+      prgId: parsed?.prgId ?? null,
+      menuSeq: parsed?.menuSeq ?? null,
+      hint: "menuType·menuSeq가 없습니다. 재고 I → 출력물 화면에서 URL을 다시 복사하세요.",
+    };
+  }
+
+  const prgId = parsed.prgId?.toUpperCase() ?? null;
+  if (prgId === "C000650") {
+    return {
+      ok: false,
+      normalized: parsed.normalized,
+      prgId,
+      menuSeq: parsed.menuSeq,
+      hint: "재고현황 결과 화면 URL입니다. 출력물 폴더(카드 목록) 화면 URL을 저장하세요.",
+    };
+  }
+
+  return {
+    ok: true,
+    normalized: parsed.normalized,
+    prgId,
+    menuSeq: parsed.menuSeq,
+    hint:
+      prgId === "C000035"
+        ? "출력물 폴더 URL — 재고현황·재고수불부 봇 모두 사용 가능"
+        : prgId
+          ? `prgId=${prgId} — 출력물 폴더(C000035) URL 권장`
+          : "출력물 폴더 URL",
+  };
+}
+
 /** 로그인 세션(ec_req_sid)을 유지하면서 저장 URL 기준으로 ERP 이동 URL 생성 */
 export function resolveErpNavigationTarget(currentPageUrl: string, savedMenuUrl: string): string | null {
   const trimmed = savedMenuUrl.trim();

@@ -55,7 +55,14 @@ export default function EcountBotAdminPage() {
     setSaving(false);
     if (res.success) {
       setLoginPw("");
-      setMsg("저장되었습니다. GitHub Actions 봇이 이 정보를 사용합니다.");
+      const extra =
+        res.normalized_menu_url && res.menu_hint
+          ? ` (${res.menu_hint})`
+          : res.normalized_menu_url
+            ? " URL 정규화 완료."
+            : "";
+      setMsg(`저장되었습니다. GitHub Actions 봇이 이 정보를 사용합니다.${extra}`);
+      if (res.normalized_menu_url) setMenuUrl(res.normalized_menu_url);
       load();
     } else {
       setMsg(res.error || "저장 실패");
