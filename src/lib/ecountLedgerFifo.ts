@@ -48,6 +48,54 @@ function parseTxnSortKey(dateStr: string): number {
   return 0;
 }
 
+const SORT_OPENING = -9e15;
+const SORT_TOTAL = 9e15;
+
+function displaySortKey(row: FifoLedgerInput): number {
+  const remarks = `${row.remarks || ""}${row.txn_date || ""}`;
+
+  if (row.row_kind === "opening" || /전일재고/.test(remarks)) {
+    return SORT_OPENING;
+  }
+
+  if (row.row_kind === "total" || /^합계$/.test(row.txn_date.trim())) {
+    return SORT_TOTAL;
+  }
+
+  const monthSub = row.txn_date.trim().match(/^(\d{4})[\/.\-](\d{1,2})\s*계$/);
+  if (row.row_kind === "subtotal" || monthSub) {
+    const y = Number(monthSub?.[1] || 0);
+    const m = Number(monthSub?.[2] || 0);
+    if (y && m) {
+      // 해당 월 말일 직후 (월별 거래 다음)
+      return new Date(y, m, 0).getTime() + 86_400_000;
+    }
+  }
+
+  const t = parseTxnSortKey(row.txn_date);
+  if (t > 0) return t;
+  if (t === -1) return SORT_OPENING + 1;
+  return 0;
+}
+
+/** 화면 표시용 — 전일재고 → 일자순(입고→출고) → 월계 → 합계 */
+export function sortLedgerRowsForDisplay<T extends FifoLedgerInput>(rows: T[]): T[] {
+  return [...rows]
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => {
+      const ka = displaySortKey(a.r);
+      const kb = displaySortKey(b.r);
+      if (ka !== kb) return ka - kb;
+
+      const inA = a.r.in_qty > QTY_EPS ? 0 : a.r.out_qty > QTY_EPS ? 1 : 2;
+      const inB = b.r.in_qty > QTY_EPS ? 0 : b.r.out_qty > QTY_EPS ? 1 : 2;
+      if (inA !== inB) return inA - inB;
+
+      return a.i - b.i;
+    })
+    .map(({ r }) => r);
+}
+
 function txnSortOrder(row: FifoLedgerInput, index: number): number {
   if (row.row_kind === "opening") return -2;
   if (row.row_kind === "subtotal" || row.row_kind === "total") return 999999 + index;
@@ -182,15 +230,16 @@ function simulateFifo(rows: FifoLedgerInput[]): SimulateResult {
 }
 
 export function applyLedgerFifoLots<T extends FifoLedgerInput>(rows: T[]): (T & { fifo_lot_no: string })[] {
-  const { fifoByIndex } = simulateFifo(rows);
-  return rows.map((r, i) => ({
+  const sorted = sortLedgerRowsForDisplay(rows);
+  const { fifoByIndex } = simulateFifo(sorted);
+  return sorted.map((r, i) => ({
     ...r,
     fifo_lot_no: fifoByIndex.get(i) ?? lotLabel(r.lot_no),
   }));
 }
 
 export function getFifoLotBalances<T extends FifoLedgerInput>(rows: T[]): Map<string, number> {
-  return simulateFifo(rows).lotBalances;
+  return simulateFifo(sortLedgerRowsForDisplay(rows)).lotBalances;
 }
 
 export function formatFifoLotDisplay(fifoLotNo: string | null | undefined): string {
