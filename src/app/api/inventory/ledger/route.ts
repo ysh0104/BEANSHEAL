@@ -4,11 +4,12 @@ import { getStockLedgerRows, getPlannedLedgerPeriod } from "@/app/actions/ledger
 /** GET ?prod_cd=M0001 — 캐시된 재고수불부 조회 (봇 트리거는 /api/sync-inventory/ledger POST) */
 export async function GET(req: NextRequest) {
   const prodCd = req.nextUrl.searchParams.get("prod_cd")?.trim();
+  const prodNm = req.nextUrl.searchParams.get("prod_nm")?.trim() || undefined;
   if (!prodCd) {
     return NextResponse.json({ success: false, error: "prod_cd 필요" }, { status: 400 });
   }
 
-  const result = await getStockLedgerRows(prodCd);
+  const result = await getStockLedgerRows(prodCd, prodNm);
   if (!result.success) {
     return NextResponse.json({ success: false, error: result.error }, { status: 500 });
   }

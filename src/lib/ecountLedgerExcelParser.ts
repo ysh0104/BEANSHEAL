@@ -58,22 +58,25 @@ function extractProdFromRowsAbove(allRows: unknown[][], headerIndex: number): { 
   for (let j = headerIndex - 1; j >= Math.max(0, headerIndex - 10); j--) {
     const row = allRows[j];
     if (!Array.isArray(row)) continue;
-    const line = row.map((c) => String(c)).join(" ");
+    const line = row.map((c) => String(c)).join(" ").trim();
     if (!line.trim()) continue;
+    if (/^합계|^\d{4}\/\d{2}\s*계|오전|오후/.test(line)) continue;
 
-    const m = line.match(/\(([A-Z0-9][A-Z0-9_-]*)\)/i);
-    if (m) {
-      let prod_nm = "";
-      const nameMatch = line.match(/[/／]\s*(.+?)\s*\(/);
-      if (nameMatch) {
-        prod_nm = nameMatch[1].trim();
-      } else {
-        const before = line.split("(")[0].trim();
-        if (before && !/품목|회사|재고수불부|출력|인쇄/.test(before)) {
-          prod_nm = before.replace(/^[\d.]+\s*/, "").trim();
-        }
+    // 이카ount 제목: ... / 재고수불부 / 품목명 (코드) — 코드에 한글·하이픈 포함 (M00016-1, 대성-SM2)
+    const titleMatch = line.match(/재고수불부\s*\/\s*(.+?)\s*\(([^)]+)\)\s*$/);
+    if (titleMatch) {
+      return { prod_nm: titleMatch[1].trim(), prod_cd: titleMatch[2].trim() };
+    }
+
+    const parenMatches = [...line.matchAll(/\(([^)]+)\)/g)];
+    if (parenMatches.length > 0) {
+      const code = parenMatches[parenMatches.length - 1][1].trim();
+      if (code && !/^\d{4}[\/.\-]/.test(code) && code.length <= 50) {
+        let prod_nm = "";
+        const nmMatch = line.match(/재고수불부\s*\/\s*(.+?)\s*\(/);
+        if (nmMatch) prod_nm = nmMatch[1].trim();
+        return { prod_cd: code, prod_nm };
       }
-      return { prod_cd: m[1].trim(), prod_nm };
     }
   }
   return { prod_cd: "", prod_nm: "" };

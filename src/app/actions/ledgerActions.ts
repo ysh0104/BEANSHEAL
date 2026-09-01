@@ -39,11 +39,11 @@ export async function getLedgerSyncMeta(prodCd: string) {
   return { success: true as const, data };
 }
 
-export async function getStockLedgerRows(prodCd: string) {
+export async function getStockLedgerRows(prodCd: string, prodNm?: string) {
   const supabase = getServiceSupabase();
   if (!supabase) return { success: false as const, error: "DB 연결 실패" };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("ecount_stock_ledger")
     .select("id, txn_date, partner_name, remarks, in_qty, out_qty, balance_qty, lot_no, row_kind")
     .eq("prod_cd", prodCd)
@@ -51,7 +51,34 @@ export async function getStockLedgerRows(prodCd: string) {
 
   if (error) return { success: false as const, error: error.message };
 
-  const rows = (data || []) as LedgerRow[];
+  let rows = (data || []) as LedgerRow[];
+
+  if (rows.length === 0 && prodNm?.trim()) {
+    const nm = prodNm.trim();
+    const byNm = await supabase
+      .from("ecount_stock_ledger")
+      .select("id, txn_date, partner_name, remarks, in_qty, out_qty, balance_qty, lot_no, row_kind")
+      .ilike("prod_nm", nm)
+      .order("id", { ascending: true });
+
+    if (!byNm.error && byNm.data?.length) {
+      rows = byNm.data as LedgerRow[];
+    } else {
+      const nmNorm = nm.replace(/\s+/g, "");
+      const fuzzy = await supabase
+        .from("ecount_stock_ledger")
+        .select("id, txn_date, partner_name, remarks, in_qty, out_qty, balance_qty, lot_no, row_kind, prod_nm")
+        .order("id", { ascending: true });
+
+      if (!fuzzy.error && fuzzy.data) {
+        rows = (fuzzy.data as (LedgerRow & { prod_nm?: string })[]).filter((r) => {
+          const stored = (r.prod_nm || "").replace(/\s+/g, "");
+          return stored === nmNorm || stored.includes(nmNorm) || nmNorm.includes(stored);
+        });
+      }
+    }
+  }
+
   const metaRes = await getLedgerSyncMeta(prodCd);
 
   return {

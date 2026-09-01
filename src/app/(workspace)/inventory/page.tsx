@@ -606,7 +606,9 @@ export default function InventoryPage() {
     });
 
     try {
-      const getRes = await fetch(`/api/inventory/ledger?prod_cd=${encodeURIComponent(prodCd)}`, {
+      const getRes = await fetch(
+        `/api/inventory/ledger?prod_cd=${encodeURIComponent(prodCd)}&prod_nm=${encodeURIComponent(prodNm)}`,
+        {
         cache: "no-store",
       });
       const getData = await getRes.json();
