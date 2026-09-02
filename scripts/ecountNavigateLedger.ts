@@ -225,11 +225,6 @@ export type LedgerNavOptions = {
 export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
   const menuUrl = resolveMenuUrl(opts);
 
-  if (await isLedgerExcelReady(page)) {
-    console.log("   ✓ 결과 있음 — 검색 생략");
-    return;
-  }
-
   console.log("   → 재고수불부 검색 화면 진입...");
   await openLedgerSearchScreen(page, menuUrl);
 

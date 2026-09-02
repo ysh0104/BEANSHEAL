@@ -12,7 +12,9 @@ const EXCEL_SELECTORS = [
 /** 재고현황 검색 조건 — 재고수불부(기준일자+검색 동일)와 제목으로 구분 */
 export async function isStockSearchForm(page: Page): Promise<boolean> {
   if (isKnownLedgerPrgId(getPagePrgId(page))) return false;
-  if (await isLedgerSearchForm(page)) return false;
+  for (const frame of page.frames()) {
+    if (await frameHasVisibleLedgerTitle(frame)) return false;
+  }
 
   for (const frame of page.frames()) {
     if (await isStockSearchFormInFrame(frame)) return true;
@@ -381,8 +383,60 @@ async function countVisibleLedgerHeaderCells(frame: Frame): Promise<number> {
   return hits;
 }
 
+/** 재고현황 결과 — isStockResultsReady와 분리(순환 호출 방지) */
+async function isStockResultsPageShallow(page: Page): Promise<boolean> {
+  for (const frame of page.frames()) {
+    try {
+      const itemCode = frame.locator("text=품목코드").first();
+      const qty = frame.locator("text=재고수량").first();
+      if ((await itemCode.count()) === 0 || !(await itemCode.isVisible())) continue;
+      if ((await qty.count()) === 0 || !(await qty.isVisible())) continue;
+
+      for (const sel of EXCEL_SELECTORS) {
+        const excel = frame.locator(sel).first();
+        if ((await excel.count()) > 0 && (await excel.isVisible())) {
+          const box = await excel.boundingBox();
+          if (box && box.width > 2 && box.height > 2) return true;
+        }
+      }
+      const excelText = frame.getByText(/^Excel$/i).first();
+      if ((await excelText.count()) > 0 && (await excelText.isVisible())) return true;
+    } catch {
+      /* skip */
+    }
+  }
+  return false;
+}
+
+/** 재고수불부 결과 — isLedgerResultsTableReady와 분리(순환 호출 방지) */
+async function isLedgerResultsPageShallow(page: Page): Promise<boolean> {
+  if (await isReportsListingPage(page)) return false;
+
+  for (const frame of page.frames()) {
+    try {
+      if (await isStockFrame(frame)) continue;
+
+      const headerHits = await countVisibleLedgerHeaderCells(frame);
+      if (headerHits >= 2) return true;
+
+      for (const sel of EXCEL_SELECTORS) {
+        const excel = frame.locator(sel).first();
+        if ((await excel.count()) > 0 && (await excel.isVisible())) {
+          const box = await excel.boundingBox();
+          if (box && box.width > 2 && box.height > 2) return true;
+        }
+      }
+      const excelText = frame.getByText(/^Excel$/i).first();
+      if ((await excelText.count()) > 0 && (await excelText.isVisible())) return true;
+    } catch {
+      /* skip */
+    }
+  }
+  return false;
+}
+
 async function hasVisibleLedgerExcel(page: Page): Promise<boolean> {
-  if (await isStockResultsReady(page)) return false;
+  if (await isStockResultsPageShallow(page)) return false;
 
   const scanFrames = async (frames: Frame[]) => {
     for (const frame of frames) {
@@ -416,14 +470,14 @@ async function hasVisibleLedgerExcel(page: Page): Promise<boolean> {
   }
 
   const visible = await findVisibleExcelButton(page);
-  return visible !== null && !(await isStockResultsReady(page));
+  return visible !== null && !(await isStockResultsPageShallow(page));
 }
 
 /** 재고수불부 결과 테이블 또는 Excel 버튼 */
 export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
   if (await isReportsListingPage(page)) return false;
-  if (await isStockResultsReady(page)) return false;
-  if (await hasVisibleLedgerExcel(page)) return true;
+  if (await isStockResultsPageShallow(page)) return false;
+  if (await isLedgerResultsPageShallow(page)) return true;
 
   for (const frame of page.frames()) {
     try {
@@ -458,8 +512,8 @@ export async function isLedgerResultsTableReady(page: Page): Promise<boolean> {
 
 /** 재고수불부 검색 조건 화면 */
 export async function isLedgerSearchForm(page: Page): Promise<boolean> {
-  if (await isLedgerResultsTableReady(page)) return false;
   if (await isReportsListingPage(page)) return false;
+  if (await isLedgerResultsPageShallow(page)) return false;
 
   for (const frame of page.frames()) {
     if (await isLedgerSearchFormInFrame(frame)) return true;

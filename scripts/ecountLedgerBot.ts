@@ -77,6 +77,7 @@ export async function runEcountLedgerBulkBot() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext(browserContext());
   const page = await context.newPage();
+  page.setDefaultTimeout(8000);
   const saveAs = path.join(DOWNLOAD_DIR, "ecount_ledger_all.xlsx");
 
   try {
@@ -147,6 +148,7 @@ export async function runEcountLedgerBot() {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext(browserContext());
   const page = await context.newPage();
+  page.setDefaultTimeout(8000);
   const saveAs = path.join(DOWNLOAD_DIR, `ecount_ledger_${prod_cd}.xlsx`);
 
   try {
