@@ -17,6 +17,20 @@ import { clickLedgerExcelDownload, isLedgerExcelReady } from "./ecountLedgerScre
 import { navigateToLedgerReport, runLedgerSearchAfterNavigate, type LedgerNavOptions } from "./ecountNavigateLedger";
 
 const DOWNLOAD_DIR = path.join(process.cwd(), "downloads");
+const NAV_SEARCH_TIMEOUT_MS = 180_000;
+
+async function withStepTimeout<T>(label: string, ms: number, fn: () => Promise<T>): Promise<T> {
+  console.log(`   ⏱ ${label} (최대 ${Math.round(ms / 1000)}초)`);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} 타임아웃 (${Math.round(ms / 1000)}초)`)), ms);
+  });
+  try {
+    return await Promise.race([fn(), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 function browserContext() {
   return {
@@ -72,7 +86,8 @@ export async function runEcountLedgerBulkBot() {
   if (!supabase) throw new Error("Supabase service role 미설정");
 
   const { from: period_from, to: period_to } = getLedgerBotDateRange();
-  console.log(`\n🤖 재고수불부 일괄 봇 (DB 기간 메타: ${period_from} ~ ${period_to})\n`);
+  const buildId = process.env.GITHUB_SHA?.slice(0, 7) || "local";
+  console.log(`\n🤖 재고수불부 일괄 봇 [${buildId}] (DB 기간 메타: ${period_from} ~ ${period_to})\n`);
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext(browserContext());
@@ -97,7 +112,7 @@ export async function runEcountLedgerBulkBot() {
       results_wait_sec: 600,
     };
 
-    await navigateToLedgerReport(page, navOpts);
+    await withStepTimeout("화면 이동·검색", NAV_SEARCH_TIMEOUT_MS, () => navigateToLedgerReport(page, navOpts));
     await downloadLedgerExcel(page, saveAs, navOpts);
 
     console.log("5. 파싱 및 업로드...");
@@ -168,7 +183,7 @@ export async function runEcountLedgerBot() {
       results_wait_sec: 120,
     };
 
-    await navigateToLedgerReport(page, navOpts);
+    await withStepTimeout("화면 이동·검색", NAV_SEARCH_TIMEOUT_MS, () => navigateToLedgerReport(page, navOpts));
     await downloadLedgerExcel(page, saveAs, navOpts);
 
     const parsed = parseEcountLedgerExcel(fs.readFileSync(saveAs), prod_cd);

@@ -1,25 +1,58 @@
 /**
- * 재고수불부 화면 전용 — 재고현황(ecountExcel)과 분리
+ * 재고수불부 화면 전용 — ecountExcel과 완전 분리 (순환 호출·무한 대기 방지)
  */
-import type { Frame, Page } from "playwright";
-import {
-  findLedgerFrames as findLedgerFramesInExcel,
-  isLedgerResultsReady,
-  isLedgerSearchForm,
-} from "./ecountExcel";
-
-export { clickLedgerExcelDownload } from "./ecountExcel";
+import type { Frame, Locator, Page } from "playwright";
 
 const SEARCH_BTN = /(?:검색|Search|조회)\s*\(F\d+\)/i;
 const BULK_ITEM_HINT = /조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
+const EXCEL_SELECTORS = [
+  "#outputExcel",
+  '[id*="outputExcel"]',
+  "#btnExcel",
+  '[id*="btnExcel"]',
+  '[title*="엑셀"]',
+  '[title*="Excel"]',
+];
 
 export async function findLedgerFrames(page: Page): Promise<Frame[]> {
-  return findLedgerFramesInExcel(page);
+  const frames: Frame[] = [];
+  for (const frame of page.frames()) {
+    try {
+      const stockQty = frame.locator("text=재고수량").first();
+      if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) continue;
+
+      const title = frame.getByText(/^재고\s*수불부$/).first();
+      const date = frame.locator("text=기준일자").first();
+      const search = frame.getByText(SEARCH_BTN).first();
+      const header = frame.locator("text=/거래처명|입고수량|전일재고|출고수량/").first();
+
+      const hasTitle = (await title.count()) > 0 && (await title.isVisible());
+      const hasDate = (await date.count()) > 0 && (await date.isVisible());
+      const hasSearch = (await search.count()) > 0 && (await search.isVisible());
+      const hasHeader = (await header.count()) > 0 && (await header.isVisible());
+
+      if (hasTitle || hasHeader || (hasDate && hasSearch)) frames.push(frame);
+    } catch {
+      /* skip */
+    }
+  }
+  return frames;
 }
 
 /** 「재고수불부」 검색 조건 화면 */
 export async function isLedgerSearchScreen(page: Page): Promise<boolean> {
-  return isLedgerSearchForm(page);
+  for (const frame of await findLedgerFrames(page)) {
+    try {
+      const search = frame.getByText(SEARCH_BTN).first();
+      const date = frame.locator("text=기준일자").first();
+      const hasSearch = (await search.count()) > 0 && (await search.isVisible());
+      const hasDate = (await date.count()) > 0 && (await date.isVisible());
+      if (hasSearch || hasDate) return true;
+    } catch {
+      /* skip */
+    }
+  }
+  return false;
 }
 
 export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promise<boolean> {
@@ -37,7 +70,9 @@ export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promis
 /** 기타 탭 → 생산불출/창고이동포함 체크 */
 export async function ensureProductionTransferIncluded(page: Page): Promise<void> {
   const frames = await findLedgerFrames(page);
-  if (frames.length === 0) return;
+  if (frames.length === 0) {
+    for (const frame of page.frames()) frames.push(frame);
+  }
 
   for (const frame of frames) {
     const etcTab = frame.locator('a, button, span, li, div[role="tab"]').filter({ hasText: /^기타$/ }).first();
@@ -128,7 +163,6 @@ async function clickBulkItemCancelInContext(ctx: Page | Frame): Promise<boolean>
   return false;
 }
 
-/** DOM evaluate — Ecount 알림 레이어가 Playwright locator로 안 잡힐 때 */
 async function clickBulkItemCancelViaEvaluate(page: Page): Promise<boolean> {
   for (const frame of page.frames()) {
     try {
@@ -169,7 +203,6 @@ async function clickBulkItemCancelViaEvaluate(page: Page): Promise<boolean> {
   return false;
 }
 
-/** 「품목개수가 많을 경우…」 알림 → 취소 (확인 누르면 품목 재지정으로 빠짐) */
 export async function dismissBulkItemModal(page: Page): Promise<boolean> {
   if (!(await isBulkItemModalVisible(page))) return false;
 
@@ -196,7 +229,6 @@ export async function dismissBulkItemModal(page: Page): Promise<boolean> {
   return false;
 }
 
-/** 검색 후 알림이 뜰 때까지 대기 후 취소 */
 export async function waitAndDismissBulkItemModal(page: Page, maxSec = 20): Promise<boolean> {
   const steps = Math.ceil(maxSec / 0.5);
   for (let i = 0; i < steps; i++) {
@@ -216,8 +248,9 @@ export async function waitAndDismissBulkItemModal(page: Page, maxSec = 20): Prom
 export async function clickLedgerSearch(page: Page): Promise<void> {
   console.log("   → 검색(F8)...");
   const frames = await findLedgerFrames(page);
+  const scan = frames.length > 0 ? frames : page.frames();
 
-  for (const frame of frames) {
+  for (const frame of scan) {
     const locators = [
       frame.getByText(SEARCH_BTN).first(),
       frame.locator('button, a, span, div[role="button"]').filter({ hasText: SEARCH_BTN }).first(),
@@ -238,7 +271,7 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
     }
   }
 
-  for (const frame of frames) {
+  for (const frame of scan) {
     try {
       await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true });
       await page.keyboard.press("F8");
@@ -253,11 +286,35 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
   throw new Error("재고수불부 검색 버튼을 찾지 못했습니다.");
 }
 
-export async function isLedgerExcelReady(page: Page): Promise<boolean> {
-  return isLedgerResultsReady(page);
+async function findLedgerExcelButton(page: Page): Promise<Locator | null> {
+  const frames = await findLedgerFrames(page);
+  const scan = frames.length > 0 ? frames : page.frames();
+
+  for (const frame of scan) {
+    try {
+      const stockQty = frame.locator("text=재고수량").first();
+      if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) continue;
+
+      for (const sel of EXCEL_SELECTORS) {
+        const loc = frame.locator(sel).first();
+        if ((await loc.count()) > 0 && (await loc.isVisible())) {
+          const box = await loc.boundingBox();
+          if (box && box.width > 2 && box.height > 2) return loc;
+        }
+      }
+      const textBtn = frame.getByText(/^Excel$/i).first();
+      if ((await textBtn.count()) > 0 && (await textBtn.isVisible())) return textBtn;
+    } catch {
+      /* skip */
+    }
+  }
+  return null;
 }
 
-/** 검색 후 결과 대기 — 2초 간격, 테이블·Excel 모두 감지 */
+export async function isLedgerExcelReady(page: Page): Promise<boolean> {
+  return (await findLedgerExcelButton(page)) !== null;
+}
+
 export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<boolean> {
   console.log(`3. 검색 결과 대기 (최대 ${maxSec}초)...`);
   const intervalSec = 2;
@@ -295,4 +352,24 @@ export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<bo
   }
 
   return await isLedgerExcelReady(page);
+}
+
+export async function clickLedgerExcelDownload(page: Page, saveAs: string): Promise<void> {
+  const btn = await findLedgerExcelButton(page);
+  if (!btn) throw new Error("LEDGER_EXCEL_NOT_FOUND");
+
+  await btn.scrollIntoViewIfNeeded().catch(() => {});
+  try {
+    const [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 120000 }),
+      btn.click({ force: true }),
+    ]);
+    await download.saveAs(saveAs);
+  } catch {
+    const [download] = await Promise.all([
+      page.waitForEvent("download", { timeout: 120000 }),
+      btn.evaluate((el: HTMLElement) => el.click()),
+    ]);
+    await download.saveAs(saveAs);
+  }
 }

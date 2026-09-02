@@ -166,8 +166,12 @@ async function openLedgerReportProgram(page: Page): Promise<boolean> {
 }
 
 async function openLedgerSearchScreen(page: Page, menuUrl: string): Promise<void> {
-  if (await isLedgerSearchScreen(page) || (await isLedgerExcelReady(page))) {
-    console.log("   ✓ 재고수불부 화면 이미 열림");
+  if (await isLedgerSearchScreen(page)) {
+    console.log("   ✓ 재고수불부 검색 화면 이미 열림");
+    return;
+  }
+  if (await isLedgerExcelReady(page)) {
+    console.log("   ✓ 재고수불부 결과 화면 이미 열림");
     return;
   }
 
