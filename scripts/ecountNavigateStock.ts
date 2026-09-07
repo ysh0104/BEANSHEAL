@@ -1,7 +1,29 @@
-import type { Frame, Page } from "playwright";
+/**
+ * 재고현황 네비게이션
+ *
+ * Phase1-2: 출력물 폴더에서 실제 「재고현황」 report program / iframe 식별이 목표.
+ * C000650 등 prgId는 DOM에서 발견된 경우에만 사용 (하드코딩 금지).
+ */
+import * as fs from "fs";
+import * as path from "path";
+import type { Frame, Locator, Page } from "playwright";
 import { parseStockMenuUrl, applyMenuHashFromSaved, resolveErpNavigationTarget } from "../src/lib/ecountStockMenuUrl";
 import { isStockResultsReady, isStockSearchForm, waitForStockResultsReady } from "./ecountExcel";
 import { gotoEcountPage } from "./ecountErpGoto";
+
+const DOWNLOAD_DIR = path.join(process.cwd(), "downloads");
+
+type StockElementInfo = {
+  area: "sidebar" | "content" | "other";
+  tag: string;
+  id: string;
+  className: string;
+  href: string;
+  onclick: string;
+  text: string;
+  prgId: string;
+  menuSeq: string;
+};
 
 async function clickInAnyFrame(page: Page, selector: string): Promise<boolean> {
   for (const frame of page.frames()) {
@@ -33,13 +55,199 @@ async function clickTextInAnyFrame(page: Page, pattern: RegExp | string): Promis
   return false;
 }
 
-async function logStockDebug(page: Page, label: string) {
-  const url = page.url();
-  console.log(`   [STOCK] ${label} url=${url.slice(0, 140)}`);
-  console.log(`   [STOCK] frames=${page.frames().length}`);
+function ensureDownloadDir() {
+  if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 }
 
-/** 재고현황 검색/결과 iframe — 수불부 제목 제외, 기준일자·검색(F8)·재고현황 제목 기준 */
+async function saveStockScreenshot(page: Page, name: string) {
+  ensureDownloadDir();
+  const file = path.join(DOWNLOAD_DIR, name);
+  await page.screenshot({ path: file, fullPage: true }).catch(() => {});
+  console.log(`   📸 ${file}`);
+}
+
+function redactUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if (u.searchParams.has("ec_req_sid")) u.searchParams.set("ec_req_sid", "***");
+    return u.toString().slice(0, 180);
+  } catch {
+    return raw.replace(/ec_req_sid=[^&#]*/gi, "ec_req_sid=***").slice(0, 180);
+  }
+}
+
+function extractPrgId(...parts: string[]): string {
+  for (const p of parts) {
+    const m =
+      p.match(/prgId[=:]?\s*([A-Za-z0-9_]+)/i) ||
+      p.match(/link_prg_([A-Za-z0-9_]+)/i) ||
+      p.match(/\b(C\d{5,}|E\d{5,})\b/);
+    if (m?.[1]) return m[1];
+  }
+  return "";
+}
+
+function extractMenuSeq(...parts: string[]): string {
+  for (const p of parts) {
+    const m = p.match(/menuSeq[=:]?\s*(MENUTREE_\d+)/i) || p.match(/#(link_depth2_)?(MENUTREE_\d+)/i);
+    if (m) return m[2] || m[1] || "";
+  }
+  return "";
+}
+
+async function logFrameList(page: Page, label: string) {
+  const frames = page.frames();
+  console.log(`[STOCK DEBUG] ${label}`);
+  console.log(`url=${redactUrl(page.url())}`);
+  console.log(`frames=${frames.length}`);
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i];
+    let name = "";
+    try {
+      name = f.name() || "";
+    } catch {
+      name = "";
+    }
+    let furl = "";
+    try {
+      furl = f.url();
+    } catch {
+      furl = "(unavailable)";
+    }
+    console.log(`[STOCK DEBUG] frame list index=${i} name=${name || "(none)"} url=${redactUrl(furl)}`);
+  }
+}
+
+async function collectStockElements(page: Page): Promise<StockElementInfo[]> {
+  const results: StockElementInfo[] = [];
+
+  for (const frame of page.frames()) {
+    try {
+      const nodes = frame.locator("a, button, span, div, li, td").filter({ hasText: /재고\s*현황/ });
+      const n = Math.min(await nodes.count(), 40);
+      for (let i = 0; i < n; i++) {
+        const el = nodes.nth(i);
+        try {
+          if (!(await el.isVisible())) continue;
+          const info = await el.evaluate((node) => {
+            const html = node as HTMLElement;
+            const text = (html.innerText || html.textContent || "").replace(/\s+/g, " ").trim();
+            if (text !== "재고현황" && !/^재고\s*현황$/.test(text)) {
+              // 주변 카드/부모일 수 있음 — exact만 우선, 짧으면 허용
+              if (text.length > 20 || !text.includes("재고현황")) return null;
+            }
+            return {
+              tag: html.tagName.toLowerCase(),
+              id: html.id || "",
+              className: String(html.className || "").slice(0, 120),
+              href: (html as HTMLAnchorElement).href || html.getAttribute("href") || "",
+              onclick: html.getAttribute("onclick") || "",
+              text: text.slice(0, 40),
+              outer: html.outerHTML.slice(0, 500),
+            };
+          });
+          if (!info) continue;
+
+          const id = info.id;
+          const href = info.href;
+          const onclick = info.onclick;
+          const area: StockElementInfo["area"] = /link_depth|sidebar|left|menu|tree/i.test(
+            `${id} ${info.className} ${href}`
+          )
+            ? "sidebar"
+            : /content|contents|program|card|main/i.test(`${id} ${info.className}`)
+              ? "content"
+              : "other";
+
+          results.push({
+            area,
+            tag: info.tag,
+            id,
+            className: info.className,
+            href,
+            onclick,
+            text: info.text,
+            prgId: extractPrgId(id, href, onclick, info.outer),
+            menuSeq: extractMenuSeq(id, href, onclick, info.outer),
+          });
+        } catch {
+          /* next */
+        }
+      }
+    } catch {
+      /* next frame */
+    }
+  }
+
+  return results;
+}
+
+async function dumpStockElements(page: Page): Promise<StockElementInfo[]> {
+  const items = await collectStockElements(page);
+  console.log(`[STOCK DEBUG] before stock click`);
+  console.log(`visible stock elements=${items.length}`);
+  for (const it of items) {
+    console.log(
+      `[STOCK DEBUG] 재고현황 element: area=${it.area} tag=${it.tag} id=${it.id || "(none)"} href=${(it.href || "(none)").slice(0, 100)} onclick=${(it.onclick || "(none)").slice(0, 100)} prgId=${it.prgId || "(none)"} menuSeq=${it.menuSeq || "(none)"} text=${it.text}`
+    );
+  }
+
+  ensureDownloadDir();
+  const htmlPath = path.join(DOWNLOAD_DIR, "stock-elements.html");
+  const safe = items
+    .map(
+      (it, idx) =>
+        `<!-- ${idx} area=${it.area} prgId=${it.prgId} -->\n` +
+        `<div data-area="${it.area}" data-tag="${it.tag}" data-id="${it.id}" data-prgid="${it.prgId}">` +
+        `${it.tag} id=${it.id} href=${it.href.slice(0, 200)} onclick=${it.onclick.slice(0, 200)} text=${it.text}` +
+        `</div>`
+    )
+    .join("\n");
+  fs.writeFileSync(htmlPath, `<!doctype html><meta charset="utf-8"><title>stock-elements</title>\n${safe}\n`, "utf8");
+  console.log(`   📄 ${htmlPath}`);
+  return items;
+}
+
+async function discoverStockPrgIdFromDom(page: Page, items: StockElementInfo[]): Promise<string | null> {
+  const fromItems = items.map((i) => i.prgId).filter((p) => p && p !== "C000035");
+  if (fromItems.length > 0) return fromItems[0];
+
+  for (const frame of page.frames()) {
+    try {
+      const found = await frame.evaluate(() => {
+        const nodes = Array.from(document.querySelectorAll("a, button, span, div, li"));
+        for (const n of nodes) {
+          const t = (n.textContent || "").replace(/\s+/g, " ").trim();
+          if (t !== "재고현황") continue;
+          const blob = `${n.id} ${(n as HTMLElement).getAttribute("href") || ""} ${(n as HTMLElement).getAttribute("onclick") || ""} ${n.outerHTML}`;
+          const m = blob.match(/prgId[=:]?\s*([A-Za-z0-9_]+)/i) || blob.match(/link_prg_([A-Za-z0-9_]+)/i);
+          if (m?.[1] && m[1] !== "C000035") return m[1];
+        }
+        return null;
+      });
+      if (found) return found;
+    } catch {
+      /* skip */
+    }
+  }
+  return null;
+}
+
+async function waitForFrameChanges(page: Page, beforeCount: number, maxMs = 5000): Promise<void> {
+  const started = Date.now();
+  let last = beforeCount;
+  while (Date.now() - started < maxMs) {
+    const now = page.frames().length;
+    if (now !== last) {
+      console.log(`[STOCK DEBUG] frame count changed ${last} → ${now} (+${Date.now() - started}ms)`);
+      await logFrameList(page, "after stock click (frame change)");
+      last = now;
+    }
+    await page.waitForTimeout(500);
+  }
+}
+
+/** 재고현황 검색/결과 iframe — 수불부 제목 제외 */
 async function findStockReportFrames(page: Page): Promise<Frame[]> {
   const out: Frame[] = [];
   for (const frame of page.frames()) {
@@ -57,7 +265,7 @@ async function findStockReportFrames(page: Page): Promise<Frame[]> {
       const hasSearch = (await searchBtn.count()) > 0 && (await searchBtn.isVisible());
       const hasItem = (await itemCode.count()) > 0 && (await itemCode.isVisible());
 
-      if (hasTitle || (hasDate && hasSearch) || (hasItem && hasSearch) || (hasDate && hasItem)) {
+      if ((hasTitle && (hasDate || hasSearch || hasItem)) || (hasDate && hasSearch) || (hasItem && hasSearch)) {
         out.push(frame);
       }
     } catch {
@@ -72,77 +280,175 @@ async function waitForStockScreen(page: Page, maxSec = 30): Promise<"search" | "
   for (let i = 0; i < steps; i++) {
     if (await isStockResultsReady(page)) return "results";
     if (await isStockSearchForm(page)) return "search";
+    // report frame 느슨한 감지 (제목+기준일자만)
+    const frames = await findStockReportFrames(page);
+    if (frames.length > 0) {
+      if (await isStockResultsReady(page)) return "results";
+      return "search";
+    }
     await page.waitForTimeout(2000);
   }
   return null;
 }
 
-/** 출력물 메뉴판 → 실제 「재고현황」 보고서 열기 (URL hash만으로는 폴더까지만 열림) */
+async function describeLocator(loc: Locator): Promise<StockElementInfo | null> {
+  try {
+    const info = await loc.evaluate((node) => {
+      const html = node as HTMLElement;
+      return {
+        tag: html.tagName.toLowerCase(),
+        id: html.id || "",
+        className: String(html.className || "").slice(0, 120),
+        href: (html as HTMLAnchorElement).href || html.getAttribute("href") || "",
+        onclick: html.getAttribute("onclick") || "",
+        text: ((html.innerText || html.textContent || "").replace(/\s+/g, " ").trim()).slice(0, 40),
+        outer: html.outerHTML.slice(0, 500),
+      };
+    });
+    return {
+      area: "other",
+      tag: info.tag,
+      id: info.id,
+      className: info.className,
+      href: info.href,
+      onclick: info.onclick,
+      text: info.text,
+      prgId: extractPrgId(info.id, info.href, info.onclick, info.outer),
+      menuSeq: extractMenuSeq(info.id, info.href, info.onclick, info.outer),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function clickStockCandidate(
+  page: Page,
+  loc: Locator,
+  label: string
+): Promise<{ ok: boolean; prgId: string }> {
+  const before = page.frames().length;
+  const desc = await describeLocator(loc);
+  console.log(`[STOCK DEBUG] clicked element label=${label}`);
+  if (desc) {
+    console.log(
+      `[STOCK DEBUG] clicked element tag=${desc.tag} id=${desc.id || "(none)"} href=${(desc.href || "(none)").slice(0, 120)} onclick=${(desc.onclick || "(none)").slice(0, 120)} prgId=${desc.prgId || "(none)"}`
+    );
+  }
+
+  await saveStockScreenshot(page, "stock-before-click.png");
+  await loc.scrollIntoViewIfNeeded().catch(() => {});
+  await loc.click({ force: true });
+  await waitForFrameChanges(page, before, 5000);
+  await saveStockScreenshot(page, "stock-after-click.png");
+  await logFrameList(page, "after stock click");
+
+  const screen = await waitForStockScreen(page, 12);
+  if (screen) {
+    const prg =
+      desc?.prgId ||
+      (() => {
+        try {
+          return new URLSearchParams((page.url().split("#")[1] || "")).get("prgId") || "";
+        } catch {
+          return "";
+        }
+      })();
+    console.log(`[STOCK DEBUG] 재고현황 report 확인`);
+    console.log(`prgId=${prg || "(unknown)"}`);
+    console.log(`frameUrl=${redactUrl(page.url())}`);
+    console.log(`frame detected=true (${screen})`);
+    return { ok: true, prgId: prg };
+  }
+  return { ok: false, prgId: desc?.prgId || "" };
+}
+
+/** 출력물 메뉴판 → 실제 「재고현황」 보고서 열기 */
 async function openStockReportProgram(page: Page, prgId?: string | null): Promise<boolean> {
   if (await isStockResultsReady(page)) {
     console.log("   ✓ 재고 결과 화면 준비됨");
+    console.log(`[STOCK DEBUG] 재고현황 report 확인`);
+    console.log(`prgId=${prgId || "(already-open)"}`);
+    console.log(`frame detected=true (results)`);
     return true;
   }
   if (await isStockSearchForm(page)) {
     console.log("   ✓ 재고현황 검색 조건 화면 (검색 F8 필요)");
+    console.log(`[STOCK DEBUG] 재고현황 report 확인`);
+    console.log(`prgId=${prgId || "(already-open)"}`);
+    console.log(`frame detected=true (search)`);
     return true;
   }
 
   console.log("   → 출력물 메뉴에서 「재고현황」 보고서 클릭...");
+  await logFrameList(page, "after output folder");
+  const items = await dumpStockElements(page);
+  const discovered = (await discoverStockPrgIdFromDom(page, items)) || null;
+  if (discovered) {
+    console.log(`[STOCK DEBUG] DOM에서 발견한 stock prgId=${discovered}`);
+  }
+  const effectivePrg = (prgId && prgId !== "C000035" ? prgId : null) || discovered;
 
-  if (prgId && prgId !== "C000035") {
+  // 1) DOM에서 찾은 prgId 링크 우선 (하드코딩 아님)
+  if (effectivePrg) {
     const prgSelectors = [
-      `#link_prg_${prgId}`,
-      `[id*="${prgId}"]`,
-      `a[onclick*="${prgId}"]`,
-      `a[href*="${prgId}"]`,
+      `#link_prg_${effectivePrg}`,
+      `[id*="link_prg_${effectivePrg}"]`,
+      `a[onclick*="${effectivePrg}"]`,
+      `a[href*="${effectivePrg}"]`,
+      `[id*="${effectivePrg}"]`,
     ];
     for (const sel of prgSelectors) {
-      if (await clickInAnyFrame(page, sel)) {
-        console.log(`   ✓ prgId 링크: ${prgId}`);
-        if (await waitForStockScreen(page, 20)) return true;
-      }
-    }
-  }
-
-  // 왼쪽 사이드바 leaf — 「재고현황」 링크 (마지막 visible 우선)
-  for (const frame of page.frames()) {
-    const links = frame.locator("a").filter({ hasText: /^재고현황$/ });
-    const count = await links.count();
-    for (let i = count - 1; i >= 0; i--) {
-      try {
-        const link = links.nth(i);
-        if (await link.isVisible()) {
-          await link.click();
-          console.log(`   ✓ 사이드바 재고현황 클릭 (${i + 1}/${count})`);
-          if (await waitForStockScreen(page, 20)) return true;
+      for (const frame of page.frames()) {
+        const loc = frame.locator(sel).first();
+        try {
+          if ((await loc.count()) === 0 || !(await loc.isVisible())) continue;
+          const clicked = await clickStockCandidate(page, loc, `prgId:${sel}`);
+          if (clicked.ok) return true;
+        } catch {
+          /* next */
         }
-      } catch {
-        /* try next */
       }
     }
   }
 
-  // 출력물 본문 — 재고현황 링크 (사이드바 제외, 본문 영역 우선)
+  // 2) 본문 카드 우선 (sidebar 제외)
   for (const frame of page.frames()) {
     try {
-      const contentLinks = frame.locator('#contents a, .contents a, [class*="content"] a, main a').filter({
-        hasText: /^재고현황$/,
-      });
-      if ((await contentLinks.count()) > 0) {
-        await contentLinks.first().click();
-        console.log("   ✓ 본문 재고현황 링크 클릭");
-        if (await waitForStockScreen(page, 20)) return true;
+      const contentLinks = frame
+        .locator('#contents a, .contents a, [class*="content"] a, [class*="program"] a, main a')
+        .filter({ hasText: /^재고\s*현황$/ });
+      const n = await contentLinks.count();
+      console.log(`[STOCK DEBUG] stock report candidates contentCards=${n}`);
+      for (let i = 0; i < n; i++) {
+        const card = contentLinks.nth(i);
+        if (!(await card.isVisible())) continue;
+        const clicked = await clickStockCandidate(page, card, `content-card:${i + 1}/${n}`);
+        if (clicked.ok) return true;
       }
     } catch {
       /* skip */
     }
   }
 
-  if (await clickTextInAnyFrame(page, /^재고현황$/)) {
-    return !!(await waitForStockScreen(page, 20));
+  // 3) sidebar leaf — 마지막 수단 (잘못된 메뉴로 빠질 수 있음)
+  for (const frame of page.frames()) {
+    const links = frame.locator("a").filter({ hasText: /^재고\s*현황$/ });
+    const count = await links.count();
+    console.log(`[STOCK DEBUG] stock report candidates sidebarLinks=${count}`);
+    for (let i = count - 1; i >= 0; i--) {
+      try {
+        const link = links.nth(i);
+        if (!(await link.isVisible())) continue;
+        // depth2 menu tree는 폴더일 수 있어 prg 링크가 아니면 스킵 권장 — 그래도 시도하되 로그 남김
+        const clicked = await clickStockCandidate(page, link, `sidebar:${i + 1}/${count}`);
+        if (clicked.ok) return true;
+      } catch {
+        /* next */
+      }
+    }
   }
 
+  console.log(`[STOCK DEBUG] stock report candidates none-opened`);
   return false;
 }
 
@@ -175,7 +481,6 @@ async function clickSearchButton(page: Page): Promise<boolean> {
     }
   }
 
-  // 보고서 iframe에 포커스 후 F8
   for (const frame of scan) {
     try {
       if ((await frame.locator("text=기준일자").count()) > 0) {
@@ -194,7 +499,6 @@ async function clickSearchButton(page: Page): Promise<boolean> {
   return true;
 }
 
-/** 검색(F8) 실행 후 결과 테이블 대기 */
 async function runStockSearch(page: Page) {
   if (await isStockResultsReady(page)) {
     console.log("[STOCK] 검색 결과 화면 감지 완료 (검색 생략)");
@@ -214,14 +518,13 @@ async function runStockSearch(page: Page) {
     console.log("[STOCK] 검색 결과 화면 감지 완료");
   } else {
     console.warn("   ⚠ 재고 결과 화면 60초 내 미확인 — 다운로드 재시도 예정");
-    await logStockDebug(page, "검색 후 결과 미확인");
+    await logFrameList(page, "검색 후 결과 미확인");
   }
 }
 
 export async function dismissEcountPopups(page: Page) {
   await page.keyboard.press("Escape").catch(() => {});
 
-  // 재고수불부 '조회품목 재지정' 알림은 확인(재지정)이 아니라 취소로 처리해야 함
   for (const frame of page.frames()) {
     try {
       const redesign = frame.locator("text=/조회품목을 재지정|품목개수가 많을 경우/").first();
@@ -272,7 +575,6 @@ export type StockNavOptions = {
   stock_menu_depth2?: string | null;
 };
 
-/** 로그인 직후 현재 세션 URL에 hash만 적용 (ec_req_sid는 세션마다 다름) */
 async function gotoStockViaHash(page: Page, savedUrl: string): Promise<boolean> {
   const target = applyMenuHashFromSaved(page.url(), savedUrl);
   if (!target) return false;
@@ -298,6 +600,10 @@ async function clickMenuIdsFromUrl(page: Page, savedUrl: string): Promise<boolea
   return true;
 }
 
+function isEntryOnly(): boolean {
+  return (process.env.ECOUNT_STOCK_ENTRY_ONLY || "").trim() === "1";
+}
+
 /** 재고현황(엑셀 다운로드) 화면까지 이동 */
 export async function navigateToStockReport(page: Page, opts: StockNavOptions = {}) {
   console.log("2. 재고현황 화면 이동...");
@@ -320,26 +626,28 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
     }
 
     if (!opened) {
-      await logStockDebug(page, "메뉴 URL 이동 실패");
+      await logFrameList(page, "메뉴 URL 이동 실패");
       throw new Error("저장된 재고현황 URL로 화면 이동 실패");
     }
 
     await dismissEcountPopups(page);
-    console.log(`   현재 URL: ${page.url()}`);
+    console.log(`   현재 URL: ${redactUrl(page.url())}`);
+    await logFrameList(page, "after output folder");
 
-    // 출력물 폴더 prgId(C000035)로는 보고서가 안 열림 — 재고현황 카드 클릭
+    // 출력물 폴더 prgId(C000035)로는 보고서가 안 열림 — DOM에서 실제 report 식별
     const openPrgId = parsed?.prgId && parsed.prgId !== "C000035" ? parsed.prgId : null;
-    if (!(await openStockReportProgram(page, openPrgId))) {
-      console.warn("   ⚠ 재고현황 보고서 자동 클릭 실패 — 조회만 시도");
-      await logStockDebug(page, "보고서 클릭 실패");
+    const openedReport = await openStockReportProgram(page, openPrgId);
+    if (!openedReport) {
+      await saveStockScreenshot(page, "stock-entry-failed.png");
+      await logFrameList(page, "보고서 클릭 실패");
+      throw new Error(
+        "재고현황 report program을 열지 못했습니다. downloads/stock-elements.html 과 [STOCK DEBUG] 로그의 prgId/요소를 확인하세요."
+      );
     }
 
-    const screen = await waitForStockScreen(page, 10);
-    if (screen) {
-      console.log(`[STOCK] 재고현황 화면 감지 완료 (${screen === "results" ? "결과" : "검색조건"})`);
-    } else {
-      console.warn("   ⚠ 재고현황 화면 DOM 미확인 — 검색 계속 시도");
-      await logStockDebug(page, "화면 미확인");
+    if (isEntryOnly()) {
+      console.log("🎯 Phase1-2 ENTRY_OK — 검색/Excel 생략 (ECOUNT_STOCK_ENTRY_ONLY=1)");
+      return;
     }
 
     await runStockSearch(page);
@@ -372,7 +680,7 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
 
     if (!(await clickTextInAnyFrame(page, /재고현황/))) {
       if (!(await clickInAnyFrame(page, "#link_depth2_MENUTREE_000035"))) {
-        await logStockDebug(page, "메뉴 자동 이동 실패");
+        await logFrameList(page, "메뉴 자동 이동 실패");
         throw new Error(
           "재고현황 메뉴 자동 이동 실패. PC에서 재고현황 화면 주소(URL)를 복사해 /admin/ecount-bot → 재고현황 URL 에 저장하세요."
         );
@@ -382,21 +690,20 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
 
   await page.waitForTimeout(2000);
   await dismissEcountPopups(page);
-  await openStockReportProgram(page, null);
+  if (!(await openStockReportProgram(page, null))) {
+    await saveStockScreenshot(page, "stock-entry-failed.png");
+    throw new Error("재고현황 report program을 열지 못했습니다.");
+  }
 
-  const screen = await waitForStockScreen(page, 10);
-  if (screen) {
-    console.log(`[STOCK] 재고현황 화면 감지 완료 (${screen === "results" ? "결과" : "검색조건"})`);
-  } else {
-    console.warn("   ⚠ 재고현황 화면 DOM 미확인 — 검색 계속 시도");
-    await logStockDebug(page, "화면 미확인");
+  if (isEntryOnly()) {
+    console.log("🎯 Phase1-2 ENTRY_OK — 검색/Excel 생략 (ECOUNT_STOCK_ENTRY_ONLY=1)");
+    return;
   }
 
   await runStockSearch(page);
-  console.log(`   현재 URL: ${page.url()}`);
+  console.log(`   현재 URL: ${redactUrl(page.url())}`);
 }
 
-/** 다운로드 단계에서 검색(F8) 재시도용 */
 export async function runStockSearchAfterNavigate(page: Page) {
   await dismissEcountPopups(page);
   await runStockSearch(page);

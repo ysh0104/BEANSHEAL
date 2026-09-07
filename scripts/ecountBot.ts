@@ -33,6 +33,10 @@ function isStockDownloadOnly(): boolean {
   return (process.env.ECOUNT_STOCK_DOWNLOAD_ONLY || "").trim() === "1";
 }
 
+function isStockEntryOnly(): boolean {
+  return (process.env.ECOUNT_STOCK_ENTRY_ONLY || "").trim() === "1";
+}
+
 async function saveDebugScreenshot(page: Page, name: string) {
   if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
   const file = path.join(DOWNLOAD_DIR, name);
@@ -130,7 +134,10 @@ async function uploadStockExcelFile(filePath: string) {
 /** 재고현황 엑셀 → ecount_items (소수점 포함) */
 export async function runEcountStockBot() {
   const downloadOnly = isStockDownloadOnly();
-  console.log(`\n🤖 이카ount 재고현황 엑셀 봇 시작${downloadOnly ? " [Phase1 DOWNLOAD_ONLY]" : ""}\n`);
+  const entryOnly = isStockEntryOnly();
+  console.log(
+    `\n🤖 이카ount 재고현황 엑셀 봇 시작${entryOnly ? " [Phase1-2 ENTRY_ONLY]" : downloadOnly ? " [Phase1 DOWNLOAD_ONLY]" : ""}\n`
+  );
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     locale: "ko-KR",
@@ -156,6 +163,12 @@ export async function runEcountStockBot() {
       stock_menu_depth1: creds.stock_menu_depth1,
       stock_menu_depth2: creds.stock_menu_depth2,
     });
+
+    if (entryOnly) {
+      console.log("🎯 Phase1-2 ENTRY_OK — Excel/Supabase 단계 생략");
+      return { ok: true, entryOnly: true as const };
+    }
+
     await downloadExcelFromFrames(page, STOCK_FILE);
     verifyStockExcelFile(STOCK_FILE);
 
