@@ -1,6 +1,7 @@
-import type { Page } from "playwright";
+import type { Frame, Page } from "playwright";
 import { parseStockMenuUrl, applyMenuHashFromSaved, resolveErpNavigationTarget } from "../src/lib/ecountStockMenuUrl";
 import { isStockResultsReady, isStockSearchForm, waitForStockResultsReady } from "./ecountExcel";
+import { gotoEcountPage } from "./ecountErpGoto";
 
 async function clickInAnyFrame(page: Page, selector: string): Promise<boolean> {
   for (const frame of page.frames()) {
@@ -32,6 +33,50 @@ async function clickTextInAnyFrame(page: Page, pattern: RegExp | string): Promis
   return false;
 }
 
+async function logStockDebug(page: Page, label: string) {
+  const url = page.url();
+  console.log(`   [STOCK] ${label} url=${url.slice(0, 140)}`);
+  console.log(`   [STOCK] frames=${page.frames().length}`);
+}
+
+/** 재고현황 검색/결과 iframe — 수불부 제목 제외, 기준일자·검색(F8)·재고현황 제목 기준 */
+async function findStockReportFrames(page: Page): Promise<Frame[]> {
+  const out: Frame[] = [];
+  for (const frame of page.frames()) {
+    try {
+      const ledgerTitle = frame.getByText(/^재고\s*수불부$/).first();
+      if ((await ledgerTitle.count()) > 0 && (await ledgerTitle.isVisible())) continue;
+
+      const stockTitle = frame.getByText(/^재고현황$/).first();
+      const dateLabel = frame.locator("text=기준일자").first();
+      const searchBtn = frame.getByText(/검색\s*\(F8\)/i).first();
+      const itemCode = frame.locator("text=품목코드").first();
+
+      const hasTitle = (await stockTitle.count()) > 0 && (await stockTitle.isVisible());
+      const hasDate = (await dateLabel.count()) > 0 && (await dateLabel.isVisible());
+      const hasSearch = (await searchBtn.count()) > 0 && (await searchBtn.isVisible());
+      const hasItem = (await itemCode.count()) > 0 && (await itemCode.isVisible());
+
+      if (hasTitle || (hasDate && hasSearch) || (hasItem && hasSearch) || (hasDate && hasItem)) {
+        out.push(frame);
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  return out;
+}
+
+async function waitForStockScreen(page: Page, maxSec = 30): Promise<"search" | "results" | null> {
+  const steps = Math.ceil(maxSec / 2);
+  for (let i = 0; i < steps; i++) {
+    if (await isStockResultsReady(page)) return "results";
+    if (await isStockSearchForm(page)) return "search";
+    await page.waitForTimeout(2000);
+  }
+  return null;
+}
+
 /** 출력물 메뉴판 → 실제 「재고현황」 보고서 열기 (URL hash만으로는 폴더까지만 열림) */
 async function openStockReportProgram(page: Page, prgId?: string | null): Promise<boolean> {
   if (await isStockResultsReady(page)) {
@@ -45,7 +90,7 @@ async function openStockReportProgram(page: Page, prgId?: string | null): Promis
 
   console.log("   → 출력물 메뉴에서 「재고현황」 보고서 클릭...");
 
-  if (prgId) {
+  if (prgId && prgId !== "C000035") {
     const prgSelectors = [
       `#link_prg_${prgId}`,
       `[id*="${prgId}"]`,
@@ -55,8 +100,7 @@ async function openStockReportProgram(page: Page, prgId?: string | null): Promis
     for (const sel of prgSelectors) {
       if (await clickInAnyFrame(page, sel)) {
         console.log(`   ✓ prgId 링크: ${prgId}`);
-        await page.waitForTimeout(4000);
-        if (await isStockResultsReady(page) || (await isStockSearchForm(page))) return true;
+        if (await waitForStockScreen(page, 20)) return true;
       }
     }
   }
@@ -71,8 +115,7 @@ async function openStockReportProgram(page: Page, prgId?: string | null): Promis
         if (await link.isVisible()) {
           await link.click();
           console.log(`   ✓ 사이드바 재고현황 클릭 (${i + 1}/${count})`);
-          await page.waitForTimeout(4000);
-          if (await isStockResultsReady(page) || (await isStockSearchForm(page))) return true;
+          if (await waitForStockScreen(page, 20)) return true;
         }
       } catch {
         /* try next */
@@ -89,8 +132,7 @@ async function openStockReportProgram(page: Page, prgId?: string | null): Promis
       if ((await contentLinks.count()) > 0) {
         await contentLinks.first().click();
         console.log("   ✓ 본문 재고현황 링크 클릭");
-        await page.waitForTimeout(4000);
-        if (await isStockResultsReady(page) || (await isStockSearchForm(page))) return true;
+        if (await waitForStockScreen(page, 20)) return true;
       }
     } catch {
       /* skip */
@@ -98,17 +140,22 @@ async function openStockReportProgram(page: Page, prgId?: string | null): Promis
   }
 
   if (await clickTextInAnyFrame(page, /^재고현황$/)) {
-    await page.waitForTimeout(4000);
-    return (await isStockResultsReady(page)) || (await isStockSearchForm(page));
+    return !!(await waitForStockScreen(page, 20));
   }
 
   return false;
 }
 
 async function clickSearchButton(page: Page): Promise<boolean> {
-  console.log("   → 검색(F8) 실행...");
+  console.log("[STOCK] 검색(F8) 실행 시작");
 
-  for (const frame of page.frames()) {
+  const reportFrames = await findStockReportFrames(page);
+  const scan = reportFrames.length > 0 ? reportFrames : page.frames();
+  if (reportFrames.length > 0) {
+    console.log(`   [STOCK] 재고현황 report frame ${reportFrames.length}개에서 검색 시도`);
+  }
+
+  for (const frame of scan) {
     const locators = [
       frame.getByText(/검색\s*\(F8\)/i).first(),
       frame.locator('button, a, span, div[role="button"]').filter({ hasText: /검색\s*\(F8\)/i }).first(),
@@ -116,6 +163,7 @@ async function clickSearchButton(page: Page): Promise<boolean> {
     for (const btn of locators) {
       try {
         if ((await btn.count()) > 0 && (await btn.isVisible())) {
+          await frame.locator("body").click({ position: { x: 20, y: 20 }, force: true }).catch(() => {});
           await btn.scrollIntoViewIfNeeded().catch(() => {});
           await btn.click({ force: true });
           console.log("   ✓ 검색(F8) 클릭");
@@ -128,39 +176,45 @@ async function clickSearchButton(page: Page): Promise<boolean> {
   }
 
   // 보고서 iframe에 포커스 후 F8
-  for (const frame of page.frames()) {
+  for (const frame of scan) {
     try {
       if ((await frame.locator("text=기준일자").count()) > 0) {
         await frame.locator("body").click({ position: { x: 20, y: 20 }, force: true }).catch(() => {});
-        break;
+        await page.keyboard.press("F8");
+        console.log("   ✓ F8 키 입력 (재고현황 frame)");
+        return true;
       }
     } catch {
       /* skip */
     }
   }
+
   await page.keyboard.press("F8").catch(() => {});
-  console.log("   ✓ F8 키 입력");
+  console.log("   ✓ F8 키 입력 (page fallback)");
   return true;
 }
 
 /** 검색(F8) 실행 후 결과 테이블 대기 */
 async function runStockSearch(page: Page) {
   if (await isStockResultsReady(page)) {
-    console.log("   ✓ 재고 결과 테이블 확인 — 검색 생략");
+    console.log("[STOCK] 검색 결과 화면 감지 완료 (검색 생략)");
     return;
   }
 
   if (!(await isStockSearchForm(page))) {
     console.log("   → 검색 조건 화면 아님 — 재고현황 메뉴 재클릭");
-    await openStockReportProgram(page, "C000035");
+    await openStockReportProgram(page, null);
     await page.waitForTimeout(2000);
   }
 
   await clickSearchButton(page);
   console.log("3. 검색 결과 로딩 대기...");
 
-  if (!(await waitForStockResultsReady(page, 60))) {
+  if (await waitForStockResultsReady(page, 60)) {
+    console.log("[STOCK] 검색 결과 화면 감지 완료");
+  } else {
     console.warn("   ⚠ 재고 결과 화면 60초 내 미확인 — 다운로드 재시도 예정");
+    await logStockDebug(page, "검색 후 결과 미확인");
   }
 }
 
@@ -222,10 +276,7 @@ export type StockNavOptions = {
 async function gotoStockViaHash(page: Page, savedUrl: string): Promise<boolean> {
   const target = applyMenuHashFromSaved(page.url(), savedUrl);
   if (!target) return false;
-
-  console.log(`   → ERP hash 네비게이션: ${target.slice(0, 120)}...`);
-  await page.goto(target, { waitUntil: "networkidle", timeout: 90000 });
-  await page.waitForTimeout(3000);
+  await gotoEcountPage(page, target, "ERP hash 네비게이션");
   return true;
 }
 
@@ -250,6 +301,7 @@ async function clickMenuIdsFromUrl(page: Page, savedUrl: string): Promise<boolea
 /** 재고현황(엑셀 다운로드) 화면까지 이동 */
 export async function navigateToStockReport(page: Page, opts: StockNavOptions = {}) {
   console.log("2. 재고현황 화면 이동...");
+  console.log("[STOCK] 재고현황 페이지 진입 시작");
   await dismissEcountPopups(page);
 
   const menuUrl = (opts.stock_menu_url || process.env.ECOUNT_STOCK_MENU_URL || "").trim();
@@ -262,21 +314,32 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
       (await clickMenuIdsFromUrl(page, menuUrl));
 
     if (!opened && parsed?.normalized && !parsed.normalized.includes("ec_req_sid")) {
-      console.log("   → 정규화 URL 직접 이동 시도...");
       const direct = resolveErpNavigationTarget(page.url(), parsed.normalized) || parsed.normalized;
-      await page.goto(direct, { waitUntil: "networkidle", timeout: 90000 });
+      await gotoEcountPage(page, direct, "정규화 URL 직접 이동");
       opened = true;
     }
 
     if (!opened) {
+      await logStockDebug(page, "메뉴 URL 이동 실패");
       throw new Error("저장된 재고현황 URL로 화면 이동 실패");
     }
 
     await dismissEcountPopups(page);
     console.log(`   현재 URL: ${page.url()}`);
 
-    if (!(await openStockReportProgram(page, parsed?.prgId))) {
+    // 출력물 폴더 prgId(C000035)로는 보고서가 안 열림 — 재고현황 카드 클릭
+    const openPrgId = parsed?.prgId && parsed.prgId !== "C000035" ? parsed.prgId : null;
+    if (!(await openStockReportProgram(page, openPrgId))) {
       console.warn("   ⚠ 재고현황 보고서 자동 클릭 실패 — 조회만 시도");
+      await logStockDebug(page, "보고서 클릭 실패");
+    }
+
+    const screen = await waitForStockScreen(page, 10);
+    if (screen) {
+      console.log(`[STOCK] 재고현황 화면 감지 완료 (${screen === "results" ? "결과" : "검색조건"})`);
+    } else {
+      console.warn("   ⚠ 재고현황 화면 DOM 미확인 — 검색 계속 시도");
+      await logStockDebug(page, "화면 미확인");
     }
 
     await runStockSearch(page);
@@ -309,6 +372,7 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
 
     if (!(await clickTextInAnyFrame(page, /재고현황/))) {
       if (!(await clickInAnyFrame(page, "#link_depth2_MENUTREE_000035"))) {
+        await logStockDebug(page, "메뉴 자동 이동 실패");
         throw new Error(
           "재고현황 메뉴 자동 이동 실패. PC에서 재고현황 화면 주소(URL)를 복사해 /admin/ecount-bot → 재고현황 URL 에 저장하세요."
         );
@@ -318,7 +382,16 @@ export async function navigateToStockReport(page: Page, opts: StockNavOptions = 
 
   await page.waitForTimeout(2000);
   await dismissEcountPopups(page);
-  await openStockReportProgram(page, "C000035");
+  await openStockReportProgram(page, null);
+
+  const screen = await waitForStockScreen(page, 10);
+  if (screen) {
+    console.log(`[STOCK] 재고현황 화면 감지 완료 (${screen === "results" ? "결과" : "검색조건"})`);
+  } else {
+    console.warn("   ⚠ 재고현황 화면 DOM 미확인 — 검색 계속 시도");
+    await logStockDebug(page, "화면 미확인");
+  }
+
   await runStockSearch(page);
   console.log(`   현재 URL: ${page.url()}`);
 }

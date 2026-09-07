@@ -57,7 +57,8 @@ export async function loginEcountWeb(
   for (const url of LOGIN_URLS) {
     try {
       console.log(`1. 이카ount 로그인 페이지: ${url}`);
-      await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+      // Ecount는 WebSocket/폴링으로 networkidle이 끝나지 않을 수 있음
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
       await page.waitForTimeout(2000);
 
       await fillFirstMatch(

@@ -8,11 +8,13 @@
  *   ECOUNT_COM_CODE, ECOUNT_ID, ECOUNT_PW  — 웹 로그인
  *   ECOUNT_STOCK_MENU_URL (권장)           — 재고현황 화면 URL (브라우저 주소창 복사)
  *   ECOUNT_STOCK_MENU_DEPTH1/2 (선택)      — 메뉴 CSS selector (URL 없을 때)
+ *   ECOUNT_STOCK_DOWNLOAD_ONLY=1           — Phase1: 엑셀 다운로드·검증만 (Supabase 업로드 생략)
  *   ECOUNT_BOT_TARGET=lot                  — 로트/시리얼 봇(legacy) 실행
  *   ECOUNT_BOT_TARGET=ledger               — 재고수불부 (ECOUNT_LEDGER_PROD_CD 필수)
  */
 import * as fs from "fs";
 import * as path from "path";
+import * as XLSX from "xlsx";
 import { chromium, type Page } from "playwright";
 import { parseEcountStockExcel } from "../src/lib/ecountStockExcelParser";
 import { uploadEcountStockRows } from "../src/lib/ecountStockExcelUpload";
@@ -27,6 +29,10 @@ require("dotenv").config({ path: envPath });
 const DOWNLOAD_DIR = path.join(process.cwd(), "downloads");
 const STOCK_FILE = path.join(DOWNLOAD_DIR, "ecount_stock.xlsx");
 
+function isStockDownloadOnly(): boolean {
+  return (process.env.ECOUNT_STOCK_DOWNLOAD_ONLY || "").trim() === "1";
+}
+
 async function saveDebugScreenshot(page: Page, name: string) {
   if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
   const file = path.join(DOWNLOAD_DIR, name);
@@ -39,6 +45,44 @@ async function loginEcount(
   creds: { com_code: string; login_id: string; login_pw: string }
 ) {
   await loginEcountWeb(page, creds);
+}
+
+/** Phase1: 다운로드된 엑셀 파일 존재·크기·시트·행수 검증 */
+function verifyStockExcelFile(filePath: string): {
+  size: number;
+  sheets: string[];
+  dataRows: number;
+} {
+  const abs = path.resolve(filePath);
+  if (!fs.existsSync(abs)) {
+    throw new Error(`[STOCK] Excel 파일 없음: ${abs}`);
+  }
+
+  const size = fs.statSync(abs).size;
+  if (size <= 0) {
+    throw new Error(`[STOCK] Excel 파일 크기 0: ${abs}`);
+  }
+
+  const workbook = XLSX.read(fs.readFileSync(abs), { type: "buffer" });
+  const sheets = workbook.SheetNames || [];
+  if (sheets.length === 0) {
+    throw new Error(`[STOCK] Excel에 시트가 없습니다: ${abs}`);
+  }
+
+  const sheet = workbook.Sheets[sheets[0]];
+  const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  const dataRows = rows.filter((r) => Array.isArray(r) && r.some((c) => String(c ?? "").trim() !== "")).length;
+  if (dataRows < 1) {
+    throw new Error(`[STOCK] Excel에 데이터 행이 없습니다: ${abs}`);
+  }
+
+  console.log("✅ [STOCK] Excel 저장 성공");
+  console.log(`📁 경로: ${abs}`);
+  console.log(`📦 파일 크기: ${size} bytes`);
+  console.log(`📑 Sheet: ${sheets.join(", ")}`);
+  console.log(`📊 데이터 행 수: ${dataRows}`);
+
+  return { size, sheets, dataRows };
 }
 
 async function downloadExcelFromFrames(page: Page, saveAs: string) {
@@ -85,7 +129,8 @@ async function uploadStockExcelFile(filePath: string) {
 
 /** 재고현황 엑셀 → ecount_items (소수점 포함) */
 export async function runEcountStockBot() {
-  console.log("\n🤖 이카ount 재고현황 엑셀 봇 시작\n");
+  const downloadOnly = isStockDownloadOnly();
+  console.log(`\n🤖 이카ount 재고현황 엑셀 봇 시작${downloadOnly ? " [Phase1 DOWNLOAD_ONLY]" : ""}\n`);
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     locale: "ko-KR",
@@ -112,9 +157,19 @@ export async function runEcountStockBot() {
       stock_menu_depth2: creds.stock_menu_depth2,
     });
     await downloadExcelFromFrames(page, STOCK_FILE);
+    verifyStockExcelFile(STOCK_FILE);
+
+    if (downloadOnly) {
+      console.log("🎯 Phase1 DOWNLOAD_OK — Supabase 업로드 생략");
+      return { ok: true, path: STOCK_FILE, downloadOnly: true as const };
+    }
+
     return await uploadStockExcelFile(STOCK_FILE);
   } catch (err) {
     await saveDebugScreenshot(page, "ecount-bot-error.png");
+    await saveDebugScreenshot(page, "ecount-stock-failure.png");
+    console.error(`   [STOCK] 실패 url=${page.url().slice(0, 160)}`);
+    console.error(`   [STOCK] frames=${page.frames().length}`);
     throw err;
   } finally {
     await browser.close();

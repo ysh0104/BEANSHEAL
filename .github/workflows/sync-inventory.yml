@@ -57,6 +57,8 @@ jobs:
         run: npx tsx scripts/ecountBot.ts
         env:
           ECOUNT_BOT_TARGET: ${{ github.event.inputs.target || github.event.client_payload.target || 'stock' }}
+          # Phase1: stock 실행 시 Excel 다운로드·검증만 (Supabase 업로드 생략)
+          ECOUNT_STOCK_DOWNLOAD_ONLY: ${{ (github.event.inputs.target || github.event.client_payload.target || 'stock') == 'stock' && '1' || '0' }}
           GITHUB_SHA: ${{ github.sha }}
           ECOUNT_LEDGER_PROD_CD: ${{ github.event.inputs.prod_cd || github.event.client_payload.prod_cd || '' }}
           ECOUNT_LEDGER_PROD_NM: ${{ github.event.inputs.prod_nm || github.event.client_payload.prod_nm || '' }}
@@ -74,10 +76,14 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Upload debug screenshot on failure
-        if: failure()
+      - name: Upload ecount stock debug artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ecount-bot-debug
-          path: downloads/
+          name: ecount-stock-debug
+          path: |
+            downloads/ecount_stock.xlsx
+            downloads/ecount-bot-error.png
+            downloads/ecount-stock-failure.png
+            downloads/*
           if-no-files-found: ignore
