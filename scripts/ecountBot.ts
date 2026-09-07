@@ -101,7 +101,10 @@ async function downloadExcelFromFrames(page: Page, saveAs: string) {
 
     try {
       await clickExcelDownload(page, saveAs);
-      console.log(`✅ 엑셀 저장: ${saveAs}`);
+      if (!fs.existsSync(saveAs) || fs.statSync(saveAs).size <= 0) {
+        throw new Error(`다운로드 파일 없음 또는 0 bytes: ${saveAs}`);
+      }
+      console.log(`✅ 엑셀 저장: ${path.resolve(saveAs)}`);
       return;
     } catch (err) {
       console.warn(`   Excel 클릭 실패 (${attempt + 1}/4):`, err instanceof Error ? err.message : err);
@@ -117,7 +120,7 @@ async function downloadExcelFromFrames(page: Page, saveAs: string) {
   const ready = await isStockResultsReady(page);
   console.log(`   frames=${page.frames().length}, excel=${found ? "found" : "none"}, ready=${ready}, url=${page.url()}`);
 
-  throw new Error("엑셀 다운로드 실패. 검색(F8) 후 결과 화면(품목코드+Excel)까지 이동하지 못했습니다.");
+  throw new Error("엑셀 다운로드 실패. 검색(F8) 후 결과 화면(품목코드+재고수량) 및 Excel 버튼을 확인하세요.");
 }
 
 async function uploadStockExcelFile(filePath: string) {

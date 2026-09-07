@@ -487,51 +487,93 @@ async function openStockViaSavedUrl(page: Page, menuUrl: string): Promise<boolea
   return false;
 }
 
+/**
+ * 재고현황 report frame을 식별한 뒤 그 frame 안에서만 검색(F8) 클릭.
+ * page 전체 F8 fallback 사용 안 함.
+ */
 async function clickSearchButton(page: Page): Promise<boolean> {
   console.log("[STOCK] 검색(F8) 실행 시작");
 
-  const reportFrames = await findStockReportFrames(page);
-  const scan = reportFrames.length > 0 ? reportFrames : page.frames();
-  if (reportFrames.length > 0) {
-    console.log(`   [STOCK] 재고현황 report frame ${reportFrames.length}개에서 검색 시도`);
+  let reportFrames = await findStockReportFrames(page);
+  if (reportFrames.length === 0) {
+    // 느슨한 보조: 기준일자 + 검색(F8) 있는 frame (수불부 제외)
+    for (const frame of page.frames()) {
+      try {
+        const ledger = frame.getByText(/^재고\s*수불부$/).first();
+        if ((await ledger.count()) > 0 && (await ledger.isVisible())) continue;
+        const dateLabel = frame.locator("text=기준일자").first();
+        const searchBtn = frame.getByText(/검색\s*\(F8\)/i).first();
+        const hasDate = (await dateLabel.count()) > 0 && (await dateLabel.isVisible());
+        const hasSearch = (await searchBtn.count()) > 0 && (await searchBtn.isVisible());
+        if (hasDate && hasSearch) reportFrames.push(frame);
+      } catch {
+        /* skip */
+      }
+    }
   }
 
-  for (const frame of scan) {
+  if (reportFrames.length === 0) {
+    await logFrameList(page, "검색 전 report frame 없음");
+    throw new Error("[STOCK] 재고현황 report frame을 찾지 못해 검색(F8)을 실행할 수 없습니다.");
+  }
+
+  console.log(`[STOCK DEBUG] 재고현황 report frame ${reportFrames.length}개에서 검색 시도`);
+  for (let i = 0; i < reportFrames.length; i++) {
+    try {
+      console.log(`[STOCK DEBUG] search frame[${i}] url=${redactUrl(reportFrames[i].url())}`);
+    } catch {
+      /* skip */
+    }
+  }
+
+  for (const frame of reportFrames) {
     const locators = [
+      frame.locator('button, a, span, div[role="button"], input[type="button"]').filter({ hasText: /검색\s*\(F8\)/i }).first(),
+      frame.getByRole("button", { name: /검색\s*\(F8\)/i }).first(),
       frame.getByText(/검색\s*\(F8\)/i).first(),
-      frame.locator('button, a, span, div[role="button"]').filter({ hasText: /검색\s*\(F8\)/i }).first(),
     ];
     for (const btn of locators) {
       try {
-        if ((await btn.count()) > 0 && (await btn.isVisible())) {
-          await frame.locator("body").click({ position: { x: 20, y: 20 }, force: true }).catch(() => {});
-          await btn.scrollIntoViewIfNeeded().catch(() => {});
-          await btn.click({ force: true });
-          console.log("   ✓ 검색(F8) 클릭");
-          return true;
+        if ((await btn.count()) === 0 || !(await btn.isVisible())) continue;
+        const meta = await btn
+          .evaluate((node) => {
+            const html = node as HTMLElement;
+            return {
+              tag: html.tagName.toLowerCase(),
+              id: html.id || "(none)",
+              className: String(html.className || "").slice(0, 100) || "(none)",
+              text: ((html.innerText || html.textContent || "").replace(/\s+/g, " ").trim()).slice(0, 40),
+            };
+          })
+          .catch(() => null);
+        if (meta) {
+          console.log(
+            `[STOCK DEBUG] 검색(F8) button tag=${meta.tag} id=${meta.id} class=${meta.className} text=${meta.text}`
+          );
         }
+        await btn.scrollIntoViewIfNeeded().catch(() => {});
+        await btn.click({ force: true });
+        console.log("   ✓ 검색(F8) 클릭 (report frame)");
+        return true;
       } catch {
         /* next */
       }
     }
   }
 
-  for (const frame of scan) {
+  // 최후: report frame에 포커스 후 F8 (page 전체 fallback 금지)
+  for (const frame of reportFrames) {
     try {
-      if ((await frame.locator("text=기준일자").count()) > 0) {
-        await frame.locator("body").click({ position: { x: 20, y: 20 }, force: true }).catch(() => {});
-        await page.keyboard.press("F8");
-        console.log("   ✓ F8 키 입력 (재고현황 frame)");
-        return true;
-      }
+      await frame.locator("body").click({ position: { x: 20, y: 20 }, force: true });
+      await page.keyboard.press("F8");
+      console.log("   ✓ F8 키 입력 (재고현황 report frame focus)");
+      return true;
     } catch {
-      /* skip */
+      /* next */
     }
   }
 
-  await page.keyboard.press("F8").catch(() => {});
-  console.log("   ✓ F8 키 입력 (page fallback)");
-  return true;
+  throw new Error("[STOCK] 재고현황 report frame에서 검색(F8) 버튼을 찾지 못했습니다.");
 }
 
 async function runStockSearch(page: Page) {
@@ -541,19 +583,22 @@ async function runStockSearch(page: Page) {
   }
 
   if (!(await isStockSearchForm(page))) {
-    console.log("   → 검색 조건 화면 아님 — cascade 메뉴 재시도");
-    await openStockViaCascadeMenu(page);
-    await page.waitForTimeout(2000);
+    console.log("   → 검색 조건 화면 아님 — report frame 재확인");
+    const frames = await findStockReportFrames(page);
+    if (frames.length === 0) {
+      await openStockViaCascadeMenu(page);
+      await page.waitForTimeout(2000);
+    }
   }
 
   await clickSearchButton(page);
   console.log("3. 검색 결과 로딩 대기...");
 
-  if (await waitForStockResultsReady(page, 60)) {
+  if (await waitForStockResultsReady(page, 90)) {
     console.log("[STOCK] 검색 결과 화면 감지 완료");
   } else {
-    console.warn("   ⚠ 재고 결과 화면 60초 내 미확인 — 다운로드 재시도 예정");
     await logFrameList(page, "검색 후 결과 미확인");
+    throw new Error("[STOCK] 검색 결과 화면 미확인 (품목코드/재고수량 영역 없음)");
   }
 }
 

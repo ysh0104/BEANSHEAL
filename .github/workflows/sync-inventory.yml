@@ -57,9 +57,9 @@ jobs:
         run: npx tsx scripts/ecountBot.ts
         env:
           ECOUNT_BOT_TARGET: ${{ github.event.inputs.target || github.event.client_payload.target || 'stock' }}
-          # Phase1: Excel 검증만 / Phase1-2: report 진입 조사만
+          # Phase1: 검색(F8) → Excel 다운로드·검증만 (Supabase 업로드 생략)
           ECOUNT_STOCK_DOWNLOAD_ONLY: ${{ (github.event.inputs.target || github.event.client_payload.target || 'stock') == 'stock' && '1' || '0' }}
-          ECOUNT_STOCK_ENTRY_ONLY: ${{ (github.event.inputs.target || github.event.client_payload.target || 'stock') == 'stock' && '1' || '0' }}
+          ECOUNT_STOCK_ENTRY_ONLY: "0"
           GITHUB_SHA: ${{ github.sha }}
           ECOUNT_LEDGER_PROD_CD: ${{ github.event.inputs.prod_cd || github.event.client_payload.prod_cd || '' }}
           ECOUNT_LEDGER_PROD_NM: ${{ github.event.inputs.prod_nm || github.event.client_payload.prod_nm || '' }}

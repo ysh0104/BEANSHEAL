@@ -22,26 +22,22 @@ export async function isStockSearchForm(page: Page): Promise<boolean> {
   return false;
 }
 
-/** 검색 완료 후 결과 테이블 + Excel (검색 F8 화면과 구분) */
+/**
+ * 검색 완료 후 결과 영역 (품목코드 + 재고수량).
+ * 검색 조건 영역(기준일자/검색 F8)이 남아 있어도 결과 컬럼이 보이면 true.
+ * Excel 버튼은 별도 단계에서 찾는다.
+ */
 export async function isStockResultsReady(page: Page): Promise<boolean> {
-  if (await isStockSearchForm(page)) return false;
-
   for (const frame of page.frames()) {
     try {
+      if (await frameHasVisibleLedgerTitle(frame)) continue;
+
       const itemCode = frame.locator("text=품목코드").first();
       const qty = frame.locator("text=재고수량").first();
       if ((await itemCode.count()) === 0 || !(await itemCode.isVisible())) continue;
       if ((await qty.count()) === 0 || !(await qty.isVisible())) continue;
 
-      for (const sel of EXCEL_SELECTORS) {
-        const excel = frame.locator(sel).first();
-        if ((await excel.count()) > 0 && (await excel.isVisible())) {
-          const box = await excel.boundingBox();
-          if (box && box.width > 2 && box.height > 2) return true;
-        }
-      }
-      const excelText = frame.getByText(/^Excel$/i).first();
-      if ((await excelText.count()) > 0 && (await excelText.isVisible())) return true;
+      return true;
     } catch {
       /* skip */
     }
@@ -99,20 +95,102 @@ export async function hasVisibleExcelButton(page: Page): Promise<boolean> {
   return (await findVisibleExcelButton(page)) !== null;
 }
 
+/** Excel 관련 visible element 디버그 (HTML 전체 출력 금지) */
+export async function debugExcelRelatedElements(page: Page): Promise<void> {
+  console.log("[STOCK DEBUG] Excel 관련 visible elements 탐색");
+  for (let fi = 0; fi < page.frames().length; fi++) {
+    const frame = page.frames()[fi];
+    try {
+      const candidates = frame.locator(
+        'a, button, span, div, img, input, [role="button"], [id*="Excel" i], [id*="excel" i], [title*="Excel" i], [title*="엑셀"]'
+      );
+      const n = Math.min(await candidates.count(), 80);
+      let logged = 0;
+      for (let i = 0; i < n && logged < 25; i++) {
+        const el = candidates.nth(i);
+        try {
+          if (!(await el.isVisible())) continue;
+          const info = await el.evaluate((node) => {
+            const html = node as HTMLElement;
+            const text = (html.innerText || html.textContent || "").replace(/\s+/g, " ").trim().slice(0, 40);
+            const id = html.id || "";
+            const cls = String(html.className || "").slice(0, 100);
+            const title = html.getAttribute("title") || "";
+            const href = (html as HTMLAnchorElement).href || html.getAttribute("href") || "";
+            const blob = `${id} ${cls} ${title} ${text} ${href}`.toLowerCase();
+            if (!/excel|엑셀|xls|outputexcel/.test(blob)) return null;
+            return {
+              tag: html.tagName.toLowerCase(),
+              id: id || "(none)",
+              className: cls || "(none)",
+              title: title.slice(0, 60) || "(none)",
+              href: href.slice(0, 100) || "(none)",
+              text: text || "(none)",
+            };
+          });
+          if (!info) continue;
+          logged++;
+          console.log(
+            `[STOCK DEBUG] excel-ish frame=${fi} tag=${info.tag} id=${info.id} class=${info.className} title=${info.title} href=${info.href} text=${info.text}`
+          );
+        } catch {
+          /* next */
+        }
+      }
+    } catch {
+      /* next frame */
+    }
+  }
+}
+
 export async function clickExcelDownload(page: Page, saveAs: string): Promise<void> {
+  console.log("[STOCK] Excel 다운로드 시작");
+
   const targets: Locator[] = [];
 
+  // 1) 결과 frame의 #outputExcel 우선 검증
   const inResults = await findExcelInResultsFrame(page);
-  if (inResults) targets.push(inResults.locator);
+  if (inResults) {
+    const desc = await inResults.locator
+      .evaluate((node) => {
+        const html = node as HTMLElement;
+        return {
+          tag: html.tagName.toLowerCase(),
+          id: html.id || "(none)",
+          className: String(html.className || "").slice(0, 100) || "(none)",
+          title: (html.getAttribute("title") || "").slice(0, 60) || "(none)",
+        };
+      })
+      .catch(() => null);
+    if (desc) {
+      console.log(
+        `[STOCK DEBUG] Excel candidate (results frame) tag=${desc.tag} id=${desc.id} class=${desc.className} title=${desc.title}`
+      );
+    }
+    targets.push(inResults.locator);
+  }
 
   const visible = await findVisibleExcelButton(page);
-  if (visible && !targets.includes(visible.locator)) targets.push(visible.locator);
+  if (visible) {
+    const already = targets.length > 0;
+    if (!already) targets.push(visible.locator);
+  }
 
   for (const frame of page.frames()) {
     const legacy = frame.locator("#outputExcel").first();
-    if ((await legacy.count()) > 0 && !targets.some((t) => t === legacy)) {
-      targets.push(legacy);
+    try {
+      if ((await legacy.count()) > 0 && (await legacy.isVisible())) {
+        if (!targets.some((t) => t === legacy)) targets.push(legacy);
+        console.log("[STOCK DEBUG] #outputExcel visible=true");
+      }
+    } catch {
+      /* skip */
     }
+  }
+
+  if (targets.length === 0) {
+    await debugExcelRelatedElements(page);
+    throw new Error("Excel 버튼을 찾지 못했습니다 (결과 frame / #outputExcel)");
   }
 
   let lastErr: unknown;
@@ -140,6 +218,7 @@ export async function clickExcelDownload(page: Page, saveAs: string): Promise<vo
     }
   }
 
+  await debugExcelRelatedElements(page);
   throw lastErr instanceof Error ? lastErr : new Error("EXCEL_CLICK_FAILED");
 }
 
@@ -387,20 +466,12 @@ async function countVisibleLedgerHeaderCells(frame: Frame): Promise<number> {
 async function isStockResultsPageShallow(page: Page): Promise<boolean> {
   for (const frame of page.frames()) {
     try {
+      if (await frameHasVisibleLedgerTitle(frame)) continue;
       const itemCode = frame.locator("text=품목코드").first();
       const qty = frame.locator("text=재고수량").first();
       if ((await itemCode.count()) === 0 || !(await itemCode.isVisible())) continue;
       if ((await qty.count()) === 0 || !(await qty.isVisible())) continue;
-
-      for (const sel of EXCEL_SELECTORS) {
-        const excel = frame.locator(sel).first();
-        if ((await excel.count()) > 0 && (await excel.isVisible())) {
-          const box = await excel.boundingBox();
-          if (box && box.width > 2 && box.height > 2) return true;
-        }
-      }
-      const excelText = frame.getByText(/^Excel$/i).first();
-      if ((await excelText.count()) > 0 && (await excelText.isVisible())) return true;
+      return true;
     } catch {
       /* skip */
     }
