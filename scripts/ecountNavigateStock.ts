@@ -735,6 +735,7 @@ async function clickSearchButton(page: Page): Promise<boolean> {
     });
   }
   console.log("[STOCK] 검색(F8) 클릭 완료");
+  console.log("[STOCK] 검색(F8) 실행 완료");
   console.log(`[STOCK SEARCH DEBUG] click frame index=${probe.frameIndex} name=${probe.frameName || "(none)"}`);
   void frame;
   console.log(`[STOCK SEARCH DEBUG] url before=${redactUrl(urlBefore)}`);

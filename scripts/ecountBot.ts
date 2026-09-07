@@ -9,6 +9,7 @@
  *   ECOUNT_STOCK_MENU_URL (권장)           — 재고현황 화면 URL (브라우저 주소창 복사)
  *   ECOUNT_STOCK_MENU_DEPTH1/2 (선택)      — 메뉴 CSS selector (URL 없을 때)
  *   ECOUNT_STOCK_DOWNLOAD_ONLY=1           — Phase1: 엑셀 다운로드·검증만 (Supabase 업로드 생략)
+ *   ECOUNT_STOCK_SEARCH_ONLY=1             — 검색(F8)→결과까지만 (Excel 생략)
  *   ECOUNT_BOT_TARGET=lot                  — 로트/시리얼 봇(legacy) 실행
  *   ECOUNT_BOT_TARGET=ledger               — 재고수불부 (ECOUNT_LEDGER_PROD_CD 필수)
  */
@@ -28,6 +29,7 @@ require("dotenv").config({ path: envPath });
 
 const DOWNLOAD_DIR = path.join(process.cwd(), "downloads");
 const STOCK_FILE = path.join(DOWNLOAD_DIR, "ecount_stock.xlsx");
+const STALE_LOT_FILE = path.join(DOWNLOAD_DIR, "ecount_inventory.xlsx");
 
 function isStockDownloadOnly(): boolean {
   return (process.env.ECOUNT_STOCK_DOWNLOAD_ONLY || "").trim() === "1";
@@ -55,15 +57,56 @@ async function loginEcount(
   await loginEcountWeb(page, creds);
 }
 
-/** Phase1: 다운로드된 엑셀 파일 존재·크기·시트·행수 검증 */
+/** 이번 실행 오염 방지: 재고현황 결과/로트 잔존 파일만 제거 (스크린샷 유지) */
+function prepareStockDownloadWorkspace() {
+  if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+
+  for (const f of [STOCK_FILE, STALE_LOT_FILE]) {
+    if (fs.existsSync(f)) {
+      fs.unlinkSync(f);
+      console.log(`[STOCK] 기존 파일 삭제: ${path.resolve(f)}`);
+    }
+  }
+
+  // 이전 실행 tmp 잔존 정리
+  for (const name of fs.readdirSync(DOWNLOAD_DIR)) {
+    if (/^tmp-stock-.*\.xlsx$/i.test(name)) {
+      const p = path.join(DOWNLOAD_DIR, name);
+      fs.unlinkSync(p);
+      console.log(`[STOCK] tmp 파일 삭제: ${path.resolve(p)}`);
+    }
+  }
+}
+
+function findHeaderRow(rows: unknown[][]): { index: number; headers: string[] } {
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const headers = (rows[i] as unknown[]).map((c) => String(c ?? "").trim());
+    const joined = headers.join("|");
+    if (/품목코드|PROD_CD|Item Code/i.test(joined)) {
+      return { index: i, headers };
+    }
+  }
+  // fallback: first non-empty row
+  for (let i = 0; i < Math.min(rows.length, 5); i++) {
+    const headers = (rows[i] as unknown[]).map((c) => String(c ?? "").trim());
+    if (headers.some((h) => h)) return { index: i, headers };
+  }
+  return { index: -1, headers: [] };
+}
+
+/**
+ * 이번 실행에서 Playwright download로 받은 재고현황 Excel만 검증.
+ * 시리얼/로트 시트·컬럼이면 실패.
+ */
 function verifyStockExcelFile(filePath: string): {
   size: number;
   sheets: string[];
+  headers: string[];
   dataRows: number;
 } {
   const abs = path.resolve(filePath);
   if (!fs.existsSync(abs)) {
-    throw new Error(`[STOCK] Excel 파일 없음: ${abs}`);
+    throw new Error(`[STOCK] Excel 파일 없음 (이번 다운로드 결과 아님): ${abs}`);
   }
 
   const size = fs.statSync(abs).size;
@@ -77,25 +120,80 @@ function verifyStockExcelFile(filePath: string): {
     throw new Error(`[STOCK] Excel에 시트가 없습니다: ${abs}`);
   }
 
-  const sheet = workbook.Sheets[sheets[0]];
+  const sheetName = sheets[0];
+  const sheet = workbook.Sheets[sheetName];
   const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-  const dataRows = rows.filter((r) => Array.isArray(r) && r.some((c) => String(c ?? "").trim() !== "")).length;
-  if (dataRows < 1) {
-    throw new Error(`[STOCK] Excel에 데이터 행이 없습니다: ${abs}`);
+  const { index: headerRow, headers } = findHeaderRow(rows);
+
+  console.log("[STOCK EXCEL DEBUG]");
+  console.log(`download path=${abs}`);
+  console.log(`file size=${size}`);
+  console.log(`sheet names=${sheets.join(" | ")}`);
+  console.log(`header row=${headerRow}`);
+  console.log(`headers=${headers.join(" | ")}`);
+
+  // 시리얼/로트 파일 거부
+  const sheetBlob = sheets.join(" ");
+  if (/시리얼|로트No|로트\s*No|Serial|Lot/i.test(sheetBlob)) {
+    throw new Error(
+      `[STOCK] 재고현황 Excel이 아님 — sheet="${sheetName}". (시리얼/로트 내역 파일은 DOWNLOAD_OK 불가)`
+    );
+  }
+  const headerBlob = headers.join("|");
+  if (/시리얼\s*\/?\s*로트|연결전표|유효기한|전표구분/i.test(headerBlob) && !/품목코드/i.test(headerBlob)) {
+    throw new Error(`[STOCK] 재고현황 컬럼 없음 — 시리얼/로트 형식 headers=${headerBlob}`);
   }
 
-  console.log("✅ [STOCK] Excel 저장 성공");
+  if (headerRow < 0 || !/품목코드/i.test(headerBlob)) {
+    throw new Error(
+      `[STOCK] 재고현황 헤더(품목코드) 없음. sheet=${sheetName} headers=${headerBlob || "(empty)"}`
+    );
+  }
+
+  const hasName = /품목명/i.test(headerBlob);
+  const hasQty = /재고수량|실재고|^수량$/i.test(headerBlob.replace(/\s+/g, ""));
+  if (!hasName) {
+    console.warn("[STOCK EXCEL DEBUG] 경고: 품목명 컬럼이 헤더에서 명확히 보이지 않음");
+  }
+  if (!hasQty) {
+    throw new Error(`[STOCK] 재고수량 컬럼 없음. headers=${headerBlob}`);
+  }
+
+  const dataRows = rows
+    .slice(headerRow + 1)
+    .filter((r) => Array.isArray(r) && r.some((c) => String(c ?? "").trim() !== "")).length;
+  if (dataRows < 1) {
+    throw new Error(`[STOCK] 재고현황 데이터 행이 없습니다: ${abs}`);
+  }
+
+  // parser가 기대하는 최소 구조도 통과하는지 (업로드는 하지 않음)
+  try {
+    const parsed = parseEcountStockExcel(fs.readFileSync(abs));
+    console.log(`[STOCK] parser smoke rows=${parsed.rows.length} skipped=${parsed.skippedRows}`);
+    if (parsed.rows.length < 1) {
+      throw new Error("parser가 유효 행 0건");
+    }
+  } catch (e) {
+    throw new Error(
+      `[STOCK] 재고현황 Excel 파서 검증 실패: ${e instanceof Error ? e.message : e}`
+    );
+  }
+
+  console.log("[STOCK] 재고현황 Excel 검증 완료");
+  console.log(`[STOCK] 데이터 행 수=${dataRows}`);
   console.log(`📁 경로: ${abs}`);
   console.log(`📦 파일 크기: ${size} bytes`);
   console.log(`📑 Sheet: ${sheets.join(", ")}`);
-  console.log(`📊 데이터 행 수: ${dataRows}`);
 
-  return { size, sheets, dataRows };
+  return { size, sheets, headers, dataRows };
 }
 
-async function downloadExcelFromFrames(page: Page, saveAs: string) {
+async function downloadExcelFromFrames(page: Page, finalPath: string) {
   console.log("4. 엑셀 다운로드 버튼 탐색...");
-  if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+  prepareStockDownloadWorkspace();
+
+  const runId = `${Date.now()}-${process.pid}`;
+  const tempPath = path.join(DOWNLOAD_DIR, `tmp-stock-${runId}.xlsx`);
 
   for (let attempt = 0; attempt < 4; attempt++) {
     if (!(await isStockResultsReady(page))) {
@@ -103,15 +201,27 @@ async function downloadExcelFromFrames(page: Page, saveAs: string) {
       await runStockSearchAfterNavigate(page);
     }
 
+    // 매 시도 전 temp/최종 파일 제거 — 이전 시도 잔존으로 성공 판정 금지
+    if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    if (fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
+
     try {
-      await clickExcelDownload(page, saveAs);
-      if (!fs.existsSync(saveAs) || fs.statSync(saveAs).size <= 0) {
-        throw new Error(`다운로드 파일 없음 또는 0 bytes: ${saveAs}`);
+      const dl = await clickExcelDownload(page, tempPath);
+      if (!dl.fromDownloadEvent) {
+        throw new Error("Playwright download 이벤트 없이 파일을 저장하려 함");
       }
-      console.log(`✅ 엑셀 저장: ${path.resolve(saveAs)}`);
+      if (!fs.existsSync(tempPath) || fs.statSync(tempPath).size <= 0) {
+        throw new Error(`download 이벤트 후 파일 없음/0bytes: ${tempPath}`);
+      }
+
+      // 검증은 temp에서 — 통과 후만 ecount_stock.xlsx 로 이동
+      verifyStockExcelFile(tempPath);
+      fs.renameSync(tempPath, finalPath);
+      console.log(`[STOCK] 최종 저장: ${path.resolve(finalPath)}`);
       return;
     } catch (err) {
-      console.warn(`   Excel 클릭 실패 (${attempt + 1}/4):`, err instanceof Error ? err.message : err);
+      console.warn(`   Excel 클릭/검증 실패 (${attempt + 1}/4):`, err instanceof Error ? err.message : err);
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     }
 
     for (const frame of page.frames()) {
@@ -124,7 +234,9 @@ async function downloadExcelFromFrames(page: Page, saveAs: string) {
   const ready = await isStockResultsReady(page);
   console.log(`   frames=${page.frames().length}, excel=${found ? "found" : "none"}, ready=${ready}, url=${page.url()}`);
 
-  throw new Error("엑셀 다운로드 실패. 검색(F8) 후 결과 화면(품목코드+재고수량) 및 Excel 버튼을 확인하세요.");
+  throw new Error(
+    "엑셀 다운로드 실패. Playwright download 이벤트 + 재고현황(품목코드/재고수량) 검증을 통과하지 못했습니다."
+  );
 }
 
 async function uploadStockExcelFile(filePath: string) {
@@ -154,6 +266,10 @@ export async function runEcountStockBot() {
             : ""
     }\n`
   );
+
+  // 시작 시 오염 파일 제거 (SEARCH_ONLY여도 artifact 혼동 방지)
+  prepareStockDownloadWorkspace();
+
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     locale: "ko-KR",
@@ -191,10 +307,9 @@ export async function runEcountStockBot() {
     }
 
     await downloadExcelFromFrames(page, STOCK_FILE);
-    verifyStockExcelFile(STOCK_FILE);
 
     if (downloadOnly) {
-      console.log("🎯 Phase1 DOWNLOAD_OK — Supabase 업로드 생략");
+      console.log("🎯 DOWNLOAD_OK");
       return { ok: true, path: STOCK_FILE, downloadOnly: true as const };
     }
 

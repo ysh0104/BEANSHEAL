@@ -26,3 +26,9 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# ecount bot downloads (screenshots/xlsx generated at runtime)
+/downloads/*.xlsx
+/downloads/*.png
+/downloads/*.html
+!/downloads/.gitkeep

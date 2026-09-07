@@ -143,7 +143,10 @@ export async function debugExcelRelatedElements(page: Page): Promise<void> {
   }
 }
 
-export async function clickExcelDownload(page: Page, saveAs: string): Promise<void> {
+export async function clickExcelDownload(page: Page, saveAs: string): Promise<{
+  suggestedFilename: string;
+  fromDownloadEvent: true;
+}> {
   console.log("[STOCK] Excel 다운로드 시작");
 
   const targets: Locator[] = [];
@@ -171,9 +174,8 @@ export async function clickExcelDownload(page: Page, saveAs: string): Promise<vo
   }
 
   const visible = await findVisibleExcelButton(page);
-  if (visible) {
-    const already = targets.length > 0;
-    if (!already) targets.push(visible.locator);
+  if (visible && targets.length === 0) {
+    targets.push(visible.locator);
   }
 
   for (const frame of page.frames()) {
@@ -197,12 +199,15 @@ export async function clickExcelDownload(page: Page, saveAs: string): Promise<vo
   for (const btn of targets) {
     try {
       await btn.scrollIntoViewIfNeeded().catch(() => {});
+      // 반드시 click과 download 이벤트를 동시에 대기 — 기존 파일로 성공 처리 금지
       const [download] = await Promise.all([
         page.waitForEvent("download", { timeout: 90000 }),
         btn.click({ force: true }),
       ]);
+      const suggestedFilename = download.suggestedFilename() || "";
+      console.log(`[STOCK DEBUG] Playwright download event suggestedFilename=${suggestedFilename || "(none)"}`);
       await download.saveAs(saveAs);
-      return;
+      return { suggestedFilename, fromDownloadEvent: true };
     } catch (e) {
       lastErr = e;
       try {
@@ -210,8 +215,10 @@ export async function clickExcelDownload(page: Page, saveAs: string): Promise<vo
           page.waitForEvent("download", { timeout: 90000 }),
           btn.evaluate((el: HTMLElement) => el.click()),
         ]);
+        const suggestedFilename = download.suggestedFilename() || "";
+        console.log(`[STOCK DEBUG] Playwright download event (evaluate click) suggestedFilename=${suggestedFilename || "(none)"}`);
         await download.saveAs(saveAs);
-        return;
+        return { suggestedFilename, fromDownloadEvent: true };
       } catch (e2) {
         lastErr = e2;
       }
