@@ -571,7 +571,9 @@ export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
 
   // E040702 실제 로드 재확인 — 통과 전에는 기타 탭/체크박스 진입 금지
   await assertLedgerProgramSearchScreen(page, 25);
-  console.log(`   ✓ 재고수불부 검색 화면 확인 (prgId=${expectedLedgerPrgId()}) — 기타 탭 진행`);
+  console.log(
+    `   ✓ 재고수불부 검색 화면 확인 (prgId=${expectedLedgerPrgId()}) — E040702 viewer 내부 「기타」 탭 진행`
+  );
 
   console.log("   → 기간: Ecount 기본값(전월+금월) 유지");
   await ensureProductionTransferIncluded(page);

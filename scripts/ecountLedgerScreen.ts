@@ -145,27 +145,33 @@ export async function findLedgerFrames(page: Page): Promise<Frame[]> {
   const frames: Frame[] = [];
   for (const frame of page.frames()) {
     try {
-      const bodyText = ((await frame.locator("body").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
-      // 일별재고현황(E040206) 전용 화면은 ledger frame으로 취급하지 않음
-      if (/일별\s*재고\s*현황/.test(bodyText) && !/재고\s*수불부/.test(bodyText)) continue;
+      // #mainPage 기준 — 사이드바 텍스트로 오인하지 않음
+      const mainMeta = await frame
+        .evaluate(() => {
+          const main = document.querySelector("#mainPage") as HTMLElement | null;
+          if (!main) return { hasMain: false, head: "", isDaily: false, isLedger: false };
+          const head = (main.innerText || "").replace(/\s+/g, " ").trim().slice(0, 160);
+          return {
+            hasMain: true,
+            head,
+            isDaily: /^일별\s*재고\s*현황|일별\s*재고\s*현황/.test(head) || head.startsWith("일별재고현황"),
+            isLedger: /재고\s*수불부/.test(head.slice(0, 80)),
+          };
+        })
+        .catch(() => ({ hasMain: false, head: "", isDaily: false, isLedger: false }));
+
+      if (mainMeta.isDaily && !mainMeta.isLedger) continue;
 
       const stockQty = frame.locator("text=재고수량").first();
       if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) continue;
 
-      const title = frame.getByText(/^재고\s*수불부$/).first();
-      const date = frame.locator("text=기준일자").first();
-      const search = frame.getByText(SEARCH_BTN).first();
-      const header = frame.locator("text=/거래처명|입고수량|전일재고|출고수량/").first();
+      if (!mainMeta.hasMain || !mainMeta.isLedger) continue;
 
-      const hasTitle = (await title.count()) > 0 && (await title.isVisible());
-      const hasDate = (await date.count()) > 0 && (await date.isVisible());
-      const hasSearch = (await search.count()) > 0 && (await search.isVisible());
-      const hasHeader = (await header.count()) > 0 && (await header.isVisible());
-
-      // 제목 「재고수불부」 또는 (헤더 + 검색) — 날짜/검색만으로는 일별재고현황과 혼동
-      if (hasTitle || (hasHeader && hasSearch) || (hasTitle && (hasDate || hasSearch))) {
-        frames.push(frame);
-      }
+      const search = frame.locator("#mainPage").getByText(SEARCH_BTN).first();
+      const date = frame.locator("#mainPage").locator("text=기준일자").first();
+      const hasSearch = (await search.count()) > 0 && (await search.isVisible().catch(() => false));
+      const hasDate = (await date.count()) > 0 && (await date.isVisible().catch(() => false));
+      if (hasSearch || hasDate || mainMeta.isLedger) frames.push(frame);
     } catch {
       /* skip */
     }
@@ -177,13 +183,18 @@ export function expectedLedgerPrgId(): string {
   return (process.env.ECOUNT_LEDGER_PRG_ID || "E040702").trim().toUpperCase();
 }
 
-/** 사이드바 메뉴 링크를 제외한 활성 viewer/program 컨텍스트 */
+/**
+ * 사이드바/URL hash가 아닌 실제 메인 viewer 기준 program 컨텍스트
+ * - viewerPrgIds: #script_target / #mainPage / [data-viewer-id] 내부 PRG_ID만
+ * - urlPrgId는 참고용(성공 판정에 단독 사용 금지)
+ */
 export type LedgerProgramProbe = {
   url: string;
   urlPrgId: string | null;
-  activePrgIds: string[];
+  viewerPrgIds: string[];
   viewerIds: string[];
   ecpageIds: string[];
+  mainTitle: string;
   titleHints: string[];
   bodyHint: string;
   hasRejectDailyStock: boolean;
@@ -200,15 +211,14 @@ export async function probeLedgerProgramContext(page: Page): Promise<LedgerProgr
     urlPrgId = null;
   }
 
-  const activePrgIds = new Set<string>();
+  const viewerPrgIds = new Set<string>();
   const viewerIds = new Set<string>();
   const ecpageIds = new Set<string>();
   const titleHints = new Set<string>();
+  let mainTitle = "";
   let bodyHint = "";
   let hasRejectDailyStock = false;
   let hasLedgerTitle = false;
-
-  if (urlPrgId) activePrgIds.add(urlPrgId);
 
   for (const frame of page.frames()) {
     try {
@@ -217,49 +227,58 @@ export async function probeLedgerProgramContext(page: Page): Promise<LedgerProgr
         const viewers: string[] = [];
         const ecpages: string[] = [];
         const titles: string[] = [];
-
-        const inSidebar = (el: Element) =>
-          !!(
-            el.closest(
-              '#leftMenu, #menu, .left-menu, [id*="MENUTREE"], #nav, .lnb, [class*="side-menu"], [id*="tree"]'
-            ) || (el.id && /^link_prg_/i.test(el.id))
-          );
-
-        const roots = Array.from(
-          document.querySelectorAll(
-            '[data-viewer-id], [data-ecpageid], [id*="script_target"], [id*="mainPage"], [class*="mainPage"], [class*="viewer"], #contents, .contents'
-          )
-        ).filter((el) => !inSidebar(el));
+        let mainTitleLocal = "";
 
         const scanHtml = (html: string) => {
-          const re = /PRG_ID["'\s:=]+([A-Z]\d{5,})/gi;
+          const re = /["']?PRG_ID["']?\s*[:=]\s*["']([A-Z]\d{5,})["']/gi;
           let m: RegExpExecArray | null;
           while ((m = re.exec(html)) !== null) {
             prg.add(m[1].toUpperCase());
-            if (prg.size >= 30) break;
+            if (prg.size >= 20) break;
           }
         };
 
-        for (const root of roots) {
+        const scanProgramId = (html: string) => {
+          const re = /["']programID["']\s*:\s*["']([A-Z]\d{5,})["']/gi;
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(html)) !== null) {
+            prg.add(m[1].toUpperCase());
+            if (prg.size >= 20) break;
+          }
+        };
+
+        // 1) script_target — navigateAsync payload (실제 로드된 프로그램)
+        const scriptTarget = document.querySelector("#script_target");
+        if (scriptTarget) {
+          const html = scriptTarget.innerHTML || "";
+          scanHtml(html);
+          scanProgramId(html);
+        }
+
+        // 2) data-viewer-id / mainPage 루트
+        document.querySelectorAll("[data-viewer-id], #mainPage").forEach((root) => {
           const vid = root.getAttribute("data-viewer-id");
           if (vid) viewers.push(vid);
           const epid = root.getAttribute("data-ecpageid");
           if (epid) ecpages.push(epid);
-
-          scanHtml(root.innerHTML || "");
-          root.querySelectorAll('input[name="PRG_ID"], input[id*="PRG_ID"], [name*="PRG_ID"]').forEach((inp) => {
-            const v = ((inp as HTMLInputElement).value || inp.getAttribute("value") || "").trim();
+          const html = (root as HTMLElement).innerHTML || "";
+          scanHtml(html);
+          scanProgramId(html);
+          root.querySelectorAll('input[name="PRG_ID"], input[id*="PRG_ID"]').forEach((inp) => {
+            const v = ((inp as HTMLInputElement).value || "").trim();
             if (v) prg.add(v.toUpperCase());
           });
+        });
 
-          const t = ((root as HTMLElement).innerText || "").replace(/\s+/g, " ").trim().slice(0, 200);
-          if (/재고\s*수불부/.test(t)) titles.push("재고수불부");
-          if (/일별\s*재고\s*현황/.test(t)) titles.push("일별재고현황");
-        }
-
-        // main document fallback (still exclude pure sidebar-only matches)
-        if (roots.length === 0 && document.body) {
-          scanHtml(document.body.innerHTML.slice(0, 400000));
+        const main = document.querySelector("#mainPage") as HTMLElement | null;
+        if (main) {
+          const titleEl =
+            main.querySelector(".wrapper-title, .wrapper-toolbar .pull-left, .page-title, h1, h2") ||
+            main;
+          mainTitleLocal = (titleEl.textContent || "").replace(/\s+/g, " ").trim().slice(0, 100);
+          const head = (main.innerText || "").replace(/\s+/g, " ").trim().slice(0, 120);
+          if (/일별\s*재고\s*현황/.test(head) || head.startsWith("일별재고현황")) titles.push("일별재고현황");
+          if (/재고\s*수불부/.test(head.slice(0, 80))) titles.push("재고수불부");
         }
 
         const body = (document.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 240);
@@ -268,32 +287,35 @@ export async function probeLedgerProgramContext(page: Page): Promise<LedgerProgr
           viewers,
           ecpages,
           titles,
+          mainTitle: mainTitleLocal,
           body,
         };
       });
 
-      for (const id of data.prg) activePrgIds.add(id.toUpperCase());
+      for (const id of data.prg) viewerPrgIds.add(id.toUpperCase());
       for (const v of data.viewers) viewerIds.add(v);
       for (const e of data.ecpages) ecpageIds.add(e);
       for (const t of data.titles) titleHints.add(t);
+      if (data.mainTitle && data.mainTitle.length > mainTitle.length) mainTitle = data.mainTitle;
       if (data.body && data.body.length > bodyHint.length) bodyHint = data.body;
-      if (data.titles.includes("일별재고현황") || /일별\s*재고\s*현황/.test(data.body)) {
-        hasRejectDailyStock = true;
-      }
-      if (data.titles.includes("재고수불부") || /재고\s*수불부/.test(data.body)) {
-        hasLedgerTitle = true;
-      }
+      if (data.titles.includes("일별재고현황")) hasRejectDailyStock = true;
+      if (data.titles.includes("재고수불부")) hasLedgerTitle = true;
     } catch {
       /* cross-origin or detached */
     }
   }
 
+  // mainTitle 문자열로도 reject/ledger 보강
+  if (/일별\s*재고\s*현황|일별재고현황/.test(mainTitle)) hasRejectDailyStock = true;
+  if (/재고\s*수불부|재고수불부/.test(mainTitle)) hasLedgerTitle = true;
+
   return {
     url,
     urlPrgId,
-    activePrgIds: Array.from(activePrgIds),
+    viewerPrgIds: Array.from(viewerPrgIds),
     viewerIds: Array.from(viewerIds),
     ecpageIds: Array.from(ecpageIds),
+    mainTitle,
     titleHints: Array.from(titleHints),
     bodyHint,
     hasRejectDailyStock,
@@ -303,48 +325,55 @@ export async function probeLedgerProgramContext(page: Page): Promise<LedgerProgr
 
 function logLedgerProgramProbe(probe: LedgerProgramProbe, label: string): void {
   console.log(
-    `   [진단][program] ${label} urlPrg=${probe.urlPrgId || "(none)"} activePrg=[${probe.activePrgIds.join(",")}] viewers=[${probe.viewerIds.slice(0, 5).join(",")}] ecpage=[${probe.ecpageIds.slice(0, 5).join(",")}] titles=[${probe.titleHints.join(",")}]`
+    `   [진단][program] ${label} urlPrg=${probe.urlPrgId || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] viewers=[${probe.viewerIds.slice(0, 5).join(",")}] ecpage=[${probe.ecpageIds.slice(0, 5).join(",")}] mainTitle=${JSON.stringify(probe.mainTitle.slice(0, 60))} titles=[${probe.titleHints.join(",")}]`
   );
-  console.log(`   [진단][program] ${label} url=${probe.url.slice(0, 120)}`);
-  if (probe.bodyHint) {
-    console.log(`   [진단][program] ${label} bodyHint=${JSON.stringify(probe.bodyHint.slice(0, 180))}`);
-  }
+  console.log(`   [진단][program] ${label} url=${probe.url.slice(0, 140)}`);
 }
 
-/** 활성 viewer에 기대 prgId(E040702)가 로드됐는지 — 사이드바 링크만으로는 true 되지 않음 */
+/**
+ * 활성 viewer PRG_ID가 E040702인지 확인.
+ * URL hash / 사이드바 링크만으로는 true가 되지 않음.
+ * 일별재고현황(E040206) / 재고현황 폴더(C000650)면 무조건 false.
+ */
 export async function isExpectedLedgerProgramLoaded(page: Page): Promise<boolean> {
   const expected = expectedLedgerPrgId();
   const probe = await probeLedgerProgramContext(page);
 
-  const hasExpected =
-    probe.activePrgIds.includes(expected) ||
-    probe.urlPrgId === expected ||
-    probe.ecpageIds.some((id) => id.toUpperCase().includes(expected));
-
-  // 일별재고현황(E040206)만 활성인 경우 절대 성공 아님
-  if (probe.activePrgIds.includes("E040206") && !hasExpected) return false;
-  if (probe.hasRejectDailyStock && !hasExpected) return false;
-  if (!hasExpected) return false;
-
-  // 기대 prg가 있어도 제목이 일별재고현황만이면 거부
-  if (probe.titleHints.includes("일별재고현황") && !probe.titleHints.includes("재고수불부") && !probe.hasLedgerTitle) {
+  // 잘못된 「기타」 클릭 후 이동하는 화면 — 즉시 거부
+  if (
+    probe.urlPrgId === "E040206" ||
+    probe.urlPrgId === "C000650" ||
+    probe.viewerPrgIds.includes("E040206") ||
+    probe.hasRejectDailyStock
+  ) {
     return false;
   }
 
-  return true;
+  const hasLedgerTitle =
+    probe.hasLedgerTitle || /재고\s*수불부|재고수불부/.test(probe.mainTitle);
+  if (!hasLedgerTitle) return false;
+
+  // viewer DOM PRG 우선; 제목이 재고수불부일 때만 urlPrg도 허용
+  if (probe.viewerPrgIds.includes(expected)) return true;
+  if (probe.urlPrgId === expected) return true;
+
+  return false;
 }
 
+/** #mainPage 안에서만 재고수불부 검색 UI 확인 (사이드바 제외) */
 async function hasLedgerSearchUi(page: Page): Promise<boolean> {
-  for (const frame of await findLedgerFrames(page)) {
+  for (const frame of page.frames()) {
     try {
-      const title = frame.getByText(/^재고\s*수불부$/).first();
-      const search = frame.getByText(SEARCH_BTN).first();
-      const date = frame.locator("text=기준일자").first();
-      const hasTitle = (await title.count()) > 0 && (await title.isVisible());
-      const hasSearch = (await search.count()) > 0 && (await search.isVisible());
-      const hasDate = (await date.count()) > 0 && (await date.isVisible());
-      if (hasTitle && (hasSearch || hasDate)) return true;
-      if (hasTitle) return true;
+      const ok = await frame.evaluate(() => {
+        const main = document.querySelector("#mainPage") as HTMLElement | null;
+        if (!main) return false;
+        const text = (main.innerText || "").replace(/\s+/g, " ").trim();
+        const head = text.slice(0, 100);
+        if (/일별\s*재고\s*현황|일별재고현황/.test(head)) return false;
+        if (!/재고\s*수불부|재고수불부/.test(head)) return false;
+        return /기준일자/.test(text) || /(?:검색|Search|조회)\s*\(F\d+\)/i.test(text);
+      });
+      if (ok) return true;
     } catch {
       /* skip */
     }
@@ -352,7 +381,7 @@ async function hasLedgerSearchUi(page: Page): Promise<boolean> {
   return false;
 }
 
-/** 「재고수불부」 검색 조건 화면 — UI + 실제 program ID(E040702) 모두 필요 */
+/** 「재고수불부」 검색 조건 화면 — 메인 viewer PRG_ID=E040702 + UI */
 export async function isLedgerSearchScreen(page: Page): Promise<boolean> {
   if (!(await isExpectedLedgerProgramLoaded(page))) return false;
   return hasLedgerSearchUi(page);
@@ -361,7 +390,6 @@ export async function isLedgerSearchScreen(page: Page): Promise<boolean> {
 /**
  * E040702 검색 화면 대기.
  * SPA로 E040206이 먼저 보이다가 교체될 수 있으므로 즉시 성공하지 않음.
- * 실패 시 false (호출측에서 throw + probe 로그 사용)
  */
 export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promise<boolean> {
   const expected = expectedLedgerPrgId();
@@ -371,12 +399,18 @@ export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promis
     const probe = await probeLedgerProgramContext(page);
     logLedgerProgramProbe(probe, `+${elapsed}s`);
 
-    if (probe.activePrgIds.includes("E040206") || probe.hasRejectDailyStock) {
-      console.log(`   … 일별재고현황(E040206) 감지 — ${expected} 교체 대기 (${elapsed}초)`);
+    if (probe.viewerPrgIds.includes("E040206") || probe.hasRejectDailyStock) {
+      console.log(
+        `   … 메인 viewer=일별재고현황(E040206) — ${expected} 교체 대기 (${elapsed}초) urlPrg=${probe.urlPrgId || "(none)"}`
+      );
+    } else if (probe.urlPrgId === expected && !probe.viewerPrgIds.includes(expected)) {
+      console.log(
+        `   … URL hash만 ${expected} — 메인 viewer PRG 미확인 대기 (${elapsed}초) viewerPrg=[${probe.viewerPrgIds.join(",")}]`
+      );
     }
 
     if (await isLedgerSearchScreen(page)) {
-      console.log(`   ✓ 재고수불부 검색 화면 (${elapsed}초) prgId=${expected}`);
+      console.log(`   ✓ 재고수불부 검색 화면 (${elapsed}초) viewerPrg=${expected}`);
       return true;
     }
     await page.waitForTimeout(2000);
@@ -385,7 +419,7 @@ export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promis
   const finalProbe = await probeLedgerProgramContext(page);
   logLedgerProgramProbe(finalProbe, "timeout");
   console.warn(
-    `   ⚠ ${expected} 검색 화면 미확인 (activePrg=[${finalProbe.activePrgIds.join(",")}] titles=[${finalProbe.titleHints.join(",")}])`
+    `   ⚠ ${expected} 검색 화면 미확인 (viewerPrg=[${finalProbe.viewerPrgIds.join(",")}] mainTitle=${JSON.stringify(finalProbe.mainTitle)} urlPrg=${finalProbe.urlPrgId})`
   );
   return false;
 }
@@ -399,17 +433,213 @@ export async function assertLedgerProgramSearchScreen(page: Page, maxSec = 25): 
   logLedgerProgramProbe(probe, "assert-fail");
   throw new Error(
     `재고수불부(${expected}) 화면 미로드 (${maxSec}초). ` +
-      `urlPrg=${probe.urlPrgId || "(none)"} activePrg=[${probe.activePrgIds.join(",")}] ` +
+      `urlPrg=${probe.urlPrgId || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
       `viewers=[${probe.viewerIds.slice(0, 8).join(",")}] ecpage=[${probe.ecpageIds.slice(0, 8).join(",")}] ` +
-      `titles=[${probe.titleHints.join(",")}] body=${JSON.stringify(probe.bodyHint.slice(0, 120))}`
+      `mainTitle=${JSON.stringify(probe.mainTitle)} titles=[${probe.titleHints.join(",")}]`
   );
 }
 
 const PRODUCTION_TRANSFER_HINT = /생산\s*불출.*창고\s*이동.*포함|생산불출\s*\/\s*창고이동\s*포함/;
 const ETC_DIAG_KEYWORDS = ["생산불출", "창고이동", "생산불출/창고이동포함", "포함"] as const;
+/** 전역/사이드 메뉴 chrome — 「기타」 탭 탐색에서 제외 */
+const ECOUNT_MENU_CHROME_SELECTOR =
+  '#menuAreaAddon, #leftMenu, #menu, .left-menu, .wrapper-local-nav, #bookmarkBar, #bookmarkBarFrame, .wrapper-gnb, #header, #nav, .lnb, [class*="side-menu"], [id*="MENUTREE"]';
 
 function clipHtml(raw: string, max = 280): string {
   return raw.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+type EtcExactCandidate = {
+  frameIndex: number;
+  frameName: string;
+  frameUrl: string;
+  inMainPage: boolean;
+  inMenuChrome: boolean;
+  isMenuNavLink: boolean;
+  visible: boolean;
+  tag: string;
+  id: string;
+  className: string;
+  role: string;
+  href: string;
+  text: string;
+  tabContext: string;
+  outerHTML: string;
+  parentHTML: string;
+};
+
+/** E040702 #mainPage / data-viewer 루트 locator */
+async function getLedgerViewerRoots(
+  page: Page
+): Promise<Array<{ frame: Frame; root: Locator; frameIndex: number }>> {
+  const out: Array<{ frame: Frame; root: Locator; frameIndex: number }> = [];
+  const frames = page.frames();
+  for (let fi = 0; fi < frames.length; fi++) {
+    const frame = frames[fi];
+    try {
+      const ok = await frame.evaluate(() => {
+        const main = document.querySelector("#mainPage") as HTMLElement | null;
+        if (!main) return false;
+        const head = (main.innerText || "").replace(/\s+/g, " ").trim().slice(0, 120);
+        if (/일별\s*재고\s*현황|일별재고현황/.test(head)) return false;
+        return /재고\s*수불부|재고수불부/.test(head);
+      });
+      if (!ok) continue;
+      const root = frame.locator("#mainPage").first();
+      if ((await root.count()) === 0) continue;
+      out.push({ frame, root, frameIndex: fi });
+    } catch {
+      /* skip */
+    }
+  }
+  return out;
+}
+
+/** 클릭 전/후 active PRG 검증 — E040206/C000650이면 즉시 실패 */
+async function assertActiveLedgerProgramPhase(page: Page, phase: string): Promise<LedgerProgramProbe> {
+  const expected = expectedLedgerPrgId();
+  const probe = await probeLedgerProgramContext(page);
+  logLedgerProgramProbe(probe, phase);
+
+  const drifted =
+    probe.urlPrgId === "E040206" ||
+    probe.urlPrgId === "C000650" ||
+    probe.viewerPrgIds.includes("E040206") ||
+    probe.hasRejectDailyStock;
+
+  if (drifted) {
+    throw new Error(
+      `[${phase}] 재고수불부(${expected})가 아님 — 잘못된 「기타」/메뉴 클릭 의심. ` +
+        `urlPrg=${probe.urlPrgId || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
+        `mainTitle=${JSON.stringify(probe.mainTitle)} titles=[${probe.titleHints.join(",")}] url=${probe.url.slice(0, 160)}`
+    );
+  }
+
+  if (!(await isExpectedLedgerProgramLoaded(page))) {
+    throw new Error(
+      `[${phase}] 재고수불부(${expected}) active 미확인. ` +
+        `urlPrg=${probe.urlPrgId || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
+        `mainTitle=${JSON.stringify(probe.mainTitle)}`
+    );
+  }
+  return probe;
+}
+
+/**
+ * exact text "기타" 후보 진단 — mainPage 내부 vs 전역 메뉴 구분.
+ * 추측 selector 금지: 클릭 전 반드시 이 로그로 근거를 남긴다.
+ */
+async function diagnoseExactEtcTabCandidates(page: Page): Promise<EtcExactCandidate[]> {
+  const expected = expectedLedgerPrgId();
+  const probe = await probeLedgerProgramContext(page);
+  logLedgerProgramProbe(probe, "기타-후보진단-전");
+  console.log(
+    `   [진단][기타탭] expected=${expected} activeOk=${await isExpectedLedgerProgramLoaded(page)}`
+  );
+
+  const all: EtcExactCandidate[] = [];
+  const frames = page.frames();
+
+  for (let fi = 0; fi < frames.length; fi++) {
+    const frame = frames[fi];
+    try {
+      const found = await frame.evaluate((menuSel) => {
+        const rows: Array<{
+          inMainPage: boolean;
+          inMenuChrome: boolean;
+          isMenuNavLink: boolean;
+          visible: boolean;
+          tag: string;
+          id: string;
+          className: string;
+          role: string;
+          href: string;
+          text: string;
+          tabContext: string;
+          outerHTML: string;
+          parentHTML: string;
+        }> = [];
+
+        const nodes = Array.from(
+          document.querySelectorAll('a, button, span, li, div, [role="tab"]')
+        );
+        for (const node of nodes) {
+          const el = node as HTMLElement;
+          const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
+          if (text !== "기타") continue;
+
+          const inMainPage = !!el.closest("#mainPage, [data-viewer-id]");
+          const inMenuChrome = !!el.closest(menuSel);
+          const href =
+            (el as HTMLAnchorElement).getAttribute?.("href") ||
+            el.closest("a")?.getAttribute("href") ||
+            "";
+          const isMenuNavLink =
+            /menuType=|MENUTREE_|[#&?]prgId=/i.test(href) ||
+            !!el.closest('a[href*="menuType"], a[href*="MENUTREE"], a[href*="prgId="]');
+
+          const tabRoot =
+            el.closest('[role="tablist"], .nav-tabs, ul.nav-tabs, .wrapper-tab, [class*="tab-"]') ||
+            null;
+          const tabContext = tabRoot
+            ? `${tabRoot.tagName}.${(tabRoot.className || "").toString().slice(0, 80)} role=${tabRoot.getAttribute("role") || ""}`
+            : "";
+
+          const visible = !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+          rows.push({
+            inMainPage,
+            inMenuChrome,
+            isMenuNavLink,
+            visible,
+            tag: el.tagName,
+            id: el.id || "",
+            className: (el.className || "").toString().slice(0, 120),
+            role: el.getAttribute("role") || "",
+            href: href.slice(0, 160),
+            text,
+            tabContext,
+            outerHTML: (el.outerHTML || "").replace(/\s+/g, " ").trim().slice(0, 280),
+            parentHTML: (el.parentElement?.outerHTML || "").replace(/\s+/g, " ").trim().slice(0, 280),
+          });
+          if (rows.length >= 40) break;
+        }
+        return rows;
+      }, ECOUNT_MENU_CHROME_SELECTOR);
+
+      for (const row of found) {
+        const cand: EtcExactCandidate = {
+          frameIndex: fi,
+          frameName: frame.name(),
+          frameUrl: frame.url(),
+          ...row,
+        };
+        all.push(cand);
+        const kind =
+          cand.inMainPage && !cand.inMenuChrome && !cand.isMenuNavLink
+            ? "REPORT"
+            : cand.inMenuChrome || cand.isMenuNavLink
+              ? "MENU"
+              : "OTHER";
+        console.log(
+          `   [진단][기타탭] ${kind} frame[${fi}] <${cand.tag}> id=${JSON.stringify(cand.id)} class=${JSON.stringify(cand.className)} role=${JSON.stringify(cand.role)} visible=${cand.visible} inMain=${cand.inMainPage} inMenu=${cand.inMenuChrome} menuNav=${cand.isMenuNavLink} href=${JSON.stringify(cand.href)} tabCtx=${JSON.stringify(cand.tabContext)}`
+        );
+        console.log(
+          `   [진단][기타탭]   outerHTML=${JSON.stringify(cand.outerHTML)} parentHTML=${JSON.stringify(cand.parentHTML)}`
+        );
+      }
+    } catch (err) {
+      console.log(
+        `   [진단][기타탭] frame[${fi}] 스캔 예외: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  const reportN = all.filter((c) => c.inMainPage && !c.inMenuChrome && !c.isMenuNavLink).length;
+  const menuN = all.filter((c) => c.inMenuChrome || c.isMenuNavLink).length;
+  console.log(
+    `   [진단][기타탭] 요약 total=${all.length} report내부후보=${reportN} 메뉴후보=${menuN}`
+  );
+  return all;
 }
 
 /**
@@ -636,9 +866,9 @@ async function dumpLedgerEtcCheckboxes(frames: Frame[]): Promise<void> {
   }
 }
 
-/** 힌트 텍스트 근처에서 실제 checkbox locator 찾기 */
-async function findProductionTransferCheckbox(frame: Frame): Promise<Locator | null> {
-  const textNodes = frame.locator("label, span, td, div, a, p, li").filter({ hasText: PRODUCTION_TRANSFER_HINT });
+/** 힌트 텍스트 근처에서 실제 checkbox locator 찾기 — root(#mainPage) 내부만 */
+async function findProductionTransferCheckbox(root: Locator): Promise<Locator | null> {
+  const textNodes = root.locator("label, span, td, div, a, p, li").filter({ hasText: PRODUCTION_TRANSFER_HINT });
   const textCount = Math.min(await textNodes.count(), 20);
 
   for (let i = 0; i < textCount; i++) {
@@ -657,7 +887,7 @@ async function findProductionTransferCheckbox(frame: Frame): Promise<Locator | n
         return lab?.htmlFor || lab?.getAttribute("for") || "";
       });
       if (forId) {
-        const byId = frame.locator(`input[type="checkbox"][id="${forId}"]`);
+        const byId = root.locator(`input[type="checkbox"][id="${forId}"]`);
         if ((await byId.count()) > 0) return byId.first();
       }
     } catch {
@@ -695,7 +925,6 @@ async function findProductionTransferCheckbox(frame: Frame): Promise<Locator | n
           const boxes = Array.from(node.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
           if (boxes.length === 1) return boxes[0];
           if (boxes.length > 1) {
-            // 같은 컨테이너 텍스트에 힌트가 있는 checkbox 우선
             for (const b of boxes) {
               const row = b.closest("tr, li, label, div") || b.parentElement;
               const t = (row?.textContent || "").replace(/\s+/g, " ");
@@ -705,7 +934,6 @@ async function findProductionTransferCheckbox(frame: Frame): Promise<Locator | n
           }
           node = node.parentElement;
         }
-        // label[for]
         const id = (el as HTMLElement).closest("label")?.getAttribute("for");
         if (id) {
           const byId = el.ownerDocument.getElementById(id);
@@ -715,7 +943,6 @@ async function findProductionTransferCheckbox(frame: Frame): Promise<Locator | n
       });
       const element = handle.asElement();
       if (element) {
-        // convert ElementHandle to Locator via evaluate id/name
         const meta = await element.evaluate((el: HTMLInputElement) => ({
           id: el.id,
           name: el.name,
@@ -723,15 +950,14 @@ async function findProductionTransferCheckbox(frame: Frame): Promise<Locator | n
         }));
         await handle.dispose().catch(() => {});
         if (meta.id) {
-          const loc = frame.locator(`input[type="checkbox"]#${meta.id}`);
-          if ((await loc.count()) > 0) return loc.first();
+          const byId = root.locator(`input[type="checkbox"][id="${meta.id}"]`);
+          if ((await byId.count()) > 0) return byId.first();
         }
         if (meta.name) {
-          const loc = frame.locator(`input[type="checkbox"][name="${meta.name}"]`);
+          const loc = root.locator(`input[type="checkbox"][name="${meta.name}"]`);
           if ((await loc.count()) > 0) {
-            // name이 여러 개면 value로 좁힘
             if (meta.value) {
-              const byVal = frame.locator(
+              const byVal = root.locator(
                 `input[type="checkbox"][name="${meta.name}"][value="${meta.value}"]`
               );
               if ((await byVal.count()) > 0) return byVal.first();
@@ -747,9 +973,9 @@ async function findProductionTransferCheckbox(frame: Frame): Promise<Locator | n
     }
   }
 
-  // 5) frame 전체 checkbox 중 nearText가 힌트와 일치
+  // 5) root 내부 checkbox 중 nearText가 힌트와 일치
   try {
-    const boxes = frame.locator('input[type="checkbox"]');
+    const boxes = root.locator('input[type="checkbox"]');
     const n = Math.min(await boxes.count(), 40);
     for (let i = 0; i < n; i++) {
       const cb = boxes.nth(i);
@@ -774,36 +1000,170 @@ async function findProductionTransferCheckbox(frame: Frame): Promise<Locator | n
   return null;
 }
 
-/** 기타 탭 → 생산불출/창고이동포함 체크 (미발견·미체크 시 Error) */
-export async function ensureProductionTransferIncluded(page: Page): Promise<void> {
-  const frames = await findLedgerFrames(page);
-  if (frames.length === 0) {
-    for (const frame of page.frames()) frames.push(frame);
+/** E040702 viewer(#mainPage) 내부의 실제 「기타」 탭만 클릭 */
+async function clickLedgerEtcTabInViewer(page: Page): Promise<void> {
+  const candidates = await diagnoseExactEtcTabCandidates(page);
+  const reportCandidates = candidates.filter(
+    (c) => c.inMainPage && !c.inMenuChrome && !c.isMenuNavLink && c.visible
+  );
+
+  if (reportCandidates.length === 0) {
+    console.log(
+      `   [진단][기타탭] REPORT visible 후보 없음 — menu=${candidates.filter((c) => c.inMenuChrome || c.isMenuNavLink).length}`
+    );
+    throw new Error(
+      '재고수불부(#mainPage) 내부에서 visible 「기타」 탭을 찾지 못했습니다. (전역 메뉴 「기타」는 클릭하지 않음)'
+    );
   }
 
-  let etcTabClicked = false;
-  for (const frame of frames) {
-    const etcTab = frame.locator('a, button, span, li, div[role="tab"]').filter({ hasText: /^기타$/ }).first();
-    try {
-      if ((await etcTab.count()) > 0 && (await etcTab.isVisible())) {
-        await etcTab.click({ force: true });
-        await page.waitForTimeout(800);
-        console.log("   ✓ 기타 탭");
-        etcTabClicked = true;
+  // 우선순위: role=tab → tablist/nav-tabs 컨텍스트 → 그 외 mainPage exact
+  const ranked = [...reportCandidates].sort((a, b) => {
+    const score = (c: EtcExactCandidate) => {
+      let s = 0;
+      if (c.role === "tab") s += 100;
+      if (/tablist|nav-tabs|wrapper-tab/i.test(c.tabContext)) s += 50;
+      if (/^(A|BUTTON)$/i.test(c.tag)) s += 10;
+      if (c.id) s += 5;
+      return s;
+    };
+    return score(b) - score(a);
+  });
+
+  const pick = ranked[0];
+  console.log(
+    `   [진단][기타탭] 클릭 대상 REPORT frame[${pick.frameIndex}] <${pick.tag}> id=${JSON.stringify(pick.id)} role=${JSON.stringify(pick.role)} class=${JSON.stringify(pick.className)} tabCtx=${JSON.stringify(pick.tabContext)} outerHTML=${JSON.stringify(pick.outerHTML)}`
+  );
+
+  const frame = page.frames()[pick.frameIndex];
+  if (!frame) {
+    throw new Error(`재고수불부 「기타」 탭 frame[${pick.frameIndex}] 없음`);
+  }
+
+  const main = frame.locator("#mainPage").first();
+  let target: Locator | null = null;
+
+  // 1) tab role (DOM 근거 우선)
+  const byRole = main.getByRole("tab", { name: "기타", exact: true });
+  if ((await byRole.count()) > 0) {
+    for (let i = 0; i < Math.min(await byRole.count(), 5); i++) {
+      const el = byRole.nth(i);
+      if (await el.isVisible().catch(() => false)) {
+        target = el;
+        console.log("   [진단][기타탭] locator=getByRole(tab,{name:기타,exact})");
         break;
       }
-    } catch (err) {
-      throw new Error(
-        `재고수불부 「기타」 탭 클릭 실패: ${err instanceof Error ? err.message : String(err)}`
-      );
     }
   }
-  if (!etcTabClicked) {
-    throw new Error('재고수불부 「기타」 탭을 찾지 못했습니다.');
+
+  // 2) tablist / nav-tabs 내부 exact
+  if (!target) {
+    const inTabs = main
+      .locator('[role="tablist"], .nav-tabs, ul.nav-tabs, .wrapper-tab')
+      .getByText("기타", { exact: true });
+    const n = Math.min(await inTabs.count(), 8);
+    for (let i = 0; i < n; i++) {
+      const el = inTabs.nth(i);
+      if (!(await el.isVisible().catch(() => false))) continue;
+      const bad = await el.evaluate((node, menuSel) => {
+        const he = node as HTMLElement;
+        if (he.closest(menuSel)) return true;
+        const href =
+          (he as HTMLAnchorElement).getAttribute?.("href") ||
+          he.closest("a")?.getAttribute("href") ||
+          "";
+        return /menuType=|MENUTREE_|[#&?]prgId=/i.test(href);
+      }, ECOUNT_MENU_CHROME_SELECTOR);
+      if (bad) continue;
+      target = el;
+      console.log('   [진단][기타탭] locator=#mainPage tablist/nav-tabs getByText("기타",exact)');
+      break;
+    }
   }
 
-  // 탭 전환 후 DOM 반영 — 전체 frame 진단 (findLedgerFrames 필터 없음)
-  await page.waitForTimeout(500);
+  // 3) #mainPage exact text — 메뉴 링크 제외
+  if (!target) {
+    const exact = main.getByText("기타", { exact: true });
+    const n = Math.min(await exact.count(), 12);
+    for (let i = 0; i < n; i++) {
+      const el = exact.nth(i);
+      if (!(await el.isVisible().catch(() => false))) continue;
+      const meta = await el.evaluate((node, menuSel) => {
+        const he = node as HTMLElement;
+        const inMenu = !!he.closest(menuSel);
+        const href =
+          (he as HTMLAnchorElement).getAttribute?.("href") ||
+          he.closest("a")?.getAttribute("href") ||
+          "";
+        const menuNav = /menuType=|MENUTREE_|[#&?]prgId=/i.test(href);
+        return {
+          inMenu,
+          menuNav,
+          tag: he.tagName,
+          role: he.getAttribute("role") || "",
+          href: href.slice(0, 120),
+        };
+      }, ECOUNT_MENU_CHROME_SELECTOR);
+      if (meta.inMenu || meta.menuNav) {
+        console.log(
+          `   [진단][기타탭] mainPage exact[${i}] 스킵 (menu/nav) <${meta.tag}> href=${JSON.stringify(meta.href)}`
+        );
+        continue;
+      }
+      target = el;
+      console.log(
+        `   [진단][기타탭] locator=#mainPage getByText("기타",exact)[${i}] <${meta.tag}> role=${JSON.stringify(meta.role)}`
+      );
+      break;
+    }
+  }
+
+  if (!target) {
+    throw new Error(
+      '재고수불부 #mainPage 내부 「기타」 탭 locator를 확정하지 못했습니다. (메뉴 「기타」 제외)'
+    );
+  }
+
+  await target.scrollIntoViewIfNeeded().catch(() => {});
+  await target.click({ force: true });
+  await page.waitForTimeout(800);
+  console.log("   ✓ 기타 탭 (#mainPage / E040702 viewer 내부)");
+}
+
+/** 기타 탭 → 생산불출/창고이동포함 체크 (미발견·미체크 시 Error) */
+export async function ensureProductionTransferIncluded(page: Page): Promise<void> {
+  // 1) 클릭 전: 반드시 E040702
+  await assertActiveLedgerProgramPhase(page, "기타클릭-전");
+
+  // 2) E040702 viewer 내부 「기타」만 클릭 (전역 getByText 금지)
+  try {
+    await clickLedgerEtcTabInViewer(page);
+  } catch (err) {
+    const probe = await probeLedgerProgramContext(page);
+    logLedgerProgramProbe(probe, "기타클릭-실패");
+    throw err instanceof Error
+      ? err
+      : new Error(`재고수불부 「기타」 탭 클릭 실패: ${String(err)}`);
+  }
+
+  // 3) 클릭 후: E040702 유지 — E040206/C000650이면 즉시 실패
+  await assertActiveLedgerProgramPhase(page, "기타클릭-후");
+
+  // 4) PRG 유지 확인 후에만 checkbox 탐색 — #mainPage 내부만
+  await page.waitForTimeout(400);
+  const viewerRoots = await getLedgerViewerRoots(page);
+  console.log(`   [진단][기타] checkbox 탐색 viewer(#mainPage) count=${viewerRoots.length}`);
+
+  if (viewerRoots.length === 0) {
+    try {
+      await diagnoseLedgerEtcTabDom(page);
+    } catch {
+      /* ignore */
+    }
+    throw new Error(
+      "「생산불출/창고이동포함」 탐색 전 E040702 #mainPage를 찾지 못했습니다."
+    );
+  }
+
   try {
     await diagnoseLedgerEtcTabDom(page);
   } catch (err) {
@@ -812,14 +1172,10 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
     );
   }
 
-  // 탐색/클릭은 page 전체 frame 대상 (ledger frame 필터만 쓰면 기타 패널 iframe을 놓칠 수 있음)
-  const searchFrames = page.frames();
-  console.log(`   [진단][기타] checkbox 탐색 대상 frame count=${searchFrames.length}`);
-
   let sawHintText = false;
-  for (const frame of searchFrames) {
+  for (const { root } of viewerRoots) {
     try {
-      const hint = frame.getByText(PRODUCTION_TRANSFER_HINT).first();
+      const hint = root.getByText(PRODUCTION_TRANSFER_HINT).first();
       if ((await hint.count()) > 0) {
         sawHintText = true;
         break;
@@ -829,20 +1185,17 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
     }
   }
 
-  for (const frame of searchFrames) {
-    const cb = await findProductionTransferCheckbox(frame);
+  for (const { root, frameIndex } of viewerRoots) {
+    const cb = await findProductionTransferCheckbox(root);
     if (!cb) continue;
+
+    console.log(`   [진단][기타] checkbox 후보 frame[${frameIndex}] #mainPage 내부`);
 
     let alreadyChecked: boolean;
     try {
       alreadyChecked = await cb.isChecked();
     } catch (err) {
-      await dumpLedgerEtcCheckboxes(searchFrames);
-      try {
-        await diagnoseLedgerEtcTabDom(page);
-      } catch {
-        /* already diagnosed */
-      }
+      await dumpLedgerEtcCheckboxes(viewerRoots.map((v) => v.frame));
       throw new Error(
         `생산불출/창고이동포함 checkbox 상태 확인 실패: ${
           err instanceof Error ? err.message : String(err)
@@ -863,12 +1216,7 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
     try {
       verified = await cb.isChecked();
     } catch (err) {
-      await dumpLedgerEtcCheckboxes(searchFrames);
-      try {
-        await diagnoseLedgerEtcTabDom(page);
-      } catch {
-        /* ignore */
-      }
+      await dumpLedgerEtcCheckboxes(viewerRoots.map((v) => v.frame));
       throw new Error(
         `생산불출/창고이동포함 checkbox 재확인 실패: ${
           err instanceof Error ? err.message : String(err)
@@ -876,18 +1224,16 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
       );
     }
     if (!verified) {
-      await dumpLedgerEtcCheckboxes(searchFrames);
-      try {
-        await diagnoseLedgerEtcTabDom(page);
-      } catch {
-        /* ignore */
-      }
+      await dumpLedgerEtcCheckboxes(viewerRoots.map((v) => v.frame));
       throw new Error("생산불출/창고이동포함 checkbox가 체크되지 않았습니다.");
     }
+
+    // 체크 후에도 E040702 유지
+    await assertActiveLedgerProgramPhase(page, "checkbox처리-후");
     return;
   }
 
-  await dumpLedgerEtcCheckboxes(searchFrames);
+  await dumpLedgerEtcCheckboxes(viewerRoots.map((v) => v.frame));
   try {
     await diagnoseLedgerEtcTabDom(page);
   } catch {
@@ -895,11 +1241,11 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
   }
   if (!sawHintText) {
     throw new Error(
-      '「생산불출/창고이동포함」 텍스트/label을 찾지 못했습니다. (기타 탭 frame DOM 진단 로그 참고)'
+      '「생산불출/창고이동포함」 텍스트/label을 #mainPage에서 찾지 못했습니다. (기타 탭 DOM 진단 로그 참고)'
     );
   }
   throw new Error(
-    "「생산불출/창고이동포함」 checkbox를 찾지 못했습니다. (기타 탭 frame DOM 진단 로그 참고)"
+    "「생산불출/창고이동포함」 checkbox를 #mainPage에서 찾지 못했습니다. (기타 탭 DOM 진단 로그 참고)"
   );
 }
 
