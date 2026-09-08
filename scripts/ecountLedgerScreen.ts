@@ -1,7 +1,9 @@
 /**
  * 재고수불부 화면 전용 — ecountExcel과 완전 분리 (순환 호출·무한 대기 방지)
  */
-import type { Frame, Locator, Page } from "playwright";
+import * as fs from "fs";
+import * as path from "path";
+import type { Dialog, Frame, Locator, Page } from "playwright";
 
 const SEARCH_BTN = /(?:검색|Search|조회)\s*\(F\d+\)/i;
 /** 검색(F8) 후 확인 팝업 — 실제 ECOUNT: "조회할 자료가 많아 오래 걸릴 수 있습니다..." (+ 기존 품목 재지정 알림) */
@@ -15,6 +17,83 @@ const EXCEL_SELECTORS = [
   '[title*="엑셀"]',
   '[title*="Excel"]',
 ];
+const LEDGER_POPUP_CANDIDATE_SELECTOR =
+  '[role="dialog"], .ui-dialog, .modal, .layer_popup, [class*="dialog"], [class*="layer"], [class*="popup"]';
+const LEDGER_AFTER_F8_SCREENSHOT = path.join("downloads", "ecount-ledger-after-f8.png");
+
+/** F8 직전: native dialog 메시지만 로그 (dismiss/accept 하지 않음 — 위치 진단용) */
+function attachLedgerNativeDialogProbe(page: Page): () => void {
+  const onDialog = (dialog: Dialog) => {
+    console.log(
+      `   [진단] native dialog type=${dialog.type()} message=${JSON.stringify(dialog.message())}`
+    );
+    // 진단 단계: accept/dismiss 호출하지 않음
+  };
+  page.on("dialog", onDialog);
+  return () => page.off("dialog", onDialog);
+}
+
+/** F8 직후: page / iframe / native dialog 중 팝업 위치 확인용 스캔 (클릭 없음) */
+async function logLedgerPostF8Diagnostics(page: Page): Promise<void> {
+  const frames = page.frames();
+  console.log(`   [진단] F8 직후 frame count: ${frames.length}`);
+
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    console.log(`   [진단] frame[${i}] name=${JSON.stringify(frame.name())} url=${frame.url()}`);
+
+    try {
+      const bodyText = ((await frame.locator("body").innerText().catch(() => "")) || "").replace(
+        /\s+/g,
+        " "
+      );
+      const hasManyData = bodyText.includes("조회할 자료가 많아");
+      const hasMayTakeLong = bodyText.includes("오래 걸릴 수 있습니다");
+      console.log(
+        `   [진단] frame[${i}] body includes "조회할 자료가 많아"=${hasManyData} "오래 걸릴 수 있습니다"=${hasMayTakeLong}`
+      );
+
+      const cancelExact = frame.getByText("취소", { exact: true });
+      const cancelTotal = await cancelExact.count();
+      let cancelVisible = 0;
+      for (let c = 0; c < cancelTotal; c++) {
+        try {
+          if (await cancelExact.nth(c).isVisible()) cancelVisible += 1;
+        } catch (err) {
+          console.log(
+            `   [진단] frame[${i}] exact "취소"[${c}] isVisible 예외: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+        }
+      }
+      console.log(
+        `   [진단] frame[${i}] exact "취소" total=${cancelTotal} visible=${cancelVisible}`
+      );
+
+      const popupCandidates = frame.locator(LEDGER_POPUP_CANDIDATE_SELECTOR);
+      const popupCount = await popupCandidates.count();
+      console.log(`   [진단] frame[${i}] dialog/layer/popup count=${popupCount}`);
+    } catch (err) {
+      console.log(
+        `   [진단] frame[${i}] 팝업 후보 스캔 예외: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
+
+  try {
+    const shotPath = path.resolve(LEDGER_AFTER_F8_SCREENSHOT);
+    fs.mkdirSync(path.dirname(shotPath), { recursive: true });
+    await page.screenshot({ path: shotPath, fullPage: true });
+    console.log(`   [진단] F8 직후 스크린샷 저장: ${LEDGER_AFTER_F8_SCREENSHOT}`);
+  } catch (err) {
+    console.log(
+      `   [진단] F8 직후 스크린샷 예외: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
 
 export async function findLedgerFrames(page: Page): Promise<Frame[]> {
   const frames: Frame[] = [];
@@ -291,38 +370,45 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
   console.log("   → 검색(F8) 실행");
   const frames = await findLedgerFrames(page);
   const scan = frames.length > 0 ? frames : page.frames();
+  const detachDialogProbe = attachLedgerNativeDialogProbe(page);
 
-  for (const frame of scan) {
-    const locators = [
-      frame.getByText(SEARCH_BTN).first(),
-      frame.locator('button, a, span, div[role="button"]').filter({ hasText: SEARCH_BTN }).first(),
-    ];
-    for (const btn of locators) {
-      try {
-        if ((await btn.count()) > 0 && (await btn.isVisible())) {
-          await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true }).catch(() => {});
-          await btn.scrollIntoViewIfNeeded().catch(() => {});
-          await btn.click({ force: true });
-          console.log("   ✓ 검색(F8) 클릭");
-          await page.waitForTimeout(1000);
-          return;
+  try {
+    for (const frame of scan) {
+      const locators = [
+        frame.getByText(SEARCH_BTN).first(),
+        frame.locator('button, a, span, div[role="button"]').filter({ hasText: SEARCH_BTN }).first(),
+      ];
+      for (const btn of locators) {
+        try {
+          if ((await btn.count()) > 0 && (await btn.isVisible())) {
+            await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true }).catch(() => {});
+            await btn.scrollIntoViewIfNeeded().catch(() => {});
+            await btn.click({ force: true });
+            console.log("   ✓ 검색(F8) 클릭");
+            await page.waitForTimeout(1000);
+            await logLedgerPostF8Diagnostics(page);
+            return;
+          }
+        } catch {
+          /* next */
         }
+      }
+    }
+
+    for (const frame of scan) {
+      try {
+        await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true });
+        await page.keyboard.press("F8");
+        console.log("   ✓ F8 키 입력");
+        await page.waitForTimeout(1000);
+        await logLedgerPostF8Diagnostics(page);
+        return;
       } catch {
         /* next */
       }
     }
-  }
-
-  for (const frame of scan) {
-    try {
-      await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true });
-      await page.keyboard.press("F8");
-      console.log("   ✓ F8 키 입력");
-      await page.waitForTimeout(1000);
-      return;
-    } catch {
-      /* next */
-    }
+  } finally {
+    detachDialogProbe();
   }
 
   throw new Error("재고수불부 검색 버튼을 찾지 못했습니다.");
