@@ -80,6 +80,9 @@ const SCAN_EXACT_LEDGER_LEAF_JS = `(function () {
     var closestAHtml = "";
     try {
       var ca = el.closest("a");
+      if (!ca && el.querySelector) {
+        ca = el.querySelector("a");
+      }
       if (ca) closestAHtml = String(ca.outerHTML || "").replace(/\\s+/g, " ").trim().slice(0, 400);
     } catch (e5) {
       closestAHtml = "";
