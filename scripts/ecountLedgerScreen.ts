@@ -195,6 +195,182 @@ export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promis
 }
 
 const PRODUCTION_TRANSFER_HINT = /생산\s*불출.*창고\s*이동.*포함|생산불출\s*\/\s*창고이동\s*포함/;
+const ETC_DIAG_KEYWORDS = ["생산불출", "창고이동", "생산불출/창고이동포함", "포함"] as const;
+
+function clipHtml(raw: string, max = 280): string {
+  return raw.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+/**
+ * 기타 탭 클릭 직후 — page의 모든 frame DOM 구조 진단
+ * (findLedgerFrames 필터 없이 page.frames() 전체)
+ */
+async function diagnoseLedgerEtcTabDom(page: Page): Promise<void> {
+  const allFrames = page.frames();
+  console.log(`   [진단][기타] page.url=${page.url()}`);
+  console.log(`   [진단][기타] 전체 frame count=${allFrames.length}`);
+
+  for (let fi = 0; fi < allFrames.length; fi++) {
+    const frame = allFrames[fi];
+    const name = frame.name();
+    const url = frame.url();
+    console.log(`   [진단][기타] frame[${fi}] name=${JSON.stringify(name)} url=${url}`);
+
+    try {
+      const checkboxCount = await frame.locator('input[type="checkbox"]').count();
+      const labelCount = await frame.locator("label").count();
+      console.log(
+        `   [진단][기타] frame[${fi}] checkbox=${checkboxCount} label=${labelCount}`
+      );
+
+      // 키워드별 텍스트 요소
+      for (const kw of ["생산불출", "창고이동", "포함"] as const) {
+        try {
+          const nodes = frame.locator("body *").filter({ hasText: kw });
+          const n = await nodes.count();
+          console.log(`   [진단][기타] frame[${fi}] text~"${kw}" elements=${n}`);
+          const show = Math.min(n, 5);
+          for (let i = 0; i < show; i++) {
+            const el = nodes.nth(i);
+            try {
+              const snap = await el.evaluate((node) => {
+                const html = (node as HTMLElement).outerHTML || "";
+                const parent = (node as HTMLElement).parentElement;
+                const parentHtml = parent?.outerHTML || "";
+                const grand = parent?.parentElement;
+                const grandHtml = grand?.outerHTML || "";
+                return {
+                  tag: (node as HTMLElement).tagName,
+                  text: ((node as HTMLElement).innerText || node.textContent || "")
+                    .replace(/\s+/g, " ")
+                    .trim()
+                    .slice(0, 120),
+                  html,
+                  parentHtml,
+                  grandHtml,
+                };
+              });
+              console.log(
+                `   [진단][기타] frame[${fi}] "${kw}"[${i}] <${snap.tag}> text=${JSON.stringify(snap.text)}`
+              );
+              console.log(`   [진단][기타]   outerHTML=${JSON.stringify(clipHtml(snap.html))}`);
+              console.log(`   [진단][기타]   parentHTML=${JSON.stringify(clipHtml(snap.parentHtml))}`);
+              console.log(`   [진단][기타]   ancestorHTML=${JSON.stringify(clipHtml(snap.grandHtml))}`);
+            } catch (err) {
+              console.log(
+                `   [진단][기타] frame[${fi}] "${kw}"[${i}] 예외: ${
+                  err instanceof Error ? err.message : String(err)
+                }`
+              );
+            }
+          }
+        } catch (err) {
+          console.log(
+            `   [진단][기타] frame[${fi}] keyword "${kw}" 스캔 예외: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+        }
+      }
+
+      // checkbox 상세
+      const boxes = frame.locator('input[type="checkbox"]');
+      const boxN = Math.min(checkboxCount, 40);
+      for (let i = 0; i < boxN; i++) {
+        try {
+          const info = await boxes.nth(i).evaluate((el: HTMLInputElement) => {
+            let near = "";
+            try {
+              if (el.id) {
+                const lab = el.ownerDocument.querySelector(`label[for="${el.id}"]`);
+                if (lab) near = (lab.textContent || "").replace(/\s+/g, " ").trim();
+              }
+              if (!near) {
+                const pl = el.closest("label");
+                if (pl) near = (pl.textContent || "").replace(/\s+/g, " ").trim();
+              }
+              if (!near) {
+                const row = el.closest("tr, li, td, div");
+                if (row) near = (row.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120);
+              }
+            } catch {
+              /* ignore */
+            }
+            return {
+              id: el.id || "",
+              name: el.name || "",
+              value: el.value || "",
+              checked: el.checked,
+              visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
+              near: near.slice(0, 120),
+              outer: (el.outerHTML || "").slice(0, 200),
+            };
+          });
+          console.log(
+            `   [진단][기타] frame[${fi}] cb[${i}] id=${JSON.stringify(info.id)} name=${JSON.stringify(info.name)} value=${JSON.stringify(info.value)} checked=${info.checked} visible=${info.visible} near=${JSON.stringify(info.near)} outer=${JSON.stringify(info.outer)}`
+          );
+        } catch (err) {
+          console.log(
+            `   [진단][기타] frame[${fi}] cb[${i}] 예외: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+        }
+      }
+    } catch (err) {
+      console.log(
+        `   [진단][기타] frame[${fi}] 스캔 예외: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  // page 전역 문자열 검색 (모든 frame)
+  console.log("   [진단][기타] === page 전역 문자열 검색 ===");
+  for (const needle of ETC_DIAG_KEYWORDS) {
+    let hits = 0;
+    for (let fi = 0; fi < allFrames.length; fi++) {
+      const frame = allFrames[fi];
+      try {
+        const found = await frame.evaluate((q) => {
+          const out: Array<{ tag: string; text: string; html: string; parentHtml: string }> = [];
+          const walk = document.body ? Array.from(document.body.querySelectorAll("*")) : [];
+          for (const el of walk) {
+            const t = (el.textContent || "").replace(/\s+/g, " ");
+            // 직접 텍스트가 너무 긴 컨테이너는 스킵 — leaf에 가깝게
+            if (!t.includes(q)) continue;
+            const own = ((el as HTMLElement).innerText || el.textContent || "").replace(/\s+/g, " ").trim();
+            if (!own.includes(q)) continue;
+            if (own.length > 200 && el.children.length > 3) continue;
+            out.push({
+              tag: el.tagName,
+              text: own.slice(0, 120),
+              html: (el as HTMLElement).outerHTML.slice(0, 280),
+              parentHtml: (el.parentElement?.outerHTML || "").slice(0, 280),
+            });
+            if (out.length >= 5) break;
+          }
+          return out;
+        }, needle);
+        for (const hit of found) {
+          hits += 1;
+          console.log(
+            `   [진단][기타] HIT "${needle}" frame[${fi}] name=${JSON.stringify(frame.name())} url=${frame.url()}`
+          );
+          console.log(
+            `   [진단][기타]   <${hit.tag}> text=${JSON.stringify(hit.text)} outerHTML=${JSON.stringify(clipHtml(hit.html))} parentHTML=${JSON.stringify(clipHtml(hit.parentHtml))}`
+          );
+        }
+      } catch (err) {
+        console.log(
+          `   [진단][기타] 전역검색 "${needle}" frame[${fi}] 예외: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+    }
+    console.log(`   [진단][기타] 전역검색 "${needle}" totalHits(logged≤5/frame)=${hits}`);
+  }
+}
 
 /** 기타 탭 영역(또는 frame)의 checkbox 목록을 디버그 로그로 출력 */
 async function dumpLedgerEtcCheckboxes(frames: Frame[]): Promise<void> {
@@ -203,9 +379,11 @@ async function dumpLedgerEtcCheckboxes(frames: Frame[]): Promise<void> {
     const frame = frames[fi];
     try {
       const boxes = frame.locator('input[type="checkbox"]');
-      const n = Math.min(await boxes.count(), 40);
-      if (n === 0) continue;
-      console.log(`   [진단] frame[${fi}] url=${frame.url().slice(0, 80)} checkbox count=${await boxes.count()}`);
+      const total = await boxes.count();
+      console.log(
+        `   [진단] frame[${fi}] name=${JSON.stringify(frame.name())} url=${frame.url().slice(0, 100)} checkbox count=${total}`
+      );
+      const n = Math.min(total, 40);
       for (let i = 0; i < n; i++) {
         const cb = boxes.nth(i);
         try {
@@ -217,7 +395,7 @@ async function dumpLedgerEtcCheckboxes(frames: Frame[]): Promise<void> {
             const visible = !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
             let labelText = "";
             if (id) {
-              const lab = el.ownerDocument.querySelector(`label[for="${CSS.escape(id)}"]`);
+              const lab = el.ownerDocument.querySelector(`label[for="${id}"]`);
               if (lab) labelText = (lab.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
             }
             if (!labelText) {
@@ -413,13 +591,19 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
     throw new Error('재고수불부 「기타」 탭을 찾지 못했습니다.');
   }
 
-  // 탭 전환 후 DOM 반영 — frame 목록 재수집
-  await page.waitForTimeout(400);
-  const searchFrames: Frame[] = [];
-  for (const frame of await findLedgerFrames(page)) searchFrames.push(frame);
-  if (searchFrames.length === 0) {
-    for (const frame of page.frames()) searchFrames.push(frame);
+  // 탭 전환 후 DOM 반영 — 전체 frame 진단 (findLedgerFrames 필터 없음)
+  await page.waitForTimeout(500);
+  try {
+    await diagnoseLedgerEtcTabDom(page);
+  } catch (err) {
+    console.log(
+      `   [진단][기타] diagnoseLedgerEtcTabDom 예외: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
+
+  // 탐색/클릭은 page 전체 frame 대상 (ledger frame 필터만 쓰면 기타 패널 iframe을 놓칠 수 있음)
+  const searchFrames = page.frames();
+  console.log(`   [진단][기타] checkbox 탐색 대상 frame count=${searchFrames.length}`);
 
   let sawHintText = false;
   for (const frame of searchFrames) {
@@ -443,6 +627,11 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
       alreadyChecked = await cb.isChecked();
     } catch (err) {
       await dumpLedgerEtcCheckboxes(searchFrames);
+      try {
+        await diagnoseLedgerEtcTabDom(page);
+      } catch {
+        /* already diagnosed */
+      }
       throw new Error(
         `생산불출/창고이동포함 checkbox 상태 확인 실패: ${
           err instanceof Error ? err.message : String(err)
@@ -464,6 +653,11 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
       verified = await cb.isChecked();
     } catch (err) {
       await dumpLedgerEtcCheckboxes(searchFrames);
+      try {
+        await diagnoseLedgerEtcTabDom(page);
+      } catch {
+        /* ignore */
+      }
       throw new Error(
         `생산불출/창고이동포함 checkbox 재확인 실패: ${
           err instanceof Error ? err.message : String(err)
@@ -472,19 +666,29 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
     }
     if (!verified) {
       await dumpLedgerEtcCheckboxes(searchFrames);
+      try {
+        await diagnoseLedgerEtcTabDom(page);
+      } catch {
+        /* ignore */
+      }
       throw new Error("생산불출/창고이동포함 checkbox가 체크되지 않았습니다.");
     }
     return;
   }
 
   await dumpLedgerEtcCheckboxes(searchFrames);
+  try {
+    await diagnoseLedgerEtcTabDom(page);
+  } catch {
+    /* ignore */
+  }
   if (!sawHintText) {
     throw new Error(
-      '「생산불출/창고이동포함」 텍스트/label을 찾지 못했습니다. (기타 탭 checkbox dump 로그 참고)'
+      '「생산불출/창고이동포함」 텍스트/label을 찾지 못했습니다. (기타 탭 frame DOM 진단 로그 참고)'
     );
   }
   throw new Error(
-    "「생산불출/창고이동포함」 checkbox를 찾지 못했습니다. (기타 탭 checkbox dump 로그 참고)"
+    "「생산불출/창고이동포함」 checkbox를 찾지 못했습니다. (기타 탭 frame DOM 진단 로그 참고)"
   );
 }
 
