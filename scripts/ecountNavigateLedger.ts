@@ -244,9 +244,10 @@ export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
   }
 
   await clickLedgerSearch(page);
-  await waitAndDismissBulkItemModal(page, 20);
+  await waitAndDismissBulkItemModal(page, 30);
 
   const waitSec = opts.results_wait_sec ?? (opts.prod_cd ? 120 : 600);
+  console.log("   → 검색 결과 대기");
   if (!(await waitForLedgerResults(page, waitSec))) {
     console.warn(`   ⚠ 결과 ${waitSec}초 내 미확인 — 다운로드 시도 예정`);
   }

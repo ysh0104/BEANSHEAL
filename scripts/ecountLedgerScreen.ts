@@ -4,7 +4,9 @@
 import type { Frame, Locator, Page } from "playwright";
 
 const SEARCH_BTN = /(?:검색|Search|조회)\s*\(F\d+\)/i;
-const BULK_ITEM_HINT = /조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
+/** 검색(F8) 후 확인 팝업 — 실제 ECOUNT: "조회할 자료가 많아 오래 걸릴 수 있습니다..." (+ 기존 품목 재지정 알림) */
+const LEDGER_CONFIRM_POPUP_HINT =
+  /조회할\s*자료가\s*많아|오래\s*걸릴\s*수\s*있습니다|조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
 const EXCEL_SELECTORS = [
   "#outputExcel",
   '[id*="outputExcel"]',
@@ -112,71 +114,106 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
   }
 }
 
-async function isBulkItemModalVisible(page: Page): Promise<boolean> {
+async function isLedgerConfirmPopupVisible(page: Page): Promise<boolean> {
   for (const ctx of [page, ...page.frames()]) {
-    if (await hasBulkItemModal(ctx)) return true;
+    if (await hasLedgerConfirmPopup(ctx)) return true;
   }
   return false;
 }
 
-async function hasBulkItemModal(ctx: Page | Frame): Promise<boolean> {
-  const hint = ctx.getByText(BULK_ITEM_HINT).first();
-  if ((await hint.count()) > 0 && (await hint.isVisible())) return true;
+async function hasLedgerConfirmPopup(ctx: Page | Frame): Promise<boolean> {
+  const hint = ctx.getByText(LEDGER_CONFIRM_POPUP_HINT).first();
+  try {
+    if ((await hint.count()) > 0 && (await hint.isVisible())) return true;
+  } catch {
+    /* skip */
+  }
 
-  const titled = ctx
-    .locator('[role="dialog"], .ui-dialog, .modal, .layer_popup, [class*="dialog"]')
-    .filter({ hasText: /알림/ })
-    .filter({ hasText: BULK_ITEM_HINT })
-    .first();
-  return (await titled.count()) > 0 && (await titled.isVisible());
+  const dialogs = ctx.locator(
+    '[role="dialog"], .ui-dialog, .modal, .layer_popup, [class*="dialog"], [class*="layer"], [class*="popup"]'
+  );
+  try {
+    const n = Math.min(await dialogs.count(), 12);
+    for (let i = 0; i < n; i++) {
+      const d = dialogs.nth(i);
+      if (!(await d.isVisible().catch(() => false))) continue;
+      const text = ((await d.innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+      if (LEDGER_CONFIRM_POPUP_HINT.test(text)) return true;
+    }
+  } catch {
+    /* skip */
+  }
+  return false;
 }
 
-async function clickBulkItemCancelInContext(ctx: Page | Frame): Promise<boolean> {
-  const dialog = ctx
-    .locator('[role="dialog"], .ui-dialog, .modal, .layer_popup, [class*="dialog"], [class*="layer"]')
-    .filter({ hasText: BULK_ITEM_HINT })
-    .first();
+async function clickCancelInLedgerConfirmPopup(ctx: Page | Frame): Promise<boolean> {
+  const dialogCandidates = ctx.locator(
+    '[role="dialog"], .ui-dialog, .modal, .layer_popup, [class*="dialog"], [class*="layer"], [class*="popup"]'
+  );
 
-  if ((await dialog.count()) > 0 && (await dialog.isVisible())) {
-    const cancels = dialog.locator("button, a, input[type='button'], span, div").filter({ hasText: /취소/ });
-    const n = await cancels.count();
-    for (let i = n - 1; i >= 0; i--) {
-      const btn = cancels.nth(i);
+  try {
+    const n = Math.min(await dialogCandidates.count(), 12);
+    for (let i = 0; i < n; i++) {
+      const dialog = dialogCandidates.nth(i);
       try {
-        if (!(await btn.isVisible())) continue;
-        const text = ((await btn.innerText()) || "").trim();
-        if (text !== "취소") continue;
-        await btn.click({ force: true });
-        return true;
+        if (!(await dialog.isVisible())) continue;
+        const text = ((await dialog.innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+        if (!LEDGER_CONFIRM_POPUP_HINT.test(text)) continue;
+
+        const cancels = dialog.locator("button, a, input[type='button'], span, div").filter({ hasText: /^취소$/ });
+        const cn = await cancels.count();
+        for (let j = cn - 1; j >= 0; j--) {
+          const btn = cancels.nth(j);
+          if (!(await btn.isVisible())) continue;
+          const t = ((await btn.innerText()) || "").trim();
+          if (t !== "취소") continue;
+          await btn.click({ force: true });
+          return true;
+        }
       } catch {
-        /* next */
+        /* next dialog */
       }
     }
+  } catch {
+    /* skip */
   }
 
-  const cancel = ctx.getByText("취소", { exact: true }).first();
-  if ((await cancel.count()) > 0 && (await cancel.isVisible())) {
-    await cancel.click({ force: true });
-    return true;
+  // 힌트 텍스트 근처의 exact "취소"
+  try {
+    const hint = ctx.getByText(LEDGER_CONFIRM_POPUP_HINT).first();
+    if ((await hint.count()) > 0 && (await hint.isVisible())) {
+      const nearby = ctx.locator("button, a, input[type='button']").filter({ hasText: /^취소$/ });
+      const cn = await nearby.count();
+      for (let j = cn - 1; j >= 0; j--) {
+        const btn = nearby.nth(j);
+        if (!(await btn.isVisible())) continue;
+        if (((await btn.innerText()) || "").trim() !== "취소") continue;
+        await btn.click({ force: true });
+        return true;
+      }
+    }
+  } catch {
+    /* skip */
   }
 
   return false;
 }
 
-async function clickBulkItemCancelViaEvaluate(page: Page): Promise<boolean> {
+async function clickLedgerConfirmCancelViaEvaluate(page: Page): Promise<boolean> {
   for (const frame of page.frames()) {
     try {
       const clicked = await frame.evaluate(() => {
-        const hintRe = /조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
+        const hintRe =
+          /조회할\s*자료가\s*많아|오래\s*걸릴\s*수\s*있습니다|조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
         const roots = Array.from(
           document.querySelectorAll(
-            '.ui-dialog, [role="dialog"], .modal, .layer_popup, .popup, [class*="dialog"], [class*="layer"]'
+            '.ui-dialog, [role="dialog"], .modal, .layer_popup, .popup, [class*="dialog"], [class*="layer"], [class*="popup"]'
           )
         );
         roots.push(document.body);
 
         for (const root of roots) {
-          const text = root.textContent || "";
+          const text = (root.textContent || "").replace(/\s+/g, " ");
           if (!hintRe.test(text)) continue;
 
           const candidates = Array.from(root.querySelectorAll("button, a, input[type='button'], span, div"));
@@ -203,15 +240,18 @@ async function clickBulkItemCancelViaEvaluate(page: Page): Promise<boolean> {
   return false;
 }
 
+/** 검색(F8) 후 조회 확인/품목 재지정 팝업 → 「취소」(정상 UX, 실패로 취급하지 않음) */
 export async function dismissBulkItemModal(page: Page): Promise<boolean> {
-  if (!(await isBulkItemModalVisible(page))) return false;
+  if (!(await isLedgerConfirmPopupVisible(page))) return false;
+
+  console.log("   → 조회 확인 팝업 감지");
 
   const contexts: Array<Page | Frame> = [page, ...page.frames()];
   for (const ctx of contexts) {
     try {
-      if (!(await hasBulkItemModal(ctx))) continue;
-      if (await clickBulkItemCancelInContext(ctx)) {
-        console.log("   ✓ 품목 재지정 알림 → 취소");
+      if (!(await hasLedgerConfirmPopup(ctx))) continue;
+      if (await clickCancelInLedgerConfirmPopup(ctx)) {
+        console.log('   ✓ "취소" 클릭');
         await page.waitForTimeout(800);
         return true;
       }
@@ -220,33 +260,35 @@ export async function dismissBulkItemModal(page: Page): Promise<boolean> {
     }
   }
 
-  if (await clickBulkItemCancelViaEvaluate(page)) {
-    console.log("   ✓ 품목 재지정 알림 → 취소 (evaluate)");
+  if (await clickLedgerConfirmCancelViaEvaluate(page)) {
+    console.log('   ✓ "취소" 클릭 (evaluate)');
     await page.waitForTimeout(800);
     return true;
   }
 
+  console.warn("   ⚠ 조회 확인 팝업은 보이나 「취소」 클릭 실패 — 결과 대기에서 재시도");
   return false;
 }
 
-export async function waitAndDismissBulkItemModal(page: Page, maxSec = 20): Promise<boolean> {
+export async function waitAndDismissBulkItemModal(page: Page, maxSec = 30): Promise<boolean> {
+  console.log("   → 조회 확인 팝업 대기...");
   const steps = Math.ceil(maxSec / 0.5);
   for (let i = 0; i < steps; i++) {
     if (await dismissBulkItemModal(page)) return true;
     await page.waitForTimeout(500);
   }
 
-  if (await isBulkItemModalVisible(page)) {
-    console.warn("   ⚠ 품목 재지정 알림 취소 실패 — 조회가 진행되지 않을 수 있음");
+  if (await isLedgerConfirmPopupVisible(page)) {
+    console.warn("   ⚠ 조회 확인 팝업 취소 미완료 — 봇은 계속 진행(결과 대기에서 재시도)");
     return false;
   }
 
-  console.log("   → 품목 재지정 알림 없음 (바로 조회)");
+  console.log("   → 조회 확인 팝업 미감지 (결과 대기에서 재확인)");
   return true;
 }
 
 export async function clickLedgerSearch(page: Page): Promise<void> {
-  console.log("   → 검색(F8)...");
+  console.log("   → 검색(F8) 실행");
   const frames = await findLedgerFrames(page);
   const scan = frames.length > 0 ? frames : page.frames();
 
@@ -316,6 +358,7 @@ export async function isLedgerExcelReady(page: Page): Promise<boolean> {
 }
 
 export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<boolean> {
+  console.log("   → 검색 결과 대기");
   console.log(`3. 검색 결과 대기 (최대 ${maxSec}초)...`);
   const intervalSec = 2;
   const steps = Math.ceil(maxSec / intervalSec);
@@ -323,10 +366,10 @@ export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<bo
   for (let i = 0; i < steps; i++) {
     const elapsed = (i + 1) * intervalSec;
 
-    if (await isBulkItemModalVisible(page)) {
+    if (await isLedgerConfirmPopupVisible(page)) {
       await dismissBulkItemModal(page);
       if (i > 0 && i % 5 === 0) {
-        console.log(`   … 품목 재지정 알림 처리 중 (${elapsed}초)`);
+        console.log(`   … 조회 확인 팝업 처리 중 (${elapsed}초)`);
       }
       await page.waitForTimeout(intervalSec * 1000);
       continue;
