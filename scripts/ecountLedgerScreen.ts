@@ -180,17 +180,32 @@ export async function findLedgerFrames(page: Page): Promise<Frame[]> {
 }
 
 export function expectedLedgerPrgId(): string {
+  // leaf 메뉴 링크 힌트(#link_prg_E040702 등). 실제 브라우저 URL의 prgId와 다를 수 있음.
   return (process.env.ECOUNT_LEDGER_PRG_ID || "E040702").trim().toUpperCase();
+}
+
+/**
+ * 실제 사용자 화면의 URL 셸 — 출력물(재고수불부 포함) 컨텍스트.
+ * 검색 전/후 모두 prgId=C000035 로 유지되는 것이 확인됨 (E040702로 바뀌지 않음).
+ */
+export function ledgerOutputFolderPrgId(): string {
+  return (process.env.ECOUNT_LEDGER_FOLDER_PRG_ID || "C000035").trim().toUpperCase();
+}
+
+export function isLedgerOutputFolderUrl(prgId: string | null | undefined): boolean {
+  return !!prgId && prgId.toUpperCase() === ledgerOutputFolderPrgId();
 }
 
 /**
  * 사이드바/URL hash가 아닌 실제 메인 viewer 기준 program 컨텍스트
  * - viewerPrgIds: #script_target / #mainPage / [data-viewer-id] 내부 PRG_ID만
- * - urlPrgId는 참고용(성공 판정에 단독 사용 금지)
+ * - urlPrgId: 브라우저 hash (실제 UX에서는 C000035가 검색 전후 유지)
+ * - urlDepth: hash depth (실제 UX depth=2)
  */
 export type LedgerProgramProbe = {
   url: string;
   urlPrgId: string | null;
+  urlDepth: string | null;
   viewerPrgIds: string[];
   viewerIds: string[];
   ecpageIds: string[];
@@ -204,11 +219,20 @@ export type LedgerProgramProbe = {
 export async function probeLedgerProgramContext(page: Page): Promise<LedgerProgramProbe> {
   const url = page.url();
   let urlPrgId: string | null = null;
+  let urlDepth: string | null = null;
   try {
-    const m = url.match(/prgId=([^&#]+)/i);
-    urlPrgId = m ? decodeURIComponent(m[1]).toUpperCase() : null;
+    const hash = url.includes("#") ? url.slice(url.indexOf("#") + 1) : "";
+    const params = new URLSearchParams(hash);
+    const rawPrg = params.get("prgId");
+    urlPrgId = rawPrg ? decodeURIComponent(rawPrg).toUpperCase() : null;
+    urlDepth = params.get("depth");
   } catch {
-    urlPrgId = null;
+    try {
+      const m = url.match(/prgId=([^&#]+)/i);
+      urlPrgId = m ? decodeURIComponent(m[1]).toUpperCase() : null;
+    } catch {
+      urlPrgId = null;
+    }
   }
 
   const viewerPrgIds = new Set<string>();
@@ -312,6 +336,7 @@ export async function probeLedgerProgramContext(page: Page): Promise<LedgerProgr
   return {
     url,
     urlPrgId,
+    urlDepth,
     viewerPrgIds: Array.from(viewerPrgIds),
     viewerIds: Array.from(viewerIds),
     ecpageIds: Array.from(ecpageIds),
@@ -325,21 +350,27 @@ export async function probeLedgerProgramContext(page: Page): Promise<LedgerProgr
 
 function logLedgerProgramProbe(probe: LedgerProgramProbe, label: string): void {
   console.log(
-    `   [진단][program] ${label} urlPrg=${probe.urlPrgId || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] viewers=[${probe.viewerIds.slice(0, 5).join(",")}] ecpage=[${probe.ecpageIds.slice(0, 5).join(",")}] mainTitle=${JSON.stringify(probe.mainTitle.slice(0, 60))} titles=[${probe.titleHints.join(",")}]`
+    `   [진단][program] ${label} urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] viewers=[${probe.viewerIds.slice(0, 5).join(",")}] ecpage=[${probe.ecpageIds.slice(0, 5).join(",")}] mainTitle=${JSON.stringify(probe.mainTitle.slice(0, 60))} titles=[${probe.titleHints.join(",")}]`
   );
-  console.log(`   [진단][program] ${label} url=${probe.url.slice(0, 140)}`);
+  console.log(`   [진단][program] ${label} url=${probe.url.slice(0, 160)}`);
 }
 
 /**
- * 활성 viewer PRG_ID가 E040702인지 확인.
- * URL hash / 사이드바 링크만으로는 true가 되지 않음.
- * 일별재고현황(E040206) / 재고현황 폴더(C000650)면 무조건 false.
+ * 재고수불부 화면이 로드됐는지 확인.
+ *
+ * 실제 UX:
+ * - 브라우저 URL prgId=C000035 (출력물 셸), depth=2 — 검색 전후에도 동일
+ * - #mainPage 제목 「재고수불부」
+ * - leaf 링크 힌트 E040702는 메뉴 클릭용이며 URL 필수값이 아님
+ *
+ * 거부: 일별재고현황(E040206), 재고현황 폴더(C000650)
  */
 export async function isExpectedLedgerProgramLoaded(page: Page): Promise<boolean> {
-  const expected = expectedLedgerPrgId();
+  const leafPrg = expectedLedgerPrgId();
+  const folderPrg = ledgerOutputFolderPrgId();
   const probe = await probeLedgerProgramContext(page);
 
-  // 잘못된 「기타」 클릭 후 이동하는 화면 — 즉시 거부
+  // 잘못된 화면 — 즉시 거부
   if (
     probe.urlPrgId === "E040206" ||
     probe.urlPrgId === "C000650" ||
@@ -353,9 +384,12 @@ export async function isExpectedLedgerProgramLoaded(page: Page): Promise<boolean
     probe.hasLedgerTitle || /재고\s*수불부|재고수불부/.test(probe.mainTitle);
   if (!hasLedgerTitle) return false;
 
-  // viewer DOM PRG 우선; 제목이 재고수불부일 때만 urlPrg도 허용
-  if (probe.viewerPrgIds.includes(expected)) return true;
-  if (probe.urlPrgId === expected) return true;
+  // 실제 UX: URL 셸 C000035 + #mainPage 재고수불부
+  if (probe.urlPrgId === folderPrg) return true;
+
+  // leaf program이 viewer/URL에 잡히는 경우(환경에 따라)
+  if (probe.viewerPrgIds.includes(leafPrg)) return true;
+  if (probe.urlPrgId === leafPrg) return true;
 
   return false;
 }
@@ -381,18 +415,20 @@ async function hasLedgerSearchUi(page: Page): Promise<boolean> {
   return false;
 }
 
-/** 「재고수불부」 검색 조건 화면 — 메인 viewer PRG_ID=E040702 + UI */
+/** 「재고수불부」 검색 조건 화면 — #mainPage UI + (C000035 URL 셸 또는 leaf PRG) */
 export async function isLedgerSearchScreen(page: Page): Promise<boolean> {
   if (!(await isExpectedLedgerProgramLoaded(page))) return false;
   return hasLedgerSearchUi(page);
 }
 
 /**
- * E040702 검색 화면 대기.
+ * 재고수불부 검색 화면 대기.
+ * URL은 C000035로 유지될 수 있음 — E040702 URL을 강제하지 않음.
  * SPA로 E040206이 먼저 보이다가 교체될 수 있으므로 즉시 성공하지 않음.
  */
 export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promise<boolean> {
-  const expected = expectedLedgerPrgId();
+  const leafPrg = expectedLedgerPrgId();
+  const folderPrg = ledgerOutputFolderPrgId();
   const steps = Math.ceil(maxSec / 2);
   for (let i = 0; i < steps; i++) {
     const elapsed = (i + 1) * 2;
@@ -401,16 +437,22 @@ export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promis
 
     if (probe.viewerPrgIds.includes("E040206") || probe.hasRejectDailyStock) {
       console.log(
-        `   … 메인 viewer=일별재고현황(E040206) — ${expected} 교체 대기 (${elapsed}초) urlPrg=${probe.urlPrgId || "(none)"}`
+        `   … 메인 viewer=일별재고현황(E040206) — 재고수불부 교체 대기 (${elapsed}초) urlPrg=${probe.urlPrgId || "(none)"}`
       );
-    } else if (probe.urlPrgId === expected && !probe.viewerPrgIds.includes(expected)) {
+    } else if (probe.urlPrgId === folderPrg && !probe.hasLedgerTitle) {
       console.log(
-        `   … URL hash만 ${expected} — 메인 viewer PRG 미확인 대기 (${elapsed}초) viewerPrg=[${probe.viewerPrgIds.join(",")}]`
+        `   … URL 셸 ${folderPrg} — #mainPage 「재고수불부」 대기 (${elapsed}초)`
+      );
+    } else if (probe.urlPrgId === leafPrg && !probe.hasLedgerTitle) {
+      console.log(
+        `   … URL leaf ${leafPrg} — #mainPage 「재고수불부」 대기 (${elapsed}초)`
       );
     }
 
     if (await isLedgerSearchScreen(page)) {
-      console.log(`   ✓ 재고수불부 검색 화면 (${elapsed}초) viewerPrg=${expected}`);
+      console.log(
+        `   ✓ 재고수불부 검색 화면 (${elapsed}초) urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"} leafHint=${leafPrg}`
+      );
       return true;
     }
     await page.waitForTimeout(2000);
@@ -419,23 +461,24 @@ export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promis
   const finalProbe = await probeLedgerProgramContext(page);
   logLedgerProgramProbe(finalProbe, "timeout");
   console.warn(
-    `   ⚠ ${expected} 검색 화면 미확인 (viewerPrg=[${finalProbe.viewerPrgIds.join(",")}] mainTitle=${JSON.stringify(finalProbe.mainTitle)} urlPrg=${finalProbe.urlPrgId})`
+    `   ⚠ 재고수불부 검색 화면 미확인 (urlPrg=${finalProbe.urlPrgId} depth=${finalProbe.urlDepth} viewerPrg=[${finalProbe.viewerPrgIds.join(",")}] mainTitle=${JSON.stringify(finalProbe.mainTitle)})`
   );
   return false;
 }
 
-/** E040702 로드 필수 — 실패 시 Error + 진단 로그 */
+/** 재고수불부 검색 화면 로드 필수 — 실패 시 Error + 진단 로그 */
 export async function assertLedgerProgramSearchScreen(page: Page, maxSec = 25): Promise<void> {
-  const expected = expectedLedgerPrgId();
   if (await waitForLedgerSearchScreen(page, maxSec)) return;
 
   const probe = await probeLedgerProgramContext(page);
   logLedgerProgramProbe(probe, "assert-fail");
   throw new Error(
-    `재고수불부(${expected}) 화면 미로드 (${maxSec}초). ` +
-      `urlPrg=${probe.urlPrgId || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
+    `재고수불부 화면 미로드 (${maxSec}초). ` +
+      `urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"} ` +
+      `viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
       `viewers=[${probe.viewerIds.slice(0, 8).join(",")}] ecpage=[${probe.ecpageIds.slice(0, 8).join(",")}] ` +
-      `mainTitle=${JSON.stringify(probe.mainTitle)} titles=[${probe.titleHints.join(",")}]`
+      `mainTitle=${JSON.stringify(probe.mainTitle)} titles=[${probe.titleHints.join(",")}] ` +
+      `(실제 UX: urlPrg=${ledgerOutputFolderPrgId()} + #mainPage 재고수불부; leafHint=${expectedLedgerPrgId()})`
   );
 }
 
@@ -502,9 +545,9 @@ async function getLedgerViewerRoots(
   return out;
 }
 
-/** 클릭 전/후 active PRG 검증 — E040206/C000650이면 즉시 실패 */
+/** 클릭 전/후 재고수불부 화면 검증 — E040206/C000650이면 즉시 실패 */
 async function assertActiveLedgerProgramPhase(page: Page, phase: string): Promise<LedgerProgramProbe> {
-  const expected = expectedLedgerPrgId();
+  const folderPrg = ledgerOutputFolderPrgId();
   const probe = await probeLedgerProgramContext(page);
   logLedgerProgramProbe(probe, phase);
 
@@ -516,17 +559,18 @@ async function assertActiveLedgerProgramPhase(page: Page, phase: string): Promis
 
   if (drifted) {
     throw new Error(
-      `[${phase}] 재고수불부(${expected})가 아님 — 잘못된 「기타」/메뉴 클릭 의심. ` +
-        `urlPrg=${probe.urlPrgId || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
+      `[${phase}] 재고수불부가 아님 — 잘못된 「기타」/메뉴 클릭 의심. ` +
+        `urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"} ` +
+        `viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
         `mainTitle=${JSON.stringify(probe.mainTitle)} titles=[${probe.titleHints.join(",")}] url=${probe.url.slice(0, 160)}`
     );
   }
 
   if (!(await isExpectedLedgerProgramLoaded(page))) {
     throw new Error(
-      `[${phase}] 재고수불부(${expected}) active 미확인. ` +
-        `urlPrg=${probe.urlPrgId || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
-        `mainTitle=${JSON.stringify(probe.mainTitle)}`
+      `[${phase}] 재고수불부 active 미확인 (기대 URL 셸=${folderPrg} 또는 leaf=${expectedLedgerPrgId()} + #mainPage 제목). ` +
+        `urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"} ` +
+        `viewerPrg=[${probe.viewerPrgIds.join(",")}] mainTitle=${JSON.stringify(probe.mainTitle)}`
     );
   }
   return probe;
@@ -1567,6 +1611,8 @@ export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<bo
     if (await isLedgerExcelReady(page)) {
       const probe = await probeLedgerProgramContext(page);
       logLedgerProgramProbe(probe, `결과확인-${elapsed}s`);
+      const folderPrg = ledgerOutputFolderPrgId();
+
       if (
         probe.hasRejectDailyStock ||
         probe.urlPrgId === "E040206" ||
@@ -1575,12 +1621,33 @@ export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<bo
       ) {
         throw new Error(
           `검색 결과가 재고수불부가 아님 (일별재고현황/메뉴 이탈 의심). ` +
-            `urlPrg=${probe.urlPrgId || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
-            `mainTitle=${JSON.stringify(probe.mainTitle)}`
+            `urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"} ` +
+            `viewerPrg=[${probe.viewerPrgIds.join(",")}] mainTitle=${JSON.stringify(probe.mainTitle)}`
         );
       }
+
+      const hasLedgerTitle =
+        probe.hasLedgerTitle || /재고\s*수불부|재고수불부/.test(probe.mainTitle);
+      if (!hasLedgerTitle) {
+        throw new Error(
+          `Excel은 보이나 #mainPage 「재고수불부」 제목 미확인. ` +
+            `urlPrg=${probe.urlPrgId || "(none)"} mainTitle=${JSON.stringify(probe.mainTitle)}`
+        );
+      }
+
+      // 실제 UX: 검색 후에도 URL 셸 C000035 유지
+      if (isLedgerOutputFolderUrl(probe.urlPrgId) || probe.urlPrgId === expectedLedgerPrgId()) {
+        console.log(
+          `   ✓ URL 셸 유지 urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"}`
+        );
+      } else if (probe.urlPrgId) {
+        console.warn(
+          `   ⚠ 결과 화면 urlPrg=${probe.urlPrgId} (기대 셸=${folderPrg}) — 제목은 재고수불부, 계속 진행`
+        );
+      }
+
       console.log(
-        `   ✓ 재고수불부 결과 확인 (${elapsed}초) excelReady urlPrg=${probe.urlPrgId || "(none)"} mainTitle=${JSON.stringify(probe.mainTitle.slice(0, 40))}`
+        `   ✓ 재고수불부 결과 확인 (${elapsed}초) excelReady urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"} mainTitle=${JSON.stringify(probe.mainTitle.slice(0, 40))}`
       );
       return true;
     }

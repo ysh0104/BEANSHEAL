@@ -1,13 +1,12 @@
 /**
  * 재고수불부 네비게이션
  *
- * 실제 사용자 동선(정상):
+ * 실제 사용자 동선:
  *   재고 I → 출력물 CLICK → 재고수불부 CLICK
- *   → 생산불출/창고이동포함 체크 → 검색 버튼 클릭 → ESC → 결과 대기
+ *   → (임시: 「기타」/생산불출 스킵) → 검색 버튼 클릭 → ESC → 결과 대기 → Excel
  *
- * 임시 테스트 동선(현재):
- *   재고 I → 출력물 → 재고수불부 → E040702 확인
- *   → 「기타」/생산불출 스킵 → 검색 → ESC → 결과 → Excel → parser
+ * URL: 검색 전후 모두 prgId=C000035 depth=2 (출력물 셸).
+ * E040702는 사이드바 leaf 링크 힌트일 뿐 URL 필수값이 아님.
  *
  * stock cascade(재고현황)와 동일 메뉴 패턴을 ledger에서 복제 구현.
  * stock 파일은 수정하지 않음.
@@ -27,11 +26,13 @@ import {
   expectedLedgerPrgId,
   isLedgerExcelReady,
   isLedgerSearchScreen,
+  ledgerOutputFolderPrgId,
   pressLedgerEscapeAfterSearch,
   waitForLedgerResults,
 } from "./ecountLedgerScreen";
 
 function ledgerPrgId(): string {
+  // 사이드바 leaf (#link_prg_*) 탐색 힌트 — URL prgId(C000035)와 별개
   return process.env.ECOUNT_LEDGER_PRG_ID?.trim() || "E040702";
 }
 
@@ -325,13 +326,15 @@ async function findLedgerSidebarLeaf(
 
 /**
  * cascade: 재고 I → 출력물 CLICK → (재고현황 그룹) → 재고수불부 leaf CLICK
- * 클릭 후 반드시 활성 program=E040702 검증 (E040206 일별재고현황 오인 방지)
+ * 클릭 후 #mainPage 「재고수불부」 검증 (URL은 C000035 셸일 수 있음; E040206 거부)
  */
 async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
   await dismissEcountPopups(page);
 
   if (await isLedgerSearchScreen(page)) {
-    console.log(`   ✓ 재고수불부 검색 화면 이미 열림 (prgId=${expectedLedgerPrgId()})`);
+    console.log(
+      `   ✓ 재고수불부 검색 화면 이미 열림 (기대 URL 셸=${ledgerOutputFolderPrgId()}, leafHint=${expectedLedgerPrgId()})`
+    );
     return true;
   }
   if (await isLedgerExcelReady(page)) {
@@ -370,7 +373,9 @@ async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
   await dismissEcountPopups(page);
 
   await assertLedgerProgramSearchScreen(page, 25);
-  console.log(`   ✓ 재고수불부 검색 화면 진입 (cascade) prgId=${expectedLedgerPrgId()}`);
+  console.log(
+    `   ✓ 재고수불부 검색 화면 진입 (cascade) URL 셸=${ledgerOutputFolderPrgId()} leafHint=${expectedLedgerPrgId()}`
+  );
   return true;
 }
 
@@ -572,10 +577,11 @@ export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
   console.log("   → 재고수불부 검색 화면 진입...");
   await openLedgerSearchScreen(page, menuUrl);
 
-  // E040702 실제 로드 재확인 — 통과 전에는 검색 진입 금지
+  // 재고수불부 검색 화면 재확인 — 통과 전에는 검색 진입 금지
+  // (실제 UX: urlPrg=C000035 + #mainPage 재고수불부; leafHint=E040702)
   await assertLedgerProgramSearchScreen(page, 25);
   console.log(
-    `   ✓ 재고수불부 검색 화면 확인 (prgId=${expectedLedgerPrgId()}) — 「기타」/생산불출 스킵, 바로 검색`
+    `   ✓ 재고수불부 검색 화면 확인 (URL 셸=${ledgerOutputFolderPrgId()}, leafHint=${expectedLedgerPrgId()}) — 「기타」/생산불출 스킵, 바로 검색`
   );
 
   console.log("   → 기간: Ecount 기본값(전월+금월) 유지");
