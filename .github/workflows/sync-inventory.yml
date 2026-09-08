@@ -57,8 +57,8 @@ jobs:
         run: npx tsx scripts/ecountBot.ts
         env:
           ECOUNT_BOT_TARGET: ${{ github.event.inputs.target || github.event.client_payload.target || 'stock' }}
-          # Phase1 DOWNLOAD_ONLY: 검색(F8)→재고현황 Excel 다운로드·검증 (Supabase 생략)
-          ECOUNT_STOCK_DOWNLOAD_ONLY: ${{ (github.event.inputs.target || github.event.client_payload.target || 'stock') == 'stock' && '1' || '0' }}
+          # 재고현황: 다운로드 검증 후 Supabase ecount_items 업로드까지 실행
+          ECOUNT_STOCK_DOWNLOAD_ONLY: "0"
           ECOUNT_STOCK_ENTRY_ONLY: "0"
           ECOUNT_STOCK_SEARCH_ONLY: "0"
           GITHUB_SHA: ${{ github.sha }}

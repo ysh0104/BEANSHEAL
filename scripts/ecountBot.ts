@@ -239,14 +239,106 @@ async function downloadExcelFromFrames(page: Page, finalPath: string) {
   );
 }
 
+const DECIMAL_CHECK_SAMPLES: { prod_cd: string; snapshotExpect: number }[] = [
+  { prod_cd: "M0001", snapshotExpect: 38.732 },
+  { prod_cd: "M00010", snapshotExpect: 0.041 },
+  { prod_cd: "M00012", snapshotExpect: 9.443 },
+];
+
+function qtyEquals(a: number, b: number): boolean {
+  return Math.abs(Number(a) - Number(b)) < 1e-9;
+}
+
+async function verifyUploadedDecimals(
+  rows: { prod_cd: string; total_qty: number }[]
+): Promise<void> {
+  console.log("[STOCK UPLOAD] 소수점 샘플 (Excel 파싱 결과)");
+  const present: { prod_cd: string; parsed: number; snapshotExpect: number }[] = [];
+  for (const sample of DECIMAL_CHECK_SAMPLES) {
+    const hit = rows.find((r) => r.prod_cd === sample.prod_cd);
+    if (!hit) {
+      console.warn(`   ⚠ Excel에 ${sample.prod_cd} 없음 (스냅샷 기대 ${sample.snapshotExpect})`);
+      continue;
+    }
+    present.push({ prod_cd: sample.prod_cd, parsed: hit.total_qty, snapshotExpect: sample.snapshotExpect });
+    const snapOk = qtyEquals(hit.total_qty, sample.snapshotExpect);
+    console.log(
+      `   ${sample.prod_cd}: parsed=${hit.total_qty}` +
+        (snapOk ? ` (스냅샷 ${sample.snapshotExpect} 일치)` : ` (스냅샷 ${sample.snapshotExpect}와 다름 — 재고 변동 가능)`)
+    );
+  }
+  if (present.length === 0) {
+    throw new Error("[STOCK UPLOAD] 소수점 검증 대상 품목(M0001/M00010/M00012)이 Excel에 없습니다.");
+  }
+
+  const { createClient } = await import("@supabase/supabase-js");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  if (!url || !key) {
+    throw new Error("[STOCK UPLOAD] DB 재조회 실패: Supabase 설정 누락");
+  }
+  const supabase = createClient(url, key);
+  const codes = present.map((s) => s.prod_cd);
+  const { data, error } = await supabase
+    .from("ecount_items")
+    .select("prod_cd, prod_nm, total_qty")
+    .in("prod_cd", codes);
+
+  if (error) {
+    throw new Error(`[STOCK UPLOAD] DB 재조회 실패: ${error.message}`);
+  }
+
+  console.log("[STOCK UPLOAD] 소수점 샘플 (Supabase 재조회) — Excel↔DB 일치 필수");
+  for (const sample of present) {
+    const hit = (data || []).find((r: { prod_cd: string }) => r.prod_cd === sample.prod_cd);
+    if (!hit) {
+      throw new Error(`[STOCK UPLOAD] DB에 ${sample.prod_cd} 없음`);
+    }
+    const dbQty = Number(hit.total_qty);
+    const ok = qtyEquals(dbQty, sample.parsed);
+    console.log(
+      `   ${ok ? "✓" : "✗"} ${sample.prod_cd}: db=${dbQty} excel=${sample.parsed}`
+    );
+    if (!ok) {
+      throw new Error(
+        `[STOCK UPLOAD] DB 소수점 불일치 ${sample.prod_cd}: db=${dbQty} excel=${sample.parsed}`
+      );
+    }
+  }
+  console.log("[STOCK UPLOAD] 소수점 검증 통과 (Excel↔DB)");
+}
+
 async function uploadStockExcelFile(filePath: string) {
   console.log("5. 엑셀 파싱 및 Supabase 업로드...");
-  const buffer = fs.readFileSync(filePath);
+  const abs = path.resolve(filePath);
+  if (!fs.existsSync(abs)) {
+    throw new Error(`[STOCK UPLOAD] 업로드할 Excel 없음: ${abs}`);
+  }
+  if (path.basename(abs) === "ecount_inventory.xlsx") {
+    throw new Error("[STOCK UPLOAD] ecount_inventory.xlsx(시리얼/로트)는 업로드 금지");
+  }
+
+  const buffer = fs.readFileSync(abs);
   const parsed = parseEcountStockExcel(buffer);
-  console.log(`   파싱 ${parsed.rows.length}건 (스킵 ${parsed.skippedRows}행)`);
+  console.log(`[STOCK UPLOAD] Excel에서 읽은 총 행 수=${parsed.rows.length}`);
+  console.log(`[STOCK UPLOAD] 스킵 행 수=${parsed.skippedRows}`);
+  console.log(`[STOCK UPLOAD] 파일=${abs}`);
+
+  // delete-all → upsert 전 최소 가드 (구조는 유지)
+  if (parsed.rows.length < 1) {
+    throw new Error("[STOCK UPLOAD] 파싱 행 0건 — 기존 ecount_items 삭제를 막기 위해 중단");
+  }
+
+  console.log("[STOCK UPLOAD] 방식=delete all → upsert(onConflict=prod_cd)");
   const upload = await uploadEcountStockRows(parsed.rows);
+  console.log(`[STOCK UPLOAD] 성공 여부=${upload.success ? "true" : "false"}`);
+  console.log(`[STOCK UPLOAD] Supabase upsert 행 수=${upload.count ?? 0}`);
   if (!upload.success) throw new Error(upload.error || "업로드 실패");
+
+  await verifyUploadedDecimals(parsed.rows);
+
   console.log(`🎉 DB 반영 완료: ${upload.count}건 (${upload.synced_at})`);
+  console.log("🎯 UPLOAD_OK");
   return upload;
 }
 
@@ -309,7 +401,7 @@ export async function runEcountStockBot() {
     await downloadExcelFromFrames(page, STOCK_FILE);
 
     if (downloadOnly) {
-      console.log("🎯 DOWNLOAD_OK");
+      console.log("🎯 DOWNLOAD_OK — Supabase 업로드 생략 (ECOUNT_STOCK_DOWNLOAD_ONLY=1)");
       return { ok: true, path: STOCK_FILE, downloadOnly: true as const };
     }
 
