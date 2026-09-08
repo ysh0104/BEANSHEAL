@@ -194,6 +194,197 @@ export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promis
   return false;
 }
 
+const PRODUCTION_TRANSFER_HINT = /생산\s*불출.*창고\s*이동.*포함|생산불출\s*\/\s*창고이동\s*포함/;
+
+/** 기타 탭 영역(또는 frame)의 checkbox 목록을 디버그 로그로 출력 */
+async function dumpLedgerEtcCheckboxes(frames: Frame[]): Promise<void> {
+  console.log("   [진단] 기타 탭 영역 checkbox 목록:");
+  for (let fi = 0; fi < frames.length; fi++) {
+    const frame = frames[fi];
+    try {
+      const boxes = frame.locator('input[type="checkbox"]');
+      const n = Math.min(await boxes.count(), 40);
+      if (n === 0) continue;
+      console.log(`   [진단] frame[${fi}] url=${frame.url().slice(0, 80)} checkbox count=${await boxes.count()}`);
+      for (let i = 0; i < n; i++) {
+        const cb = boxes.nth(i);
+        try {
+          const info = await cb.evaluate((el: HTMLInputElement) => {
+            const id = el.id || "";
+            const name = el.name || "";
+            const value = el.value || "";
+            const checked = el.checked;
+            const visible = !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+            let labelText = "";
+            if (id) {
+              const lab = el.ownerDocument.querySelector(`label[for="${CSS.escape(id)}"]`);
+              if (lab) labelText = (lab.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
+            }
+            if (!labelText) {
+              const parentLab = el.closest("label");
+              if (parentLab) labelText = (parentLab.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
+            }
+            if (!labelText) {
+              const row = el.closest("tr, li, div, td");
+              if (row) labelText = (row.textContent || "").replace(/\s+/g, " ").trim().slice(0, 80);
+            }
+            return { id, name, value, checked, visible, labelText };
+          });
+          console.log(
+            `   [진단]   cb[${i}] id=${JSON.stringify(info.id)} name=${JSON.stringify(info.name)} value=${JSON.stringify(info.value)} checked=${info.checked} visible=${info.visible} nearText=${JSON.stringify(info.labelText)}`
+          );
+        } catch (err) {
+          console.log(
+            `   [진단]   cb[${i}] 읽기 실패: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+      }
+    } catch (err) {
+      console.log(
+        `   [진단] frame[${fi}] checkbox dump 예외: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+}
+
+/** 힌트 텍스트 근처에서 실제 checkbox locator 찾기 */
+async function findProductionTransferCheckbox(frame: Frame): Promise<Locator | null> {
+  const textNodes = frame.locator("label, span, td, div, a, p, li").filter({ hasText: PRODUCTION_TRANSFER_HINT });
+  const textCount = Math.min(await textNodes.count(), 20);
+
+  for (let i = 0; i < textCount; i++) {
+    const textEl = textNodes.nth(i);
+    try {
+      if (!(await textEl.isVisible().catch(() => false))) continue;
+    } catch {
+      continue;
+    }
+
+    // 1) label[for] → #id checkbox
+    try {
+      const forId = await textEl.evaluate((el) => {
+        const lab =
+          el.tagName === "LABEL" ? (el as HTMLLabelElement) : (el.closest("label") as HTMLLabelElement | null);
+        return lab?.htmlFor || lab?.getAttribute("for") || "";
+      });
+      if (forId) {
+        const byId = frame.locator(`input[type="checkbox"][id="${forId}"]`);
+        if ((await byId.count()) > 0) return byId.first();
+      }
+    } catch {
+      /* next strategy */
+    }
+
+    // 2) 같은 label 내부 checkbox
+    const inLabel = textEl.locator('xpath=ancestor-or-self::label[1]//input[@type="checkbox"]').first();
+    if ((await inLabel.count()) > 0) return inLabel;
+
+    // 3) 같은 tr / li / row 컨테이너
+    for (const xpath of [
+      'xpath=ancestor::tr[1]//input[@type="checkbox"]',
+      'xpath=ancestor::li[1]//input[@type="checkbox"]',
+      'xpath=ancestor::*[contains(@class,"check") or contains(@class,"form") or contains(@class,"item")][1]//input[@type="checkbox"]',
+      'xpath=ancestor::td[1]//input[@type="checkbox"]',
+      'xpath=ancestor::div[1]//input[@type="checkbox"]',
+      'xpath=preceding::input[@type="checkbox"][1]',
+      'xpath=following::input[@type="checkbox"][1]',
+    ]) {
+      const cand = textEl.locator(xpath).first();
+      try {
+        if ((await cand.count()) > 0) return cand;
+      } catch {
+        /* next xpath */
+      }
+    }
+
+    // 4) evaluate: 텍스트 노드 기준으로 가장 가까운 checkbox
+    try {
+      const handle = await textEl.evaluateHandle((el) => {
+        const matchHint = (s: string) => /생산\s*불출.*창고\s*이동.*포함|생산불출\s*\/\s*창고이동\s*포함/.test(s);
+        let node: HTMLElement | null = el as HTMLElement;
+        for (let depth = 0; depth < 8 && node; depth++) {
+          const boxes = Array.from(node.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
+          if (boxes.length === 1) return boxes[0];
+          if (boxes.length > 1) {
+            // 같은 컨테이너 텍스트에 힌트가 있는 checkbox 우선
+            for (const b of boxes) {
+              const row = b.closest("tr, li, label, div") || b.parentElement;
+              const t = (row?.textContent || "").replace(/\s+/g, " ");
+              if (matchHint(t)) return b;
+            }
+            return boxes[0];
+          }
+          node = node.parentElement;
+        }
+        // label[for]
+        const id = (el as HTMLElement).closest("label")?.getAttribute("for");
+        if (id) {
+          const byId = el.ownerDocument.getElementById(id);
+          if (byId && byId instanceof HTMLInputElement && byId.type === "checkbox") return byId;
+        }
+        return null;
+      });
+      const element = handle.asElement();
+      if (element) {
+        // convert ElementHandle to Locator via evaluate id/name
+        const meta = await element.evaluate((el: HTMLInputElement) => ({
+          id: el.id,
+          name: el.name,
+          value: el.value,
+        }));
+        await handle.dispose().catch(() => {});
+        if (meta.id) {
+          const loc = frame.locator(`input[type="checkbox"]#${meta.id}`);
+          if ((await loc.count()) > 0) return loc.first();
+        }
+        if (meta.name) {
+          const loc = frame.locator(`input[type="checkbox"][name="${meta.name}"]`);
+          if ((await loc.count()) > 0) {
+            // name이 여러 개면 value로 좁힘
+            if (meta.value) {
+              const byVal = frame.locator(
+                `input[type="checkbox"][name="${meta.name}"][value="${meta.value}"]`
+              );
+              if ((await byVal.count()) > 0) return byVal.first();
+            }
+            return loc.first();
+          }
+        }
+      } else {
+        await handle.dispose().catch(() => {});
+      }
+    } catch {
+      /* next text node */
+    }
+  }
+
+  // 5) frame 전체 checkbox 중 nearText가 힌트와 일치
+  try {
+    const boxes = frame.locator('input[type="checkbox"]');
+    const n = Math.min(await boxes.count(), 40);
+    for (let i = 0; i < n; i++) {
+      const cb = boxes.nth(i);
+      const near = await cb.evaluate((el: HTMLInputElement) => {
+        const parts: string[] = [];
+        if (el.id) {
+          const lab = el.ownerDocument.querySelector(`label[for="${el.id}"]`);
+          if (lab) parts.push(lab.textContent || "");
+        }
+        const parentLab = el.closest("label");
+        if (parentLab) parts.push(parentLab.textContent || "");
+        const row = el.closest("tr, li, td, div");
+        if (row) parts.push(row.textContent || "");
+        return parts.join(" ").replace(/\s+/g, " ");
+      });
+      if (PRODUCTION_TRANSFER_HINT.test(near)) return cb;
+    }
+  } catch {
+    /* none */
+  }
+
+  return null;
+}
+
 /** 기타 탭 → 생산불출/창고이동포함 체크 (미발견·미체크 시 Error) */
 export async function ensureProductionTransferIncluded(page: Page): Promise<void> {
   const frames = await findLedgerFrames(page);
@@ -222,28 +413,36 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
     throw new Error('재고수불부 「기타」 탭을 찾지 못했습니다.');
   }
 
-  let sawLabel = false;
-  for (const frame of frames) {
-    const label = frame
-      .locator("label, span, td, div")
-      .filter({ hasText: /생산불출.*창고이동.*포함/ })
-      .first();
-    try {
-      if ((await label.count()) === 0 || !(await label.isVisible())) continue;
-    } catch {
-      continue;
-    }
-    sawLabel = true;
+  // 탭 전환 후 DOM 반영 — frame 목록 재수집
+  await page.waitForTimeout(400);
+  const searchFrames: Frame[] = [];
+  for (const frame of await findLedgerFrames(page)) searchFrames.push(frame);
+  if (searchFrames.length === 0) {
+    for (const frame of page.frames()) searchFrames.push(frame);
+  }
 
-    const cb = label.locator('xpath=ancestor::tr[1]//input[@type="checkbox"]').first();
-    if ((await cb.count()) === 0) {
-      continue;
+  let sawHintText = false;
+  for (const frame of searchFrames) {
+    try {
+      const hint = frame.getByText(PRODUCTION_TRANSFER_HINT).first();
+      if ((await hint.count()) > 0) {
+        sawHintText = true;
+        break;
+      }
+    } catch {
+      /* next */
     }
+  }
+
+  for (const frame of searchFrames) {
+    const cb = await findProductionTransferCheckbox(frame);
+    if (!cb) continue;
 
     let alreadyChecked: boolean;
     try {
       alreadyChecked = await cb.isChecked();
     } catch (err) {
+      await dumpLedgerEtcCheckboxes(searchFrames);
       throw new Error(
         `생산불출/창고이동포함 checkbox 상태 확인 실패: ${
           err instanceof Error ? err.message : String(err)
@@ -254,6 +453,7 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
     if (alreadyChecked) {
       console.log("   ✓ 생산불출/창고이동포함 (이미 체크됨)");
     } else {
+      await cb.scrollIntoViewIfNeeded().catch(() => {});
       await cb.click({ force: true });
       console.log("   ✓ 생산불출/창고이동포함 체크");
       await page.waitForTimeout(300);
@@ -263,6 +463,7 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
     try {
       verified = await cb.isChecked();
     } catch (err) {
+      await dumpLedgerEtcCheckboxes(searchFrames);
       throw new Error(
         `생산불출/창고이동포함 checkbox 재확인 실패: ${
           err instanceof Error ? err.message : String(err)
@@ -270,15 +471,21 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
       );
     }
     if (!verified) {
+      await dumpLedgerEtcCheckboxes(searchFrames);
       throw new Error("생산불출/창고이동포함 checkbox가 체크되지 않았습니다.");
     }
     return;
   }
 
-  if (!sawLabel) {
-    throw new Error('「생산불출/창고이동포함」 label을 찾지 못했습니다.');
+  await dumpLedgerEtcCheckboxes(searchFrames);
+  if (!sawHintText) {
+    throw new Error(
+      '「생산불출/창고이동포함」 텍스트/label을 찾지 못했습니다. (기타 탭 checkbox dump 로그 참고)'
+    );
   }
-  throw new Error("「생산불출/창고이동포함」 checkbox를 찾지 못했습니다.");
+  throw new Error(
+    "「생산불출/창고이동포함」 checkbox를 찾지 못했습니다. (기타 탭 checkbox dump 로그 참고)"
+  );
 }
 
 async function isLedgerConfirmPopupVisible(page: Page): Promise<boolean> {
