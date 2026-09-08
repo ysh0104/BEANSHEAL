@@ -187,8 +187,140 @@ async function openInventoryTopMenuForLedger(page: Page): Promise<void> {
 }
 
 /**
- * cascade: 재고 I → 출력물 CLICK → 재고수불부 CLICK
- * (stock의 재고현황 cascade와 동일 구조, 마지막만 재고수불부)
+ * 출력물 화면 왼쪽 트리: 「재고현황」 그룹이 접혀 있으면 펼침
+ */
+async function ensureStockStatusGroupExpanded(page: Page): Promise<void> {
+  console.log("   → [LEDGER NAV] 재고현황 그룹 확인");
+  const deadline = Date.now() + 10000;
+  let sawGroup = false;
+
+  while (Date.now() < deadline) {
+    for (const frame of page.frames()) {
+      const groups = frame.locator("a, span, li, div, button, td, label").filter({ hasText: /^재고\s*현황$/ });
+      const n = Math.min(await groups.count(), 20);
+      for (let i = 0; i < n; i++) {
+        const el = groups.nth(i);
+        try {
+          if (!(await el.isVisible())) continue;
+          const text = ((await el.innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim();
+          if (text !== "재고현황" && text !== "재고 현황") continue;
+          sawGroup = true;
+
+          // 이미 leaf 「재고수불부」가 보이면 그룹은 펼쳐진 상태
+          const leafVisible = await frame
+            .locator("a")
+            .filter({ hasText: /^재고\s*수불부$/ })
+            .first()
+            .isVisible()
+            .catch(() => false);
+          if (leafVisible) {
+            console.log("   ✓ [LEDGER NAV] 재고현황 그룹 이미 펼쳐짐");
+            return;
+          }
+
+          await el.scrollIntoViewIfNeeded().catch(() => {});
+          await el.click({ force: true });
+          console.log("   ✓ [LEDGER NAV] 재고현황 그룹 펼침");
+          await page.waitForTimeout(500);
+          return;
+        } catch {
+          /* next */
+        }
+      }
+    }
+    await page.waitForTimeout(300);
+  }
+
+  if (!sawGroup) {
+    console.warn("   ⚠ [LEDGER NAV] 재고현황 그룹 미확인 — leaf 직접 탐색 계속");
+  }
+}
+
+function isExactLedgerLeafText(raw: string): boolean {
+  const t = raw.replace(/\s+/g, " ").trim();
+  return t === "재고수불부" || t === "재고 수불부";
+}
+
+async function isClickableLedgerLeaf(loc: Locator): Promise<boolean> {
+  try {
+    if (!(await loc.isVisible())) return false;
+    const box = await loc.boundingBox();
+    if (!box || box.width < 2 || box.height < 2) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 사이드바 트리 leaf 「재고수불부」 탐색 (prgId → exact text a)
+ * waitVisibleMenu(상위 메뉴식) 사용하지 않음
+ */
+async function findLedgerSidebarLeaf(
+  page: Page
+): Promise<{ loc: Locator; how: string } | null> {
+  const prgId = ledgerPrgId();
+  const prgSelectors = [
+    `#link_prg_${prgId}`,
+    `a[href*="${prgId}"]`,
+    `a[onclick*="${prgId}"]`,
+  ];
+
+  console.log(`   → [LEDGER NAV] 재고수불부 leaf 탐색 (prgId=${prgId})`);
+  const deadline = Date.now() + 12000;
+
+  while (Date.now() < deadline) {
+    for (const frame of page.frames()) {
+      for (const sel of prgSelectors) {
+        try {
+          const candidates = frame.locator(sel);
+          const n = Math.min(await candidates.count(), 10);
+          for (let i = 0; i < n; i++) {
+            const loc = candidates.nth(i);
+            if (!(await isClickableLedgerLeaf(loc))) continue;
+            const text = ((await loc.innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim();
+            // prgId 매칭이면 텍스트가 비어도 허용, 텍스트가 있으면 exact leaf만
+            if (text && !isExactLedgerLeafText(text) && !text.includes("재고수불부") && !text.includes("재고 수불부")) {
+              continue;
+            }
+            return { loc, how: sel };
+          }
+        } catch {
+          /* next */
+        }
+      }
+
+      // 사이드바 a — 자기 텍스트가 정확히 재고수불부
+      try {
+        const links = frame.locator("a");
+        const n = Math.min(await links.count(), 80);
+        for (let i = 0; i < n; i++) {
+          const loc = links.nth(i);
+          try {
+            if (!(await isClickableLedgerLeaf(loc))) continue;
+            const text = ((await loc.innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim();
+            if (!isExactLedgerLeafText(text)) continue;
+            const id = (await loc.getAttribute("id").catch(() => "")) || "";
+            const how = id
+              ? `sidebar-a#${id} text="재고수불부"`
+              : `sidebar-a exact-text="재고수불부"`;
+            return { loc, how };
+          } catch {
+            /* next link */
+          }
+        }
+      } catch {
+        /* next frame */
+      }
+    }
+    await page.waitForTimeout(300);
+  }
+
+  return null;
+}
+
+/**
+ * cascade: 재고 I → 출력물 CLICK → (재고현황 그룹) → 재고수불부 leaf CLICK
  */
 async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
   await dismissEcountPopups(page);
@@ -211,16 +343,22 @@ async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
   console.log("   ✓ 출력물 클릭");
   await page.waitForTimeout(800);
 
-  console.log("   → [LEDGER NAV] 재고수불부 메뉴 표시 확인");
-  const ledgerMenu = await waitVisibleMenu(
-    page,
-    [/^재고\s*수불부$/, /^재고수불부$/],
-    ["재고수불부", "재고 수불부"],
-    "재고수불부",
-    12000
-  );
-  await ledgerMenu.loc.scrollIntoViewIfNeeded().catch(() => {});
-  await ledgerMenu.loc.click({ force: true });
+  await ensureStockStatusGroupExpanded(page);
+
+  const leaf = await findLedgerSidebarLeaf(page);
+  if (!leaf) {
+    console.warn("   ⚠ [LEDGER NAV] 재고수불부 leaf를 찾지 못함");
+    return false;
+  }
+
+  await leaf.loc.scrollIntoViewIfNeeded().catch(() => {});
+  if (!(await isClickableLedgerLeaf(leaf.loc))) {
+    console.warn(`   ⚠ [LEDGER NAV] 재고수불부 leaf 클릭 불가: ${leaf.how}`);
+    return false;
+  }
+
+  console.log(`   ✓ [LEDGER NAV] 재고수불부 leaf 선택: ${leaf.how}`);
+  await leaf.loc.click({ force: true });
   console.log("   ✓ 재고수불부 클릭");
   await page.waitForTimeout(1000);
   await dismissEcountPopups(page);
