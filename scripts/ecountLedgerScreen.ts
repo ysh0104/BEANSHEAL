@@ -440,6 +440,13 @@ export async function assertLedgerProgramSearchScreen(page: Page, maxSec = 25): 
 }
 
 const PRODUCTION_TRANSFER_HINT = /생산\s*불출.*창고\s*이동.*포함|생산불출\s*\/\s*창고이동\s*포함/;
+/**
+ * 임시 테스트: true면 「기타」 탭 클릭·생산불출 checkbox를 모두 건너뛴다.
+ * (기본 검색 → ESC → 결과 → Excel → parser 검증용)
+ */
+const SKIP_ETC_AND_PRODUCTION_TRANSFER = true;
+/** @deprecated SKIP_ETC_AND_PRODUCTION_TRANSFER 사용 — checkbox만 스킵할 때 */
+const SKIP_PRODUCTION_TRANSFER_CHECKBOX = true;
 const ETC_DIAG_KEYWORDS = ["생산불출", "창고이동", "생산불출/창고이동포함", "포함"] as const;
 /** 전역/사이드 메뉴 chrome — 「기타」 탭 탐색에서 제외 */
 const ECOUNT_MENU_CHROME_SELECTOR =
@@ -1131,6 +1138,14 @@ async function clickLedgerEtcTabInViewer(page: Page): Promise<void> {
 
 /** 기타 탭 → 생산불출/창고이동포함 체크 (미발견·미체크 시 Error) */
 export async function ensureProductionTransferIncluded(page: Page): Promise<void> {
+  // 임시: 「기타」/생산불출 완전 스킵 — 기본 검색·다운로드 검증 경로
+  if (SKIP_ETC_AND_PRODUCTION_TRANSFER) {
+    console.log(
+      "   ⏭ 「기타」 탭·생산불출/창고이동포함 완전 스킵 (임시) — ensureProductionTransferIncluded no-op"
+    );
+    return;
+  }
+
   // 1) 클릭 전: 반드시 E040702
   await assertActiveLedgerProgramPhase(page, "기타클릭-전");
 
@@ -1147,6 +1162,14 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
 
   // 3) 클릭 후: E040702 유지 — E040206/C000650이면 즉시 실패
   await assertActiveLedgerProgramPhase(page, "기타클릭-후");
+
+  // 임시: 「생산불출/창고이동포함」 checkbox는 제외 — 「기타」 탭 + PRG 유지만 검증
+  if (SKIP_PRODUCTION_TRANSFER_CHECKBOX) {
+    console.log(
+      "   ⏭ 생산불출/창고이동포함 체크 스킵 (임시) — 「기타」 탭 클릭 및 E040702 유지 확인만 진행"
+    );
+    return;
+  }
 
   // 4) PRG 유지 확인 후에만 checkbox 탐색 — #mainPage 내부만
   await page.waitForTimeout(400);
@@ -1542,7 +1565,23 @@ export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<bo
     }
 
     if (await isLedgerExcelReady(page)) {
-      console.log(`   ✓ 결과 확인 (${elapsed}초)`);
+      const probe = await probeLedgerProgramContext(page);
+      logLedgerProgramProbe(probe, `결과확인-${elapsed}s`);
+      if (
+        probe.hasRejectDailyStock ||
+        probe.urlPrgId === "E040206" ||
+        probe.urlPrgId === "C000650" ||
+        probe.viewerPrgIds.includes("E040206")
+      ) {
+        throw new Error(
+          `검색 결과가 재고수불부가 아님 (일별재고현황/메뉴 이탈 의심). ` +
+            `urlPrg=${probe.urlPrgId || "(none)"} viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
+            `mainTitle=${JSON.stringify(probe.mainTitle)}`
+        );
+      }
+      console.log(
+        `   ✓ 재고수불부 결과 확인 (${elapsed}초) excelReady urlPrg=${probe.urlPrgId || "(none)"} mainTitle=${JSON.stringify(probe.mainTitle.slice(0, 40))}`
+      );
       return true;
     }
 

@@ -1,9 +1,13 @@
 /**
  * 재고수불부 네비게이션
  *
- * 실제 사용자 동선:
+ * 실제 사용자 동선(정상):
  *   재고 I → 출력물 CLICK → 재고수불부 CLICK
  *   → 생산불출/창고이동포함 체크 → 검색 버튼 클릭 → ESC → 결과 대기
+ *
+ * 임시 테스트 동선(현재):
+ *   재고 I → 출력물 → 재고수불부 → E040702 확인
+ *   → 「기타」/생산불출 스킵 → 검색 → ESC → 결과 → Excel → parser
  *
  * stock cascade(재고현황)와 동일 메뉴 패턴을 ledger에서 복제 구현.
  * stock 파일은 수정하지 않음.
@@ -20,7 +24,6 @@ import { dismissEcountPopups } from "./ecountNavigateStock";
 import {
   assertLedgerProgramSearchScreen,
   clickLedgerSearch,
-  ensureProductionTransferIncluded,
   expectedLedgerPrgId,
   isLedgerExcelReady,
   isLedgerSearchScreen,
@@ -569,14 +572,18 @@ export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
   console.log("   → 재고수불부 검색 화면 진입...");
   await openLedgerSearchScreen(page, menuUrl);
 
-  // E040702 실제 로드 재확인 — 통과 전에는 기타 탭/체크박스 진입 금지
+  // E040702 실제 로드 재확인 — 통과 전에는 검색 진입 금지
   await assertLedgerProgramSearchScreen(page, 25);
   console.log(
-    `   ✓ 재고수불부 검색 화면 확인 (prgId=${expectedLedgerPrgId()}) — E040702 viewer 내부 「기타」 탭 진행`
+    `   ✓ 재고수불부 검색 화면 확인 (prgId=${expectedLedgerPrgId()}) — 「기타」/생산불출 스킵, 바로 검색`
   );
 
   console.log("   → 기간: Ecount 기본값(전월+금월) 유지");
-  await ensureProductionTransferIncluded(page);
+  // 임시 테스트: 「기타」 탭 / 「생산불출/창고이동포함」 체크 완전 제외
+  // (기본 검색 → ESC → 결과 → Excel → parser 연결 확인용)
+  console.log(
+    "   ⏭ 「기타」 탭·생산불출/창고이동포함 체크 스킵 (임시) — 기본 검색/다운로드만 검증"
+  );
 
   if (opts.prod_cd?.trim()) {
     console.log(`   → 품목코드: ${opts.prod_cd} (미구현 — 전체 조회)`);
