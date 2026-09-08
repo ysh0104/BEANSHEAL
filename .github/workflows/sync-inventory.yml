@@ -1,6 +1,9 @@
 name: Sync Ecount Inventory (Excel Bot)
 
 on:
+  schedule:
+    # 매일 한국시간 오전 5:00 (UTC 20:00)
+    - cron: "0 20 * * *"
   repository_dispatch:
     types: [trigger-sync]
   workflow_dispatch:
