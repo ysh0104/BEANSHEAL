@@ -243,7 +243,11 @@ export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
     console.log(`   → 품목코드: ${opts.prod_cd} (미구현 — 전체 조회)`);
   }
 
+  console.log("   [진단] clickLedgerSearch 직전 (navigate)");
+  console.log(`   [진단] navigate page.url=${page.url()} frames=${page.frames().length} contextPages=${page.context().pages().length}`);
   await clickLedgerSearch(page);
+  console.log("   [진단] clickLedgerSearch 직후 (navigate)");
+  console.log(`   [진단] navigate page.url=${page.url()} frames=${page.frames().length} contextPages=${page.context().pages().length}`);
   await waitAndDismissBulkItemModal(page, 30);
 
   const waitSec = opts.results_wait_sec ?? (opts.prod_cd ? 120 : 600);

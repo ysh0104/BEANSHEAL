@@ -20,6 +20,55 @@ const EXCEL_SELECTORS = [
 const LEDGER_POPUP_CANDIDATE_SELECTOR =
   '[role="dialog"], .ui-dialog, .modal, .layer_popup, [class*="dialog"], [class*="layer"], [class*="popup"]';
 const LEDGER_AFTER_F8_SCREENSHOT = path.join("downloads", "ecount-ledger-after-f8.png");
+const LEDGER_POST_F8_CHECKPOINTS_SEC = [1, 3, 5, 10, 20, 30] as const;
+const LEDGER_POST_F8_KEYWORDS = [
+  "조회할 자료가 많아",
+  "오래 걸릴 수 있습니다",
+  "취소",
+  "재고수불부",
+  "검색",
+  "엑셀",
+] as const;
+
+function ensureLedgerDownloadsDir(): string {
+  const dir = path.resolve("downloads");
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function logLedgerFrameList(page: Page, label: string): void {
+  const frames = page.frames();
+  console.log(`   [진단] ${label} page.url=${page.url()} frame count=${frames.length}`);
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    console.log(
+      `   [진단] ${label} frame[${i}] name=${JSON.stringify(frame.name())} url=${frame.url()}`
+    );
+  }
+}
+
+function logLedgerContextPages(page: Page, label: string): void {
+  try {
+    const pages = page.context().pages();
+    console.log(`   [진단] ${label} context.pages().length=${pages.length}`);
+    for (let i = 0; i < pages.length; i++) {
+      const p = pages[i];
+      let url = "(unavailable)";
+      let closed = true;
+      try {
+        closed = p.isClosed();
+        url = closed ? "(closed)" : p.url();
+      } catch (err) {
+        url = `error:${err instanceof Error ? err.message : String(err)}`;
+      }
+      console.log(`   [진단] ${label} page[${i}] url=${url} isClosed=${closed}`);
+    }
+  } catch (err) {
+    console.log(
+      `   [진단] ${label} context.pages() 예외: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
 
 /** F8 직전: native dialog 메시지만 로그 (dismiss/accept 하지 않음 — 위치 진단용) */
 function attachLedgerNativeDialogProbe(page: Page): () => void {
@@ -31,6 +80,233 @@ function attachLedgerNativeDialogProbe(page: Page): () => void {
   };
   page.on("dialog", onDialog);
   return () => page.off("dialog", onDialog);
+}
+
+/**
+ * F8 직후 ~30초: navigation / new page / frame 수·URL 변화 이벤트 로그
+ * (클릭·dismiss 없음)
+ */
+function attachLedgerPostF8ChangeProbes(page: Page): () => void {
+  const context = page.context();
+  let lastMainUrl = page.url();
+  let lastFrameCount = page.frames().length;
+  let lastPagesCount = context.pages().length;
+  const startedAt = Date.now();
+  const elapsedLabel = () => `+${Math.round((Date.now() - startedAt) / 100) / 10}s`;
+
+  const onFrameNavigated = (frame: Frame) => {
+    try {
+      console.log(
+        `   [진단][${elapsedLabel()}] page.framenavigated name=${JSON.stringify(frame.name())} url=${frame.url()} mainUrl=${page.isClosed() ? "(closed)" : page.url()}`
+      );
+    } catch (err) {
+      console.log(
+        `   [진단][${elapsedLabel()}] page.framenavigated 로그 예외: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  };
+
+  const wirePageEvents = (p: Page, tag: string) => {
+    const onPageFrameNavigated = (frame: Frame) => {
+      try {
+        console.log(
+          `   [진단][${elapsedLabel()}] ${tag}.framenavigated name=${JSON.stringify(frame.name())} url=${frame.url()}`
+        );
+      } catch (err) {
+        console.log(
+          `   [진단][${elapsedLabel()}] ${tag}.framenavigated 예외: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+    };
+    p.on("framenavigated", onPageFrameNavigated);
+    return () => p.off("framenavigated", onPageFrameNavigated);
+  };
+
+  const pageCleanups: Array<() => void> = [];
+
+  const onNewPage = (p: Page) => {
+    console.log(`   [진단][${elapsedLabel()}] popup/new page 발생 url=${p.url()}`);
+    pageCleanups.push(wirePageEvents(p, "newpage"));
+    p.on("close", () => {
+      console.log(`   [진단][${elapsedLabel()}] page closed (was url probe)`);
+    });
+  };
+
+  // main page: page.framenavigated covers all frames in this page
+  page.on("framenavigated", onFrameNavigated);
+  context.on("page", onNewPage);
+
+  const pollId = setInterval(() => {
+    try {
+      if (page.isClosed()) {
+        console.log(`   [진단][${elapsedLabel()}] main page isClosed=true`);
+        return;
+      }
+      const url = page.url();
+      if (url !== lastMainUrl) {
+        console.log(`   [진단][${elapsedLabel()}] target/page URL 변화: ${lastMainUrl} → ${url}`);
+        lastMainUrl = url;
+      }
+      const frameCount = page.frames().length;
+      if (frameCount !== lastFrameCount) {
+        console.log(
+          `   [진단][${elapsedLabel()}] frame 수 변화: ${lastFrameCount} → ${frameCount}`
+        );
+        lastFrameCount = frameCount;
+        logLedgerFrameList(page, `frame-change@${elapsedLabel()}`);
+      }
+      const pagesCount = context.pages().length;
+      if (pagesCount !== lastPagesCount) {
+        console.log(
+          `   [진단][${elapsedLabel()}] context pages 수 변화: ${lastPagesCount} → ${pagesCount}`
+        );
+        lastPagesCount = pagesCount;
+        logLedgerContextPages(page, `pages-change@${elapsedLabel()}`);
+      } else {
+        logLedgerContextPages(page, `pages-poll@${elapsedLabel()}`);
+      }
+    } catch (err) {
+      console.log(
+        `   [진단][${elapsedLabel()}] change-poll 예외: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }, 2000);
+
+  return () => {
+    clearInterval(pollId);
+    page.off("framenavigated", onFrameNavigated);
+    context.off("page", onNewPage);
+    for (const cleanup of pageCleanups) cleanup();
+  };
+}
+
+async function readFrameBodyPreview(frame: Frame): Promise<{ len: number; head: string; text: string }> {
+  try {
+    const raw = ((await frame.locator("body").innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim();
+    return { len: raw.length, head: raw.slice(0, 300), text: raw };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { len: -1, head: `error:${msg}`, text: "" };
+  }
+}
+
+async function logLedgerKeywordHits(pages: Page[], label: string): Promise<void> {
+  for (const keyword of LEDGER_POST_F8_KEYWORDS) {
+    const hits: string[] = [];
+    for (let pi = 0; pi < pages.length; pi++) {
+      const p = pages[pi];
+      if (p.isClosed()) continue;
+      let frames: Frame[] = [];
+      try {
+        frames = p.frames();
+      } catch {
+        continue;
+      }
+      for (let fi = 0; fi < frames.length; fi++) {
+        try {
+          const { text } = await readFrameBodyPreview(frames[fi]);
+          if (text.includes(keyword)) hits.push(`page[${pi}].frame[${fi}]`);
+        } catch (err) {
+          console.log(
+            `   [진단] ${label} keyword 스캔 예외 page[${pi}] frame[${fi}]: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+        }
+      }
+    }
+    console.log(
+      `   [진단] ${label} keyword ${JSON.stringify(keyword)} hits=${hits.length ? hits.join(", ") : "(none)"}`
+    );
+  }
+}
+
+async function logLedgerTimelineCheckpoint(page: Page, sec: number): Promise<void> {
+  const label = `F8+${sec}s`;
+  console.log(`   [진단] ===== checkpoint ${label} =====`);
+  logLedgerContextPages(page, label);
+
+  const pages = page.context().pages();
+  for (let pi = 0; pi < pages.length; pi++) {
+    const p = pages[pi];
+    if (p.isClosed()) {
+      console.log(`   [진단] ${label} page[${pi}] isClosed=true (skip frames)`);
+      continue;
+    }
+    let frames: Frame[] = [];
+    try {
+      frames = p.frames();
+      console.log(`   [진단] ${label} page[${pi}] url=${p.url()} frame count=${frames.length}`);
+    } catch (err) {
+      console.log(
+        `   [진단] ${label} page[${pi}] frames 예외: ${err instanceof Error ? err.message : String(err)}`
+      );
+      continue;
+    }
+    for (let fi = 0; fi < frames.length; fi++) {
+      const frame = frames[fi];
+      try {
+        const preview = await readFrameBodyPreview(frame);
+        console.log(
+          `   [진단] ${label} page[${pi}].frame[${fi}] name=${JSON.stringify(frame.name())} url=${frame.url()} bodyLen=${preview.len} bodyHead=${JSON.stringify(preview.head)}`
+        );
+      } catch (err) {
+        console.log(
+          `   [진단] ${label} page[${pi}].frame[${fi}] 예외: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        );
+      }
+    }
+  }
+
+  await logLedgerKeywordHits(pages, label);
+
+  try {
+    ensureLedgerDownloadsDir();
+    const shotRel = path.join("downloads", `ecount-ledger-debug-${sec}s.png`);
+    const shotPath = path.resolve(shotRel);
+    if (page.isClosed()) {
+      console.log(`   [진단] ${label} 스크린샷 생략 (main page closed)`);
+    } else {
+      await page.screenshot({ path: shotPath, fullPage: true });
+      console.log(`   [진단] ${label} 스크린샷 저장: ${shotRel}`);
+    }
+  } catch (err) {
+    console.log(
+      `   [진단] ${label} 스크린샷 예외: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+
+/** F8 직후 ~30초 타임라인 진단 (기존 after-f8 스냅샷 포함, 클릭 없음) */
+async function runLedgerPostF8TimelineDiagnostics(page: Page): Promise<void> {
+  const detachChangeProbes = attachLedgerPostF8ChangeProbes(page);
+  const startedAt = Date.now();
+  try {
+    console.log("   [진단] F8 직후 30초 변화 감시 시작");
+    logLedgerContextPages(page, "F8+0s");
+    logLedgerFrameList(page, "F8+0s");
+
+    for (const sec of LEDGER_POST_F8_CHECKPOINTS_SEC) {
+      const waitMs = sec * 1000 - (Date.now() - startedAt);
+      if (waitMs > 0) await page.waitForTimeout(waitMs);
+      await logLedgerTimelineCheckpoint(page, sec);
+      if (sec === 1) {
+        // 기존 F8 직후 진단(팝업 후보·after-f8.png) 유지
+        await logLedgerPostF8Diagnostics(page);
+      }
+    }
+    console.log("   [진단] F8 직후 30초 변화 감시 종료");
+  } finally {
+    detachChangeProbes();
+  }
 }
 
 /** F8 직후: page / iframe / native dialog 중 팝업 위치 확인용 스캔 (클릭 없음) */
@@ -85,7 +361,7 @@ async function logLedgerPostF8Diagnostics(page: Page): Promise<void> {
 
   try {
     const shotPath = path.resolve(LEDGER_AFTER_F8_SCREENSHOT);
-    fs.mkdirSync(path.dirname(shotPath), { recursive: true });
+    ensureLedgerDownloadsDir();
     await page.screenshot({ path: shotPath, fullPage: true });
     console.log(`   [진단] F8 직후 스크린샷 저장: ${LEDGER_AFTER_F8_SCREENSHOT}`);
   } catch (err) {
@@ -370,6 +646,11 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
   console.log("   → 검색(F8) 실행");
   const frames = await findLedgerFrames(page);
   const scan = frames.length > 0 ? frames : page.frames();
+
+  console.log("   [진단] F8 직전 상태");
+  logLedgerFrameList(page, "F8-pre");
+  logLedgerContextPages(page, "F8-pre");
+
   const detachDialogProbe = attachLedgerNativeDialogProbe(page);
 
   try {
@@ -385,8 +666,7 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
             await btn.scrollIntoViewIfNeeded().catch(() => {});
             await btn.click({ force: true });
             console.log("   ✓ 검색(F8) 클릭");
-            await page.waitForTimeout(1000);
-            await logLedgerPostF8Diagnostics(page);
+            await runLedgerPostF8TimelineDiagnostics(page);
             return;
           }
         } catch {
@@ -400,8 +680,7 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
         await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true });
         await page.keyboard.press("F8");
         console.log("   ✓ F8 키 입력");
-        await page.waitForTimeout(1000);
-        await logLedgerPostF8Diagnostics(page);
+        await runLedgerPostF8TimelineDiagnostics(page);
         return;
       } catch {
         /* next */
