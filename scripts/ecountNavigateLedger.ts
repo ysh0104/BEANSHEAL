@@ -18,13 +18,14 @@ import {
 import { gotoEcountPage } from "./ecountErpGoto";
 import { dismissEcountPopups } from "./ecountNavigateStock";
 import {
+  assertLedgerProgramSearchScreen,
   clickLedgerSearch,
   ensureProductionTransferIncluded,
+  expectedLedgerPrgId,
   isLedgerExcelReady,
   isLedgerSearchScreen,
   pressLedgerEscapeAfterSearch,
   waitForLedgerResults,
-  waitForLedgerSearchScreen,
 } from "./ecountLedgerScreen";
 
 function ledgerPrgId(): string {
@@ -321,12 +322,13 @@ async function findLedgerSidebarLeaf(
 
 /**
  * cascade: 재고 I → 출력물 CLICK → (재고현황 그룹) → 재고수불부 leaf CLICK
+ * 클릭 후 반드시 활성 program=E040702 검증 (E040206 일별재고현황 오인 방지)
  */
 async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
   await dismissEcountPopups(page);
 
   if (await isLedgerSearchScreen(page)) {
-    console.log("   ✓ 재고수불부 검색 화면 이미 열림");
+    console.log(`   ✓ 재고수불부 검색 화면 이미 열림 (prgId=${expectedLedgerPrgId()})`);
     return true;
   }
   if (await isLedgerExcelReady(page)) {
@@ -360,16 +362,13 @@ async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
   console.log(`   ✓ [LEDGER NAV] 재고수불부 leaf 선택: ${leaf.how}`);
   await leaf.loc.click({ force: true });
   console.log("   ✓ 재고수불부 클릭");
-  await page.waitForTimeout(1000);
+  // SPA 교체 대기 — 즉시 성공 판정하지 않음 (E040206이 잠깐 남을 수 있음)
+  await page.waitForTimeout(1500);
   await dismissEcountPopups(page);
 
-  if (await waitForLedgerSearchScreen(page, 25)) {
-    console.log("   ✓ 재고수불부 검색 화면 진입 (cascade)");
-    return true;
-  }
-
-  console.warn("   ⚠ cascade 후 재고수불부 검색 화면 미확인");
-  return false;
+  await assertLedgerProgramSearchScreen(page, 25);
+  console.log(`   ✓ 재고수불부 검색 화면 진입 (cascade) prgId=${expectedLedgerPrgId()}`);
+  return true;
 }
 
 async function gotoOutputFolderViaHash(page: Page, menuUrl: string): Promise<boolean> {
@@ -421,7 +420,12 @@ async function openLedgerReportProgram(page: Page): Promise<boolean> {
     if (await clickInAnyFrame(page, sel)) {
       console.log(`   ✓ prgId 링크: ${sel}`);
       await page.waitForTimeout(3000);
-      if (await waitForLedgerSearchScreen(page, 12)) return true;
+      try {
+        await assertLedgerProgramSearchScreen(page, 12);
+        return true;
+      } catch {
+        /* try next selector */
+      }
     }
   }
 
@@ -439,7 +443,12 @@ async function openLedgerReportProgram(page: Page): Promise<boolean> {
         console.log(`   ✓ 본문 카드 (${i + 1}/${n})`);
         await page.waitForTimeout(3000);
         await dismissEcountPopups(page);
-        if (await waitForLedgerSearchScreen(page, 12)) return true;
+        try {
+          await assertLedgerProgramSearchScreen(page, 12);
+          return true;
+        } catch {
+          /* next */
+        }
       } catch {
         /* next */
       }
@@ -456,7 +465,12 @@ async function openLedgerReportProgram(page: Page): Promise<boolean> {
         await link.click();
         console.log(`   ✓ 사이드바 재고수불부 (${i + 1}/${count})`);
         await page.waitForTimeout(3000);
-        if (await waitForLedgerSearchScreen(page, 12)) return true;
+        try {
+          await assertLedgerProgramSearchScreen(page, 12);
+          return true;
+        } catch {
+          /* next */
+        }
       } catch {
         /* next */
       }
@@ -465,7 +479,12 @@ async function openLedgerReportProgram(page: Page): Promise<boolean> {
 
   if (await clickTextInAnyFrame(page, /^재고\s*수불부$/)) {
     await page.waitForTimeout(3000);
-    return (await isLedgerSearchScreen(page)) || (await isLedgerExcelReady(page));
+    try {
+      await assertLedgerProgramSearchScreen(page, 12);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   return false;
@@ -550,9 +569,9 @@ export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
   console.log("   → 재고수불부 검색 화면 진입...");
   await openLedgerSearchScreen(page, menuUrl);
 
-  if (!(await isLedgerSearchScreen(page))) {
-    throw new Error("재고수불부 검색 조건 화면을 찾지 못했습니다.");
-  }
+  // E040702 실제 로드 재확인 — 통과 전에는 기타 탭/체크박스 진입 금지
+  await assertLedgerProgramSearchScreen(page, 25);
+  console.log(`   ✓ 재고수불부 검색 화면 확인 (prgId=${expectedLedgerPrgId()}) — 기타 탭 진행`);
 
   console.log("   → 기간: Ecount 기본값(전월+금월) 유지");
   await ensureProductionTransferIncluded(page);

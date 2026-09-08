@@ -145,6 +145,10 @@ export async function findLedgerFrames(page: Page): Promise<Frame[]> {
   const frames: Frame[] = [];
   for (const frame of page.frames()) {
     try {
+      const bodyText = ((await frame.locator("body").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+      // 일별재고현황(E040206) 전용 화면은 ledger frame으로 취급하지 않음
+      if (/일별\s*재고\s*현황/.test(bodyText) && !/재고\s*수불부/.test(bodyText)) continue;
+
       const stockQty = frame.locator("text=재고수량").first();
       if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) continue;
 
@@ -158,7 +162,10 @@ export async function findLedgerFrames(page: Page): Promise<Frame[]> {
       const hasSearch = (await search.count()) > 0 && (await search.isVisible());
       const hasHeader = (await header.count()) > 0 && (await header.isVisible());
 
-      if (hasTitle || hasHeader || (hasDate && hasSearch)) frames.push(frame);
+      // 제목 「재고수불부」 또는 (헤더 + 검색) — 날짜/검색만으로는 일별재고현황과 혼동
+      if (hasTitle || (hasHeader && hasSearch) || (hasTitle && (hasDate || hasSearch))) {
+        frames.push(frame);
+      }
     } catch {
       /* skip */
     }
@@ -166,15 +173,178 @@ export async function findLedgerFrames(page: Page): Promise<Frame[]> {
   return frames;
 }
 
-/** 「재고수불부」 검색 조건 화면 */
-export async function isLedgerSearchScreen(page: Page): Promise<boolean> {
+export function expectedLedgerPrgId(): string {
+  return (process.env.ECOUNT_LEDGER_PRG_ID || "E040702").trim().toUpperCase();
+}
+
+/** 사이드바 메뉴 링크를 제외한 활성 viewer/program 컨텍스트 */
+export type LedgerProgramProbe = {
+  url: string;
+  urlPrgId: string | null;
+  activePrgIds: string[];
+  viewerIds: string[];
+  ecpageIds: string[];
+  titleHints: string[];
+  bodyHint: string;
+  hasRejectDailyStock: boolean;
+  hasLedgerTitle: boolean;
+};
+
+export async function probeLedgerProgramContext(page: Page): Promise<LedgerProgramProbe> {
+  const url = page.url();
+  let urlPrgId: string | null = null;
+  try {
+    const m = url.match(/prgId=([^&#]+)/i);
+    urlPrgId = m ? decodeURIComponent(m[1]).toUpperCase() : null;
+  } catch {
+    urlPrgId = null;
+  }
+
+  const activePrgIds = new Set<string>();
+  const viewerIds = new Set<string>();
+  const ecpageIds = new Set<string>();
+  const titleHints = new Set<string>();
+  let bodyHint = "";
+  let hasRejectDailyStock = false;
+  let hasLedgerTitle = false;
+
+  if (urlPrgId) activePrgIds.add(urlPrgId);
+
+  for (const frame of page.frames()) {
+    try {
+      const data = await frame.evaluate(() => {
+        const prg = new Set<string>();
+        const viewers: string[] = [];
+        const ecpages: string[] = [];
+        const titles: string[] = [];
+
+        const inSidebar = (el: Element) =>
+          !!(
+            el.closest(
+              '#leftMenu, #menu, .left-menu, [id*="MENUTREE"], #nav, .lnb, [class*="side-menu"], [id*="tree"]'
+            ) || (el.id && /^link_prg_/i.test(el.id))
+          );
+
+        const roots = Array.from(
+          document.querySelectorAll(
+            '[data-viewer-id], [data-ecpageid], [id*="script_target"], [id*="mainPage"], [class*="mainPage"], [class*="viewer"], #contents, .contents'
+          )
+        ).filter((el) => !inSidebar(el));
+
+        const scanHtml = (html: string) => {
+          const re = /PRG_ID["'\s:=]+([A-Z]\d{5,})/gi;
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(html)) !== null) {
+            prg.add(m[1].toUpperCase());
+            if (prg.size >= 30) break;
+          }
+        };
+
+        for (const root of roots) {
+          const vid = root.getAttribute("data-viewer-id");
+          if (vid) viewers.push(vid);
+          const epid = root.getAttribute("data-ecpageid");
+          if (epid) ecpages.push(epid);
+
+          scanHtml(root.innerHTML || "");
+          root.querySelectorAll('input[name="PRG_ID"], input[id*="PRG_ID"], [name*="PRG_ID"]').forEach((inp) => {
+            const v = ((inp as HTMLInputElement).value || inp.getAttribute("value") || "").trim();
+            if (v) prg.add(v.toUpperCase());
+          });
+
+          const t = ((root as HTMLElement).innerText || "").replace(/\s+/g, " ").trim().slice(0, 200);
+          if (/재고\s*수불부/.test(t)) titles.push("재고수불부");
+          if (/일별\s*재고\s*현황/.test(t)) titles.push("일별재고현황");
+        }
+
+        // main document fallback (still exclude pure sidebar-only matches)
+        if (roots.length === 0 && document.body) {
+          scanHtml(document.body.innerHTML.slice(0, 400000));
+        }
+
+        const body = (document.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 240);
+        return {
+          prg: Array.from(prg),
+          viewers,
+          ecpages,
+          titles,
+          body,
+        };
+      });
+
+      for (const id of data.prg) activePrgIds.add(id.toUpperCase());
+      for (const v of data.viewers) viewerIds.add(v);
+      for (const e of data.ecpages) ecpageIds.add(e);
+      for (const t of data.titles) titleHints.add(t);
+      if (data.body && data.body.length > bodyHint.length) bodyHint = data.body;
+      if (data.titles.includes("일별재고현황") || /일별\s*재고\s*현황/.test(data.body)) {
+        hasRejectDailyStock = true;
+      }
+      if (data.titles.includes("재고수불부") || /재고\s*수불부/.test(data.body)) {
+        hasLedgerTitle = true;
+      }
+    } catch {
+      /* cross-origin or detached */
+    }
+  }
+
+  return {
+    url,
+    urlPrgId,
+    activePrgIds: Array.from(activePrgIds),
+    viewerIds: Array.from(viewerIds),
+    ecpageIds: Array.from(ecpageIds),
+    titleHints: Array.from(titleHints),
+    bodyHint,
+    hasRejectDailyStock,
+    hasLedgerTitle,
+  };
+}
+
+function logLedgerProgramProbe(probe: LedgerProgramProbe, label: string): void {
+  console.log(
+    `   [진단][program] ${label} urlPrg=${probe.urlPrgId || "(none)"} activePrg=[${probe.activePrgIds.join(",")}] viewers=[${probe.viewerIds.slice(0, 5).join(",")}] ecpage=[${probe.ecpageIds.slice(0, 5).join(",")}] titles=[${probe.titleHints.join(",")}]`
+  );
+  console.log(`   [진단][program] ${label} url=${probe.url.slice(0, 120)}`);
+  if (probe.bodyHint) {
+    console.log(`   [진단][program] ${label} bodyHint=${JSON.stringify(probe.bodyHint.slice(0, 180))}`);
+  }
+}
+
+/** 활성 viewer에 기대 prgId(E040702)가 로드됐는지 — 사이드바 링크만으로는 true 되지 않음 */
+export async function isExpectedLedgerProgramLoaded(page: Page): Promise<boolean> {
+  const expected = expectedLedgerPrgId();
+  const probe = await probeLedgerProgramContext(page);
+
+  const hasExpected =
+    probe.activePrgIds.includes(expected) ||
+    probe.urlPrgId === expected ||
+    probe.ecpageIds.some((id) => id.toUpperCase().includes(expected));
+
+  // 일별재고현황(E040206)만 활성인 경우 절대 성공 아님
+  if (probe.activePrgIds.includes("E040206") && !hasExpected) return false;
+  if (probe.hasRejectDailyStock && !hasExpected) return false;
+  if (!hasExpected) return false;
+
+  // 기대 prg가 있어도 제목이 일별재고현황만이면 거부
+  if (probe.titleHints.includes("일별재고현황") && !probe.titleHints.includes("재고수불부") && !probe.hasLedgerTitle) {
+    return false;
+  }
+
+  return true;
+}
+
+async function hasLedgerSearchUi(page: Page): Promise<boolean> {
   for (const frame of await findLedgerFrames(page)) {
     try {
+      const title = frame.getByText(/^재고\s*수불부$/).first();
       const search = frame.getByText(SEARCH_BTN).first();
       const date = frame.locator("text=기준일자").first();
+      const hasTitle = (await title.count()) > 0 && (await title.isVisible());
       const hasSearch = (await search.count()) > 0 && (await search.isVisible());
       const hasDate = (await date.count()) > 0 && (await date.isVisible());
-      if (hasSearch || hasDate) return true;
+      if (hasTitle && (hasSearch || hasDate)) return true;
+      if (hasTitle) return true;
     } catch {
       /* skip */
     }
@@ -182,16 +352,57 @@ export async function isLedgerSearchScreen(page: Page): Promise<boolean> {
   return false;
 }
 
+/** 「재고수불부」 검색 조건 화면 — UI + 실제 program ID(E040702) 모두 필요 */
+export async function isLedgerSearchScreen(page: Page): Promise<boolean> {
+  if (!(await isExpectedLedgerProgramLoaded(page))) return false;
+  return hasLedgerSearchUi(page);
+}
+
+/**
+ * E040702 검색 화면 대기.
+ * SPA로 E040206이 먼저 보이다가 교체될 수 있으므로 즉시 성공하지 않음.
+ * 실패 시 false (호출측에서 throw + probe 로그 사용)
+ */
 export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promise<boolean> {
+  const expected = expectedLedgerPrgId();
   const steps = Math.ceil(maxSec / 2);
   for (let i = 0; i < steps; i++) {
+    const elapsed = (i + 1) * 2;
+    const probe = await probeLedgerProgramContext(page);
+    logLedgerProgramProbe(probe, `+${elapsed}s`);
+
+    if (probe.activePrgIds.includes("E040206") || probe.hasRejectDailyStock) {
+      console.log(`   … 일별재고현황(E040206) 감지 — ${expected} 교체 대기 (${elapsed}초)`);
+    }
+
     if (await isLedgerSearchScreen(page)) {
-      console.log(`   ✓ 재고수불부 검색 화면 (${(i + 1) * 2}초)`);
+      console.log(`   ✓ 재고수불부 검색 화면 (${elapsed}초) prgId=${expected}`);
       return true;
     }
     await page.waitForTimeout(2000);
   }
+
+  const finalProbe = await probeLedgerProgramContext(page);
+  logLedgerProgramProbe(finalProbe, "timeout");
+  console.warn(
+    `   ⚠ ${expected} 검색 화면 미확인 (activePrg=[${finalProbe.activePrgIds.join(",")}] titles=[${finalProbe.titleHints.join(",")}])`
+  );
   return false;
+}
+
+/** E040702 로드 필수 — 실패 시 Error + 진단 로그 */
+export async function assertLedgerProgramSearchScreen(page: Page, maxSec = 25): Promise<void> {
+  const expected = expectedLedgerPrgId();
+  if (await waitForLedgerSearchScreen(page, maxSec)) return;
+
+  const probe = await probeLedgerProgramContext(page);
+  logLedgerProgramProbe(probe, "assert-fail");
+  throw new Error(
+    `재고수불부(${expected}) 화면 미로드 (${maxSec}초). ` +
+      `urlPrg=${probe.urlPrgId || "(none)"} activePrg=[${probe.activePrgIds.join(",")}] ` +
+      `viewers=[${probe.viewerIds.slice(0, 8).join(",")}] ecpage=[${probe.ecpageIds.slice(0, 8).join(",")}] ` +
+      `titles=[${probe.titleHints.join(",")}] body=${JSON.stringify(probe.bodyHint.slice(0, 120))}`
+  );
 }
 
 const PRODUCTION_TRANSFER_HINT = /생산\s*불출.*창고\s*이동.*포함|생산불출\s*\/\s*창고이동\s*포함/;
