@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "stock = 재고현황, ledger_bulk = 재고수불부 일괄"
+        description: "stock = 재고현황, ledger_bulk = 재고수불부 일괄, ledger_leaf_dom = leaf DOM 진단"
         required: false
         default: "stock"
         type: choice
@@ -18,6 +18,7 @@ on:
           - lot
           - ledger
           - ledger_bulk
+          - ledger_leaf_dom
       prod_cd:
         description: "재고수불부 품목코드 (ledger 전용)"
         required: false
@@ -110,4 +111,6 @@ jobs:
           path: |
             downloads/ecount-ledger-after-f8.png
             downloads/ecount-ledger-bulk-error.png
+            downloads/ledger-leaf-dom-candidates.json
+            downloads/ledger-leaf-dom-dump.png
           if-no-files-found: warn

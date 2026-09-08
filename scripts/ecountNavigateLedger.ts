@@ -114,7 +114,7 @@ async function waitVisibleMenu(
 }
 
 /** 재고 I 열기: click 우선, 실패 시 hover — 출력물이 보이면 성공 (stock과 동일 패턴) */
-async function openInventoryTopMenuForLedger(page: Page): Promise<void> {
+export async function openInventoryTopMenuForLedger(page: Page): Promise<void> {
   console.log("   → [LEDGER NAV] 재고 I 메뉴 열기");
 
   const top = await findVisibleMenuLocator(
@@ -179,7 +179,7 @@ async function openInventoryTopMenuForLedger(page: Page): Promise<void> {
 /**
  * 출력물 화면 왼쪽 트리: 「재고현황」 그룹이 접혀 있으면 펼침
  */
-async function ensureStockStatusGroupExpanded(page: Page): Promise<void> {
+export async function ensureStockStatusGroupExpanded(page: Page): Promise<void> {
   console.log("   → [LEDGER NAV] 재고현황 그룹 확인");
   const deadline = Date.now() + 10000;
   let sawGroup = false;

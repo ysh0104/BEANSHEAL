@@ -12,6 +12,7 @@
  *   ECOUNT_STOCK_SEARCH_ONLY=1             — 검색(F8)→결과까지만 (Excel 생략)
  *   ECOUNT_BOT_TARGET=lot                  — 로트/시리얼 봇(legacy) 실행
  *   ECOUNT_BOT_TARGET=ledger               — 재고수불부 (ECOUNT_LEDGER_PROD_CD 필수)
+ *   ECOUNT_BOT_TARGET=ledger_leaf_dom      — 재고수불부 leaf DOM 진단(클릭 없음)
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -433,6 +434,9 @@ async function main() {
   } else if (target === "ledger_bulk") {
     const { runEcountLedgerBulkBot } = await import("./ecountLedgerBot");
     await runEcountLedgerBulkBot();
+  } else if (target === "ledger_leaf_dom") {
+    const { runLedgerLeafDomDump } = await import("./ecountLedgerLeafDomDump");
+    await runLedgerLeafDomDump();
   } else {
     await runEcountStockBot();
   }
