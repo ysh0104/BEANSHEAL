@@ -20,15 +20,6 @@ const EXCEL_SELECTORS = [
 const LEDGER_POPUP_CANDIDATE_SELECTOR =
   '[role="dialog"], .ui-dialog, .modal, .layer_popup, [class*="dialog"], [class*="layer"], [class*="popup"]';
 const LEDGER_AFTER_F8_SCREENSHOT = path.join("downloads", "ecount-ledger-after-f8.png");
-const LEDGER_POST_F8_CHECKPOINTS_SEC = [1, 3, 5, 10, 20, 30] as const;
-const LEDGER_POST_F8_KEYWORDS = [
-  "조회할 자료가 많아",
-  "오래 걸릴 수 있습니다",
-  "취소",
-  "재고수불부",
-  "검색",
-  "엑셀",
-] as const;
 
 function ensureLedgerDownloadsDir(): string {
   const dir = path.resolve("downloads");
@@ -70,246 +61,25 @@ function logLedgerContextPages(page: Page, label: string): void {
   }
 }
 
-/** F8 직전: native dialog 메시지만 로그 (dismiss/accept 하지 않음 — 위치 진단용) */
+/** 검색 중 native dialog: 메시지만 로그 후 dismiss (사람 ESC/취소에 해당, accept 금지) */
 function attachLedgerNativeDialogProbe(page: Page): () => void {
   const onDialog = (dialog: Dialog) => {
     console.log(
       `   [진단] native dialog type=${dialog.type()} message=${JSON.stringify(dialog.message())}`
     );
-    // 진단 단계: accept/dismiss 호출하지 않음
+    void dialog.dismiss().then(
+      () => console.log("   ✓ native dialog dismiss (ESC/취소 대응)"),
+      (err) =>
+        console.log(
+          `   [진단] native dialog dismiss 예외: ${err instanceof Error ? err.message : String(err)}`
+        )
+    );
   };
   page.on("dialog", onDialog);
   return () => page.off("dialog", onDialog);
 }
 
-/**
- * F8 직후 ~30초: navigation / new page / frame 수·URL 변화 이벤트 로그
- * (클릭·dismiss 없음)
- */
-function attachLedgerPostF8ChangeProbes(page: Page): () => void {
-  const context = page.context();
-  let lastMainUrl = page.url();
-  let lastFrameCount = page.frames().length;
-  let lastPagesCount = context.pages().length;
-  const startedAt = Date.now();
-  const elapsedLabel = () => `+${Math.round((Date.now() - startedAt) / 100) / 10}s`;
-
-  const onFrameNavigated = (frame: Frame) => {
-    try {
-      console.log(
-        `   [진단][${elapsedLabel()}] page.framenavigated name=${JSON.stringify(frame.name())} url=${frame.url()} mainUrl=${page.isClosed() ? "(closed)" : page.url()}`
-      );
-    } catch (err) {
-      console.log(
-        `   [진단][${elapsedLabel()}] page.framenavigated 로그 예외: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
-    }
-  };
-
-  const wirePageEvents = (p: Page, tag: string) => {
-    const onPageFrameNavigated = (frame: Frame) => {
-      try {
-        console.log(
-          `   [진단][${elapsedLabel()}] ${tag}.framenavigated name=${JSON.stringify(frame.name())} url=${frame.url()}`
-        );
-      } catch (err) {
-        console.log(
-          `   [진단][${elapsedLabel()}] ${tag}.framenavigated 예외: ${
-            err instanceof Error ? err.message : String(err)
-          }`
-        );
-      }
-    };
-    p.on("framenavigated", onPageFrameNavigated);
-    return () => p.off("framenavigated", onPageFrameNavigated);
-  };
-
-  const pageCleanups: Array<() => void> = [];
-
-  const onNewPage = (p: Page) => {
-    console.log(`   [진단][${elapsedLabel()}] popup/new page 발생 url=${p.url()}`);
-    pageCleanups.push(wirePageEvents(p, "newpage"));
-    p.on("close", () => {
-      console.log(`   [진단][${elapsedLabel()}] page closed (was url probe)`);
-    });
-  };
-
-  // main page: page.framenavigated covers all frames in this page
-  page.on("framenavigated", onFrameNavigated);
-  context.on("page", onNewPage);
-
-  const pollId = setInterval(() => {
-    try {
-      if (page.isClosed()) {
-        console.log(`   [진단][${elapsedLabel()}] main page isClosed=true`);
-        return;
-      }
-      const url = page.url();
-      if (url !== lastMainUrl) {
-        console.log(`   [진단][${elapsedLabel()}] target/page URL 변화: ${lastMainUrl} → ${url}`);
-        lastMainUrl = url;
-      }
-      const frameCount = page.frames().length;
-      if (frameCount !== lastFrameCount) {
-        console.log(
-          `   [진단][${elapsedLabel()}] frame 수 변화: ${lastFrameCount} → ${frameCount}`
-        );
-        lastFrameCount = frameCount;
-        logLedgerFrameList(page, `frame-change@${elapsedLabel()}`);
-      }
-      const pagesCount = context.pages().length;
-      if (pagesCount !== lastPagesCount) {
-        console.log(
-          `   [진단][${elapsedLabel()}] context pages 수 변화: ${lastPagesCount} → ${pagesCount}`
-        );
-        lastPagesCount = pagesCount;
-        logLedgerContextPages(page, `pages-change@${elapsedLabel()}`);
-      } else {
-        logLedgerContextPages(page, `pages-poll@${elapsedLabel()}`);
-      }
-    } catch (err) {
-      console.log(
-        `   [진단][${elapsedLabel()}] change-poll 예외: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
-    }
-  }, 2000);
-
-  return () => {
-    clearInterval(pollId);
-    page.off("framenavigated", onFrameNavigated);
-    context.off("page", onNewPage);
-    for (const cleanup of pageCleanups) cleanup();
-  };
-}
-
-async function readFrameBodyPreview(frame: Frame): Promise<{ len: number; head: string; text: string }> {
-  try {
-    const raw = ((await frame.locator("body").innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim();
-    return { len: raw.length, head: raw.slice(0, 300), text: raw };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { len: -1, head: `error:${msg}`, text: "" };
-  }
-}
-
-async function logLedgerKeywordHits(pages: Page[], label: string): Promise<void> {
-  for (const keyword of LEDGER_POST_F8_KEYWORDS) {
-    const hits: string[] = [];
-    for (let pi = 0; pi < pages.length; pi++) {
-      const p = pages[pi];
-      if (p.isClosed()) continue;
-      let frames: Frame[] = [];
-      try {
-        frames = p.frames();
-      } catch {
-        continue;
-      }
-      for (let fi = 0; fi < frames.length; fi++) {
-        try {
-          const { text } = await readFrameBodyPreview(frames[fi]);
-          if (text.includes(keyword)) hits.push(`page[${pi}].frame[${fi}]`);
-        } catch (err) {
-          console.log(
-            `   [진단] ${label} keyword 스캔 예외 page[${pi}] frame[${fi}]: ${
-              err instanceof Error ? err.message : String(err)
-            }`
-          );
-        }
-      }
-    }
-    console.log(
-      `   [진단] ${label} keyword ${JSON.stringify(keyword)} hits=${hits.length ? hits.join(", ") : "(none)"}`
-    );
-  }
-}
-
-async function logLedgerTimelineCheckpoint(page: Page, sec: number): Promise<void> {
-  const label = `F8+${sec}s`;
-  console.log(`   [진단] ===== checkpoint ${label} =====`);
-  logLedgerContextPages(page, label);
-
-  const pages = page.context().pages();
-  for (let pi = 0; pi < pages.length; pi++) {
-    const p = pages[pi];
-    if (p.isClosed()) {
-      console.log(`   [진단] ${label} page[${pi}] isClosed=true (skip frames)`);
-      continue;
-    }
-    let frames: Frame[] = [];
-    try {
-      frames = p.frames();
-      console.log(`   [진단] ${label} page[${pi}] url=${p.url()} frame count=${frames.length}`);
-    } catch (err) {
-      console.log(
-        `   [진단] ${label} page[${pi}] frames 예외: ${err instanceof Error ? err.message : String(err)}`
-      );
-      continue;
-    }
-    for (let fi = 0; fi < frames.length; fi++) {
-      const frame = frames[fi];
-      try {
-        const preview = await readFrameBodyPreview(frame);
-        console.log(
-          `   [진단] ${label} page[${pi}].frame[${fi}] name=${JSON.stringify(frame.name())} url=${frame.url()} bodyLen=${preview.len} bodyHead=${JSON.stringify(preview.head)}`
-        );
-      } catch (err) {
-        console.log(
-          `   [진단] ${label} page[${pi}].frame[${fi}] 예외: ${
-            err instanceof Error ? err.message : String(err)
-          }`
-        );
-      }
-    }
-  }
-
-  await logLedgerKeywordHits(pages, label);
-
-  try {
-    ensureLedgerDownloadsDir();
-    const shotRel = path.join("downloads", `ecount-ledger-debug-${sec}s.png`);
-    const shotPath = path.resolve(shotRel);
-    if (page.isClosed()) {
-      console.log(`   [진단] ${label} 스크린샷 생략 (main page closed)`);
-    } else {
-      await page.screenshot({ path: shotPath, fullPage: true });
-      console.log(`   [진단] ${label} 스크린샷 저장: ${shotRel}`);
-    }
-  } catch (err) {
-    console.log(
-      `   [진단] ${label} 스크린샷 예외: ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
-}
-
-/** F8 직후 ~30초 타임라인 진단 (기존 after-f8 스냅샷 포함, 클릭 없음) */
-async function runLedgerPostF8TimelineDiagnostics(page: Page): Promise<void> {
-  const detachChangeProbes = attachLedgerPostF8ChangeProbes(page);
-  const startedAt = Date.now();
-  try {
-    console.log("   [진단] F8 직후 30초 변화 감시 시작");
-    logLedgerContextPages(page, "F8+0s");
-    logLedgerFrameList(page, "F8+0s");
-
-    for (const sec of LEDGER_POST_F8_CHECKPOINTS_SEC) {
-      const waitMs = sec * 1000 - (Date.now() - startedAt);
-      if (waitMs > 0) await page.waitForTimeout(waitMs);
-      await logLedgerTimelineCheckpoint(page, sec);
-      if (sec === 1) {
-        // 기존 F8 직후 진단(팝업 후보·after-f8.png) 유지
-        await logLedgerPostF8Diagnostics(page);
-      }
-    }
-    console.log("   [진단] F8 직후 30초 변화 감시 종료");
-  } finally {
-    detachChangeProbes();
-  }
-}
-
-/** F8 직후: page / iframe / native dialog 중 팝업 위치 확인용 스캔 (클릭 없음) */
+/** 검색/ESC 직후: page / iframe 팝업 위치 확인용 스캔 (클릭 없음) */
 async function logLedgerPostF8Diagnostics(page: Page): Promise<void> {
   const frames = page.frames();
   console.log(`   [진단] F8 직후 frame count: ${frames.length}`);
@@ -424,13 +194,14 @@ export async function waitForLedgerSearchScreen(page: Page, maxSec = 25): Promis
   return false;
 }
 
-/** 기타 탭 → 생산불출/창고이동포함 체크 */
+/** 기타 탭 → 생산불출/창고이동포함 체크 (미발견·미체크 시 Error) */
 export async function ensureProductionTransferIncluded(page: Page): Promise<void> {
   const frames = await findLedgerFrames(page);
   if (frames.length === 0) {
     for (const frame of page.frames()) frames.push(frame);
   }
 
+  let etcTabClicked = false;
   for (const frame of frames) {
     const etcTab = frame.locator('a, button, span, li, div[role="tab"]').filter({ hasText: /^기타$/ }).first();
     try {
@@ -438,35 +209,76 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
         await etcTab.click({ force: true });
         await page.waitForTimeout(800);
         console.log("   ✓ 기타 탭");
+        etcTabClicked = true;
         break;
       }
-    } catch {
-      /* skip */
+    } catch (err) {
+      throw new Error(
+        `재고수불부 「기타」 탭 클릭 실패: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
+  if (!etcTabClicked) {
+    throw new Error('재고수불부 「기타」 탭을 찾지 못했습니다.');
+  }
 
+  let sawLabel = false;
   for (const frame of frames) {
+    const label = frame
+      .locator("label, span, td, div")
+      .filter({ hasText: /생산불출.*창고이동.*포함/ })
+      .first();
     try {
-      const label = frame
-        .locator("label, span, td, div")
-        .filter({ hasText: /생산불출.*창고이동.*포함/ })
-        .first();
       if ((await label.count()) === 0 || !(await label.isVisible())) continue;
-
-      const cb = label.locator('xpath=ancestor::tr[1]//input[@type="checkbox"]').first();
-      if ((await cb.count()) === 0) continue;
-
-      if (!(await cb.isChecked())) {
-        await cb.click({ force: true });
-        console.log("   ✓ 생산불출/창고이동포함 체크");
-      } else {
-        console.log("   ✓ 생산불출/창고이동포함 (이미 체크됨)");
-      }
-      return;
     } catch {
-      /* skip */
+      continue;
     }
+    sawLabel = true;
+
+    const cb = label.locator('xpath=ancestor::tr[1]//input[@type="checkbox"]').first();
+    if ((await cb.count()) === 0) {
+      continue;
+    }
+
+    let alreadyChecked: boolean;
+    try {
+      alreadyChecked = await cb.isChecked();
+    } catch (err) {
+      throw new Error(
+        `생산불출/창고이동포함 checkbox 상태 확인 실패: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+
+    if (alreadyChecked) {
+      console.log("   ✓ 생산불출/창고이동포함 (이미 체크됨)");
+    } else {
+      await cb.click({ force: true });
+      console.log("   ✓ 생산불출/창고이동포함 체크");
+      await page.waitForTimeout(300);
+    }
+
+    let verified: boolean;
+    try {
+      verified = await cb.isChecked();
+    } catch (err) {
+      throw new Error(
+        `생산불출/창고이동포함 checkbox 재확인 실패: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+    if (!verified) {
+      throw new Error("생산불출/창고이동포함 checkbox가 체크되지 않았습니다.");
+    }
+    return;
   }
+
+  if (!sawLabel) {
+    throw new Error('「생산불출/창고이동포함」 label을 찾지 못했습니다.');
+  }
+  throw new Error("「생산불출/창고이동포함」 checkbox를 찾지 못했습니다.");
 }
 
 async function isLedgerConfirmPopupVisible(page: Page): Promise<boolean> {
@@ -642,14 +454,14 @@ export async function waitAndDismissBulkItemModal(page: Page, maxSec = 30): Prom
   return true;
 }
 
-export async function clickLedgerSearch(page: Page): Promise<void> {
-  console.log("   → 검색(F8) 실행");
+export async function clickLedgerSearch(page: Page): Promise<Frame> {
+  console.log("   → 검색 버튼 클릭");
   const frames = await findLedgerFrames(page);
   const scan = frames.length > 0 ? frames : page.frames();
 
-  console.log("   [진단] F8 직전 상태");
-  logLedgerFrameList(page, "F8-pre");
-  logLedgerContextPages(page, "F8-pre");
+  console.log("   [진단] 검색 직전 상태");
+  logLedgerFrameList(page, "search-pre");
+  logLedgerContextPages(page, "search-pre");
 
   const detachDialogProbe = attachLedgerNativeDialogProbe(page);
 
@@ -658,6 +470,8 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
       const locators = [
         frame.getByText(SEARCH_BTN).first(),
         frame.locator('button, a, span, div[role="button"]').filter({ hasText: SEARCH_BTN }).first(),
+        frame.getByText(/^검색$/).first(),
+        frame.locator('button, a, span, div[role="button"]').filter({ hasText: /^검색$/ }).first(),
       ];
       for (const btn of locators) {
         try {
@@ -665,32 +479,48 @@ export async function clickLedgerSearch(page: Page): Promise<void> {
             await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true }).catch(() => {});
             await btn.scrollIntoViewIfNeeded().catch(() => {});
             await btn.click({ force: true });
-            console.log("   ✓ 검색(F8) 클릭");
-            await runLedgerPostF8TimelineDiagnostics(page);
-            return;
+            console.log("   ✓ 검색 버튼 클릭");
+            // F8 전역 폴백 사용 금지 — 대시보드 이탈 방지
+            return frame;
           }
         } catch {
           /* next */
         }
       }
     }
-
-    for (const frame of scan) {
-      try {
-        await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true });
-        await page.keyboard.press("F8");
-        console.log("   ✓ F8 키 입력");
-        await runLedgerPostF8TimelineDiagnostics(page);
-        return;
-      } catch {
-        /* next */
-      }
-    }
   } finally {
     detachDialogProbe();
   }
 
-  throw new Error("재고수불부 검색 버튼을 찾지 못했습니다.");
+  throw new Error(
+    "재고수불부 검색 버튼을 찾지 못했습니다. F8 폴백은 사용하지 않습니다 — 화면의 「검색」 버튼을 확인하세요."
+  );
+}
+
+/**
+ * 검색 직후 사람 UX와 동일하게 Escape 전송.
+ * DOM 「취소」 클릭 대신 ESC 사용.
+ */
+export async function pressLedgerEscapeAfterSearch(page: Page, searchFrame?: Frame | null): Promise<void> {
+  console.log("   → 검색 후 ESC");
+  const frame = searchFrame && !searchFrame.isDetached() ? searchFrame : null;
+
+  try {
+    if (frame) {
+      await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true }).catch(() => {});
+    } else {
+      await page.locator("body").click({ position: { x: 40, y: 40 }, force: true }).catch(() => {});
+    }
+  } catch {
+    /* focus best-effort */
+  }
+
+  await page.keyboard.press("Escape");
+  console.log("   ✓ ESC 입력");
+
+  // 기존 팝업/frame 진단 스냅샷 유지 (동작 변경 없음)
+  await page.waitForTimeout(500);
+  await logLedgerPostF8Diagnostics(page);
 }
 
 async function findLedgerExcelButton(page: Page): Promise<Locator | null> {
@@ -731,10 +561,13 @@ export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<bo
   for (let i = 0; i < steps; i++) {
     const elapsed = (i + 1) * intervalSec;
 
+    // 확인 메시지가 남아 있으면 「취소」클릭 대신 ESC (사람 UX)
     if (await isLedgerConfirmPopupVisible(page)) {
-      await dismissBulkItemModal(page);
+      console.log("   → 결과 대기 중 확인 메시지 감지 — ESC 재시도");
+      await page.keyboard.press("Escape");
+      console.log("   ✓ ESC 입력");
       if (i > 0 && i % 5 === 0) {
-        console.log(`   … 조회 확인 팝업 처리 중 (${elapsed}초)`);
+        console.log(`   … 조회 확인 ESC 처리 중 (${elapsed}초)`);
       }
       await page.waitForTimeout(intervalSec * 1000);
       continue;
