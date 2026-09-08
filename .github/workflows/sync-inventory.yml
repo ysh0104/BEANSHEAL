@@ -97,3 +97,17 @@ jobs:
             downloads/stock-*.png
             downloads/tmp-stock-*.xlsx
           if-no-files-found: ignore
+
+      - name: List downloads for ledger debug
+        if: always()
+        run: ls -lah downloads/ || true
+
+      - name: Upload ecount ledger debug artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecount-ledger-debug
+          path: |
+            downloads/ecount-ledger-after-f8.png
+            downloads/ecount-ledger-bulk-error.png
+          if-no-files-found: warn
