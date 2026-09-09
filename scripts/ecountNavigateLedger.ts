@@ -2,11 +2,12 @@
  * 재고수불부 네비게이션
  *
  * 실제 사용자 동선:
- *   재고 I → 출력물 CLICK → 재고수불부 CLICK
+ *   재고 I → 출력물 CLICK → 재고수불부 CLICK (#link_depth4_MENUTREE_000215, href*=E040702)
  *   → (임시: 「기타」/생산불출 스킵) → 검색 버튼 클릭 → ESC → 결과 대기 → Excel
  *
- * URL: 검색 전후 모두 prgId=C000035 depth=2 (출력물 셸).
- * E040702는 사이드바 leaf 링크 힌트일 뿐 URL 필수값이 아님.
+ * DOM 확정:
+ *   - 출력물 URL 셸: C000035 (leaf 선택에 사용하지 않음)
+ *   - 재고수불부 leaf: #link_depth4_MENUTREE_000215 / prgId=E040702 / depth=4
  *
  * stock cascade(재고현황)와 동일 메뉴 패턴을 ledger에서 복제 구현.
  * stock 파일은 수정하지 않음.
@@ -32,7 +33,7 @@ import {
 } from "./ecountLedgerScreen";
 
 function ledgerPrgId(): string {
-  // 사이드바 leaf (#link_prg_*) 탐색 힌트 — URL prgId(C000035)와 별개
+  // 재고수불부 leaf href prgId (DOM 확정: E040702)
   return process.env.ECOUNT_LEDGER_PRG_ID?.trim() || "E040702";
 }
 
@@ -242,22 +243,8 @@ async function isClickableLedgerLeaf(loc: Locator): Promise<boolean> {
   }
 }
 
-type LedgerLeafCandidate = {
-  frameIndex: number;
-  text: string;
-  id: string;
-  href: string;
-  onclick: string;
-  prgId: string;
-  menuSeq: string;
-  groupSeq: string;
-  depth: string;
-  className: string;
-  inLocalNav: boolean;
-  visible: boolean;
-  source: "exact-text" | "leaf-prg-href";
-  outerHTML: string;
-};
+/** DOM 확정: 실제 재고수불부 leaf (진단 결과) */
+const LEDGER_LEAF_DEPTH4_ID = "link_depth4_MENUTREE_000215";
 
 function extractHashParam(raw: string, key: string): string {
   try {
@@ -269,292 +256,156 @@ function extractHashParam(raw: string, key: string): string {
   }
 }
 
-function scoreLedgerLeafCandidate(c: LedgerLeafCandidate, folderPrg: string, leafPrg: string): number {
-  let s = 0;
-  if (isExactLedgerLeafText(c.text)) s += 100;
-  if (c.prgId.toUpperCase() === folderPrg.toUpperCase()) s += 80; // 실제 UX URL 셸
-  if (c.depth === "2") s += 40;
-  if (c.inLocalNav) s += 20;
-  if (c.visible) s += 10;
-  // E040702 href는 이 환경에서 빈 viewer(mainTitle="")로 떨어짐 — 사람 경로와 불일치
-  if (c.prgId.toUpperCase() === leafPrg.toUpperCase()) s -= 120;
-  if (/E040206|C000650/i.test(c.prgId)) s -= 200;
-  return s;
+async function readLedgerLeafMeta(loc: Locator): Promise<{ id: string; href: string; text: string }> {
+  // Playwright ElementHandle evaluate에 TS helper가 섞이지 않도록 속성 API 우선
+  const id = ((await loc.getAttribute("id").catch(() => "")) || "").trim();
+  const href = ((await loc.getAttribute("href").catch(() => "")) || "").trim();
+  const text = ((await loc.innerText().catch(() => "")) || "").replace(/\s+/g, " ").trim();
+  return { id, href, text };
 }
 
-/** 재고수불부 leaf DOM 후보 진단 — exact text vs E040702 href 구분 */
-async function diagnoseLedgerLeafCandidates(
-  page: Page,
-  opts?: { verbose?: boolean }
-): Promise<LedgerLeafCandidate[]> {
-  const leafPrg = ledgerPrgId();
-  const folderPrg = ledgerOutputFolderPrgId();
-  const verbose = opts?.verbose !== false;
-  const all: LedgerLeafCandidate[] = [];
+function isConfirmedLedgerLeaf(meta: { id: string; href: string; text: string }, leafPrg: string): boolean {
+  if (!isExactLedgerLeafText(meta.text)) return false;
+  if (!meta.href.includes(leafPrg)) return false;
+  return true;
+}
+
+/** 클릭 직후 URL/hash/frame/#mainPage 진단 (selector 추측 전환 금지) */
+async function logLedgerPostLeafClickState(page: Page, label: string): Promise<void> {
+  const url = page.url();
+  let urlPrg = "";
+  let urlDepth = "";
+  let urlMenuSeq = "";
+  try {
+    const hash = url.includes("#") ? url.slice(url.indexOf("#") + 1) : "";
+    const params = new URLSearchParams(hash);
+    urlPrg = (params.get("prgId") || "").toUpperCase();
+    urlDepth = params.get("depth") || "";
+    urlMenuSeq = params.get("menuSeq") || "";
+  } catch {
+    urlPrg = extractHashParam(url, "prgId").toUpperCase();
+    urlDepth = extractHashParam(url, "depth");
+    urlMenuSeq = extractHashParam(url, "menuSeq");
+  }
+
+  console.log(
+    JSON.stringify({
+      type: "ledger_post_leaf_click",
+      label,
+      url: url.slice(0, 220),
+      urlPrg,
+      urlDepth,
+      urlMenuSeq,
+      frameCount: page.frames().length,
+    })
+  );
+
   const frames = page.frames();
-
-  for (let fi = 0; fi < frames.length; fi++) {
-    const frame = frames[fi];
+  for (let i = 0; i < Math.min(frames.length, 8); i++) {
+    const frame = frames[i];
+    let mainMeta: { hasMain: boolean; head: string; title: string } = {
+      hasMain: false,
+      head: "",
+      title: "",
+    };
     try {
-      const rows = await frame.evaluate(
-        ({ leafPrg: lp, folderPrg: fp }) => {
-          const out: Array<{
-            text: string;
-            id: string;
-            href: string;
-            onclick: string;
-            prgId: string;
-            menuSeq: string;
-            groupSeq: string;
-            depth: string;
-            className: string;
-            inLocalNav: boolean;
-            visible: boolean;
-            source: "exact-text" | "leaf-prg-href";
-            outerHTML: string;
-          }> = [];
-
-          const parseParam = (raw: string, key: string) => {
-            try {
-              const hash = raw.includes("#") ? raw.slice(raw.indexOf("#") + 1) : raw;
-              return new URLSearchParams(hash.replace(/^\?/, "")).get(key) || "";
-            } catch {
-              const m = raw.match(new RegExp(`[?&#]${key}=([^&#]*)`, "i"));
-              return m ? decodeURIComponent(m[1]) : "";
-            }
-          };
-
-          const pushEl = (el: Element, source: "exact-text" | "leaf-prg-href") => {
-            const he = el as HTMLElement;
-            const text = (he.innerText || he.textContent || "").replace(/\s+/g, " ").trim();
-            const href = he.getAttribute("href") || "";
-            const onclick = he.getAttribute("onclick") || "";
-            const blob = `${href} ${onclick} ${he.id || ""}`;
-            const prgId = (parseParam(href, "prgId") || parseParam(blob, "prgId") || "").toUpperCase();
-            out.push({
-              text: text.slice(0, 80),
-              id: he.id || "",
-              href: href.slice(0, 220),
-              onclick: onclick.slice(0, 160),
-              prgId,
-              menuSeq: parseParam(href, "menuSeq") || parseParam(blob, "menuSeq"),
-              groupSeq: parseParam(href, "groupSeq") || parseParam(blob, "groupSeq"),
-              depth: parseParam(href, "depth") || parseParam(blob, "depth"),
-              className: String(he.className || "").slice(0, 100),
-              inLocalNav: !!he.closest(
-                '#menuAreaAddon, .wrapper-local-nav, #local-menu-section, [id*="MENUTREE"], .left-menu, #leftMenu'
-              ),
-              visible: !!(he.offsetWidth || he.offsetHeight || he.getClientRects().length),
-              source,
-              outerHTML: (he.outerHTML || "").replace(/\s+/g, " ").trim().slice(0, 280),
-            });
-          };
-
-          for (const a of Array.from(document.querySelectorAll("a"))) {
-            const text = ((a as HTMLElement).innerText || a.textContent || "").replace(/\s+/g, " ").trim();
-            if (text === "재고수불부" || text === "재고 수불부") {
-              pushEl(a, "exact-text");
-            }
-          }
-
-          const prgSel = [
-            `#link_prg_${lp}`,
-            `a[href*="${lp}"]`,
-            `a[onclick*="${lp}"]`,
-            `a[href*="${fp}"]`,
-          ];
-          for (const sel of prgSel) {
-            try {
-              for (const el of Array.from(document.querySelectorAll(sel))) {
-                pushEl(el, "leaf-prg-href");
-              }
-            } catch {
-              /* invalid sel */
-            }
-          }
-
-          const seen = new Set<string>();
-          return out.filter((r) => {
-            const k = `${r.source}|${r.id}|${r.href}|${r.text}`;
-            if (seen.has(k)) return false;
-            seen.add(k);
-            return true;
-          });
-        },
-        { leafPrg, folderPrg }
-      );
-
-      for (const row of rows) {
-        all.push({ frameIndex: fi, ...row });
-      }
+      // 순수 JS 문자열 — __name helper 주입 방지
+      mainMeta = (await frame.evaluate(`(function () {
+        var main = document.querySelector("#mainPage");
+        if (!main) return { hasMain: false, head: "", title: "" };
+        var head = String(main.innerText || "").replace(/\\s+/g, " ").trim().slice(0, 120);
+        var titleEl = main.querySelector(".wrapper-title, .wrapper-toolbar .pull-left, .page-title, h1, h2");
+        var title = titleEl
+          ? String(titleEl.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 80)
+          : "";
+        return { hasMain: true, head: head, title: title };
+      })()`)) as typeof mainMeta;
     } catch (err) {
-      if (verbose) {
-        console.log(
-          `   [진단][leaf] frame[${fi}] 스캔 예외: ${err instanceof Error ? err.message : String(err)}`
-        );
-      }
-    }
-  }
-
-  if (verbose) {
-    console.log(`   [진단][leaf] 후보 total=${all.length} folderPrg=${folderPrg} leafPrgHint=${leafPrg}`);
-    for (const c of all.slice(0, 30)) {
-      const score = scoreLedgerLeafCandidate(c, folderPrg, leafPrg);
       console.log(
-        `   [진단][leaf] score=${score} src=${c.source} frame[${c.frameIndex}] text=${JSON.stringify(c.text)} id=${JSON.stringify(c.id)} prgId=${c.prgId || "(none)"} menuSeq=${c.menuSeq || "(none)"} depth=${c.depth || "(none)"} visible=${c.visible} inNav=${c.inLocalNav}`
+        JSON.stringify({
+          type: "ledger_post_leaf_frame_error",
+          frameIndex: i,
+          error: err instanceof Error ? err.message : String(err),
+        })
       );
-      console.log(
-        `   [진단][leaf]   href=${JSON.stringify(c.href)} onclick=${JSON.stringify(c.onclick)} outerHTML=${JSON.stringify(c.outerHTML)}`
-      );
+      continue;
     }
+    console.log(
+      JSON.stringify({
+        type: "ledger_post_leaf_frame",
+        label,
+        frameIndex: i,
+        frameName: frame.name(),
+        frameUrl: frame.url().slice(0, 160),
+        hasMainPage: mainMeta.hasMain,
+        mainTitle: mainMeta.title,
+        mainHead: mainMeta.head,
+      })
+    );
   }
-  return all;
 }
 
 /**
- * 사이드바/메뉴 「재고수불부」 leaf 탐색.
- * 우선순위: exact text + (C000035 / depth=2) → exact text → (최후) leafPrg(E040702) href
- * E040702 href 단독 우선 선택 금지 — 사람 UX(C000035 depth=2)와 불일치.
+ * 실제 DOM 확정 leaf 탐색.
+ * 1순위: #link_depth4_MENUTREE_000215 (text=재고수불부, href*=E040702)
+ * C000035 anchor 탐색 없음 (C000035는 출력물 URL 셸).
  */
 async function findLedgerSidebarLeaf(
   page: Page
-): Promise<{ loc: Locator; how: string } | null> {
+): Promise<{ loc: Locator; how: string; meta: { id: string; href: string; text: string } } | null> {
   const leafPrg = ledgerPrgId();
-  const folderPrg = ledgerOutputFolderPrgId();
   console.log(
-    `   → [LEDGER NAV] 재고수불부 leaf 탐색 (사람 UX: urlPrg=${folderPrg} depth=2; leafPrgHint=${leafPrg}는 최후 수단)`
+    `   → [LEDGER NAV] 재고수불부 leaf 탐색 (확정 DOM: #${LEDGER_LEAF_DEPTH4_ID}, href*=${leafPrg})`
   );
+
+  const selectors = [
+    `#${LEDGER_LEAF_DEPTH4_ID}`,
+    `#link_prg_${leafPrg}`,
+    `a[href*="${leafPrg}"]`,
+  ];
 
   const deadline = Date.now() + 12000;
-  let verboseOnce = true;
-
   while (Date.now() < deadline) {
-    const candidates = await diagnoseLedgerLeafCandidates(page, { verbose: verboseOnce });
-    verboseOnce = false;
-
-    const ranked = [...candidates]
-      .filter((c) => c.visible)
-      .sort(
-        (a, b) =>
-          scoreLedgerLeafCandidate(b, folderPrg, leafPrg) - scoreLedgerLeafCandidate(a, folderPrg, leafPrg)
-      );
-
-    for (const pick of ranked) {
-      const score = scoreLedgerLeafCandidate(pick, folderPrg, leafPrg);
-      // exact text(100+) 또는 folder shell(80+)만 1차 채택 — 순수 E040702(-120) 제외
-      if (score < 80) continue;
-      if (pick.source === "leaf-prg-href" && pick.prgId.toUpperCase() === leafPrg.toUpperCase()) {
-        continue; // E040702 href는 1차에서 제외
-      }
-
-      const frame = page.frames()[pick.frameIndex];
-      if (!frame) continue;
-
-      const loc = await resolveLedgerLeafLocator(frame, pick);
-      if (!loc) continue;
-
-      const how =
-        `exact-preferred prgId=${pick.prgId || "(none)"} depth=${pick.depth || "(none)"} ` +
-        `menuSeq=${pick.menuSeq || "(none)"} id=${pick.id || "(none)"} score=${score} src=${pick.source}`;
-      console.log(`   [진단][leaf] 선택 근거: ${how}`);
-      console.log(`   [진단][leaf] 선택 href=${JSON.stringify(pick.href)}`);
-      return { loc, how };
-    }
-
-    await page.waitForTimeout(400);
-  }
-
-  // 최후 수단: leafPrg href (경고) — 사람 UX와 다를 수 있음
-  console.warn(
-    `   ⚠ [LEDGER NAV] exact-text/C000035 leaf 미발견 — leafPrgHint=${leafPrg} href 폴백 (비권장)`
-  );
-  for (const frame of page.frames()) {
-    for (const sel of [`#link_prg_${leafPrg}`, `a[href*="${leafPrg}"]`, `a[onclick*="${leafPrg}"]`]) {
-      try {
-        const candidates = frame.locator(sel);
-        const n = Math.min(await candidates.count(), 8);
-        for (let i = 0; i < n; i++) {
-          const loc = candidates.nth(i);
-          if (!(await isClickableLedgerLeaf(loc))) continue;
-          return { loc, how: `FALLBACK ${sel} (E040702 — 사람 UX C000035와 불일치 가능)` };
+    for (const frame of page.frames()) {
+      for (const sel of selectors) {
+        try {
+          const candidates = frame.locator(sel);
+          const n = Math.min(await candidates.count(), 8);
+          for (let i = 0; i < n; i++) {
+            const loc = candidates.nth(i);
+            if (!(await isClickableLedgerLeaf(loc))) continue;
+            const meta = await readLedgerLeafMeta(loc);
+            if (!isConfirmedLedgerLeaf(meta, leafPrg)) {
+              console.log(
+                `   [진단][leaf] skip ${sel} text=${JSON.stringify(meta.text)} href=${JSON.stringify(meta.href.slice(0, 120))}`
+              );
+              continue;
+            }
+            const how = `${sel} id=${meta.id || "(none)"}`;
+            return { loc, how, meta };
+          }
+        } catch {
+          /* next */
         }
-      } catch {
-        /* next */
       }
     }
+    await page.waitForTimeout(300);
   }
 
-  return null;
-}
-
-async function resolveLedgerLeafLocator(
-  frame: Frame,
-  pick: LedgerLeafCandidate
-): Promise<Locator | null> {
-  if (pick.id) {
-    const byId = frame.locator(`[id="${pick.id}"]`).first();
-    if ((await byId.count()) > 0 && (await isClickableLedgerLeaf(byId))) return byId;
-  }
-
-  const links = frame.locator("a");
-  const n = Math.min(await links.count(), 150);
-  for (let i = 0; i < n; i++) {
-    const cand = links.nth(i);
-    try {
-      if (!(await isClickableLedgerLeaf(cand))) continue;
-      const meta = await cand.evaluate((el) => {
-        const he = el as HTMLElement;
-        return {
-          text: (he.innerText || he.textContent || "").replace(/\s+/g, " ").trim(),
-          id: he.id || "",
-          href: he.getAttribute("href") || "",
-        };
-      });
-      if (pick.id && meta.id === pick.id) return cand;
-      if (!isExactLedgerLeafText(meta.text)) continue;
-      if (pick.href && meta.href === pick.href) return cand;
-      const hrefPrg = extractHashParam(meta.href, "prgId").toUpperCase();
-      if (pick.prgId && hrefPrg === pick.prgId.toUpperCase() && isExactLedgerLeafText(pick.text)) {
-        return cand;
-      }
-      // exact text only match when pick is exact-text without conflicting prg
-      if (pick.source === "exact-text" && isExactLedgerLeafText(pick.text) && !pick.prgId) {
-        return cand;
-      }
-      if (
-        pick.source === "exact-text" &&
-        isExactLedgerLeafText(pick.text) &&
-        hrefPrg === (pick.prgId || "").toUpperCase()
-      ) {
-        return cand;
-      }
-    } catch {
-      /* next */
-    }
-  }
-
-  // last: any visible exact text in this frame matching pick text
-  if (isExactLedgerLeafText(pick.text)) {
-    const exact = frame.getByRole("link", { name: pick.text, exact: true });
-    const en = Math.min(await exact.count(), 8);
-    for (let i = 0; i < en; i++) {
-      const el = exact.nth(i);
-      if (await isClickableLedgerLeaf(el)) return el;
-    }
-  }
   return null;
 }
 
 /**
  * cascade: 재고 I → 출력물 CLICK → (재고현황 그룹) → 재고수불부 leaf CLICK
- * 클릭 후 #mainPage 「재고수불부」 검증 (URL은 C000035 셸일 수 있음; E040206 거부)
+ * leaf DOM 확정: #link_depth4_MENUTREE_000215 (href*=E040702)
+ * C000035는 출력물 URL 셸 — leaf 선택에 사용하지 않음
  */
 async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
   await dismissEcountPopups(page);
 
   if (await isLedgerSearchScreen(page)) {
     console.log(
-      `   ✓ 재고수불부 검색 화면 이미 열림 (기대 URL 셸=${ledgerOutputFolderPrgId()}, leafHint=${expectedLedgerPrgId()})`
+      `   ✓ 재고수불부 검색 화면 이미 열림 (leafPrg=${expectedLedgerPrgId()}, URL 셸 참고=${ledgerOutputFolderPrgId()})`
     );
     return true;
   }
@@ -576,7 +427,9 @@ async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
 
   const leaf = await findLedgerSidebarLeaf(page);
   if (!leaf) {
-    console.warn("   ⚠ [LEDGER NAV] 재고수불부 leaf를 찾지 못함");
+    console.warn(
+      `   ⚠ [LEDGER NAV] 확정 leaf #${LEDGER_LEAF_DEPTH4_ID} (text=재고수불부, href*=${ledgerPrgId()}) 미발견`
+    );
     return false;
   }
 
@@ -586,16 +439,50 @@ async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
     return false;
   }
 
+  console.log(
+    JSON.stringify({
+      type: "ledger_leaf_click_pre",
+      how: leaf.how,
+      id: leaf.meta.id,
+      href: leaf.meta.href,
+      innerText: leaf.meta.text,
+      prgId: extractHashParam(leaf.meta.href, "prgId"),
+      menuSeq: extractHashParam(leaf.meta.href, "menuSeq"),
+      depth: extractHashParam(leaf.meta.href, "depth"),
+    })
+  );
   console.log(`   ✓ [LEDGER NAV] 재고수불부 leaf 선택: ${leaf.how}`);
+  console.log(
+    `   [진단][leaf] 클릭 전 id=${leaf.meta.id} text=${JSON.stringify(leaf.meta.text)} href=${JSON.stringify(leaf.meta.href)}`
+  );
+
+  const urlBefore = page.url();
   await leaf.loc.click({ force: true });
   console.log("   ✓ 재고수불부 클릭");
   await page.waitForTimeout(1500);
   await dismissEcountPopups(page);
-  console.log(`   [진단][leaf] 클릭 직후 url=${page.url().slice(0, 180)}`);
-
-  await assertLedgerProgramSearchScreen(page, 25);
+  await logLedgerPostLeafClickState(page, "click+1.5s");
   console.log(
-    `   ✓ 재고수불부 검색 화면 진입 (cascade) URL 셸=${ledgerOutputFolderPrgId()} leafHint=${expectedLedgerPrgId()}`
+    JSON.stringify({
+      type: "ledger_leaf_click_url_delta",
+      before: urlBefore.slice(0, 180),
+      after: page.url().slice(0, 180),
+    })
+  );
+
+  try {
+    await assertLedgerProgramSearchScreen(page, 25);
+  } catch (err) {
+    // leaf는 확정 DOM으로 클릭함 — selector 추측 전환 금지, 로딩/viewer 진단만
+    console.warn(
+      `   ⚠ 확정 leaf 클릭 후에도 검색 화면 미확인 — leaf 선택이 아니라 로딩/viewer 문제 가능`
+    );
+    await logLedgerPostLeafClickState(page, "assert-fail");
+    throw err;
+  }
+
+  console.log(
+    `   ✓ 재고수불부 검색 화면 진입 (cascade) leaf=#${LEDGER_LEAF_DEPTH4_ID} leafPrg=${expectedLedgerPrgId()}`
   );
   return true;
 }
@@ -625,7 +512,7 @@ async function clickMenuIdsFromUrl(page: Page, savedUrl: string): Promise<boolea
   return true;
 }
 
-/** cascade 실패 시에만: 출력물 폴더 → 「재고수불부」 프로그램 열기 */
+/** cascade 실패 시에만: 출력물 폴더 후 확정 leaf 재클릭 */
 async function openLedgerReportProgram(page: Page): Promise<boolean> {
   if (await isLedgerSearchScreen(page)) {
     console.log("   ✓ 재고수불부 검색 조건 화면");
@@ -637,81 +524,44 @@ async function openLedgerReportProgram(page: Page): Promise<boolean> {
   }
 
   const leafPrg = ledgerPrgId();
-  const folderPrg = ledgerOutputFolderPrgId();
   console.log(
-    `   → 「재고수불부」 열기 폴백 (사람 UX 셸=${folderPrg}; leafPrgHint=${leafPrg}는 최후)`
+    `   → 「재고수불부」 열기 폴백 (확정 DOM #${LEDGER_LEAF_DEPTH4_ID}, href*=${leafPrg})`
   );
 
-  // 1) 진단 후 exact-text / C000035 우선 (findLedgerSidebarLeaf와 동일 정책)
   const leaf = await findLedgerSidebarLeaf(page);
-  if (leaf) {
-    await leaf.loc.scrollIntoViewIfNeeded().catch(() => {});
-    await leaf.loc.click({ force: true });
-    console.log(`   ✓ 폴백 leaf 클릭: ${leaf.how}`);
-    await page.waitForTimeout(3000);
-    await dismissEcountPopups(page);
-    try {
-      await assertLedgerProgramSearchScreen(page, 12);
-      return true;
-    } catch {
-      /* continue */
-    }
+  if (!leaf) {
+    console.warn(`   ⚠ 폴백에서도 확정 leaf #${LEDGER_LEAF_DEPTH4_ID} 미발견`);
+    return false;
   }
 
-  // 2) 본문 카드 exact text
-  for (const frame of page.frames()) {
-    const cards = frame
-      .locator('#contents a, .contents a, [class*="content"] a, [class*="program"] a, main a')
-      .filter({ hasText: /^재고\s*수불부$/ });
-    const n = await cards.count();
-    for (let i = 0; i < n; i++) {
-      const card = cards.nth(i);
-      try {
-        if (!(await card.isVisible())) continue;
-        const href = (await card.getAttribute("href").catch(() => "")) || "";
-        const hrefPrg = extractHashParam(href, "prgId").toUpperCase();
-        if (hrefPrg === leafPrg.toUpperCase()) {
-          console.log(`   [진단][leaf] 본문 카드[${i}] E040702 href 스킵: ${href.slice(0, 120)}`);
-          continue;
-        }
-        await card.scrollIntoViewIfNeeded().catch(() => {});
-        await card.click({ force: true });
-        console.log(`   ✓ 본문 카드 (${i + 1}/${n}) prgId=${hrefPrg || "(none)"}`);
-        await page.waitForTimeout(3000);
-        await dismissEcountPopups(page);
-        try {
-          await assertLedgerProgramSearchScreen(page, 12);
-          return true;
-        } catch {
-          /* next */
-        }
-      } catch {
-        /* next */
-      }
-    }
-  }
+  console.log(
+    JSON.stringify({
+      type: "ledger_leaf_click_pre_fallback",
+      how: leaf.how,
+      id: leaf.meta.id,
+      href: leaf.meta.href,
+      innerText: leaf.meta.text,
+    })
+  );
+  await leaf.loc.scrollIntoViewIfNeeded().catch(() => {});
+  await leaf.loc.click({ force: true });
+  console.log(`   ✓ 폴백 leaf 클릭: ${leaf.how}`);
+  await page.waitForTimeout(3000);
+  await dismissEcountPopups(page);
+  await logLedgerPostLeafClickState(page, "fallback-click+3s");
 
-  // 3) 최후: leafPrg(E040702) — 비권장
-  console.warn(`   ⚠ 폴백 최후 수단: leafPrgHint=${leafPrg} 링크 클릭`);
-  const prgSelectors = [
-    `#link_prg_${leafPrg}`,
-    `a[onclick*="${leafPrg}"]`,
-    `a[href*="${leafPrg}"]`,
-  ];
-  for (const sel of prgSelectors) {
-    if (await clickInAnyFrame(page, sel)) {
-      console.log(`   ✓ prgId 링크(FALLBACK): ${sel}`);
-      await page.waitForTimeout(3000);
-      try {
-        await assertLedgerProgramSearchScreen(page, 12);
-        return true;
-      } catch {
-        /* try next selector */
-      }
-    }
+  try {
+    await assertLedgerProgramSearchScreen(page, 12);
+    return true;
+  } catch (err) {
+    console.warn(
+      `   ⚠ 확정 leaf 폴백 클릭 후에도 viewer 미확인 — selector 변경 없이 로딩 진단만 남김: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+    await logLedgerPostLeafClickState(page, "fallback-assert-fail");
+    return false;
   }
-
-  return false;
 }
 
 async function openLedgerViaSavedUrlFallback(page: Page, menuUrl: string): Promise<boolean> {
@@ -794,10 +644,9 @@ export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
   await openLedgerSearchScreen(page, menuUrl);
 
   // 재고수불부 검색 화면 재확인 — 통과 전에는 검색 진입 금지
-  // (실제 UX: urlPrg=C000035 + #mainPage 재고수불부; leafHint=E040702)
   await assertLedgerProgramSearchScreen(page, 25);
   console.log(
-    `   ✓ 재고수불부 검색 화면 확인 (URL 셸=${ledgerOutputFolderPrgId()}, leafHint=${expectedLedgerPrgId()}) — 「기타」/생산불출 스킵, 바로 검색`
+    `   ✓ 재고수불부 검색 화면 확인 (leaf=#${LEDGER_LEAF_DEPTH4_ID}, leafPrg=${expectedLedgerPrgId()}) — 「기타」/생산불출 스킵, 바로 검색`
   );
 
   console.log("   → 기간: Ecount 기본값(전월+금월) 유지");
