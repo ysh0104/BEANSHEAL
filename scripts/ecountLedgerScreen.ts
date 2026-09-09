@@ -2408,28 +2408,218 @@ export async function pressLedgerEscapeAfterSearch(page: Page, searchFrame?: Fra
   await logLedgerPostF8Diagnostics(page);
 }
 
-async function findLedgerExcelButton(page: Page): Promise<Locator | null> {
-  const frames = await findLedgerFrames(page);
-  const scan = frames.length > 0 ? frames : page.frames();
-
-  for (const frame of scan) {
+/**
+ * 결과 화면 Excel 다운로드 UI 탐색.
+ * 「재고수량」 결과 frame을 스킵하지 않고 우선 검사한다.
+ * (#excel / id·name·text=Excel — CI esc-2s 확정)
+ */
+const LEDGER_FIND_EXCEL_JS = `(function () {
+  function visible(el) {
     try {
-      const stockQty = frame.locator("text=재고수량").first();
-      if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) continue;
-
-      for (const sel of EXCEL_SELECTORS) {
-        const loc = frame.locator(sel).first();
-        if ((await loc.count()) > 0 && (await loc.isVisible())) {
-          const box = await loc.boundingBox();
-          if (box && box.width > 2 && box.height > 2) return loc;
-        }
-      }
-      const textBtn = frame.getByText(/^Excel$/i).first();
-      if ((await textBtn.count()) > 0 && (await textBtn.isVisible())) return textBtn;
-    } catch {
-      /* skip */
+      return !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length));
+    } catch (e) {
+      return false;
     }
   }
+  function info(el, how) {
+    var text = "";
+    try {
+      if (el.tagName === "INPUT") {
+        text = String(el.value || el.getAttribute("title") || "").trim();
+      } else {
+        text = String(el.innerText || el.textContent || el.getAttribute("title") || "").trim();
+      }
+    } catch (e2) {
+      text = "";
+    }
+    var html = "";
+    try {
+      html = String(el.outerHTML || "").slice(0, 1000);
+    } catch (e3) {
+      html = "";
+    }
+    try {
+      el.setAttribute("data-ledger-excel-hit", "1");
+    } catch (e4) {}
+    return {
+      how: how,
+      tag: el.tagName || "",
+      id: el.id || "",
+      className: String(el.className || "").slice(0, 160),
+      text: text.slice(0, 120),
+      outerHTML: html
+    };
+  }
+  function clearHits() {
+    try {
+      var prev = document.querySelectorAll("[data-ledger-excel-hit]");
+      for (var p = 0; p < prev.length; p++) prev[p].removeAttribute("data-ledger-excel-hit");
+    } catch (e5) {}
+  }
+  clearHits();
+
+  var el = document.querySelector("#excel");
+  if (el && visible(el)) return info(el, "#excel");
+
+  var withId = document.querySelectorAll("[id]");
+  for (var i = 0; i < withId.length; i++) {
+    if (!/excel/i.test(withId[i].id || "")) continue;
+    if (!visible(withId[i])) continue;
+    return info(withId[i], '[id*="excel" i]');
+  }
+
+  var withName = document.querySelectorAll("[name]");
+  for (var j = 0; j < withName.length; j++) {
+    var nm = withName[j].getAttribute("name") || "";
+    if (!/excel/i.test(nm)) continue;
+    if (!visible(withName[j])) continue;
+    return info(withName[j], '[name*="excel" i]');
+  }
+
+  var clickables = document.querySelectorAll(
+    "button, a, input[type='button'], input[type='submit'], [role='button']"
+  );
+  for (var k = 0; k < clickables.length; k++) {
+    var t = "";
+    try {
+      if (clickables[k].tagName === "INPUT") {
+        t = String(clickables[k].value || "").trim();
+      } else {
+        t = String(clickables[k].innerText || clickables[k].textContent || "").trim();
+      }
+    } catch (e6) {
+      t = "";
+    }
+    if (t !== "Excel" && t.toLowerCase() !== "excel") continue;
+    if (!visible(clickables[k])) continue;
+    return info(clickables[k], 'text exact "Excel"');
+  }
+
+  for (var m = 0; m < clickables.length; m++) {
+    var t2 = "";
+    try {
+      if (clickables[m].tagName === "INPUT") {
+        t2 = String(clickables[m].value || "").trim();
+      } else {
+        t2 = String(clickables[m].innerText || clickables[m].textContent || "").trim();
+      }
+    } catch (e7) {
+      t2 = "";
+    }
+    if (!/Excel/i.test(t2)) continue;
+    if (!visible(clickables[m])) continue;
+    return info(clickables[m], 'text contains "Excel"');
+  }
+
+  return null;
+})()`;
+
+type LedgerExcelHit = {
+  how: string;
+  tag: string;
+  id: string;
+  className: string;
+  text: string;
+  outerHTML: string;
+};
+
+async function findLedgerExcelButton(page: Page): Promise<Locator | null> {
+  const frames = page.frames();
+  type Ranked = { frame: Frame; index: number; hasStockQty: boolean };
+  const ranked: Ranked[] = [];
+
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    let hasStockQty = false;
+    try {
+      hasStockQty = await frame.evaluate(() => {
+        const main = document.querySelector("#mainPage");
+        let text = "";
+        if (main) {
+          text = String(
+            (main as HTMLElement).innerText || main.textContent || ""
+          );
+        } else if (document.body) {
+          text = String(
+            (document.body as HTMLElement).innerText || document.body.textContent || ""
+          );
+        }
+        return text.indexOf("재고수량") !== -1;
+      });
+    } catch {
+      hasStockQty = false;
+    }
+    ranked.push({ frame, index: i, hasStockQty });
+  }
+
+  // 결과 frame(재고수량) 우선
+  ranked.sort((a, b) => Number(b.hasStockQty) - Number(a.hasStockQty));
+
+  for (const { frame, index, hasStockQty } of ranked) {
+    let hit: LedgerExcelHit | null = null;
+    try {
+      hit = (await frame.evaluate(LEDGER_FIND_EXCEL_JS)) as LedgerExcelHit | null;
+    } catch {
+      continue;
+    }
+    if (!hit) continue;
+
+    const frameName = frame.name() || "";
+    let frameUrl = "";
+    try {
+      frameUrl = frame.url();
+    } catch {
+      frameUrl = "(unavailable)";
+    }
+
+    console.log(
+      `   [진단][excel] frame[${index}] name=${JSON.stringify(frameName)} url=${frameUrl.slice(0, 160)} hasStockQty=${hasStockQty}`
+    );
+    console.log(
+      `   [진단][excel] how=${hit.how} tag=${hit.tag} id=${JSON.stringify(hit.id)} class=${JSON.stringify(hit.className)} text=${JSON.stringify(hit.text)}`
+    );
+    console.log(`   [진단][excel] outerHTML(앞1000)=${hit.outerHTML}`);
+
+    try {
+      const marked = frame.locator("[data-ledger-excel-hit='1']").first();
+      if ((await marked.count()) > 0) {
+        return marked;
+      }
+    } catch {
+      /* fall through */
+    }
+
+    if (hit.id) {
+      try {
+        const safeId = hit.id.replace(/([ !"#$%&'()*+,./:;<=>?@[\\\]^`{|}~])/g, "\\$1");
+        const byId = frame.locator(`#${safeId}`).first();
+        if ((await byId.count()) > 0) return byId;
+      } catch {
+        /* fall through */
+      }
+    }
+
+    try {
+      const byText = frame.getByText(/^Excel$/i).first();
+      if ((await byText.count()) > 0) return byText;
+    } catch {
+      /* fall through */
+    }
+
+    // 기존 EXCEL_SELECTORS 폴백 (상수 유지)
+    for (const sel of EXCEL_SELECTORS) {
+      try {
+        const loc = frame.locator(sel).first();
+        if ((await loc.count()) > 0 && (await loc.isVisible().catch(() => false))) {
+          return loc;
+        }
+      } catch {
+        /* next */
+      }
+    }
+  }
+
+  console.warn("   [진단][excel] 모든 frame에서 visible Excel UI 미검출");
   return null;
 }
 
