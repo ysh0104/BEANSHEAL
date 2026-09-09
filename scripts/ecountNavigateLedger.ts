@@ -270,60 +270,202 @@ function isConfirmedLedgerLeaf(meta: { id: string; href: string; text: string },
   return true;
 }
 
-/** 클릭 직후 URL/hash/frame/#mainPage 진단 (selector 추측 전환 금지) */
-async function logLedgerPostLeafClickState(page: Page, label: string): Promise<void> {
-  const url = page.url();
+function parseUrlShell(url: string): {
+  url: string;
+  hash: string;
+  urlPrg: string;
+  urlDepth: string;
+  urlMenuSeq: string;
+  urlGroupSeq: string;
+  urlMenuType: string;
+} {
+  const hash = url.includes("#") ? url.slice(url.indexOf("#") + 1) : "";
   let urlPrg = "";
   let urlDepth = "";
   let urlMenuSeq = "";
+  let urlGroupSeq = "";
+  let urlMenuType = "";
   try {
-    const hash = url.includes("#") ? url.slice(url.indexOf("#") + 1) : "";
     const params = new URLSearchParams(hash);
     urlPrg = (params.get("prgId") || "").toUpperCase();
     urlDepth = params.get("depth") || "";
     urlMenuSeq = params.get("menuSeq") || "";
+    urlGroupSeq = params.get("groupSeq") || "";
+    urlMenuType = params.get("menuType") || "";
   } catch {
     urlPrg = extractHashParam(url, "prgId").toUpperCase();
     urlDepth = extractHashParam(url, "depth");
     urlMenuSeq = extractHashParam(url, "menuSeq");
+    urlGroupSeq = extractHashParam(url, "groupSeq");
+    urlMenuType = extractHashParam(url, "menuType");
+  }
+  return {
+    url: url.slice(0, 260),
+    hash: hash.slice(0, 220),
+    urlPrg,
+    urlDepth,
+    urlMenuSeq,
+    urlGroupSeq,
+    urlMenuType,
+  };
+}
+
+/** leaf anchor 전체 속성 덤프 — 순수 JS 문자열 evaluate (selector 변경 없음) */
+async function dumpConfirmedLedgerLeafDom(loc: Locator): Promise<void> {
+  try {
+    const dump = await loc.evaluate(`(el) => {
+      var dataAttrs = {};
+      if (el.attributes) {
+        for (var i = 0; i < el.attributes.length; i++) {
+          var a = el.attributes[i];
+          if (!a || !a.name) continue;
+          if (a.name.indexOf("data-") === 0) dataAttrs[a.name] = String(a.value || "").slice(0, 240);
+        }
+      }
+      var parent = el.parentElement;
+      var parentHtml = parent ? String(parent.outerHTML || "").replace(/\\s+/g, " ").trim().slice(0, 420) : "";
+      var closestA = el.closest ? el.closest("a") : null;
+      var closestHtml = closestA ? String(closestA.outerHTML || "").replace(/\\s+/g, " ").trim().slice(0, 420) : "";
+      var onclickType = typeof el.onclick;
+      var onclickFn = "";
+      try {
+        if (el.onclick) onclickFn = String(el.onclick).slice(0, 400);
+      } catch (e1) {
+        onclickFn = "";
+      }
+      var listenersHint = {
+        hasOnclickAttr: !!(el.getAttribute && el.getAttribute("onclick")),
+        hasOnclickProp: !!el.onclick,
+        onclickType: onclickType,
+        hrefLooksLikeHashNav: !!(el.getAttribute && (el.getAttribute("href") || "").charAt(0) === "#"),
+        target: el.getAttribute ? el.getAttribute("target") || "" : "",
+        role: el.getAttribute ? el.getAttribute("role") || "" : "",
+      };
+      var jqEvents = null;
+      try {
+        if (typeof window.jQuery === "function") {
+          var $el = window.jQuery(el);
+          var ev = $el && $el.data && $el.data("events");
+          if (ev) {
+            jqEvents = Object.keys(ev);
+          } else if (window.jQuery._data) {
+            var d = window.jQuery._data(el, "events");
+            jqEvents = d ? Object.keys(d) : [];
+          }
+        }
+      } catch (e2) {
+        jqEvents = ["jquery-inspect-error"];
+      }
+      return {
+        tagName: el.tagName || "",
+        id: el.id || "",
+        className: String(el.className || "").slice(0, 200),
+        innerText: String(el.innerText || el.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 80),
+        href: el.getAttribute ? el.getAttribute("href") || "" : "",
+        onclickAttr: el.getAttribute ? el.getAttribute("onclick") || "" : "",
+        onclickFn: onclickFn,
+        dataAttrs: dataAttrs,
+        listenersHint: listenersHint,
+        jqEvents: jqEvents,
+        outerHTML: String(el.outerHTML || "").replace(/\\s+/g, " ").trim().slice(0, 500),
+        parentOuterHTML: parentHtml,
+        closestAnchorOuterHTML: closestHtml
+      };
+    }`);
+    console.log(JSON.stringify({ type: "ledger_leaf_dom_full", dump }, null, 2));
+  } catch (err) {
+    console.log(
+      JSON.stringify({
+        type: "ledger_leaf_dom_full_error",
+        error: err instanceof Error ? err.message : String(err),
+      })
+    );
+  }
+}
+
+/** 클릭 전후 page/frame/#mainPage/history 스냅샷 */
+async function logLedgerPostLeafClickState(page: Page, label: string): Promise<void> {
+  const shell = parseUrlShell(page.url());
+  let historyMeta: { length: number; stateType: string } = { length: -1, stateType: "n/a" };
+  try {
+    historyMeta = (await page.evaluate(`(function () {
+      var st = null;
+      try { st = history.state; } catch (e) { st = null; }
+      return {
+        length: history.length,
+        stateType: st === null || typeof st === "undefined" ? String(st) : typeof st
+      };
+    })()`)) as typeof historyMeta;
+  } catch {
+    /* ignore */
   }
 
   console.log(
     JSON.stringify({
       type: "ledger_post_leaf_click",
       label,
-      url: url.slice(0, 220),
-      urlPrg,
-      urlDepth,
-      urlMenuSeq,
+      ...shell,
+      historyLength: historyMeta.length,
+      historyStateType: historyMeta.stateType,
       frameCount: page.frames().length,
     })
   );
 
   const frames = page.frames();
-  for (let i = 0; i < Math.min(frames.length, 8); i++) {
+  for (let i = 0; i < Math.min(frames.length, 10); i++) {
     const frame = frames[i];
-    let mainMeta: { hasMain: boolean; head: string; title: string } = {
+    let mainMeta: {
+      hasMain: boolean;
+      head: string;
+      title: string;
+      scriptTargetLen: number;
+      viewerCount: number;
+      bodyHint: string;
+    } = {
       hasMain: false,
       head: "",
       title: "",
+      scriptTargetLen: 0,
+      viewerCount: 0,
+      bodyHint: "",
     };
     try {
-      // 순수 JS 문자열 — __name helper 주입 방지
       mainMeta = (await frame.evaluate(`(function () {
         var main = document.querySelector("#mainPage");
-        if (!main) return { hasMain: false, head: "", title: "" };
-        var head = String(main.innerText || "").replace(/\\s+/g, " ").trim().slice(0, 120);
-        var titleEl = main.querySelector(".wrapper-title, .wrapper-toolbar .pull-left, .page-title, h1, h2");
-        var title = titleEl
-          ? String(titleEl.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 80)
-          : "";
-        return { hasMain: true, head: head, title: title };
+        var scriptTarget = document.querySelector("#script_target");
+        var viewers = document.querySelectorAll("[data-viewer-id]");
+        var head = "";
+        var title = "";
+        if (main) {
+          head = String(main.innerText || "").replace(/\\s+/g, " ").trim().slice(0, 140);
+          var titleEl = main.querySelector(".wrapper-title, .wrapper-toolbar .pull-left, .page-title, h1, h2");
+          title = titleEl
+            ? String(titleEl.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 80)
+            : "";
+        }
+        var bodyHint = "";
+        try {
+          bodyHint = String(document.body && document.body.innerText ? document.body.innerText : "")
+            .replace(/\\s+/g, " ")
+            .trim()
+            .slice(0, 160);
+        } catch (e) {
+          bodyHint = "";
+        }
+        return {
+          hasMain: !!main,
+          head: head,
+          title: title,
+          scriptTargetLen: scriptTarget ? String(scriptTarget.innerHTML || "").length : 0,
+          viewerCount: viewers.length,
+          bodyHint: bodyHint
+        };
       })()`)) as typeof mainMeta;
     } catch (err) {
       console.log(
         JSON.stringify({
           type: "ledger_post_leaf_frame_error",
+          label,
           frameIndex: i,
           error: err instanceof Error ? err.message : String(err),
         })
@@ -336,10 +478,97 @@ async function logLedgerPostLeafClickState(page: Page, label: string): Promise<v
         label,
         frameIndex: i,
         frameName: frame.name(),
-        frameUrl: frame.url().slice(0, 160),
+        frameUrl: frame.url().slice(0, 180),
         hasMainPage: mainMeta.hasMain,
         mainTitle: mainMeta.title,
         mainHead: mainMeta.head,
+        scriptTargetLen: mainMeta.scriptTargetLen,
+        viewerCount: mainMeta.viewerCount,
+        bodyHint: mainMeta.bodyHint,
+      })
+    );
+  }
+}
+
+/** hashchange / console / pageerror 수집기 */
+function attachLedgerClickProbes(page: Page): {
+  consoleLogs: string[];
+  pageErrors: string[];
+  hashChanges: string[];
+  framenavs: string[];
+  detach: () => void;
+} {
+  const consoleLogs: string[] = [];
+  const pageErrors: string[] = [];
+  const hashChanges: string[] = [];
+  const framenavs: string[] = [];
+
+  const onConsole = (msg: { type: () => string; text: () => string }) => {
+    const line = `[${msg.type()}] ${msg.text()}`.slice(0, 300);
+    if (consoleLogs.length < 40) consoleLogs.push(line);
+  };
+  const onPageError = (err: Error) => {
+    const line = err.message.slice(0, 300);
+    if (pageErrors.length < 20) pageErrors.push(line);
+  };
+  const onFrameNav = (frame: Frame) => {
+    const line = `${frame.name() || "(main)"} -> ${frame.url()}`.slice(0, 220);
+    if (framenavs.length < 30) framenavs.push(line);
+  };
+
+  page.on("console", onConsole);
+  page.on("pageerror", onPageError);
+  page.on("framenavigated", onFrameNav);
+
+  // hashchange 리스너 주입 (순수 문자열)
+  void page
+    .evaluate(`(function () {
+      try {
+        if (window.__ledgerHashProbeInstalled) return true;
+        window.__ledgerHashProbeInstalled = true;
+        window.__ledgerHashProbe = [];
+        window.addEventListener("hashchange", function (ev) {
+          try {
+            window.__ledgerHashProbe.push({
+              t: Date.now(),
+              oldURL: String(ev.oldURL || "").slice(0, 200),
+              newURL: String(ev.newURL || "").slice(0, 200),
+              location: String(location.href || "").slice(0, 200)
+            });
+          } catch (e) {}
+        });
+        return true;
+      } catch (e2) {
+        return false;
+      }
+    })()`)
+    .catch(() => false);
+
+  return {
+    consoleLogs,
+    pageErrors,
+    hashChanges,
+    framenavs,
+    detach: () => {
+      page.off("console", onConsole);
+      page.off("pageerror", onPageError);
+      page.off("framenavigated", onFrameNav);
+    },
+  };
+}
+
+async function flushLedgerHashProbe(page: Page): Promise<void> {
+  try {
+    const rows = await page.evaluate(`(function () {
+      var arr = window.__ledgerHashProbe || [];
+      return arr.slice(-20);
+    })()`);
+    console.log(JSON.stringify({ type: "ledger_hashchange_probe", rows }, null, 2));
+  } catch (err) {
+    console.log(
+      JSON.stringify({
+        type: "ledger_hashchange_probe_error",
+        error: err instanceof Error ? err.message : String(err),
       })
     );
   }
@@ -439,6 +668,11 @@ async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
     return false;
   }
 
+  // 사람 클릭 vs Playwright 클릭 차이 진단 — selector 변경 없음
+  await dumpConfirmedLedgerLeafDom(leaf.loc);
+  const probes = attachLedgerClickProbes(page);
+  await logLedgerPostLeafClickState(page, "pre-click");
+
   console.log(
     JSON.stringify({
       type: "ledger_leaf_click_pre",
@@ -448,7 +682,10 @@ async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
       innerText: leaf.meta.text,
       prgId: extractHashParam(leaf.meta.href, "prgId"),
       menuSeq: extractHashParam(leaf.meta.href, "menuSeq"),
+      groupSeq: extractHashParam(leaf.meta.href, "groupSeq"),
       depth: extractHashParam(leaf.meta.href, "depth"),
+      hrefEqualsPageHashPrefix: page.url().includes(leaf.meta.href.replace(/^#/, "")),
+      note: "human final UX url is often prgId=C000035&depth=2; bot previously stayed on E040702 empty viewer",
     })
   );
   console.log(`   ✓ [LEDGER NAV] 재고수불부 leaf 선택: ${leaf.how}`);
@@ -457,28 +694,72 @@ async function openLedgerViaCascadeMenu(page: Page): Promise<boolean> {
   );
 
   const urlBefore = page.url();
-  await leaf.loc.click({ force: true });
-  console.log("   ✓ 재고수불부 클릭");
-  await page.waitForTimeout(1500);
-  await dismissEcountPopups(page);
-  await logLedgerPostLeafClickState(page, "click+1.5s");
+  const shellBefore = parseUrlShell(urlBefore);
+
+  // Playwright 기본 click 유지 (selector 변경 없음). force 여부는 진단 로그에 남김.
   console.log(
     JSON.stringify({
-      type: "ledger_leaf_click_url_delta",
-      before: urlBefore.slice(0, 180),
-      after: page.url().slice(0, 180),
+      type: "ledger_leaf_click_method",
+      method: "playwright.locator.click",
+      force: true,
+      button: "left",
+      note: "compare with human pointer click; no alternate selector",
     })
   );
 
   try {
-    await assertLedgerProgramSearchScreen(page, 25);
-  } catch (err) {
-    // leaf는 확정 DOM으로 클릭함 — selector 추측 전환 금지, 로딩/viewer 진단만
-    console.warn(
-      `   ⚠ 확정 leaf 클릭 후에도 검색 화면 미확인 — leaf 선택이 아니라 로딩/viewer 문제 가능`
+    await leaf.loc.click({ force: true });
+    console.log("   ✓ 재고수불부 클릭 (Playwright)");
+
+    // 타임라인 스냅샷 — C000035로 재구성되는지 / E040702에 머무는지
+    const timelineMs = [0, 500, 1500, 3000, 5000, 8000];
+    for (let ti = 0; ti < timelineMs.length; ti++) {
+      const ms = timelineMs[ti];
+      if (ti > 0) await page.waitForTimeout(timelineMs[ti] - timelineMs[ti - 1]);
+      await logLedgerPostLeafClickState(page, `click+${ms}ms`);
+      await flushLedgerHashProbe(page);
+      console.log(
+        JSON.stringify({
+          type: "ledger_leaf_click_url_compare",
+          atMs: ms,
+          leafHref: leaf.meta.href,
+          before: shellBefore,
+          after: parseUrlShell(page.url()),
+          stillE040702: parseUrlShell(page.url()).urlPrg === "E040702",
+          becameC000035: parseUrlShell(page.url()).urlPrg === "C000035",
+        })
+      );
+    }
+
+    await dismissEcountPopups(page);
+    await logLedgerPostLeafClickState(page, "after-dismiss");
+    await flushLedgerHashProbe(page);
+
+    console.log(
+      JSON.stringify(
+        {
+          type: "ledger_leaf_click_probes",
+          consoleLogs: probes.consoleLogs,
+          pageErrors: probes.pageErrors,
+          framenavs: probes.framenavs,
+        },
+        null,
+        2
+      )
     );
-    await logLedgerPostLeafClickState(page, "assert-fail");
-    throw err;
+
+    try {
+      await assertLedgerProgramSearchScreen(page, 25);
+    } catch (err) {
+      console.warn(
+        `   ⚠ 확정 leaf 클릭 후에도 검색 화면 미확인 — selector 변경 없이 사람/봇 클릭 차이 진단 필요`
+      );
+      await logLedgerPostLeafClickState(page, "assert-fail");
+      await flushLedgerHashProbe(page);
+      throw err;
+    }
+  } finally {
+    probes.detach();
   }
 
   console.log(
