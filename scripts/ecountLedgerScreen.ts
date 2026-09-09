@@ -145,20 +145,15 @@ export async function findLedgerFrames(page: Page): Promise<Frame[]> {
   const frames: Frame[] = [];
   for (const frame of page.frames()) {
     try {
-      // #mainPage 기준 — 사이드바 텍스트로 오인하지 않음
+      // #mainPage 기준 — 사이드바 텍스트로 오인하지 않음 (문자열 evaluate: __name 방지)
       const mainMeta = await frame
-        .evaluate(() => {
-          const main = document.querySelector("#mainPage") as HTMLElement | null;
-          if (!main) return { hasMain: false, head: "", isDaily: false, isLedger: false };
-          const head = (main.innerText || "").replace(/\s+/g, " ").trim().slice(0, 160);
-          return {
-            hasMain: true,
-            head,
-            isDaily: /^일별\s*재고\s*현황|일별\s*재고\s*현황/.test(head) || head.startsWith("일별재고현황"),
-            isLedger: /재고\s*수불부/.test(head.slice(0, 80)),
-          };
-        })
-        .catch(() => ({ hasMain: false, head: "", isDaily: false, isLedger: false }));
+        .evaluate(FIND_LEDGER_FRAME_META_JS)
+        .catch(() => ({ hasMain: false, head: "", isDaily: false, isLedger: false })) as {
+        hasMain: boolean;
+        head: string;
+        isDaily: boolean;
+        isLedger: boolean;
+      };
 
       if (mainMeta.isDaily && !mainMeta.isLedger) continue;
 
@@ -199,8 +194,12 @@ export function isLedgerOutputFolderUrl(prgId: string | null | undefined): boole
 /**
  * 사이드바/URL hash가 아닌 실제 메인 viewer 기준 program 컨텍스트
  * - viewerPrgIds: #script_target / #mainPage / [data-viewer-id] 내부 PRG_ID만
- * - urlPrgId: 브라우저 hash (실제 UX에서는 C000035가 검색 전후 유지)
- * - urlDepth: hash depth (실제 UX depth=2)
+ * - urlPrgId: 브라우저 hash (leaf 클릭 후 E040702; 출력물 폴더는 C000035)
+ * - urlDepth: hash depth (leaf=4, 출력물 셸=2)
+ *
+ * IMPORTANT: frame.evaluate 는 반드시 순수 JS 문자열로 전달.
+ * tsx/esbuild 가 함수에 __name helper 를 주입하면 ECOUNT 페이지에서
+ * ReferenceError 가 나고, catch 로 삼켜져 mainTitle="" / viewerPrg=[] 로 오판한다.
  */
 export type LedgerProgramProbe = {
   url: string;
@@ -215,6 +214,131 @@ export type LedgerProgramProbe = {
   hasRejectDailyStock: boolean;
   hasLedgerTitle: boolean;
 };
+
+/** Playwright evaluate 용 순수 JS — TS transpile helper(__name) 주입 방지 */
+const PROBE_LEDGER_PROGRAM_JS = `(function () {
+  var prg = {};
+  var viewers = [];
+  var ecpages = [];
+  var titles = [];
+  var mainTitleLocal = "";
+
+  function addPrg(id) {
+    if (!id) return;
+    prg[String(id).toUpperCase()] = true;
+  }
+
+  function scanHtml(html) {
+    if (!html) return;
+    var re = /["']?PRG_ID["']?\\s*[:=]\\s*["']([A-Z]\\d{5,})["']/gi;
+    var m;
+    var n = 0;
+    while ((m = re.exec(html)) !== null) {
+      addPrg(m[1]);
+      n++;
+      if (n >= 20) break;
+    }
+  }
+
+  function scanProgramId(html) {
+    if (!html) return;
+    var re = /["']programID["']\\s*:\\s*["']([A-Z]\\d{5,})["']/gi;
+    var m;
+    var n = 0;
+    while ((m = re.exec(html)) !== null) {
+      addPrg(m[1]);
+      n++;
+      if (n >= 20) break;
+    }
+  }
+
+  var scriptTarget = document.querySelector("#script_target");
+  if (scriptTarget) {
+    var stHtml = scriptTarget.innerHTML || "";
+    scanHtml(stHtml);
+    scanProgramId(stHtml);
+  }
+
+  var roots = document.querySelectorAll("[data-viewer-id], #mainPage");
+  for (var ri = 0; ri < roots.length; ri++) {
+    var root = roots[ri];
+    var vid = root.getAttribute("data-viewer-id");
+    if (vid) viewers.push(vid);
+    var epid = root.getAttribute("data-ecpageid");
+    if (epid) ecpages.push(epid);
+    var rootHtml = root.innerHTML || "";
+    scanHtml(rootHtml);
+    scanProgramId(rootHtml);
+    var inputs = root.querySelectorAll('input[name="PRG_ID"], input[id*="PRG_ID"]');
+    for (var ii = 0; ii < inputs.length; ii++) {
+      var v = String(inputs[ii].value || "").trim();
+      if (v) addPrg(v);
+    }
+  }
+
+  var main = document.querySelector("#mainPage");
+  if (main) {
+    var titleEl = main.querySelector(".wrapper-title, .wrapper-toolbar .pull-left, .page-title, h1, h2") || main;
+    mainTitleLocal = String(titleEl.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 100);
+    var head = String(main.innerText || "").replace(/\\s+/g, " ").trim().slice(0, 120);
+    if (/일별\\s*재고\\s*현황/.test(head) || head.indexOf("일별재고현황") === 0) titles.push("일별재고현황");
+    if (/재고\\s*수불부/.test(head.slice(0, 80))) titles.push("재고수불부");
+  }
+
+  var body = "";
+  try {
+    body = String(document.body && document.body.innerText ? document.body.innerText : "")
+      .replace(/\\s+/g, " ")
+      .trim()
+      .slice(0, 240);
+  } catch (e) {
+    body = "";
+  }
+
+  var prgList = [];
+  for (var k in prg) {
+    if (Object.prototype.hasOwnProperty.call(prg, k)) prgList.push(k);
+  }
+
+  return {
+    prg: prgList,
+    viewers: viewers,
+    ecpages: ecpages,
+    titles: titles,
+    mainTitle: mainTitleLocal,
+    body: body
+  };
+})()`;
+
+const HAS_LEDGER_SEARCH_UI_JS = `(function () {
+  var main = document.querySelector("#mainPage");
+  if (!main) return false;
+  var text = String(main.innerText || "").replace(/\\s+/g, " ").trim();
+  var head = text.slice(0, 100);
+  if (/일별\\s*재고\\s*현황|일별재고현황/.test(head)) return false;
+  if (!/재고\\s*수불부|재고수불부/.test(head)) return false;
+  return /기준일자/.test(text) || /(?:검색|Search|조회)\\s*\\(F\\d+\\)/i.test(text);
+})()`;
+
+const FIND_LEDGER_FRAME_META_JS = `(function () {
+  var main = document.querySelector("#mainPage");
+  if (!main) return { hasMain: false, head: "", isDaily: false, isLedger: false };
+  var head = String(main.innerText || "").replace(/\\s+/g, " ").trim().slice(0, 160);
+  return {
+    hasMain: true,
+    head: head,
+    isDaily: /일별\\s*재고\\s*현황/.test(head) || head.indexOf("일별재고현황") === 0,
+    isLedger: /재고\\s*수불부/.test(head.slice(0, 80))
+  };
+})()`;
+
+const LEDGER_VIEWER_ROOT_OK_JS = `(function () {
+  var main = document.querySelector("#mainPage");
+  if (!main) return false;
+  var head = String(main.innerText || "").replace(/\\s+/g, " ").trim().slice(0, 120);
+  if (/일별\\s*재고\\s*현황|일별재고현황/.test(head)) return false;
+  return /재고\\s*수불부|재고수불부/.test(head);
+})()`;
 
 export async function probeLedgerProgramContext(page: Page): Promise<LedgerProgramProbe> {
   const url = page.url();
@@ -246,75 +370,14 @@ export async function probeLedgerProgramContext(page: Page): Promise<LedgerProgr
 
   for (const frame of page.frames()) {
     try {
-      const data = await frame.evaluate(() => {
-        const prg = new Set<string>();
-        const viewers: string[] = [];
-        const ecpages: string[] = [];
-        const titles: string[] = [];
-        let mainTitleLocal = "";
-
-        const scanHtml = (html: string) => {
-          const re = /["']?PRG_ID["']?\s*[:=]\s*["']([A-Z]\d{5,})["']/gi;
-          let m: RegExpExecArray | null;
-          while ((m = re.exec(html)) !== null) {
-            prg.add(m[1].toUpperCase());
-            if (prg.size >= 20) break;
-          }
-        };
-
-        const scanProgramId = (html: string) => {
-          const re = /["']programID["']\s*:\s*["']([A-Z]\d{5,})["']/gi;
-          let m: RegExpExecArray | null;
-          while ((m = re.exec(html)) !== null) {
-            prg.add(m[1].toUpperCase());
-            if (prg.size >= 20) break;
-          }
-        };
-
-        // 1) script_target — navigateAsync payload (실제 로드된 프로그램)
-        const scriptTarget = document.querySelector("#script_target");
-        if (scriptTarget) {
-          const html = scriptTarget.innerHTML || "";
-          scanHtml(html);
-          scanProgramId(html);
-        }
-
-        // 2) data-viewer-id / mainPage 루트
-        document.querySelectorAll("[data-viewer-id], #mainPage").forEach((root) => {
-          const vid = root.getAttribute("data-viewer-id");
-          if (vid) viewers.push(vid);
-          const epid = root.getAttribute("data-ecpageid");
-          if (epid) ecpages.push(epid);
-          const html = (root as HTMLElement).innerHTML || "";
-          scanHtml(html);
-          scanProgramId(html);
-          root.querySelectorAll('input[name="PRG_ID"], input[id*="PRG_ID"]').forEach((inp) => {
-            const v = ((inp as HTMLInputElement).value || "").trim();
-            if (v) prg.add(v.toUpperCase());
-          });
-        });
-
-        const main = document.querySelector("#mainPage") as HTMLElement | null;
-        if (main) {
-          const titleEl =
-            main.querySelector(".wrapper-title, .wrapper-toolbar .pull-left, .page-title, h1, h2") ||
-            main;
-          mainTitleLocal = (titleEl.textContent || "").replace(/\s+/g, " ").trim().slice(0, 100);
-          const head = (main.innerText || "").replace(/\s+/g, " ").trim().slice(0, 120);
-          if (/일별\s*재고\s*현황/.test(head) || head.startsWith("일별재고현황")) titles.push("일별재고현황");
-          if (/재고\s*수불부/.test(head.slice(0, 80))) titles.push("재고수불부");
-        }
-
-        const body = (document.body?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 240);
-        return {
-          prg: Array.from(prg),
-          viewers,
-          ecpages,
-          titles,
-          mainTitle: mainTitleLocal,
-          body,
-        };
-      });
+      const data = (await frame.evaluate(PROBE_LEDGER_PROGRAM_JS)) as {
+        prg: string[];
+        viewers: string[];
+        ecpages: string[];
+        titles: string[];
+        mainTitle: string;
+        body: string;
+      };
 
       for (const id of data.prg) viewerPrgIds.add(id.toUpperCase());
       for (const v of data.viewers) viewerIds.add(v);
@@ -358,10 +421,10 @@ function logLedgerProgramProbe(probe: LedgerProgramProbe, label: string): void {
 /**
  * 재고수불부 화면이 로드됐는지 확인.
  *
- * 실제 UX:
- * - 브라우저 URL prgId=C000035 (출력물 셸), depth=2 — 검색 전후에도 동일
- * - #mainPage 제목 「재고수불부」
- * - leaf 링크 힌트 E040702는 메뉴 클릭용이며 URL 필수값이 아님
+ * 확인된 UX (leaf #link_depth4_MENUTREE_000215 클릭 후):
+ * - 브라우저 URL prgId=E040702, depth=4
+ * - #mainPage 제목 「재고수불부」 + 기준일자/검색 UI
+ * - 출력물 폴더 셸(C000035)에서도 제목만 맞으면 허용
  *
  * 거부: 일별재고현황(E040206), 재고현황 폴더(C000650)
  */
@@ -384,10 +447,10 @@ export async function isExpectedLedgerProgramLoaded(page: Page): Promise<boolean
     probe.hasLedgerTitle || /재고\s*수불부|재고수불부/.test(probe.mainTitle);
   if (!hasLedgerTitle) return false;
 
-  // 실제 UX: URL 셸 C000035 + #mainPage 재고수불부
+  // 출력물 셸 C000035 + #mainPage 재고수불부
   if (probe.urlPrgId === folderPrg) return true;
 
-  // leaf program이 viewer/URL에 잡히는 경우(환경에 따라)
+  // leaf 클릭 후 확인된 URL/viewer: E040702
   if (probe.viewerPrgIds.includes(leafPrg)) return true;
   if (probe.urlPrgId === leafPrg) return true;
 
@@ -398,15 +461,7 @@ export async function isExpectedLedgerProgramLoaded(page: Page): Promise<boolean
 async function hasLedgerSearchUi(page: Page): Promise<boolean> {
   for (const frame of page.frames()) {
     try {
-      const ok = await frame.evaluate(() => {
-        const main = document.querySelector("#mainPage") as HTMLElement | null;
-        if (!main) return false;
-        const text = (main.innerText || "").replace(/\s+/g, " ").trim();
-        const head = text.slice(0, 100);
-        if (/일별\s*재고\s*현황|일별재고현황/.test(head)) return false;
-        if (!/재고\s*수불부|재고수불부/.test(head)) return false;
-        return /기준일자/.test(text) || /(?:검색|Search|조회)\s*\(F\d+\)/i.test(text);
-      });
+      const ok = (await frame.evaluate(HAS_LEDGER_SEARCH_UI_JS)) as boolean;
       if (ok) return true;
     } catch {
       /* skip */
@@ -478,7 +533,7 @@ export async function assertLedgerProgramSearchScreen(page: Page, maxSec = 25): 
       `viewerPrg=[${probe.viewerPrgIds.join(",")}] ` +
       `viewers=[${probe.viewerIds.slice(0, 8).join(",")}] ecpage=[${probe.ecpageIds.slice(0, 8).join(",")}] ` +
       `mainTitle=${JSON.stringify(probe.mainTitle)} titles=[${probe.titleHints.join(",")}] ` +
-      `(실제 UX: urlPrg=${ledgerOutputFolderPrgId()} + #mainPage 재고수불부; leafHint=${expectedLedgerPrgId()})`
+      `(기대: urlPrg=${expectedLedgerPrgId()} 또는 ${ledgerOutputFolderPrgId()} + #mainPage 재고수불부)`
   );
 }
 
@@ -527,13 +582,7 @@ async function getLedgerViewerRoots(
   for (let fi = 0; fi < frames.length; fi++) {
     const frame = frames[fi];
     try {
-      const ok = await frame.evaluate(() => {
-        const main = document.querySelector("#mainPage") as HTMLElement | null;
-        if (!main) return false;
-        const head = (main.innerText || "").replace(/\s+/g, " ").trim().slice(0, 120);
-        if (/일별\s*재고\s*현황|일별재고현황/.test(head)) return false;
-        return /재고\s*수불부|재고수불부/.test(head);
-      });
+      const ok = (await frame.evaluate(LEDGER_VIEWER_ROOT_OK_JS)) as boolean;
       if (!ok) continue;
       const root = frame.locator("#mainPage").first();
       if ((await root.count()) === 0) continue;
