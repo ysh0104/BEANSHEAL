@@ -1581,8 +1581,115 @@ export async function waitAndDismissBulkItemModal(page: Page, maxSec = 30): Prom
 /**
  * 재고수불부 검색 실행 — 사람 UX와 동일하게 F8 키 사용.
  * 검색 버튼 selector/DOM 탐색은 사용하지 않음.
- * F8 직후 잘못된 화면(E040206/C000650/일별재고현황 등)이면 즉시 실패.
+ * F8 직후 잘못된 화면이면 즉시 실패. 검색이 시작되지 않아도 실패 (ESC로 화면 파괴 방지).
  */
+const DISPATCH_F8_JS = `(function () {
+  var main = document.querySelector("#mainPage");
+  var focused = "";
+  try {
+    if (main) {
+      if (typeof main.focus === "function") main.focus();
+      var inp = main.querySelector("input:not([type='hidden']), textarea, select");
+      if (inp && typeof inp.focus === "function") {
+        inp.focus();
+        focused = (inp.tagName || "") + "#" + (inp.id || "") + "." + String(inp.className || "").slice(0, 40);
+      }
+    }
+  } catch (e) {
+    focused = "focus-error";
+  }
+
+  function fire(target, type) {
+    try {
+      var ev = new KeyboardEvent(type, {
+        key: "F8",
+        code: "F8",
+        keyCode: 119,
+        which: 119,
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      // some browsers ignore keyCode in ctor — force
+      try {
+        Object.defineProperty(ev, "keyCode", { get: function () { return 119; } });
+        Object.defineProperty(ev, "which", { get: function () { return 119; } });
+      } catch (e2) {}
+      target.dispatchEvent(ev);
+      return true;
+    } catch (e3) {
+      return false;
+    }
+  }
+
+  var targets = [];
+  if (document.activeElement) targets.push(document.activeElement);
+  if (main) targets.push(main);
+  targets.push(document);
+  targets.push(window);
+
+  var fired = 0;
+  for (var i = 0; i < targets.length; i++) {
+    if (fire(targets[i], "keydown")) fired++;
+    fire(targets[i], "keyup");
+  }
+
+  // ECOUNT jQuery hotkey 경로 (있을 때만)
+  var jq = false;
+  try {
+    var $ = window.jQuery || window.$;
+    if ($ && typeof $.fn !== "undefined") {
+      jq = true;
+      $(document).trigger({ type: "keydown", keyCode: 119, which: 119, key: "F8" });
+      $(document).trigger({ type: "keyup", keyCode: 119, which: 119, key: "F8" });
+    }
+  } catch (e4) {}
+
+  return { focused: focused, fired: fired, jq: jq };
+})()`;
+
+const F8_POST_STATE_JS = `(function () {
+  var main = document.querySelector("#mainPage");
+  var body = "";
+  var head = "";
+  try {
+    body = String(document.body && document.body.innerText ? document.body.innerText : "")
+      .replace(/\\s+/g, " ")
+      .trim()
+      .slice(0, 500);
+  } catch (e) {
+    body = "";
+  }
+  if (main) {
+    try {
+      head = String(main.innerText || main.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 200);
+    } catch (e2) {
+      head = "";
+    }
+  }
+  var hasConfirm =
+    /조회할\\s*자료가\\s*많아/.test(body) ||
+    /오래\\s*걸릴\\s*수\\s*있습니다/.test(body);
+  var hasResults =
+    /품목코드/.test(head) ||
+    /기초재고/.test(head) ||
+    (/입고/.test(head) && /출고/.test(head));
+  var stillSearchForm =
+    /기준일자/.test(head) &&
+    (/단가표시/.test(head) || /전월\\+금월/.test(head) || /창고/.test(head));
+  var hasLedger = /재고\\s*수불부|재고수불부/.test(head) || /재고\\s*수불부|재고수불부/.test(body.slice(0, 200));
+  var isDaily = /일별\\s*재고\\s*현황|일별재고현황/.test(head);
+  return {
+    hasMain: !!main,
+    head: head,
+    hasConfirm: hasConfirm,
+    hasResults: hasResults,
+    stillSearchForm: stillSearchForm,
+    hasLedger: hasLedger,
+    isDaily: isDaily
+  };
+})()`;
+
 export async function clickLedgerSearch(page: Page): Promise<Frame> {
   console.log("   → 검색 실행 (F8 키)");
 
@@ -1597,56 +1704,101 @@ export async function clickLedgerSearch(page: Page): Promise<Frame> {
   const frames = await findLedgerFrames(page);
   const focusFrame = frames[0] || page.mainFrame();
 
-  // #mainPage에 포커스 후 F8 (버튼 DOM 클릭/탐색 없음)
-  try {
-    await focusFrame.locator("#mainPage").click({ position: { x: 40, y: 40 }, force: true }).catch(() => {});
-  } catch {
-    await page.locator("body").click({ position: { x: 40, y: 40 }, force: true }).catch(() => {});
-  }
-
   const detachDialogProbe = attachLedgerNativeDialogProbe(page);
   try {
+    // 1) frame 내부에서 input 포커스 + keyCode 119(F8) 디스패치 (버튼 DOM 탐색 없음)
+    try {
+      const dispatched = (await focusFrame.evaluate(DISPATCH_F8_JS)) as {
+        focused: string;
+        fired: number;
+        jq: boolean;
+      };
+      console.log(
+        `   [진단][f8-dispatch] focused=${JSON.stringify(dispatched.focused)} fired=${dispatched.fired} jq=${dispatched.jq}`
+      );
+    } catch (err) {
+      console.log(
+        `   [진단][f8-dispatch] evaluate 예외: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+
+    // 2) Playwright 키보드 F8 (페이지 포커스 보조)
     await page.keyboard.press("F8");
-    console.log("   ✓ F8 입력");
+    console.log("   ✓ F8 입력 (dispatch + keyboard)");
+    await page.waitForTimeout(2000);
   } finally {
-    // dialog probe는 ESC 단계에서도 쓰일 수 있어 짧게 유지 후 해제
-    await page.waitForTimeout(800);
     detachDialogProbe();
   }
 
   // F8 직후 URL / hash / #mainPage / frame / 화면 텍스트 진단
   const url = page.url();
   const urlPrgId = parseUrlPrgId(url);
-  const postDom = await readDomLedgerSearchScreen(page);
+  let postState: {
+    hasMain: boolean;
+    head: string;
+    hasConfirm: boolean;
+    hasResults: boolean;
+    stillSearchForm: boolean;
+    hasLedger: boolean;
+    isDaily: boolean;
+  } = {
+    hasMain: false,
+    head: "",
+    hasConfirm: false,
+    hasResults: false,
+    stillSearchForm: false,
+    hasLedger: false,
+    isDaily: false,
+  };
+  try {
+    postState = (await focusFrame.evaluate(F8_POST_STATE_JS)) as typeof postState;
+  } catch {
+    try {
+      postState = (await page.mainFrame().evaluate(F8_POST_STATE_JS)) as typeof postState;
+    } catch {
+      /* keep defaults */
+    }
+  }
+
   console.log(`   [진단][f8-post] url=${url.slice(0, 180)}`);
   console.log(
     `   [진단][f8-post] hash=${url.includes("#") ? url.slice(url.indexOf("#") + 1).slice(0, 120) : "(none)"} urlPrg=${urlPrgId || "(none)"}`
   );
   console.log(
-    `   [진단][f8-post] hasMain=${!!postDom.hit?.hasMainPage} hasLedger=${!!postDom.hit?.hasLedgerText} searchTitle=${!!postDom.hit?.hasSearchTitle} head=${JSON.stringify((postDom.hit?.head || "").slice(0, 100))}`
+    `   [진단][f8-post] hasMain=${postState.hasMain} hasLedger=${postState.hasLedger} stillSearchForm=${postState.stillSearchForm} hasConfirm=${postState.hasConfirm} hasResults=${postState.hasResults} isDaily=${postState.isDaily} head=${JSON.stringify(postState.head.slice(0, 100))}`
   );
   logLedgerFrameList(page, "f8-post");
   await logLedgerPostF8Diagnostics(page);
 
-  // 잘못된 화면으로 이탈하면 즉시 실패 (과거 F8 → 일별재고현황 등)
-  const head = postDom.hit?.head || "";
-  const wrongPrg =
+  const head = postState.head || "";
+
+  // 잘못된 화면으로 이탈하면 즉시 실패
+  if (
     urlPrgId === "E040206" ||
     urlPrgId === "C000650" ||
-    /일별\s*재고\s*현황|일별재고현황/.test(head);
-  if (wrongPrg) {
+    postState.isDaily ||
+    /일별\s*재고\s*현황|일별재고현황/.test(head)
+  ) {
     throw new Error(
       `F8 직후 잘못된 화면 — urlPrg=${urlPrgId || "(none)"} head=${JSON.stringify(head.slice(0, 120))} ` +
         `(기대: 재고수불부 유지, urlPrg=${expectedLedgerPrgId()})`
     );
   }
 
-  // 재고수불부 컨텍스트 상실(대시보드/다른 메뉴)도 실패
+  // 검색이 시작되지 않음 (폼 그대로) → ESC 전에 실패 (ESC가 hash/프로그램을 닫는 문제 방지)
+  if (postState.stillSearchForm && !postState.hasConfirm && !postState.hasResults) {
+    throw new Error(
+      `F8 후에도 검색 폼 그대로(검색 미시작) — urlPrg=${urlPrgId || "(none)"} head=${JSON.stringify(head.slice(0, 120))} ` +
+        `(confirm=${postState.hasConfirm} results=${postState.hasResults})`
+    );
+  }
+
+  // 재고수불부 컨텍스트 상실
   const stillLedger =
-    !!postDom.hit?.hasLedgerText ||
-    !!postDom.hit?.hasSearchTitle ||
-    urlPrgId === expectedLedgerPrgId() ||
-    /조회할\s*자료가\s*많아|오래\s*걸릴\s*수\s*있습니다|품목코드|기초재고|입고|출고/.test(head);
+    postState.hasLedger ||
+    postState.hasConfirm ||
+    postState.hasResults ||
+    urlPrgId === expectedLedgerPrgId();
   if (!stillLedger) {
     throw new Error(
       `F8 직후 재고수불부 화면 이탈 — urlPrg=${urlPrgId || "(none)"} head=${JSON.stringify(head.slice(0, 120))}`
@@ -1654,7 +1806,7 @@ export async function clickLedgerSearch(page: Page): Promise<Frame> {
   }
 
   console.log(
-    `   ✓ F8 검색 실행 후 재고수불부 컨텍스트 유지 (urlPrg=${urlPrgId || "(none)"})`
+    `   ✓ F8 검색 반응 확인 (urlPrg=${urlPrgId || "(none)"} confirm=${postState.hasConfirm} results=${postState.hasResults})`
   );
   return focusFrame.isDetached() ? page.mainFrame() : focusFrame;
 }
