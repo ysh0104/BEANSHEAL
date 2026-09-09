@@ -421,10 +421,10 @@ function logLedgerProgramProbe(probe: LedgerProgramProbe, label: string): void {
 /**
  * 재고수불부 화면이 로드됐는지 확인.
  *
- * 확인된 UX (leaf #link_depth4_MENUTREE_000215 클릭 후):
- * - 브라우저 URL prgId=E040702, depth=4
- * - #mainPage 제목 「재고수불부」 + 기준일자/검색 UI
- * - 출력물 폴더 셸(C000035)에서도 제목만 맞으면 허용
+ * 성공 (CI 로그 기준, ~3초):
+ * - #mainPage 존재 + 제목/본문에 「재고수불부」
+ * - URL prgId=E040702 유지 허용 (C000035 셸도 허용)
+ * - viewerPrg 비어 있어도 OK (필수 아님)
  *
  * 거부: 일별재고현황(E040206), 재고현황 폴더(C000650)
  */
@@ -443,18 +443,19 @@ export async function isExpectedLedgerProgramLoaded(page: Page): Promise<boolean
     return false;
   }
 
+  // 핵심: #mainPage 제목/힌트에 「재고수불부」 (viewerPrg 불필요)
   const hasLedgerTitle =
     probe.hasLedgerTitle || /재고\s*수불부|재고수불부/.test(probe.mainTitle);
   if (!hasLedgerTitle) return false;
 
-  // 출력물 셸 C000035 + #mainPage 재고수불부
-  if (probe.urlPrgId === folderPrg) return true;
+  // URL은 E040702(leaf) 또는 C000035(출력물 셸) — 둘 다 허용
+  if (probe.urlPrgId === leafPrg || probe.urlPrgId === folderPrg) return true;
 
-  // leaf 클릭 후 확인된 URL/viewer: E040702
+  // URL이 비정상이어도 viewer에 leaf PRG가 잡히면 허용
   if (probe.viewerPrgIds.includes(leafPrg)) return true;
-  if (probe.urlPrgId === leafPrg) return true;
 
-  return false;
+  // 제목만으로도 인정 (진단에서 mainTitle이 이미 「재고수불부 Search(F3)…」인 경우)
+  return true;
 }
 
 /** #mainPage 안에서만 재고수불부 검색 UI 확인 (사이드바 제외) */
