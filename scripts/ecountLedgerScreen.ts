@@ -157,8 +157,9 @@ export async function findLedgerFrames(page: Page): Promise<Frame[]> {
 
       if (mainMeta.isDaily && !mainMeta.isLedger) continue;
 
-      const stockQty = frame.locator("text=재고수량").first();
-      if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) continue;
+      // 결과 화면의 「재고수량」만 제외 — 사이드바 텍스트로 frame 스킵 금지
+      const stockQty = frame.locator("#mainPage").locator("text=재고수량").first();
+      if ((await stockQty.count()) > 0 && (await stockQty.isVisible().catch(() => false))) continue;
 
       if (!mainMeta.hasMain || !mainMeta.isLedger) continue;
 
@@ -1577,6 +1578,67 @@ export async function waitAndDismissBulkItemModal(page: Page, maxSec = 30): Prom
   return true;
 }
 
+/**
+ * #mainPage 안 「검색(F8)」 실제 DOM 클릭 (string evaluate — __name / locator 미탐 회피).
+ * CI 스크린샷: 하단 파란 「검색(F8)」 버튼.
+ */
+const CLICK_LEDGER_SEARCH_BTN_JS = `(function () {
+  var main = document.querySelector("#mainPage");
+  if (!main) return { clicked: false, reason: "no-mainPage", candidates: [] };
+  var re = /(?:검색|Search|조회)\\s*\\(\\s*F\\d+\\s*\\)/i;
+  var nodes = main.querySelectorAll("button, a, span, div, li, input, em, strong, b");
+  var candidates = [];
+  var target = null;
+  for (var i = 0; i < nodes.length; i++) {
+    var el = nodes[i];
+    var text = "";
+    try {
+      if (el.tagName === "INPUT") {
+        text = String(el.value || el.getAttribute("value") || "").replace(/\\s+/g, " ").trim();
+      } else {
+        text = String(el.innerText || el.textContent || "").replace(/\\s+/g, " ").trim();
+      }
+    } catch (e) {
+      continue;
+    }
+    if (!re.test(text) || text.length > 40) continue;
+    var visible = false;
+    try {
+      visible = !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length));
+    } catch (e2) {
+      visible = false;
+    }
+    candidates.push({
+      tag: el.tagName || "",
+      text: text.slice(0, 40),
+      visible: visible,
+      id: el.id || "",
+      className: String(el.className || "").slice(0, 80)
+    });
+    if (visible && !target) target = el;
+    if (candidates.length >= 12) break;
+  }
+  if (!target) {
+    return { clicked: false, reason: "no-visible-search-btn", candidates: candidates };
+  }
+  try {
+    target.click();
+    return {
+      clicked: true,
+      reason: "ok",
+      tag: target.tagName || "",
+      text: String(target.innerText || target.textContent || target.value || "").replace(/\\s+/g, " ").trim().slice(0, 40),
+      candidates: candidates
+    };
+  } catch (e3) {
+    return {
+      clicked: false,
+      reason: "click-threw:" + String(e3 && e3.message ? e3.message : e3),
+      candidates: candidates
+    };
+  }
+})()`;
+
 export async function clickLedgerSearch(page: Page): Promise<Frame> {
   console.log("   → 검색 버튼 클릭");
   const frames = await findLedgerFrames(page);
@@ -1589,21 +1651,47 @@ export async function clickLedgerSearch(page: Page): Promise<Frame> {
   const detachDialogProbe = attachLedgerNativeDialogProbe(page);
 
   try {
+    // 1순위: #mainPage 실제 DOM에서 「검색(F8)」 클릭 (CI 화면 기준)
     for (const frame of scan) {
+      try {
+        const result = (await frame.evaluate(CLICK_LEDGER_SEARCH_BTN_JS)) as {
+          clicked: boolean;
+          reason: string;
+          tag?: string;
+          text?: string;
+          candidates: Array<{ tag: string; text: string; visible: boolean; id: string; className: string }>;
+        };
+        if (result.candidates?.length) {
+          console.log(
+            `   [진단][search-btn] frame=${frame.name() || "(main)"} reason=${result.reason} candidates=${JSON.stringify(result.candidates.slice(0, 6))}`
+          );
+        }
+        if (result.clicked) {
+          console.log(
+            `   ✓ 검색 버튼 클릭 (DOM) tag=${result.tag || "?"} text=${JSON.stringify(result.text || "")}`
+          );
+          return frame;
+        }
+      } catch {
+        /* next frame */
+      }
+    }
+
+    // 2순위: Playwright locator (#mainPage 스코프)
+    for (const frame of scan) {
+      const root = frame.locator("#mainPage");
       const locators = [
-        frame.getByText(SEARCH_BTN).first(),
-        frame.locator('button, a, span, div[role="button"]').filter({ hasText: SEARCH_BTN }).first(),
-        frame.getByText(/^검색$/).first(),
-        frame.locator('button, a, span, div[role="button"]').filter({ hasText: /^검색$/ }).first(),
+        root.getByText(SEARCH_BTN).first(),
+        root.locator('button, a, span, div[role="button"]').filter({ hasText: SEARCH_BTN }).first(),
+        root.getByRole("button", { name: SEARCH_BTN }).first(),
+        root.getByText(/^검색$/).first(),
       ];
       for (const btn of locators) {
         try {
-          if ((await btn.count()) > 0 && (await btn.isVisible())) {
-            await frame.locator("body").click({ position: { x: 40, y: 40 }, force: true }).catch(() => {});
+          if ((await btn.count()) > 0 && (await btn.isVisible().catch(() => false))) {
             await btn.scrollIntoViewIfNeeded().catch(() => {});
             await btn.click({ force: true });
-            console.log("   ✓ 검색 버튼 클릭");
-            // F8 전역 폴백 사용 금지 — 대시보드 이탈 방지
+            console.log("   ✓ 검색 버튼 클릭 (locator)");
             return frame;
           }
         } catch {
@@ -1616,7 +1704,7 @@ export async function clickLedgerSearch(page: Page): Promise<Frame> {
   }
 
   throw new Error(
-    "재고수불부 검색 버튼을 찾지 못했습니다. F8 폴백은 사용하지 않습니다 — 화면의 「검색」 버튼을 확인하세요."
+    "재고수불부 검색 버튼을 찾지 못했습니다. F8 폴백은 사용하지 않습니다 — 화면의 「검색(F8)」 버튼을 확인하세요."
   );
 }
 
