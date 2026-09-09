@@ -310,16 +310,6 @@ const PROBE_LEDGER_PROGRAM_JS = `(function () {
   };
 })()`;
 
-const HAS_LEDGER_SEARCH_UI_JS = `(function () {
-  var main = document.querySelector("#mainPage");
-  if (!main) return false;
-  var text = String(main.innerText || "").replace(/\\s+/g, " ").trim();
-  var head = text.slice(0, 100);
-  if (/일별\\s*재고\\s*현황|일별재고현황/.test(head)) return false;
-  if (!/재고\\s*수불부|재고수불부/.test(head)) return false;
-  return /기준일자/.test(text) || /(?:검색|Search|조회)\\s*\\(F\\d+\\)/i.test(text);
-})()`;
-
 const FIND_LEDGER_FRAME_META_JS = `(function () {
   var main = document.querySelector("#mainPage");
   if (!main) return { hasMain: false, head: "", isDaily: false, isLedger: false };
@@ -421,16 +411,15 @@ function logLedgerProgramProbe(probe: LedgerProgramProbe, label: string): void {
 /**
  * 재고수불부 화면이 로드됐는지 확인.
  *
- * 성공 (CI 로그 기준, ~3초):
- * - #mainPage 존재 + 제목/본문에 「재고수불부」
- * - URL prgId=E040702 유지 허용 (C000035 셸도 허용)
- * - viewerPrg 비어 있어도 OK (필수 아님)
+ * 성공 (CI ~3초 시점 기준):
+ * 1. #mainPage 존재
+ * 2. mainTitle / mainPage 텍스트에 「재고수불부」
+ * 3. URL E040702 유지 허용 (C000035 셸도 허용)
+ * 4. viewerPrg 필수 아님 (비어 있어도 OK)
  *
  * 거부: 일별재고현황(E040206), 재고현황 폴더(C000650)
  */
 export async function isExpectedLedgerProgramLoaded(page: Page): Promise<boolean> {
-  const leafPrg = expectedLedgerPrgId();
-  const folderPrg = ledgerOutputFolderPrgId();
   const probe = await probeLedgerProgramContext(page);
 
   // 잘못된 화면 — 즉시 거부
@@ -443,38 +432,19 @@ export async function isExpectedLedgerProgramLoaded(page: Page): Promise<boolean
     return false;
   }
 
-  // 핵심: #mainPage 제목/힌트에 「재고수불부」 (viewerPrg 불필요)
+  // #mainPage + 「재고수불부」 제목만으로 성공 (viewerPrg / 빈 mainTitle 가정 제거)
   const hasLedgerTitle =
     probe.hasLedgerTitle || /재고\s*수불부|재고수불부/.test(probe.mainTitle);
-  if (!hasLedgerTitle) return false;
-
-  // URL은 E040702(leaf) 또는 C000035(출력물 셸) — 둘 다 허용
-  if (probe.urlPrgId === leafPrg || probe.urlPrgId === folderPrg) return true;
-
-  // URL이 비정상이어도 viewer에 leaf PRG가 잡히면 허용
-  if (probe.viewerPrgIds.includes(leafPrg)) return true;
-
-  // 제목만으로도 인정 (진단에서 mainTitle이 이미 「재고수불부 Search(F3)…」인 경우)
-  return true;
+  return hasLedgerTitle && probe.mainTitle.length > 0;
 }
 
-/** #mainPage 안에서만 재고수불부 검색 UI 확인 (사이드바 제외) */
-async function hasLedgerSearchUi(page: Page): Promise<boolean> {
-  for (const frame of page.frames()) {
-    try {
-      const ok = (await frame.evaluate(HAS_LEDGER_SEARCH_UI_JS)) as boolean;
-      if (ok) return true;
-    } catch {
-      /* skip */
-    }
-  }
-  return false;
-}
-
-/** 「재고수불부」 검색 조건 화면 — #mainPage UI + (C000035 URL 셸 또는 leaf PRG) */
+/**
+ * 「재고수불부」 검색 조건 화면.
+ * CI 확인: mainTitle="재고수불부 Search(F3) Option 도움말" + #mainPage 이면 충분.
+ * viewerPrg / 기준일자 / URL=C000035 는 필수가 아님 (E040702 유지 OK).
+ */
 export async function isLedgerSearchScreen(page: Page): Promise<boolean> {
-  if (!(await isExpectedLedgerProgramLoaded(page))) return false;
-  return hasLedgerSearchUi(page);
+  return isExpectedLedgerProgramLoaded(page);
 }
 
 /**
