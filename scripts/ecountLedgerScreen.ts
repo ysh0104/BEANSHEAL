@@ -20,11 +20,221 @@ const EXCEL_SELECTORS = [
 const LEDGER_POPUP_CANDIDATE_SELECTOR =
   '[role="dialog"], .ui-dialog, .modal, .layer_popup, [class*="dialog"], [class*="layer"], [class*="popup"]';
 const LEDGER_AFTER_F8_SCREENSHOT = path.join("downloads", "ecount-ledger-after-f8.png");
+const LEDGER_DOM_PROBE_DIR = "downloads";
 
 function ensureLedgerDownloadsDir(): string {
   const dir = path.resolve("downloads");
   fs.mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/**
+ * F8 / ESC / ESC+Ns 시점 DOM 스냅샷 (string evaluate — __name 방지).
+ * 결과 selector 추측 없이 실제 화면만 기록.
+ */
+const LEDGER_DOM_PROBE_JS = `(function () {
+  function clip(s, n) {
+    return String(s || "").replace(/\\s+/g, " ").trim().slice(0, n);
+  }
+  var main = document.querySelector("#mainPage");
+  var mainText = "";
+  var bodyText = "";
+  try {
+    bodyText = clip(document.body && document.body.innerText ? document.body.innerText : "", 400);
+  } catch (e) {
+    bodyText = "";
+  }
+  if (main) {
+    try {
+      mainText = clip(main.innerText || main.textContent || "", 300);
+    } catch (e2) {
+      mainText = "";
+    }
+  }
+  var scanText = mainText + " " + bodyText;
+  var hasLedger = /재고\\s*수불부|재고수불부/.test(scanText);
+  var hasExcel = /엑셀|Excel/i.test(scanText);
+  var resultHints = {
+    titleLedger: /재고\\s*수불부|재고수불부/.test(mainText || bodyText.slice(0, 120)),
+    prodCd: /품목코드/.test(scanText),
+    prodNm: /품목명/.test(scanText),
+    dateCol: /일자/.test(scanText),
+    inbound: /입고/.test(scanText),
+    outbound: /출고/.test(scanText),
+    stockQty: /재고수량|재고\\s*수량/.test(scanText),
+    baseDate: /기준일자/.test(scanText),
+    confirmPopup: /조회할\\s*자료가\\s*많아|오래\\s*걸릴\\s*수\\s*있습니다/.test(scanText)
+  };
+
+  var tableCount = 0;
+  var gridCount = 0;
+  try {
+    tableCount = document.querySelectorAll("table").length;
+    gridCount = document.querySelectorAll(
+      "[class*='grid'], [class*='Grid'], [id*='grid'], [id*='Grid'], .ag-root, .handsontable"
+    ).length;
+  } catch (e3) {}
+
+  var candidates = [];
+  try {
+    var nodes = document.querySelectorAll("button, a, input, [role='button']");
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var visible = false;
+      try {
+        visible = !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length));
+      } catch (e4) {
+        visible = false;
+      }
+      if (!visible) continue;
+      var text = "";
+      try {
+        if (el.tagName === "INPUT") {
+          text = clip(el.value || el.getAttribute("value") || el.getAttribute("title") || el.id || "", 40);
+        } else {
+          text = clip(el.innerText || el.textContent || el.getAttribute("title") || "", 40);
+        }
+      } catch (e5) {
+        text = "";
+      }
+      if (!text) continue;
+      candidates.push({
+        tag: el.tagName || "",
+        id: el.id || "",
+        text: text,
+        className: String(el.className || "").slice(0, 60)
+      });
+      if (candidates.length >= 25) break;
+    }
+  } catch (e6) {}
+
+  return {
+    hasMainPage: !!main,
+    mainText: mainText,
+    bodyText: bodyText,
+    hasLedger: hasLedger,
+    hasExcel: hasExcel,
+    resultHints: resultHints,
+    tableCount: tableCount,
+    gridCount: gridCount,
+    candidates: candidates
+  };
+})()`;
+
+type LedgerDomProbeHit = {
+  hasMainPage: boolean;
+  mainText: string;
+  bodyText: string;
+  hasLedger: boolean;
+  hasExcel: boolean;
+  resultHints: Record<string, boolean>;
+  tableCount: number;
+  gridCount: number;
+  candidates: Array<{ tag: string; id: string; text: string; className: string }>;
+};
+
+/** F8/ESC 타임라인용 — URL·#mainPage·결과 힌트·screenshot (동작 변경 없음) */
+async function logLedgerResultDomProbe(page: Page, label: string): Promise<void> {
+  const url = page.url();
+  let hash = "(none)";
+  let urlPrg: string | null = null;
+  try {
+    hash = url.includes("#") ? url.slice(url.indexOf("#") + 1) : "(none)";
+    urlPrg = parseUrlPrgId(url);
+  } catch {
+    /* keep */
+  }
+
+  const frameCount = page.frames().length;
+  const merged: LedgerDomProbeHit = {
+    hasMainPage: false,
+    mainText: "",
+    bodyText: "",
+    hasLedger: false,
+    hasExcel: false,
+    resultHints: {},
+    tableCount: 0,
+    gridCount: 0,
+    candidates: [],
+  };
+
+  for (let fi = 0; fi < page.frames().length; fi++) {
+    const frame = page.frames()[fi];
+    try {
+      const hit = (await frame.evaluate(LEDGER_DOM_PROBE_JS)) as LedgerDomProbeHit;
+      if (hit.hasMainPage) merged.hasMainPage = true;
+      if ((hit.mainText || "").length > merged.mainText.length) merged.mainText = hit.mainText;
+      if ((hit.bodyText || "").length > merged.bodyText.length) merged.bodyText = hit.bodyText;
+      if (hit.hasLedger) merged.hasLedger = true;
+      if (hit.hasExcel) merged.hasExcel = true;
+      merged.tableCount += hit.tableCount || 0;
+      merged.gridCount += hit.gridCount || 0;
+      for (const [k, v] of Object.entries(hit.resultHints || {})) {
+        if (v) merged.resultHints[k] = true;
+      }
+      for (const c of hit.candidates || []) {
+        if (merged.candidates.length < 30) merged.candidates.push(c);
+      }
+      console.log(
+        JSON.stringify({
+          type: "ledger_dom_probe_frame",
+          label,
+          frameIndex: fi,
+          frameName: frame.name(),
+          frameUrl: frame.url().slice(0, 160),
+          hasMainPage: hit.hasMainPage,
+          hasLedger: hit.hasLedger,
+          hasExcel: hit.hasExcel,
+          tableCount: hit.tableCount,
+          gridCount: hit.gridCount,
+          resultHints: hit.resultHints,
+          mainText: (hit.mainText || "").slice(0, 160),
+          bodyText: (hit.bodyText || "").slice(0, 160),
+        })
+      );
+    } catch (err) {
+      console.log(
+        JSON.stringify({
+          type: "ledger_dom_probe_frame_error",
+          label,
+          frameIndex: fi,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+    }
+  }
+
+  console.log(
+    JSON.stringify({
+      type: "ledger_dom_probe",
+      label,
+      url: url.slice(0, 200),
+      hash: hash.slice(0, 160),
+      urlPrg: urlPrg || "(none)",
+      frameCount,
+      hasMainPage: merged.hasMainPage,
+      hasLedger: merged.hasLedger,
+      hasExcel: merged.hasExcel,
+      tableCount: merged.tableCount,
+      gridCount: merged.gridCount,
+      resultHints: merged.resultHints,
+      mainText: merged.mainText.slice(0, 200),
+      bodyText: merged.bodyText.slice(0, 200),
+      candidates: merged.candidates.slice(0, 20),
+    })
+  );
+
+  try {
+    ensureLedgerDownloadsDir();
+    const safe = label.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const shotRel = path.join(LEDGER_DOM_PROBE_DIR, `ledger-dom-probe-${safe}.png`);
+    await page.screenshot({ path: path.resolve(shotRel), fullPage: true });
+    console.log(`   [진단][dom-probe] screenshot=${shotRel}`);
+  } catch (err) {
+    console.log(
+      `   [진단][dom-probe] screenshot 예외 label=${label}: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
 }
 
 function logLedgerFrameList(page: Page, label: string): void {
@@ -1769,6 +1979,7 @@ export async function clickLedgerSearch(page: Page): Promise<Frame> {
   );
   logLedgerFrameList(page, "f8-post");
   await logLedgerPostF8Diagnostics(page);
+  await logLedgerResultDomProbe(page, "f8");
 
   const head = postState.head || "";
 
@@ -1785,11 +1996,10 @@ export async function clickLedgerSearch(page: Page): Promise<Frame> {
     );
   }
 
-  // 검색이 시작되지 않음 (폼 그대로) → ESC 전에 실패 (ESC가 hash/프로그램을 닫는 문제 방지)
+  // 진단 단계: 검색 폼 그대로여도 ESC 타임라인 진단을 위해 진행 (경고만)
   if (postState.stillSearchForm && !postState.hasConfirm && !postState.hasResults) {
-    throw new Error(
-      `F8 후에도 검색 폼 그대로(검색 미시작) — urlPrg=${urlPrgId || "(none)"} head=${JSON.stringify(head.slice(0, 120))} ` +
-        `(confirm=${postState.hasConfirm} results=${postState.hasResults})`
+    console.warn(
+      `   ⚠ F8 후에도 검색 폼 그대로(검색 미시작 가능) — ESC DOM 진단 계속 urlPrg=${urlPrgId || "(none)"} head=${JSON.stringify(head.slice(0, 100))}`
     );
   }
 
@@ -1806,7 +2016,7 @@ export async function clickLedgerSearch(page: Page): Promise<Frame> {
   }
 
   console.log(
-    `   ✓ F8 검색 반응 확인 (urlPrg=${urlPrgId || "(none)"} confirm=${postState.hasConfirm} results=${postState.hasResults})`
+    `   ✓ F8 후 재고수불부 컨텍스트 유지 (urlPrg=${urlPrgId || "(none)"} confirm=${postState.hasConfirm} results=${postState.hasResults} stillSearchForm=${postState.stillSearchForm})`
   );
   return focusFrame.isDetached() ? page.mainFrame() : focusFrame;
 }
@@ -1814,6 +2024,7 @@ export async function clickLedgerSearch(page: Page): Promise<Frame> {
 /**
  * 검색 직후 사람 UX와 동일하게 Escape 전송.
  * DOM 「취소」 클릭 대신 ESC 사용.
+ * ESC 동작은 그대로 두고, 직후 0.5/1/2/5초 DOM 타임라인만 진단 기록.
  */
 export async function pressLedgerEscapeAfterSearch(page: Page, searchFrame?: Frame | null): Promise<void> {
   console.log("   → 검색 후 ESC");
@@ -1832,8 +2043,20 @@ export async function pressLedgerEscapeAfterSearch(page: Page, searchFrame?: Fra
   await page.keyboard.press("Escape");
   console.log("   ✓ ESC 입력");
 
-  // 기존 팝업/frame 진단 스냅샷 유지 (동작 변경 없음)
-  await page.waitForTimeout(500);
+  // ESC 직후 타임라인 DOM 진단 (동작 변경 없음 — 관찰만)
+  await logLedgerResultDomProbe(page, "esc");
+  const timeline = [
+    { ms: 500, label: "esc-0.5s" },
+    { ms: 500, label: "esc-1s" }, // +0.5 → 누적 1s
+    { ms: 1000, label: "esc-2s" }, // +1 → 누적 2s
+    { ms: 3000, label: "esc-5s" }, // +3 → 누적 5s
+  ] as const;
+  for (const step of timeline) {
+    await page.waitForTimeout(step.ms);
+    await logLedgerResultDomProbe(page, step.label);
+  }
+
+  // 기존 팝업/frame 진단 스냅샷 유지
   await logLedgerPostF8Diagnostics(page);
 }
 

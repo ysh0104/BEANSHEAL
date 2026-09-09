@@ -111,6 +111,7 @@ jobs:
           path: |
             downloads/ecount-ledger-after-f8.png
             downloads/ecount-ledger-bulk-error.png
+            downloads/ledger-dom-probe-*.png
             downloads/ledger-leaf-dom-candidates.json
             downloads/ledger-leaf-dom-dump.png
           if-no-files-found: warn
