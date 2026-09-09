@@ -1189,19 +1189,27 @@ async function getLedgerViewerRoots(
   return out;
 }
 
-/** 클릭 전/후 재고수불부 화면 검증 — E040206/C000650이면 즉시 실패 */
+/**
+ * 클릭 전/후 재고수불부 화면 검증.
+ *
+ * 주의: viewerPrgIds 는 #script_target/#mainPage HTML 전체에서 PRG_ID를 긁어
+ * 사이드 메뉴의 E040206 등이 함께 잡힐 수 있다. 메뉴 잔존 ID만으로
+ * “일별재고현황으로 이동했다”고 판정하면 안 된다.
+ * drift 판정은 URL prgId + #mainPage 제목(DOM)만 사용한다.
+ */
 async function assertActiveLedgerProgramPhase(page: Page, phase: string): Promise<LedgerProgramProbe> {
   const folderPrg = ledgerOutputFolderPrgId();
+  const leafPrg = expectedLedgerPrgId();
   const probe = await probeLedgerProgramContext(page);
   logLedgerProgramProbe(probe, phase);
 
-  const drifted =
-    probe.urlPrgId === "E040206" ||
-    probe.urlPrgId === "C000650" ||
-    probe.viewerPrgIds.includes("E040206") ||
-    probe.hasRejectDailyStock;
+  const urlIsDailyStock =
+    probe.urlPrgId === "E040206" || probe.urlPrgId === "C000650";
+  // #mainPage 제목이 일별재고현황이고 재고수불부가 아니면 실제 화면 이탈
+  const mainIsDailyStock =
+    probe.hasRejectDailyStock && !probe.hasLedgerTitle;
 
-  if (drifted) {
+  if (urlIsDailyStock || mainIsDailyStock) {
     throw new Error(
       `[${phase}] 재고수불부가 아님 — 잘못된 「기타」/메뉴 클릭 의심. ` +
         `urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"} ` +
@@ -1212,7 +1220,7 @@ async function assertActiveLedgerProgramPhase(page: Page, phase: string): Promis
 
   if (!(await isExpectedLedgerProgramLoaded(page))) {
     throw new Error(
-      `[${phase}] 재고수불부 active 미확인 (기대 URL 셸=${folderPrg} 또는 leaf=${expectedLedgerPrgId()} + #mainPage 제목). ` +
+      `[${phase}] 재고수불부 active 미확인 (기대 URL leaf=${leafPrg} 또는 셸=${folderPrg} + #mainPage 「재고수불부」). ` +
         `urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"} ` +
         `viewerPrg=[${probe.viewerPrgIds.join(",")}] mainTitle=${JSON.stringify(probe.mainTitle)}`
     );
