@@ -3,7 +3,7 @@
  *
  * 실제 사용자 동선:
  *   재고 I → 출력물 CLICK → 재고수불부 CLICK (#link_depth4_MENUTREE_000215, href*=E040702)
- *   → (임시: 「기타」/생산불출 스킵) → 검색 버튼 클릭 → ESC → 결과 대기 → Excel
+ *   → 「기타」 탭 → 생산불출/창고이동포함 체크 → 검색 버튼 클릭 → ESC → 결과 대기 → Excel
  *
  * DOM 확정:
  *   - 출력물 URL 셸: C000035 (leaf 선택에 사용하지 않음)
@@ -24,6 +24,7 @@ import { dismissEcountPopups } from "./ecountNavigateStock";
 import {
   assertLedgerProgramSearchScreen,
   clickLedgerSearch,
+  ensureProductionTransferIncluded,
   expectedLedgerPrgId,
   isLedgerExcelReady,
   isLedgerSearchScreen,
@@ -924,23 +925,21 @@ export async function runLedgerSearch(page: Page, opts: LedgerNavOptions) {
   console.log("   → 재고수불부 검색 화면 진입...");
   await openLedgerSearchScreen(page, menuUrl);
 
-  // 재고수불부 검색 화면 재확인 — 통과 전에는 검색 진입 금지
+  // 재고수불부 검색 화면 재확인 — 통과 전에는 기타 탭/체크박스·검색 진입 금지
   await assertLedgerProgramSearchScreen(page, 25);
   console.log(
-    `   ✓ 재고수불부 검색 화면 확인 (leaf=#${LEDGER_LEAF_DEPTH4_ID}, leafPrg=${expectedLedgerPrgId()}) — 「기타」/생산불출 스킵, 바로 검색`
+    `   ✓ 재고수불부 검색 화면 확인 (leaf=#${LEDGER_LEAF_DEPTH4_ID}, leafPrg=${expectedLedgerPrgId()}) — 「기타」→생산불출/창고이동포함 후 검색`
   );
 
   console.log("   → 기간: Ecount 기본값(전월+금월) 유지");
-  // 임시 테스트: 「기타」 탭 / 「생산불출/창고이동포함」 체크 완전 제외
-  // (기본 검색 → ESC → 결과 → Excel → parser 연결 확인용)
-  console.log(
-    "   ⏭ 「기타」 탭·생산불출/창고이동포함 체크 스킵 (임시) — 기본 검색/다운로드만 검증"
-  );
+  // F8 직전: 「기타」 탭 → 생산불출/창고이동포함 체크 (실패 시 즉시 종료, F8 미실행)
+  await ensureProductionTransferIncluded(page);
 
   if (opts.prod_cd?.trim()) {
     console.log(`   → 품목코드: ${opts.prod_cd} (미구현 — 전체 조회)`);
   }
 
+  console.log("   → F8 검색 시작");
   console.log("   [진단] clickLedgerSearch 직전 (navigate)");
   console.log(
     `   [진단] navigate page.url=${page.url()} frames=${page.frames().length} contextPages=${page.context().pages().length}`

@@ -1134,12 +1134,12 @@ export async function assertLedgerProgramSearchScreen(page: Page, maxSec = 25): 
 
 const PRODUCTION_TRANSFER_HINT = /생산\s*불출.*창고\s*이동.*포함|생산불출\s*\/\s*창고이동\s*포함/;
 /**
- * 임시 테스트: true면 「기타」 탭 클릭·생산불출 checkbox를 모두 건너뛴다.
- * (기본 검색 → ESC → 결과 → Excel → parser 검증용)
+ * true면 「기타」 탭 클릭·생산불출 checkbox를 모두 건너뛴다.
+ * 정상 ledger_bulk 경로에서는 false (기타 → 생산불출/창고이동포함 → F8).
  */
-const SKIP_ETC_AND_PRODUCTION_TRANSFER = true;
-/** @deprecated SKIP_ETC_AND_PRODUCTION_TRANSFER 사용 — checkbox만 스킵할 때 */
-const SKIP_PRODUCTION_TRANSFER_CHECKBOX = true;
+const SKIP_ETC_AND_PRODUCTION_TRANSFER = false;
+/** true면 「기타」 탭만 열고 checkbox 체크는 건너뛴다. 정상 경로는 false. */
+const SKIP_PRODUCTION_TRANSFER_CHECKBOX = false;
 const ETC_DIAG_KEYWORDS = ["생산불출", "창고이동", "생산불출/창고이동포함", "포함"] as const;
 /** 전역/사이드 메뉴 chrome — 「기타」 탭 탐색에서 제외 */
 const ECOUNT_MENU_CHROME_SELECTOR =
@@ -1824,12 +1824,63 @@ async function clickLedgerEtcTabInViewer(page: Page): Promise<void> {
   console.log("   ✓ 기타 탭 (#mainPage / E040702 viewer 내부)");
 }
 
+/** checkbox locator의 text / id / name / checked 스냅샷 */
+async function readProductionTransferCheckboxMeta(
+  cb: Locator
+): Promise<{ text: string; id: string; name: string; checked: boolean }> {
+  return cb.evaluate((el: HTMLInputElement) => {
+    const id = el.id || "";
+    const name = el.name || "";
+    const checked = !!el.checked;
+    let text = "";
+    if (id) {
+      const lab = el.ownerDocument.querySelector(`label[for="${id.replace(/"/g, "")}"]`);
+      if (lab) text = (lab.textContent || "").replace(/\s+/g, " ").trim();
+    }
+    if (!text) {
+      const parentLab = el.closest("label");
+      if (parentLab) text = (parentLab.textContent || "").replace(/\s+/g, " ").trim();
+    }
+    if (!text) {
+      const row = el.closest("tr, li, td, div");
+      if (row) text = (row.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    }
+    return { text, id, name, checked };
+  });
+}
+
+/** #mainPage 내 생산불출/창고이동포함 힌트에 가까운 checkbox 후보 수 */
+async function countProductionTransferCheckboxCandidates(root: Locator): Promise<number> {
+  try {
+    const boxes = root.locator('input[type="checkbox"]');
+    const n = Math.min(await boxes.count(), 80);
+    let matched = 0;
+    for (let i = 0; i < n; i++) {
+      const near = await boxes.nth(i).evaluate((el: HTMLInputElement) => {
+        const parts: string[] = [];
+        if (el.id) {
+          const lab = el.ownerDocument.querySelector(`label[for="${el.id}"]`);
+          if (lab) parts.push(lab.textContent || "");
+        }
+        const parentLab = el.closest("label");
+        if (parentLab) parts.push(parentLab.textContent || "");
+        const row = el.closest("tr, li, td, div");
+        if (row) parts.push(row.textContent || "");
+        return parts.join(" ").replace(/\s+/g, " ");
+      });
+      if (PRODUCTION_TRANSFER_HINT.test(near)) matched += 1;
+    }
+    return matched;
+  } catch {
+    return 0;
+  }
+}
+
 /** 기타 탭 → 생산불출/창고이동포함 체크 (미발견·미체크 시 Error) */
 export async function ensureProductionTransferIncluded(page: Page): Promise<void> {
-  // 임시: 「기타」/생산불출 완전 스킵 — 기본 검색·다운로드 검증 경로
   if (SKIP_ETC_AND_PRODUCTION_TRANSFER) {
     console.log(
-      "   ⏭ 「기타」 탭·생산불출/창고이동포함 완전 스킵 (임시) — ensureProductionTransferIncluded no-op"
+      "   ⏭ 「기타」 탭·생산불출/창고이동포함 완전 스킵 — ensureProductionTransferIncluded no-op"
     );
     return;
   }
@@ -1839,8 +1890,11 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
 
   // 2) E040702 viewer 내부 「기타」만 클릭 (전역 getByText 금지)
   try {
+    console.log("   → 기타 탭 탐색/클릭");
     await clickLedgerEtcTabInViewer(page);
+    console.log("   ✓ 기타 탭 발견/클릭 완료");
   } catch (err) {
+    console.log("   ✗ 기타 탭 발견/클릭 실패");
     const probe = await probeLedgerProgramContext(page);
     logLedgerProgramProbe(probe, "기타클릭-실패");
     throw err instanceof Error
@@ -1851,10 +1905,9 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
   // 3) 클릭 후: E040702 유지 — E040206/C000650이면 즉시 실패
   await assertActiveLedgerProgramPhase(page, "기타클릭-후");
 
-  // 임시: 「생산불출/창고이동포함」 checkbox는 제외 — 「기타」 탭 + PRG 유지만 검증
   if (SKIP_PRODUCTION_TRANSFER_CHECKBOX) {
     console.log(
-      "   ⏭ 생산불출/창고이동포함 체크 스킵 (임시) — 「기타」 탭 클릭 및 E040702 유지 확인만 진행"
+      "   ⏭ 생산불출/창고이동포함 체크 스킵 — 「기타」 탭 클릭 및 E040702 유지 확인만 진행"
     );
     return;
   }
@@ -1862,26 +1915,20 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
   // 4) PRG 유지 확인 후에만 checkbox 탐색 — #mainPage 내부만
   await page.waitForTimeout(400);
   const viewerRoots = await getLedgerViewerRoots(page);
-  console.log(`   [진단][기타] checkbox 탐색 viewer(#mainPage) count=${viewerRoots.length}`);
 
   if (viewerRoots.length === 0) {
-    try {
-      await diagnoseLedgerEtcTabDom(page);
-    } catch {
-      /* ignore */
-    }
+    console.log("   checkbox 후보: 0개 (viewer 없음)");
+    console.log("   ✗ 최종 checked=true 검증 실패");
     throw new Error(
       "「생산불출/창고이동포함」 탐색 전 E040702 #mainPage를 찾지 못했습니다."
     );
   }
 
-  try {
-    await diagnoseLedgerEtcTabDom(page);
-  } catch (err) {
-    console.log(
-      `   [진단][기타] diagnoseLedgerEtcTabDom 예외: ${err instanceof Error ? err.message : String(err)}`
-    );
+  let candidateCount = 0;
+  for (const { root } of viewerRoots) {
+    candidateCount += await countProductionTransferCheckboxCandidates(root);
   }
+  console.log(`   checkbox 후보: ${candidateCount}개`);
 
   let sawHintText = false;
   for (const { root } of viewerRoots) {
@@ -1896,17 +1943,16 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
     }
   }
 
-  for (const { root, frameIndex } of viewerRoots) {
+  for (const { root } of viewerRoots) {
     const cb = await findProductionTransferCheckbox(root);
     if (!cb) continue;
 
-    console.log(`   [진단][기타] checkbox 후보 frame[${frameIndex}] #mainPage 내부`);
-
-    let alreadyChecked: boolean;
+    let metaBefore: { text: string; id: string; name: string; checked: boolean };
     try {
-      alreadyChecked = await cb.isChecked();
+      metaBefore = await readProductionTransferCheckboxMeta(cb);
     } catch (err) {
       await dumpLedgerEtcCheckboxes(viewerRoots.map((v) => v.frame));
+      console.log("   ✗ 최종 checked=true 검증 실패");
       throw new Error(
         `생산불출/창고이동포함 checkbox 상태 확인 실패: ${
           err instanceof Error ? err.message : String(err)
@@ -1914,33 +1960,44 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
       );
     }
 
-    if (alreadyChecked) {
-      console.log("   ✓ 생산불출/창고이동포함 (이미 체크됨)");
+    console.log("   ✓ 생산불출/창고이동포함 체크박스 발견");
+    console.log(
+      `   선택된 checkbox id=${JSON.stringify(metaBefore.id)} name=${JSON.stringify(metaBefore.name)} text=${JSON.stringify(metaBefore.text)} checked=${metaBefore.checked}`
+    );
+    console.log(`   클릭 전 checked=${metaBefore.checked}`);
+
+    if (metaBefore.checked) {
+      console.log("   ✓ 생산불출/창고이동포함 (이미 체크됨 — 유지)");
     } else {
+      console.log("   → 체크박스 클릭");
       await cb.scrollIntoViewIfNeeded().catch(() => {});
       await cb.click({ force: true });
-      console.log("   ✓ 생산불출/창고이동포함 체크");
       await page.waitForTimeout(300);
     }
 
-    let verified: boolean;
+    let metaAfter: { text: string; id: string; name: string; checked: boolean };
     try {
-      verified = await cb.isChecked();
+      metaAfter = await readProductionTransferCheckboxMeta(cb);
     } catch (err) {
       await dumpLedgerEtcCheckboxes(viewerRoots.map((v) => v.frame));
+      console.log("   ✗ 최종 checked=true 검증 실패");
       throw new Error(
         `생산불출/창고이동포함 checkbox 재확인 실패: ${
           err instanceof Error ? err.message : String(err)
         }`
       );
     }
-    if (!verified) {
+    console.log(`   클릭 후 checked=${metaAfter.checked}`);
+
+    if (!metaAfter.checked) {
       await dumpLedgerEtcCheckboxes(viewerRoots.map((v) => v.frame));
+      console.log("   ✗ 최종 checked=true 검증 실패");
       throw new Error("생산불출/창고이동포함 checkbox가 체크되지 않았습니다.");
     }
 
     // 체크 후에도 E040702 유지
     await assertActiveLedgerProgramPhase(page, "checkbox처리-후");
+    console.log("   ✓ 최종적으로 체크 완료 (생산불출/창고이동포함 checked=true)");
     return;
   }
 
@@ -1950,14 +2007,13 @@ export async function ensureProductionTransferIncluded(page: Page): Promise<void
   } catch {
     /* ignore */
   }
+  console.log("   ✗ 최종 checked=true 검증 실패");
   if (!sawHintText) {
     throw new Error(
-      '「생산불출/창고이동포함」 텍스트/label을 #mainPage에서 찾지 못했습니다. (기타 탭 DOM 진단 로그 참고)'
+      '「생산불출/창고이동포함」 텍스트/label을 #mainPage에서 찾지 못했습니다.'
     );
   }
-  throw new Error(
-    "「생산불출/창고이동포함」 checkbox를 #mainPage에서 찾지 못했습니다. (기타 탭 DOM 진단 로그 참고)"
-  );
+  throw new Error("「생산불출/창고이동포함」 checkbox를 #mainPage에서 찾지 못했습니다.");
 }
 
 async function isLedgerConfirmPopupVisible(page: Page): Promise<boolean> {
