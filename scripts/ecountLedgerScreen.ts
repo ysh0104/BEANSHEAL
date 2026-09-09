@@ -10,7 +10,6 @@ const SEARCH_BTN = /(?:검색|Search|조회)\s*\(F\d+\)/i;
 const LEDGER_CONFIRM_POPUP_HINT =
   /조회할\s*자료가\s*많아|오래\s*걸릴\s*수\s*있습니다|조회품목을\s*재지정|품목개수가\s*많을\s*경우/;
 const EXCEL_SELECTORS = [
-  "#excel",
   "#outputExcel",
   '[id*="outputExcel"]',
   "#btnExcel",
@@ -2409,176 +2408,24 @@ export async function pressLedgerEscapeAfterSearch(page: Page, searchFrame?: Fra
   await logLedgerPostF8Diagnostics(page);
 }
 
-/**
- * 결과 화면 DOM 판정 (string evaluate).
- * CI esc-2s 기준: #excel + 입고수량/출고수량/재고수량 테이블이 confirm 뒤에 이미 존재.
- */
-const LEDGER_RESULTS_PRESENT_JS = `(function () {
-  function clip(s, n) {
-    return String(s || "").replace(/\\s+/g, " ").trim().slice(0, n);
-  }
-  var main = document.querySelector("#mainPage");
-  var text = "";
-  try {
-    text = clip(main && (main.innerText || main.textContent) ? (main.innerText || main.textContent) : "", 4000);
-  } catch (e) {
-    text = "";
-  }
-  if (!text) {
-    try {
-      text = clip(document.body && document.body.innerText ? document.body.innerText : "", 4000);
-    } catch (e2) {
-      text = "";
-    }
-  }
-  var hasCols =
-    /입고수량/.test(text) && /출고수량/.test(text) && /재고수량/.test(text);
-  var excelEl = document.querySelector("#excel");
-  var hasExcelBtn = false;
-  if (excelEl) {
-    try {
-      hasExcelBtn = !!(
-        excelEl.offsetWidth ||
-        excelEl.offsetHeight ||
-        (excelEl.getClientRects && excelEl.getClientRects().length)
-      );
-    } catch (e3) {
-      hasExcelBtn = true;
-    }
-  }
-  if (!hasExcelBtn) {
-    var nodes = document.querySelectorAll("button, a, [role='button'], input[type='button']");
-    for (var i = 0; i < nodes.length; i++) {
-      var t = "";
-      try {
-        t = String(nodes[i].innerText || nodes[i].textContent || nodes[i].value || "").trim();
-      } catch (e4) {
-        t = "";
-      }
-      if (/^Excel$/i.test(t) || t === "엑셀") {
-        hasExcelBtn = true;
-        break;
-      }
-    }
-  }
-  var tableCount = 0;
-  try {
-    tableCount = document.querySelectorAll("table").length;
-  } catch (e5) {}
-  return {
-    hasCols: hasCols,
-    hasExcelBtn: hasExcelBtn,
-    tableCount: tableCount,
-    ready: !!(hasExcelBtn || (hasCols && tableCount > 0))
-  };
-})()`;
-
-async function probeLedgerResultsPresent(page: Page): Promise<{
-  ready: boolean;
-  hasExcelBtn: boolean;
-  hasCols: boolean;
-  tableCount: number;
-}> {
-  const merged = { ready: false, hasExcelBtn: false, hasCols: false, tableCount: 0 };
-  for (const frame of page.frames()) {
-    try {
-      const hit = (await frame.evaluate(LEDGER_RESULTS_PRESENT_JS)) as {
-        ready?: boolean;
-        hasExcelBtn?: boolean;
-        hasCols?: boolean;
-        tableCount?: number;
-      };
-      if (hit.hasExcelBtn) merged.hasExcelBtn = true;
-      if (hit.hasCols) merged.hasCols = true;
-      if (typeof hit.tableCount === "number" && hit.tableCount > merged.tableCount) {
-        merged.tableCount = hit.tableCount;
-      }
-      if (hit.ready) merged.ready = true;
-    } catch {
-      /* skip */
-    }
-  }
-  return merged;
-}
-
-/** 쌓인 조회 확인 팝업 — #btn_confirm_cancel 을 위에서부터 모두 닫기 */
-async function dismissStackedLedgerConfirms(page: Page, maxClicks = 8): Promise<number> {
-  let clicked = 0;
-  for (let n = 0; n < maxClicks; n++) {
-    if (!(await isLedgerConfirmPopupVisible(page))) break;
-
-    let one = false;
-    for (const frame of page.frames()) {
-      try {
-        const ok = await frame.evaluate(() => {
-          const nodes = Array.from(document.querySelectorAll("#btn_confirm_cancel"));
-          for (let i = nodes.length - 1; i >= 0; i--) {
-            const el = nodes[i] as HTMLElement;
-            let vis = false;
-            try {
-              vis = !!(
-                el.offsetWidth ||
-                el.offsetHeight ||
-                (el.getClientRects && el.getClientRects().length)
-              );
-            } catch {
-              vis = true;
-            }
-            if (!vis) continue;
-            el.click();
-            return true;
-          }
-          return false;
-        });
-        if (ok) {
-          one = true;
-          break;
-        }
-      } catch {
-        /* skip */
-      }
-    }
-
-    if (!one) {
-      if (await dismissBulkItemModal(page)) {
-        one = true;
-      }
-    }
-    if (!one) break;
-    clicked += 1;
-    await page.waitForTimeout(250);
-  }
-  return clicked;
-}
-
 async function findLedgerExcelButton(page: Page): Promise<Locator | null> {
   const frames = await findLedgerFrames(page);
   const scan = frames.length > 0 ? frames : page.frames();
 
   for (const frame of scan) {
     try {
-      // CI 확정 컨트롤: #excel (결과 화면에 재고수량과 공존)
+      const stockQty = frame.locator("text=재고수량").first();
+      if ((await stockQty.count()) > 0 && (await stockQty.isVisible())) continue;
+
       for (const sel of EXCEL_SELECTORS) {
         const loc = frame.locator(sel).first();
-        if ((await loc.count()) === 0) continue;
-        // confirm 오버레이가 있어도 DOM에 있으면 force 클릭 가능하도록 visible 완화
-        const visible = await loc.isVisible().catch(() => false);
-        if (visible) {
-          const box = await loc.boundingBox().catch(() => null);
+        if ((await loc.count()) > 0 && (await loc.isVisible())) {
+          const box = await loc.boundingBox();
           if (box && box.width > 2 && box.height > 2) return loc;
-        } else if (sel === "#excel") {
-          // attached but covered — still usable with force click
-          return loc;
         }
       }
-      const textBtn = frame.getByRole("button", { name: /^Excel$/i }).first();
-      if ((await textBtn.count()) > 0) {
-        if (await textBtn.isVisible().catch(() => false)) return textBtn;
-      }
-      const textExact = frame.getByText(/^Excel$/i).first();
-      if ((await textExact.count()) > 0 && (await textExact.isVisible().catch(() => false))) {
-        return textExact;
-      }
+      const textBtn = frame.getByText(/^Excel$/i).first();
+      if ((await textBtn.count()) > 0 && (await textBtn.isVisible())) return textBtn;
     } catch {
       /* skip */
     }
@@ -2587,101 +2434,137 @@ async function findLedgerExcelButton(page: Page): Promise<Locator | null> {
 }
 
 export async function isLedgerExcelReady(page: Page): Promise<boolean> {
-  if ((await findLedgerExcelButton(page)) !== null) return true;
-  const present = await probeLedgerResultsPresent(page);
-  return present.hasExcelBtn;
+  return (await findLedgerExcelButton(page)) !== null;
 }
 
-async function confirmLedgerResultsReady(page: Page, elapsed: number): Promise<boolean> {
-  const present = await probeLedgerResultsPresent(page);
-  const excelReady = await isLedgerExcelReady(page);
-  if (!present.ready && !excelReady) return false;
+/**
+ * 검색 결과 완료 판정 — #mainPage.innerText 실제 결과 DOM만 사용.
+ * URL / 「검색」 텍스트 / Excel 버튼에 의존하지 않음.
+ * (CI: ESC+2s 에 재고수불부+입고/출고/재고수량+품목 행이 #mainPage에 렌더됨)
+ */
+const LEDGER_RESULT_DOM_READY_JS = `(function () {
+  var main = document.querySelector("#mainPage");
+  if (!main) {
+    return {
+      hasMainPage: false,
+      hasLedgerTitle: false,
+      hasInbound: false,
+      hasOutbound: false,
+      hasStockQty: false,
+      hasProduct: false,
+      hasPrevOrTotal: false,
+      ready: false,
+      mainHead: ""
+    };
+  }
+  var text = "";
+  try {
+    text = String(main.innerText || main.textContent || "").replace(/\\s+/g, " ").trim();
+  } catch (e) {
+    text = "";
+  }
+  var hasLedgerTitle = /재고\\s*수불부|재고수불부/.test(text);
+  var hasInbound = text.indexOf("입고수량") !== -1;
+  var hasOutbound = text.indexOf("출고수량") !== -1;
+  var hasStockQty = text.indexOf("재고수량") !== -1;
+  // 예: 원)가르시니아60% (M0001) / 원)비오틴 (M00010)
+  var hasProduct =
+    /원\\)/.test(text) ||
+    /\\([A-Za-z]\\d{3,}[A-Za-z0-9\\-]*\\)/.test(text) ||
+    /회사명\\s*:/.test(text);
+  var hasPrevOrTotal = text.indexOf("전일재고") !== -1 || text.indexOf("합계") !== -1;
+  var ready = !!(hasLedgerTitle && hasInbound && hasOutbound && hasStockQty);
+  return {
+    hasMainPage: true,
+    hasLedgerTitle: hasLedgerTitle,
+    hasInbound: hasInbound,
+    hasOutbound: hasOutbound,
+    hasStockQty: hasStockQty,
+    hasProduct: hasProduct,
+    hasPrevOrTotal: hasPrevOrTotal,
+    ready: ready,
+    mainHead: text.slice(0, 160)
+  };
+})()`;
 
-  // 결과 위에 남은 confirm 스택 제거 (ESC만으로는 안 닫힘 — CI 확인)
-  if (await isLedgerConfirmPopupVisible(page)) {
-    const n = await dismissStackedLedgerConfirms(page);
-    if (n > 0) {
-      console.log(`   ✓ 결과 위 확인 팝업 ${n}개 닫음 (#btn_confirm_cancel)`);
+type LedgerResultDomProbe = {
+  hasMainPage: boolean;
+  hasLedgerTitle: boolean;
+  hasInbound: boolean;
+  hasOutbound: boolean;
+  hasStockQty: boolean;
+  hasProduct: boolean;
+  hasPrevOrTotal: boolean;
+  ready: boolean;
+  mainHead: string;
+};
+
+async function probeLedgerResultDom(page: Page): Promise<LedgerResultDomProbe> {
+  const empty: LedgerResultDomProbe = {
+    hasMainPage: false,
+    hasLedgerTitle: false,
+    hasInbound: false,
+    hasOutbound: false,
+    hasStockQty: false,
+    hasProduct: false,
+    hasPrevOrTotal: false,
+    ready: false,
+    mainHead: "",
+  };
+
+  for (const frame of page.frames()) {
+    try {
+      const hit = (await frame.evaluate(LEDGER_RESULT_DOM_READY_JS)) as LedgerResultDomProbe;
+      if (hit.ready) return hit;
+      if (hit.hasMainPage && hit.hasLedgerTitle && !empty.hasMainPage) {
+        Object.assign(empty, hit);
+      } else if (hit.hasMainPage && !empty.hasMainPage) {
+        Object.assign(empty, hit);
+      }
+    } catch {
+      /* skip detached frames */
     }
   }
-
-  const probe = await probeLedgerProgramContext(page);
-  logLedgerProgramProbe(probe, `결과확인-${elapsed}s`);
-  const folderPrg = ledgerOutputFolderPrgId();
-
-  if (
-    probe.hasRejectDailyStock ||
-    probe.urlPrgId === "E040206" ||
-    probe.urlPrgId === "C000650" ||
-    probe.viewerPrgIds.includes("E040206")
-  ) {
-    throw new Error(
-      `검색 결과가 재고수불부가 아님 (일별재고현황/메뉴 이탈 의심). ` +
-        `urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"} ` +
-        `viewerPrg=[${probe.viewerPrgIds.join(",")}] mainTitle=${JSON.stringify(probe.mainTitle)}`
-    );
-  }
-
-  const hasLedgerTitle =
-    probe.hasLedgerTitle || /재고\s*수불부|재고수불부/.test(probe.mainTitle);
-  if (!hasLedgerTitle && !present.hasCols) {
-    throw new Error(
-      `Excel/결과는 보이나 #mainPage 「재고수불부」 제목 미확인. ` +
-        `urlPrg=${probe.urlPrgId || "(none)"} mainTitle=${JSON.stringify(probe.mainTitle)}`
-    );
-  }
-
-  if (isLedgerOutputFolderUrl(probe.urlPrgId) || probe.urlPrgId === expectedLedgerPrgId()) {
-    console.log(
-      `   ✓ URL 셸 유지 urlPrg=${probe.urlPrgId || "(none)"} depth=${probe.urlDepth || "(none)"}`
-    );
-  } else if (probe.urlPrgId) {
-    console.warn(
-      `   ⚠ 결과 화면 urlPrg=${probe.urlPrgId} (기대 셸=${folderPrg}) — 제목은 재고수불부, 계속 진행`
-    );
-  }
-
-  console.log(
-    `   ✓ 재고수불부 결과 확인 (${elapsed}초) excel=${excelReady || present.hasExcelBtn} cols=${present.hasCols} tables=${present.tableCount} urlPrg=${probe.urlPrgId || "(none)"} mainTitle=${JSON.stringify(probe.mainTitle.slice(0, 40))}`
-  );
-  return true;
+  return empty;
 }
 
+/**
+ * 검색 결과 대기 — 실제 #mainPage 결과 DOM이 보이면 즉시 완료.
+ * confirm 이 남아 있어도 결과 DOM이 있으면 ESC 재시도를 중단한다.
+ */
 export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<boolean> {
   console.log("   → 검색 결과 대기");
   console.log(`3. 검색 결과 대기 (최대 ${maxSec}초)...`);
-  const intervalSec = 2;
-  const steps = Math.ceil(maxSec / intervalSec);
-  let escRetries = 0;
+  // 0.5~1초 단위 폴링 — 조기 실패 없이 ESC+~2s 렌더를 잡는다 (timeout 연장 없음)
+  const intervalMs = 500;
+  const steps = Math.ceil((maxSec * 1000) / intervalMs);
+  const started = Date.now();
+  let lastProgressLogSec = -1;
 
   for (let i = 0; i < steps; i++) {
-    const elapsed = (i + 1) * intervalSec;
+    const elapsedSec = Math.round((Date.now() - started) / 1000);
+    const dom = await probeLedgerResultDom(page);
 
-    // 결과 우선: confirm이 남아도 테이블/#excel 이 있으면 성공 (CI esc-2s)
-    if (await confirmLedgerResultsReady(page, elapsed)) {
+    if (dom.ready) {
+      console.log(
+        `   ✓ 검색 결과 확인 완료 (${elapsedSec}초)` +
+          ` ledger=${dom.hasLedgerTitle} cols=입고/출고/재고` +
+          ` product=${dom.hasProduct} prevOrTotal=${dom.hasPrevOrTotal}` +
+          ` head=${JSON.stringify(dom.mainHead.slice(0, 80))}`
+      );
       return true;
     }
 
-    // 결과 전 confirm만 있을 때: ESC 소량 후 cancel 스택 정리
+    // 결과 DOM이 아직 없을 때만 confirm → ESC (결과가 나오면 위 분기에서 즉시 종료)
     if (await isLedgerConfirmPopupVisible(page)) {
-      escRetries += 1;
-      if (escRetries <= 3) {
-        console.log("   → 결과 대기 중 확인 메시지 감지 — ESC");
-        await page.keyboard.press("Escape");
-        console.log("   ✓ ESC 입력");
-      } else {
-        console.log("   → 결과 대기 중 확인 메시지 — #btn_confirm_cancel 정리");
-        const n = await dismissStackedLedgerConfirms(page);
-        if (n > 0) console.log(`   ✓ 확인 팝업 ${n}개 닫음`);
-        else {
-          await page.keyboard.press("Escape");
-          console.log("   ✓ ESC 입력 (cancel 미검출)");
-        }
+      console.log("   → 결과 대기 중 확인 메시지 감지 — ESC 재시도");
+      await page.keyboard.press("Escape");
+      console.log("   ✓ ESC 입력");
+      if (elapsedSec > 0 && elapsedSec % 10 === 0 && elapsedSec !== lastProgressLogSec) {
+        lastProgressLogSec = elapsedSec;
+        console.log(`   … 조회 확인 ESC 처리 중 (${elapsedSec}초)`);
       }
-      if (i > 0 && i % 5 === 0) {
-        console.log(`   … 조회 확인 처리 중 (${elapsed}초, escRetries=${escRetries})`);
-      }
-      await page.waitForTimeout(intervalSec * 1000);
+      await page.waitForTimeout(intervalMs);
       continue;
     }
 
@@ -2691,15 +2574,33 @@ export async function waitForLedgerResults(page: Page, maxSec = 600): Promise<bo
       .isVisible()
       .catch(() => false);
     if (loading) {
-      console.log(`   … 조회 중 (${elapsed}초)`);
-    } else if (elapsed >= 10 && elapsed % 10 === 0) {
-      console.log(`   … 결과 대기 (${elapsed}초 / ${maxSec}초)`);
+      if (elapsedSec !== lastProgressLogSec) {
+        lastProgressLogSec = elapsedSec;
+        console.log(`   … 조회 중 (${elapsedSec}초)`);
+      }
+    } else if (elapsedSec >= 10 && elapsedSec % 10 === 0 && elapsedSec !== lastProgressLogSec) {
+      lastProgressLogSec = elapsedSec;
+      console.log(
+        `   … 결과 대기 (${elapsedSec}초 / ${maxSec}초)` +
+          ` main=${dom.hasMainPage} ledger=${dom.hasLedgerTitle}` +
+          ` in=${dom.hasInbound} out=${dom.hasOutbound} stock=${dom.hasStockQty}`
+      );
     }
 
-    await page.waitForTimeout(intervalSec * 1000);
+    await page.waitForTimeout(intervalMs);
   }
 
-  return await confirmLedgerResultsReady(page, maxSec);
+  const finalDom = await probeLedgerResultDom(page);
+  if (finalDom.ready) {
+    console.log("   ✓ 검색 결과 확인 완료 (최종 폴링)");
+    return true;
+  }
+  console.warn(
+    `   ⚠ 결과 DOM 미확인 main=${finalDom.hasMainPage} ledger=${finalDom.hasLedgerTitle}` +
+      ` in=${finalDom.hasInbound} out=${finalDom.hasOutbound} stock=${finalDom.hasStockQty}` +
+      ` head=${JSON.stringify(finalDom.mainHead.slice(0, 100))}`
+  );
+  return false;
 }
 
 export async function clickLedgerExcelDownload(page: Page, saveAs: string): Promise<void> {
