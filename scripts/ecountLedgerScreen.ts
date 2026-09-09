@@ -1579,133 +1579,84 @@ export async function waitAndDismissBulkItemModal(page: Page, maxSec = 30): Prom
 }
 
 /**
- * #mainPage 안 「검색(F8)」 실제 DOM 클릭 (string evaluate — __name / locator 미탐 회피).
- * CI 스크린샷: 하단 파란 「검색(F8)」 버튼.
+ * 재고수불부 검색 실행 — 사람 UX와 동일하게 F8 키 사용.
+ * 검색 버튼 selector/DOM 탐색은 사용하지 않음.
+ * F8 직후 잘못된 화면(E040206/C000650/일별재고현황 등)이면 즉시 실패.
  */
-const CLICK_LEDGER_SEARCH_BTN_JS = `(function () {
-  var main = document.querySelector("#mainPage");
-  if (!main) return { clicked: false, reason: "no-mainPage", candidates: [] };
-  var re = /(?:검색|Search|조회)\\s*\\(\\s*F\\d+\\s*\\)/i;
-  var nodes = main.querySelectorAll("button, a, span, div, li, input, em, strong, b");
-  var candidates = [];
-  var target = null;
-  for (var i = 0; i < nodes.length; i++) {
-    var el = nodes[i];
-    var text = "";
-    try {
-      if (el.tagName === "INPUT") {
-        text = String(el.value || el.getAttribute("value") || "").replace(/\\s+/g, " ").trim();
-      } else {
-        text = String(el.innerText || el.textContent || "").replace(/\\s+/g, " ").trim();
-      }
-    } catch (e) {
-      continue;
-    }
-    if (!re.test(text) || text.length > 40) continue;
-    var visible = false;
-    try {
-      visible = !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length));
-    } catch (e2) {
-      visible = false;
-    }
-    candidates.push({
-      tag: el.tagName || "",
-      text: text.slice(0, 40),
-      visible: visible,
-      id: el.id || "",
-      className: String(el.className || "").slice(0, 80)
-    });
-    if (visible && !target) target = el;
-    if (candidates.length >= 12) break;
-  }
-  if (!target) {
-    return { clicked: false, reason: "no-visible-search-btn", candidates: candidates };
-  }
-  try {
-    target.click();
-    return {
-      clicked: true,
-      reason: "ok",
-      tag: target.tagName || "",
-      text: String(target.innerText || target.textContent || target.value || "").replace(/\\s+/g, " ").trim().slice(0, 40),
-      candidates: candidates
-    };
-  } catch (e3) {
-    return {
-      clicked: false,
-      reason: "click-threw:" + String(e3 && e3.message ? e3.message : e3),
-      candidates: candidates
-    };
-  }
-})()`;
-
 export async function clickLedgerSearch(page: Page): Promise<Frame> {
-  console.log("   → 검색 버튼 클릭");
-  const frames = await findLedgerFrames(page);
-  const scan = frames.length > 0 ? frames : page.frames();
+  console.log("   → 검색 실행 (F8 키)");
 
-  console.log("   [진단] 검색 직전 상태");
-  logLedgerFrameList(page, "search-pre");
-  logLedgerContextPages(page, "search-pre");
+  console.log("   [진단] F8 직전 상태");
+  logLedgerFrameList(page, "f8-pre");
+  logLedgerContextPages(page, "f8-pre");
+  const preDom = await readDomLedgerSearchScreen(page);
+  console.log(
+    `   [진단][f8-pre] url=${page.url().slice(0, 160)} urlPrg=${preDom.urlPrgId || "(none)"} hasMain=${!!preDom.hit?.hasMainPage} head=${JSON.stringify((preDom.hit?.head || "").slice(0, 80))}`
+  );
+
+  const frames = await findLedgerFrames(page);
+  const focusFrame = frames[0] || page.mainFrame();
+
+  // #mainPage에 포커스 후 F8 (버튼 DOM 클릭/탐색 없음)
+  try {
+    await focusFrame.locator("#mainPage").click({ position: { x: 40, y: 40 }, force: true }).catch(() => {});
+  } catch {
+    await page.locator("body").click({ position: { x: 40, y: 40 }, force: true }).catch(() => {});
+  }
 
   const detachDialogProbe = attachLedgerNativeDialogProbe(page);
-
   try {
-    // 1순위: #mainPage 실제 DOM에서 「검색(F8)」 클릭 (CI 화면 기준)
-    for (const frame of scan) {
-      try {
-        const result = (await frame.evaluate(CLICK_LEDGER_SEARCH_BTN_JS)) as {
-          clicked: boolean;
-          reason: string;
-          tag?: string;
-          text?: string;
-          candidates: Array<{ tag: string; text: string; visible: boolean; id: string; className: string }>;
-        };
-        if (result.candidates?.length) {
-          console.log(
-            `   [진단][search-btn] frame=${frame.name() || "(main)"} reason=${result.reason} candidates=${JSON.stringify(result.candidates.slice(0, 6))}`
-          );
-        }
-        if (result.clicked) {
-          console.log(
-            `   ✓ 검색 버튼 클릭 (DOM) tag=${result.tag || "?"} text=${JSON.stringify(result.text || "")}`
-          );
-          return frame;
-        }
-      } catch {
-        /* next frame */
-      }
-    }
-
-    // 2순위: Playwright locator (#mainPage 스코프)
-    for (const frame of scan) {
-      const root = frame.locator("#mainPage");
-      const locators = [
-        root.getByText(SEARCH_BTN).first(),
-        root.locator('button, a, span, div[role="button"]').filter({ hasText: SEARCH_BTN }).first(),
-        root.getByRole("button", { name: SEARCH_BTN }).first(),
-        root.getByText(/^검색$/).first(),
-      ];
-      for (const btn of locators) {
-        try {
-          if ((await btn.count()) > 0 && (await btn.isVisible().catch(() => false))) {
-            await btn.scrollIntoViewIfNeeded().catch(() => {});
-            await btn.click({ force: true });
-            console.log("   ✓ 검색 버튼 클릭 (locator)");
-            return frame;
-          }
-        } catch {
-          /* next */
-        }
-      }
-    }
+    await page.keyboard.press("F8");
+    console.log("   ✓ F8 입력");
   } finally {
+    // dialog probe는 ESC 단계에서도 쓰일 수 있어 짧게 유지 후 해제
+    await page.waitForTimeout(800);
     detachDialogProbe();
   }
 
-  throw new Error(
-    "재고수불부 검색 버튼을 찾지 못했습니다. F8 폴백은 사용하지 않습니다 — 화면의 「검색(F8)」 버튼을 확인하세요."
+  // F8 직후 URL / hash / #mainPage / frame / 화면 텍스트 진단
+  const url = page.url();
+  const urlPrgId = parseUrlPrgId(url);
+  const postDom = await readDomLedgerSearchScreen(page);
+  console.log(`   [진단][f8-post] url=${url.slice(0, 180)}`);
+  console.log(
+    `   [진단][f8-post] hash=${url.includes("#") ? url.slice(url.indexOf("#") + 1).slice(0, 120) : "(none)"} urlPrg=${urlPrgId || "(none)"}`
   );
+  console.log(
+    `   [진단][f8-post] hasMain=${!!postDom.hit?.hasMainPage} hasLedger=${!!postDom.hit?.hasLedgerText} searchTitle=${!!postDom.hit?.hasSearchTitle} head=${JSON.stringify((postDom.hit?.head || "").slice(0, 100))}`
+  );
+  logLedgerFrameList(page, "f8-post");
+  await logLedgerPostF8Diagnostics(page);
+
+  // 잘못된 화면으로 이탈하면 즉시 실패 (과거 F8 → 일별재고현황 등)
+  const head = postDom.hit?.head || "";
+  const wrongPrg =
+    urlPrgId === "E040206" ||
+    urlPrgId === "C000650" ||
+    /일별\s*재고\s*현황|일별재고현황/.test(head);
+  if (wrongPrg) {
+    throw new Error(
+      `F8 직후 잘못된 화면 — urlPrg=${urlPrgId || "(none)"} head=${JSON.stringify(head.slice(0, 120))} ` +
+        `(기대: 재고수불부 유지, urlPrg=${expectedLedgerPrgId()})`
+    );
+  }
+
+  // 재고수불부 컨텍스트 상실(대시보드/다른 메뉴)도 실패
+  const stillLedger =
+    !!postDom.hit?.hasLedgerText ||
+    !!postDom.hit?.hasSearchTitle ||
+    urlPrgId === expectedLedgerPrgId() ||
+    /조회할\s*자료가\s*많아|오래\s*걸릴\s*수\s*있습니다|품목코드|기초재고|입고|출고/.test(head);
+  if (!stillLedger) {
+    throw new Error(
+      `F8 직후 재고수불부 화면 이탈 — urlPrg=${urlPrgId || "(none)"} head=${JSON.stringify(head.slice(0, 120))}`
+    );
+  }
+
+  console.log(
+    `   ✓ F8 검색 실행 후 재고수불부 컨텍스트 유지 (urlPrg=${urlPrgId || "(none)"})`
+  );
+  return focusFrame.isDetached() ? page.mainFrame() : focusFrame;
 }
 
 /**
