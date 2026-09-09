@@ -133,6 +133,351 @@ type LedgerDomProbeHit = {
   candidates: Array<{ tag: string; id: string; text: string; className: string }>;
 };
 
+/**
+ * ESC 직후 전용 DOM 스냅샷 (string evaluate).
+ * mainText 2000 / bodyText 3000 / button·input 상세.
+ */
+const LEDGER_ESC_FRAME_PROBE_JS = `(function () {
+  function clip(s, n) {
+    return String(s || "").replace(/\\s+/g, " ").trim().slice(0, n);
+  }
+  function visible(el) {
+    try {
+      return !!(el.offsetWidth || el.offsetHeight || (el.getClientRects && el.getClientRects().length));
+    } catch (e) {
+      return false;
+    }
+  }
+  var main = document.querySelector("#mainPage");
+  var mainText = "";
+  var bodyText = "";
+  try {
+    bodyText = clip(document.body && document.body.innerText ? document.body.innerText : "", 3000);
+  } catch (e) {
+    bodyText = "";
+  }
+  if (main) {
+    try {
+      mainText = clip(main.innerText || main.textContent || "", 2000);
+    } catch (e2) {
+      mainText = "";
+    }
+  }
+  var scan = mainText + " " + bodyText;
+  var buttons = [];
+  try {
+    var btns = document.querySelectorAll("button, [role='button'], a.btn, input[type='button'], input[type='submit']");
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      if (!visible(b)) continue;
+      var btext = "";
+      try {
+        if (b.tagName === "INPUT") btext = clip(b.value || b.getAttribute("title") || "", 60);
+        else btext = clip(b.innerText || b.textContent || b.getAttribute("title") || "", 60);
+      } catch (e3) {
+        btext = "";
+      }
+      buttons.push({
+        tag: b.tagName || "",
+        id: b.id || "",
+        text: btext,
+        className: String(b.className || "").slice(0, 80)
+      });
+      if (buttons.length >= 40) break;
+    }
+  } catch (e4) {}
+
+  var inputs = [];
+  try {
+    var inps = document.querySelectorAll("input, textarea, select");
+    for (var j = 0; j < inps.length; j++) {
+      var inp = inps[j];
+      if (!visible(inp)) continue;
+      inputs.push({
+        tag: inp.tagName || "",
+        type: inp.getAttribute("type") || "",
+        id: inp.id || "",
+        name: inp.getAttribute("name") || "",
+        placeholder: clip(inp.getAttribute("placeholder") || "", 40),
+        value: clip(inp.value || "", 40)
+      });
+      if (inputs.length >= 40) break;
+    }
+  } catch (e5) {}
+
+  var tableCount = 0;
+  var iframeCount = 0;
+  try {
+    tableCount = document.querySelectorAll("table").length;
+    iframeCount = document.querySelectorAll("iframe").length;
+  } catch (e6) {}
+
+  return {
+    mainPageCount: main ? 1 : 0,
+    mainText: mainText,
+    bodyText: bodyText,
+    bodyTextShort: clip(bodyText, 1000),
+    hasLedger: /재고\\s*수불부|재고수불부/.test(scan),
+    hasSearch: /검색/.test(scan),
+    hasExcel: /엑셀|Excel/i.test(scan),
+    tableCount: tableCount,
+    iframeCount: iframeCount,
+    buttons: buttons,
+    inputs: inputs
+  };
+})()`;
+
+type LedgerEscFrameProbe = {
+  mainPageCount: number;
+  mainText: string;
+  bodyText: string;
+  bodyTextShort: string;
+  hasLedger: boolean;
+  hasSearch: boolean;
+  hasExcel: boolean;
+  tableCount: number;
+  iframeCount: number;
+  buttons: Array<{ tag: string; id: string; text: string; className: string }>;
+  inputs: Array<{
+    tag: string;
+    type: string;
+    id: string;
+    name: string;
+    placeholder: string;
+    value: string;
+  }>;
+};
+
+const ESC_SHOT_BY_LABEL: Record<string, string> = {
+  "esc-500ms": path.join("downloads", "ecount-ledger-after-esc-500ms.png"),
+  "esc-1s": path.join("downloads", "ecount-ledger-after-esc-1s.png"),
+  "esc-2s": path.join("downloads", "ecount-ledger-after-esc-2s.png"),
+  "esc-5s": path.join("downloads", "ecount-ledger-after-esc-5s.png"),
+};
+
+/** ESC 직후 전용 진단 — URL/frame/#mainPage/body/controls/screenshot */
+async function logLedgerEscAfterSnapshot(page: Page, label: string, shotPath?: string): Promise<void> {
+  const url = page.url();
+  const hash = url.includes("#") ? url.slice(url.indexOf("#") + 1) : "(none)";
+  let urlPrg: string | null = null;
+  try {
+    urlPrg = parseUrlPrgId(url);
+  } catch {
+    urlPrg = null;
+  }
+
+  const frames = page.frames();
+  console.log(`   [진단][esc-timeline] ===== ${label} =====`);
+  console.log(`   [진단][esc-timeline] ${label} page.url=${url}`);
+  console.log(`   [진단][esc-timeline] ${label} hash=${hash.slice(0, 200)}`);
+  console.log(`   [진단][esc-timeline] ${label} prgId=${urlPrg || "(none)"}`);
+  console.log(`   [진단][esc-timeline] ${label} frameCount=${frames.length}`);
+
+  let anyMain = false;
+  let bestMain = "";
+  let bestBody = "";
+  let hasLedger = false;
+  let hasSearch = false;
+  let hasExcel = false;
+  let tableTotal = 0;
+  let iframeTotal = 0;
+  const allButtons: LedgerEscFrameProbe["buttons"] = [];
+  const allInputs: LedgerEscFrameProbe["inputs"] = [];
+
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    let probe: LedgerEscFrameProbe | null = null;
+    try {
+      probe = (await frame.evaluate(LEDGER_ESC_FRAME_PROBE_JS)) as LedgerEscFrameProbe;
+    } catch (err) {
+      console.log(
+        JSON.stringify({
+          type: "ledger_esc_frame_error",
+          label,
+          frameIndex: i,
+          frameName: frame.name(),
+          frameUrl: frame.url().slice(0, 180),
+          error: err instanceof Error ? err.message : String(err),
+        })
+      );
+      continue;
+    }
+
+    if (probe.mainPageCount > 0) anyMain = true;
+    if ((probe.mainText || "").length > bestMain.length) bestMain = probe.mainText || "";
+    if ((probe.bodyText || "").length > bestBody.length) bestBody = probe.bodyText || "";
+    if (probe.hasLedger) hasLedger = true;
+    if (probe.hasSearch) hasSearch = true;
+    if (probe.hasExcel) hasExcel = true;
+    tableTotal += probe.tableCount || 0;
+    iframeTotal += probe.iframeCount || 0;
+    for (const b of probe.buttons || []) {
+      if (allButtons.length < 50) allButtons.push(b);
+    }
+    for (const inp of probe.inputs || []) {
+      if (allInputs.length < 50) allInputs.push(inp);
+    }
+
+    // Playwright locator 교차 확인 (#mainPage count)
+    let mainLocatorCount = -1;
+    try {
+      mainLocatorCount = await frame.locator("#mainPage").count();
+    } catch {
+      mainLocatorCount = -1;
+    }
+
+    console.log(
+      JSON.stringify({
+        type: "ledger_esc_frame",
+        label,
+        frameIndex: i,
+        frameName: frame.name(),
+        frameUrl: frame.url().slice(0, 200),
+        mainPageCountEvaluate: probe.mainPageCount,
+        mainPageCountLocator: mainLocatorCount,
+        hasLedger: probe.hasLedger,
+        hasSearch: probe.hasSearch,
+        hasExcel: probe.hasExcel,
+        tableCount: probe.tableCount,
+        iframeCount: probe.iframeCount,
+        buttonCount: (probe.buttons || []).length,
+        inputCount: (probe.inputs || []).length,
+        bodyText1000: (probe.bodyTextShort || probe.bodyText || "").slice(0, 1000),
+        mainText2000: (probe.mainText || "").slice(0, 2000),
+      })
+    );
+  }
+
+  console.log(`   [진단][esc-timeline] ${label} #mainPage존재=${anyMain}`);
+  console.log(
+    `   [진단][esc-timeline] ${label} #mainPage.innerText(앞2000)=${JSON.stringify(bestMain.slice(0, 2000))}`
+  );
+  console.log(
+    `   [진단][esc-timeline] ${label} body.innerText(앞3000)=${JSON.stringify(bestBody.slice(0, 3000))}`
+  );
+  console.log(`   [진단][esc-timeline] ${label} 재고수불부=${hasLedger} 검색=${hasSearch} Excel/엑셀=${hasExcel}`);
+  console.log(
+    `   [진단][esc-timeline] ${label} tableCount=${tableTotal} iframeCount=${iframeTotal} visibleButtons=${allButtons.length} visibleInputs=${allInputs.length}`
+  );
+  console.log(
+    JSON.stringify({
+      type: "ledger_esc_summary",
+      label,
+      url,
+      hash: hash.slice(0, 200),
+      prgId: urlPrg || "(none)",
+      frameCount: frames.length,
+      hasMainPage: anyMain,
+      hasLedger,
+      hasSearch,
+      hasExcel,
+      tableCount: tableTotal,
+      iframeCount: iframeTotal,
+      buttons: allButtons.slice(0, 30),
+      inputs: allInputs.slice(0, 30),
+      mainText2000: bestMain.slice(0, 2000),
+      bodyText3000: bestBody.slice(0, 3000),
+    })
+  );
+
+  if (shotPath) {
+    try {
+      ensureLedgerDownloadsDir();
+      await page.screenshot({ path: path.resolve(shotPath), fullPage: true });
+      console.log(`   [진단][esc-timeline] ${label} screenshot=${shotPath}`);
+    } catch (err) {
+      console.log(
+        `   [진단][esc-timeline] ${label} screenshot 예외: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+}
+
+function attachLedgerEscEventProbes(page: Page): () => void {
+  const onFrameNav = (frame: Frame) => {
+    console.log(
+      JSON.stringify({
+        type: "ledger_esc_event",
+        event: "framenavigated",
+        frameName: frame.name(),
+        frameUrl: frame.url().slice(0, 200),
+        pageUrl: page.url().slice(0, 200),
+        frameCount: page.frames().length,
+      })
+    );
+  };
+  const onFrameAttach = (frame: Frame) => {
+    console.log(
+      JSON.stringify({
+        type: "ledger_esc_event",
+        event: "frameattached",
+        frameName: frame.name(),
+        frameUrl: frame.url().slice(0, 200),
+        frameCount: page.frames().length,
+      })
+    );
+  };
+  const onFrameDetach = (frame: Frame) => {
+    console.log(
+      JSON.stringify({
+        type: "ledger_esc_event",
+        event: "framedetached",
+        frameName: frame.name(),
+        frameUrl: frame.url().slice(0, 200),
+        frameCount: page.frames().length,
+      })
+    );
+  };
+  const onPopup = (popup: Page) => {
+    console.log(
+      JSON.stringify({
+        type: "ledger_esc_event",
+        event: "popup",
+        popupUrl: popup.url().slice(0, 200),
+        pageUrl: page.url().slice(0, 200),
+      })
+    );
+  };
+  const onPageError = (err: Error) => {
+    console.log(
+      JSON.stringify({
+        type: "ledger_esc_event",
+        event: "pageerror",
+        message: err.message,
+        pageUrl: page.url().slice(0, 200),
+      })
+    );
+  };
+  const onConsole = (msg: { type: () => string; text: () => string }) => {
+    const t = msg.type();
+    if (t !== "error" && t !== "warning") return;
+    console.log(
+      JSON.stringify({
+        type: "ledger_esc_event",
+        event: "console",
+        level: t,
+        text: String(msg.text() || "").slice(0, 240),
+      })
+    );
+  };
+
+  page.on("framenavigated", onFrameNav);
+  page.on("frameattached", onFrameAttach);
+  page.on("framedetached", onFrameDetach);
+  page.on("popup", onPopup);
+  page.on("pageerror", onPageError);
+  page.on("console", onConsole);
+
+  return () => {
+    page.off("framenavigated", onFrameNav);
+    page.off("frameattached", onFrameAttach);
+    page.off("framedetached", onFrameDetach);
+    page.off("popup", onPopup);
+    page.off("pageerror", onPageError);
+    page.off("console", onConsole);
+  };
+}
+
 /** F8/ESC 타임라인용 — URL·#mainPage·결과 힌트·screenshot (동작 변경 없음) */
 async function logLedgerResultDomProbe(page: Page, label: string): Promise<void> {
   const url = page.url();
@@ -2023,8 +2368,7 @@ export async function clickLedgerSearch(page: Page): Promise<Frame> {
 
 /**
  * 검색 직후 사람 UX와 동일하게 Escape 전송.
- * DOM 「취소」 클릭 대신 ESC 사용.
- * ESC 동작은 그대로 두고, 직후 0.5/1/2/5초 DOM 타임라인만 진단 기록.
+ * ESC 키 입력 자체는 변경하지 않음 — 직후 0.5/1/2/5초 DOM·frame·URL 진단만 추가.
  */
 export async function pressLedgerEscapeAfterSearch(page: Page, searchFrame?: Frame | null): Promise<void> {
   console.log("   → 검색 후 ESC");
@@ -2040,20 +2384,24 @@ export async function pressLedgerEscapeAfterSearch(page: Page, searchFrame?: Fra
     /* focus best-effort */
   }
 
-  await page.keyboard.press("Escape");
-  console.log("   ✓ ESC 입력");
+  const detachEscEvents = attachLedgerEscEventProbes(page);
+  try {
+    await page.keyboard.press("Escape");
+    console.log("   ✓ ESC 입력");
 
-  // ESC 직후 타임라인 DOM 진단 (동작 변경 없음 — 관찰만)
-  await logLedgerResultDomProbe(page, "esc");
-  const timeline = [
-    { ms: 500, label: "esc-0.5s" },
-    { ms: 500, label: "esc-1s" }, // +0.5 → 누적 1s
-    { ms: 1000, label: "esc-2s" }, // +1 → 누적 2s
-    { ms: 3000, label: "esc-5s" }, // +3 → 누적 5s
-  ] as const;
-  for (const step of timeline) {
-    await page.waitForTimeout(step.ms);
-    await logLedgerResultDomProbe(page, step.label);
+    // ESC 직후 타임라인만 관찰 (검색/ESC/결과대기 로직 변경 없음)
+    const timeline: Array<{ waitMs: number; label: string; shot: string }> = [
+      { waitMs: 500, label: "esc-500ms", shot: ESC_SHOT_BY_LABEL["esc-500ms"] },
+      { waitMs: 500, label: "esc-1s", shot: ESC_SHOT_BY_LABEL["esc-1s"] },
+      { waitMs: 1000, label: "esc-2s", shot: ESC_SHOT_BY_LABEL["esc-2s"] },
+      { waitMs: 3000, label: "esc-5s", shot: ESC_SHOT_BY_LABEL["esc-5s"] },
+    ];
+    for (const step of timeline) {
+      await page.waitForTimeout(step.waitMs);
+      await logLedgerEscAfterSnapshot(page, step.label, step.shot);
+    }
+  } finally {
+    detachEscEvents();
   }
 
   // 기존 팝업/frame 진단 스냅샷 유지
