@@ -2,8 +2,10 @@ name: Sync Ecount Inventory (Excel Bot)
 
 on:
   schedule:
-    # 매일 한국시간 오전 5:00 (UTC 20:00)
+    # 매일 한국시간 오전 5:00 (UTC 20:00) — stock
     - cron: "0 20 * * *"
+    # 매일 한국시간 오전 5:30 (UTC 20:30) — ledger_bulk
+    - cron: "30 20 * * *"
   repository_dispatch:
     types: [trigger-sync]
   workflow_dispatch:
@@ -37,7 +39,10 @@ on:
         type: string
 
 jobs:
+  # stock 스케줄 + workflow_dispatch + repository_dispatch
+  # ledger_bulk 전용 cron(30 20)에서는 실행하지 않음
   sync:
+    if: github.event_name != 'schedule' || github.event.schedule == '0 20 * * *'
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
@@ -118,4 +123,71 @@ jobs:
             downloads/ledger-dom-probe-*.png
             downloads/ledger-leaf-dom-candidates.json
             downloads/ledger-leaf-dom-dump.png
+          if-no-files-found: warn
+
+  # ledger_bulk 전용 스케줄 — KST 05:30 / UTC 20:30
+  # workflow_dispatch·repository_dispatch의 ledger_bulk는 위 sync job이 처리
+  ledger_bulk:
+    if: github.event_name == 'schedule' && github.event.schedule == '30 20 * * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Ecount ledger_bulk bot
+        run: npx tsx scripts/ecountBot.ts
+        env:
+          ECOUNT_BOT_TARGET: ledger_bulk
+          ECOUNT_STOCK_DOWNLOAD_ONLY: "0"
+          ECOUNT_STOCK_ENTRY_ONLY: "0"
+          ECOUNT_STOCK_SEARCH_ONLY: "0"
+          GITHUB_SHA: ${{ github.sha }}
+          ECOUNT_LEDGER_PROD_CD: ""
+          ECOUNT_LEDGER_PROD_NM: ""
+          ECOUNT_LEDGER_FROM: ""
+          ECOUNT_LEDGER_TO: ""
+          ECOUNT_COM_CODE: ${{ secrets.ECOUNT_COM_CODE }}
+          ECOUNT_ID: ${{ secrets.ECOUNT_ID }}
+          ECOUNT_PW: ${{ secrets.ECOUNT_PW }}
+          ECOUNT_STOCK_MENU_DEPTH1: ${{ secrets.ECOUNT_STOCK_MENU_DEPTH1 }}
+          ECOUNT_STOCK_MENU_DEPTH2: ${{ secrets.ECOUNT_STOCK_MENU_DEPTH2 }}
+          ECOUNT_STOCK_MENU_URL: ${{ secrets.ECOUNT_STOCK_MENU_URL }}
+          ECOUNT_LEDGER_MENU_URL: ${{ secrets.ECOUNT_LEDGER_MENU_URL }}
+          ECOUNT_LEDGER_PRG_ID: ${{ secrets.ECOUNT_LEDGER_PRG_ID || 'E040702' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: List downloads for ledger debug
+        if: always()
+        run: ls -lah downloads/ || true
+
+      - name: Upload ecount ledger debug artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecount-ledger-bulk-schedule-debug
+          path: |
+            downloads/ecount_ledger_all.xlsx
+            downloads/ecount-ledger-after-f8.png
+            downloads/ecount-ledger-bulk-error.png
+            downloads/ecount-ledger-after-esc-500ms.png
+            downloads/ecount-ledger-after-esc-1s.png
+            downloads/ecount-ledger-after-esc-2s.png
+            downloads/ecount-ledger-after-esc-5s.png
+            downloads/ledger-dom-probe-*.png
           if-no-files-found: warn
