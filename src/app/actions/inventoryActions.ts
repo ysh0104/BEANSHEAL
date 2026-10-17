@@ -438,3 +438,61 @@ export async function clearAllEcountItems(
     return { success: false, error: e instanceof Error ? e.message : "삭제 오류" };
   }
 }
+
+const QC_UNIT_SPECS_ROW_ID = "qc_unit_specs";
+
+/**
+ * 품목별 품질관리표시서 단위포장 수량(예: 25kg, 20kg) 설정 조회
+ */
+export async function getQcItemUnitSpecsFromSupabase(): Promise<{
+  success: boolean;
+  data: Record<string, string>;
+}> {
+  try {
+    const { data, error } = await supabase
+      .from("memo_presets")
+      .select("templates")
+      .eq("id", QC_UNIT_SPECS_ROW_ID)
+      .maybeSingle();
+
+    if (error || !data || !data.templates || typeof data.templates !== "object" || Array.isArray(data.templates)) {
+      return { success: true, data: {} };
+    }
+
+    return {
+      success: true,
+      data: data.templates as Record<string, string>,
+    };
+  } catch (e) {
+    return { success: false, data: {} };
+  }
+}
+
+/**
+ * 품목별 품질관리표시서 단위포장 수량(예: 25kg, 20kg) 설정 저장 (한 번 입력 시 영구 기억)
+ */
+export async function saveQcItemUnitSpecsToSupabase(
+  unitSpecs: Record<string, string>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from("memo_presets")
+      .upsert(
+        {
+          id: QC_UNIT_SPECS_ROW_ID,
+          templates: unitSpecs,
+          tags: [],
+          mentions: [],
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || "저장 오류" };
+  }
+}

@@ -8,7 +8,9 @@ import {
   syncExcelToSupabase, 
   getAuditInventoryItems, 
   insertQuickProductionToSupabase,
-  updateAuditItemStatusToSupabase
+  updateAuditItemStatusToSupabase,
+  getQcItemUnitSpecsFromSupabase,
+  saveQcItemUnitSpecsToSupabase
 } from "@/app/actions/inventoryActions"; 
 import { getRecipeList } from "@/app/actions/recipe"; 
 import { useCanEdit } from "@/hooks/useCanEdit";
@@ -118,6 +120,14 @@ const compareLotNumbers = (lotA: string, lotB: string, dateDirection: "desc" | "
   return a.raw.localeCompare(b.raw, "ko", { numeric: true, sensitivity: "base" });
 };
 
+const normalizeItemSpecKey = (rawName: string): string => {
+  if (!rawName) return "";
+  return sanitizeAuditItemName(rawName)
+    .replace(/^[원부자반완]\)\s*/, "")
+    .replace(/\s+/g, "")
+    .toLowerCase();
+};
+
 const cleanAndDeduplicateAuditList = (list: any[]): any[] => {
   const map = new Map<string, any>();
   for (const it of list) {
@@ -162,6 +172,24 @@ function AuditPageContent() {
   const [inputQty, setInputQty] = useState("");
   const [previewLot, setPreviewLot] = useState("");
   const [recipeOptions, setRecipeOptions] = useState<any[]>([]);
+  const [itemUnitSpecs, setItemUnitSpecs] = useState<Record<string, string>>({});
+  const unitSpecSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleUnitSpecChange = (rawItemName: string, val: string) => {
+    const key = normalizeItemSpecKey(rawItemName);
+    if (!key) return;
+    setItemUnitSpecs((prev) => {
+      const next = { ...prev, [key]: val };
+      try {
+        localStorage.setItem("beansheal_item_unit_specs", JSON.stringify(next));
+      } catch (e) {}
+      if (unitSpecSaveTimerRef.current) clearTimeout(unitSpecSaveTimerRef.current);
+      unitSpecSaveTimerRef.current = setTimeout(() => {
+        void saveQcItemUnitSpecsToSupabase(next);
+      }, 350);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -180,6 +208,15 @@ function AuditPageContent() {
         try {
           const parsed = JSON.parse(cachedRecipes);
           if (Array.isArray(parsed) && parsed.length > 0) setRecipeOptions(parsed);
+        } catch (e) {}
+      }
+      const cachedSpecs = localStorage.getItem("beansheal_item_unit_specs");
+      if (cachedSpecs) {
+        try {
+          const parsed = JSON.parse(cachedSpecs);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            setItemUnitSpecs(parsed);
+          }
         } catch (e) {}
       }
     }
@@ -272,14 +309,25 @@ function AuditPageContent() {
   useEffect(() => {
     const initData = async () => {
       try {
-        // ⚡ 레시피 목록 및 품질 로트 데이터를 병렬(Promise.all) 초고속 로드
-        const [recipeRes] = await Promise.all([
+        // ⚡ 레시피 목록, 품질 로트 데이터, 품목별 단위규격 설정을 병렬(Promise.all) 초고속 로드
+        const [recipeRes, unitSpecsRes] = await Promise.all([
           getRecipeList().catch(() => ({ success: false, data: [] })),
+          getQcItemUnitSpecsFromSupabase().catch(() => ({ success: false, data: {} })),
           fetchInventoryFromSupabase().catch(() => {}),
         ]);
 
         if (recipeRes?.success && recipeRes.data) {
           setRecipeOptions(recipeRes.data);
+        }
+
+        if (unitSpecsRes?.success && unitSpecsRes.data) {
+          setItemUnitSpecs((prev) => {
+            const merged = { ...unitSpecsRes.data, ...prev };
+            try {
+              localStorage.setItem("beansheal_item_unit_specs", JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
         }
 
         const savedHistory = localStorage.getItem("beansheal_mfg_history");
@@ -445,6 +493,7 @@ function AuditPageContent() {
 
       let successCount = 0;
       const fileExt = docFormat;
+      const unitSpecVal = (itemUnitSpecs[normalizeItemSpecKey(rawName)] || "").trim();
 
       for (const type of docTypes) {
         const response = await fetch('/api/generate-qc-doc', {
@@ -457,8 +506,9 @@ function AuditPageContent() {
             docType: type,
             format: fileExt,
             qty: item.rawItem?.total_qty || item.rawItem?.qty || item.rawItem?.quantity || item.rawItem?.expected_qty || item.quantity || "",
+            unitQty: unitSpecVal,
             mfgNo: item.rawItem?.mfg_no || item.mfgNo || "",
-            mfgDate: item.rawItem?.mfg_date || item.rawItem?.make_date || item.rawItem?.created_at || "",
+            mfgDate: item.rawItem?.mfg_date || item.rawItem?.make_date || "",
             expiryDate: item.expDate || item.rawItem?.expiry_date || item.rawItem?.expiration_date || ""
           })
         });
@@ -743,6 +793,13 @@ function AuditPageContent() {
                       <span className="text-xs">{lotSortOrder === "desc" ? "▼(최신순)" : "▲(과거순)"}</span>
                     </span>
                   </th>
+                  <th className="p-3 border-b border-gray-300 font-semibold text-right w-28">입고 총수량</th>
+                  <th
+                    className="p-3 border-b border-gray-300 font-bold text-emerald-800 w-40"
+                    title="한 번 입력하면 해당 품목의 단위규격이 자동 저장되어 이후 입고분에도 품질관리표시서에 자동 반영됩니다."
+                  >
+                    표시서 단위수량 <span className="text-[11px] font-semibold text-emerald-600">(자동기억)</span>
+                  </th>
                   <th className="p-3 border-b border-gray-300 font-semibold">소비기한</th>
                   <th className="p-3 border-b border-gray-300 font-semibold text-center w-28">상태</th>
                   <th className="p-3 border-b border-gray-300 font-bold text-center w-48">관리자 승인</th>
@@ -759,11 +816,33 @@ function AuditPageContent() {
                   .slice(0, 100)
                   .map((item, idx) => {
                     const isPending = item.status === "문서대기";
+                    const rawQtyVal = item.rawItem?.total_qty ?? item.rawItem?.qty ?? item.rawItem?.quantity ?? item.rawItem?.expected_qty ?? item.quantity ?? "";
+                    const formattedTotalQty = rawQtyVal !== "" && rawQtyVal !== null && rawQtyVal !== undefined
+                      ? (typeof rawQtyVal === "number" ? `${rawQtyVal.toLocaleString()} kg` : (/^\d+(\.\d+)?$/.test(String(rawQtyVal).trim()) ? `${Number(rawQtyVal).toLocaleString()} kg` : String(rawQtyVal)))
+                      : "-";
+                    const itemSpecKey = normalizeItemSpecKey(item.cleanName);
+                    const savedUnitSpec = itemUnitSpecs[itemSpecKey] || "";
+
                     return (
                       <tr key={item.lotNo || idx} className={`transition-colors ${isPending ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
                         <td className="p-3 text-gray-500 font-mono text-center text-xs">{item.scrapedAt}</td>
                         <td className="p-3 font-bold text-gray-900">{item.cleanName}</td>
                         <td className="p-3 text-blue-700 font-mono font-bold">{item.lotNo}</td>
+                        <td className="p-3 text-right font-mono text-gray-700 font-semibold">{formattedTotalQty}</td>
+                        <td className="p-3">
+                          <input
+                            type="text"
+                            value={savedUnitSpec}
+                            onChange={(e) => handleUnitSpecChange(item.cleanName, e.target.value)}
+                            placeholder="예: 25kg"
+                            className={`w-28 text-xs font-bold px-2.5 py-1.5 rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                              savedUnitSpec
+                                ? "bg-emerald-50/70 border-emerald-300 text-emerald-900"
+                                : "bg-white border-gray-300 text-gray-700 placeholder:text-gray-400"
+                            }`}
+                            title="품목당 1회만 입력하면 모든 LOT의 품질관리표시서 수량/단위 칸에 자동 적용됩니다 (예: 25kg, 20kg)"
+                          />
+                        </td>
                         <td className="p-3 text-gray-600">{item.expDate}</td>
                         <td className="p-3 text-center">
                           <span className={`px-2.5 py-1 rounded text-xs font-bold border ${item.status === '문서대기' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
@@ -790,7 +869,7 @@ function AuditPageContent() {
                       </tr>
                     );
                   })}
-                {scrapedItems.length === 0 && (<tr><td colSpan={6} className="text-center py-12 text-gray-500 font-medium bg-gray-50">조건에 맞는 로트 데이터가 없습니다.</td></tr>)}
+                {scrapedItems.length === 0 && (<tr><td colSpan={8} className="text-center py-12 text-gray-500 font-medium bg-gray-50">조건에 맞는 로트 데이터가 없습니다.</td></tr>)}
               </tbody>
             </table>
           </div>

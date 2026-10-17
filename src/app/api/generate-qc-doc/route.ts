@@ -14,9 +14,9 @@ const CATEGORY_SUBDIRS = ['01_raw', '02_sub', '03_semi', '04_product', '00_commo
 // 템플릿 버퍼 읽기 헬퍼 (카테고리 서브 디렉토리 01_raw, 02_sub 등 재귀 탐색)
 function readTemplateFile(fileName: string): Buffer | null {
   const rootDirs = [
+    path.resolve(process.cwd(), 'templates'),
     path.resolve(process.cwd(), 'public', 'templates'),
     path.resolve(process.cwd(), 'src', 'templates'),
-    path.resolve(process.cwd(), 'templates'),
   ];
 
   for (const rootDir of rootDirs) {
@@ -170,6 +170,7 @@ export async function POST(req: Request) {
     const mfgDate = body.mfgDate || body.makeDate || "";
     const expiryDate = body.expiryDate || "";
     const qty = body.qty || body.quantity || "";
+    const unitQty = String(body.unitQty || body.labelQty || "").trim();
     const mfgNo = body.mfgNo || "";
     const templateKeyInput = body.templateKey || "";
     const spec = body.spec || "";
@@ -266,13 +267,31 @@ export async function POST(req: Request) {
       return rawDate.split('T')[0];
     };
 
+    // LOT 번호 내 날짜 추출 헬퍼 (예: 260413Q1 -> 2026-04-13)
+    const extractDateFromLot = (rawLot: string) => {
+      if (!rawLot) return "";
+      const match = String(rawLot).match(/(20[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])|[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))/);
+      if (!match) return "";
+      const d = match[1].length === 6 ? `20${match[1]}` : match[1];
+      return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+    };
+
     // [유기농 감별 및 시험번호 생성기]
     const isOrganic = cleanProductName.includes('유기농');
     const testNo = isOrganic ? `${lotNo}u` : lotNo;
 
-    const finalMfgDate = cleanDateStr(mfgDate) || cleanDateStr(testDate) || todayStr;
-    const finalTestDate = cleanDateStr(testDate) || todayStr;
-    const finalQty = qty ? (typeof qty === 'number' ? `${qty.toLocaleString()} kg` : String(qty)) : "별도표기";
+    const lotDateStr = extractDateFromLot(lotNo);
+    const finalMfgDate = cleanDateStr(mfgDate) || lotDateStr || cleanDateStr(testDate) || todayStr;
+    const finalTestDate = cleanDateStr(testDate) || lotDateStr || todayStr;
+    const finalQty = qty ? (typeof qty === 'number' ? `${qty.toLocaleString()} kg` : (/^\d+(\.\d+)?$/.test(String(qty).trim()) ? `${Number(qty).toLocaleString()} kg` : String(qty))) : "별도표기";
+
+    // 품질관리표시서(label) 전용 단위 포장수량 계산 (예: 총 입고량 75kg여도 단위규격 25kg 적용)
+    const formattedUnitQty = unitQty
+      ? (/^\d+(\.\d+)?$/.test(unitQty) ? `${Number(unitQty).toLocaleString()} kg` : unitQty)
+      : (extractedSpec && extractedSpec !== "별도표기" ? extractedSpec : finalQty);
+
+    const docQty = docType === 'label' ? formattedUnitQty : finalQty;
+    const finalSpec = formattedUnitQty && formattedUnitQty !== finalQty ? formattedUnitQty : extractedSpec;
 
     const renderData = {
       제품명: cleanProductName, 
@@ -281,12 +300,12 @@ export async function POST(req: Request) {
       시험번호: testNo,       
       시험일자: finalTestDate,
       제조일자: finalMfgDate,
-      수량: finalQty,
+      수량: docQty,
       제조수량: finalQty,                
       오늘날짜: todayStr,      
       유통기한: expiryDate || "제조일로부터 24개월",  
       소비기한: expiryDate || "제조일로부터 24개월",    
-      규격: extractedSpec,
+      규격: finalSpec,
       제조번호: mfgNo || lotNo,         
       접수일자: finalTestDate,
       검체채취일자: finalTestDate,
