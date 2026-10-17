@@ -132,6 +132,10 @@ function AuditPageContent() {
     return str;
   };
 
+  // 발급 완료된 LOT 번호를 로컬 세션에도 기억하여 15초 백그라운드 폴링 시 덮어씌워짐 방지
+  const issuedLotsRef = useRef<Set<string>>(new Set());
+  const [lotSortOrder, setLotSortOrder] = useState<"asc" | "desc">("asc");
+
   // Supabase ecount_inventory 데이터 실시간 로드 함수
   const fetchInventoryFromSupabase = async () => {
     try {
@@ -142,6 +146,8 @@ function AuditPageContent() {
           const lotNo = (rawLot && rawLot !== 'undefined' && rawLot !== 'null') 
             ? rawLot 
             : `LOT-${item.id}`;
+          const dbStatus = item.status || item.qc_status || '문서대기';
+          const finalStatus = issuedLotsRef.current.has(lotNo) ? '승인/발급완료' : dbStatus;
 
           return {
             scrapedAt: item.created_at 
@@ -150,10 +156,13 @@ function AuditPageContent() {
             cleanName: item.item_name || item.name || item.product_name,
             lotNo: lotNo,
             expDate: formatExpDate(item.expiry_date || item.expiration_date),
-            status: item.status || item.qc_status || '문서대기',
+            status: finalStatus,
             rawItem: item
           };
         });
+        formatted.sort((a: any, b: any) =>
+          String(a.lotNo || '').localeCompare(String(b.lotNo || ''), 'ko', { numeric: true, sensitivity: 'base' })
+        );
         setScrapedItems(formatted);
         localStorage.setItem("beansheal_audit_items", JSON.stringify(formatted));
         setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
@@ -161,14 +170,21 @@ function AuditPageContent() {
         // Fallback to getDashboardItems if ecount_inventory is empty
         const dashRes = await getDashboardItems();
         if (dashRes?.success && Array.isArray(dashRes.data) && dashRes.data.length > 0) {
-          const formatted = dashRes.data.map((item: any) => ({
-            scrapedAt: item.created_at ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '미상',
-            cleanName: item.name || item.product_name,
-            lotNo: item.lot_number || `LOT-${item.id}`,
-            expDate: formatExpDate(item.expiration_date),
-            status: item.qc_status || '문서대기',
-            rawItem: item
-          }));
+          const formatted = dashRes.data.map((item: any) => {
+            const lotNo = item.lot_number || `LOT-${item.id}`;
+            const dbStatus = item.qc_status || '문서대기';
+            return {
+              scrapedAt: item.created_at ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '미상',
+              cleanName: item.name || item.product_name,
+              lotNo,
+              expDate: formatExpDate(item.expiration_date),
+              status: issuedLotsRef.current.has(lotNo) ? '승인/발급완료' : dbStatus,
+              rawItem: item
+            };
+          });
+          formatted.sort((a: any, b: any) =>
+            String(a.lotNo || '').localeCompare(String(b.lotNo || ''), 'ko', { numeric: true, sensitivity: 'base' })
+          );
           setScrapedItems(formatted);
           localStorage.setItem("beansheal_audit_items", JSON.stringify(formatted));
           setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
@@ -315,12 +331,29 @@ function AuditPageContent() {
     }
   };
 
-  const [docFormat, setDocFormat] = useState<"hwp" | "hwpx" | "docx">("hwp");
+  const docFormat = "docx";
 
   const handleDownloadQCBatch = async (item: any) => {
     try {
       const rawName = item.rawItem?.item_name || item.cleanName || "";
       const lotNumber = item.lotNo || item.rawItem?.lot_no || "LOT-0000";
+
+      // ⚡ 0초 즉시 UI 상태 전환 ('문서대기' -> '승인/발급완료' / '서류 재발급' 버튼으로 즉시 변경)
+      issuedLotsRef.current.add(lotNumber);
+      setScrapedItems((prev) => {
+        const next = prev.map((it) =>
+          it.lotNo === item.lotNo || (item.rawItem?.id && it.rawItem?.id === item.rawItem?.id)
+            ? { ...it, status: "승인/발급완료" }
+            : it
+        );
+        try {
+          localStorage.setItem("beansheal_audit_items", JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+      // 백그라운드 Supabase DB 상태 즉시 업데이트
+      void updateAuditItemStatusToSupabase(item.rawItem?.id, "승인/발급완료", lotNumber);
 
       // 원료/부자재/반제품/완제품 품목 성격별 필수 발급 서류 목록 (4~5종)
       const isSemiOrProduct = rawName.startsWith("반)") || rawName.startsWith("완)") || rawName.includes("반제품") || rawName.includes("완제품");
@@ -375,21 +408,7 @@ function AuditPageContent() {
         await new Promise((resolve) => setTimeout(resolve, 350));
       }
 
-      if (successCount > 0) {
-        // 🌟 Supabase DB 상태 업데이트: '승인/발급완료'
-        if (item.rawItem?.id) {
-          await updateAuditItemStatusToSupabase(item.rawItem.id, "승인/발급완료");
-        }
-
-        // 🌟 화면 상태 즉시 업데이트 ('문서대기' -> '승인/발급완료')
-        setScrapedItems((prev) =>
-          prev.map((it) =>
-            it.lotNo === item.lotNo || (item.rawItem?.id && it.rawItem?.id === item.rawItem?.id)
-              ? { ...it, status: "승인/발급완료" }
-              : it
-          )
-        );
-      } else {
+      if (successCount === 0) {
         alert("품질 서류 생성에 실패했습니다.");
       }
     } catch (err: any) {
@@ -400,7 +419,7 @@ function AuditPageContent() {
   return (
     <div className="space-y-6 max-w-[1280px] mx-auto w-full pb-20 mt-2 px-1 sm:px-2 font-sans">
       
-      {/* 상단 헤더 및 양식 포맷 선택 버튼 */}
+      {/* 상단 헤더 및 워드 양식 안내 */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
@@ -410,30 +429,12 @@ function AuditPageContent() {
           <p className="text-sm text-gray-500 mt-1">HACCP 검사서류 일괄 발급, 실적 수집 및 GMP 기기 검·교정 관리대장 서식을 한곳에서 관리합니다.</p>
         </div>
 
-        {/* 한글 / 워드 문서 포맷 선택 토글 버튼 */}
-        <div className="flex items-center bg-gray-100 p-1.5 rounded-xl border border-gray-200 self-start sm:self-auto gap-1">
-          <button
-            type="button"
-            onClick={() => setDocFormat("hwpx")}
-            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
-              docFormat === "hwpx"
-                ? "bg-blue-600 text-white shadow-xs"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            한글 (.hwpx)
-          </button>
-          <button
-            type="button"
-            onClick={() => setDocFormat("docx")}
-            className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
-              docFormat === "docx"
-                ? "bg-blue-600 text-white shadow-xs"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            MS 워드 (.docx)
-          </button>
+        {/* MS 워드 (.docx) 기본 고정 배지 */}
+        <div className="flex items-center bg-blue-50 px-4 py-2 rounded-xl border border-blue-200 self-start sm:self-auto gap-2 shadow-2xs">
+          <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+          <span className="text-xs sm:text-sm font-extrabold text-blue-800">
+            MS 워드 (.docx) 자동 발급
+          </span>
         </div>
       </div>
 
@@ -658,24 +659,40 @@ function AuditPageContent() {
                 <tr>
                   <th className="p-3 border-b border-gray-300 font-semibold text-center w-24">수집/동기화 시간</th>
                   <th className="p-3 border-b border-gray-300 font-semibold">품목명</th>
-                  <th className="p-3 border-b border-gray-300 font-semibold">LOT 번호</th>
+                  <th
+                    onClick={() => setLotSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
+                    className="p-3 border-b border-gray-300 font-bold text-blue-800 cursor-pointer select-none hover:bg-gray-200 transition-colors"
+                    title="클릭하여 LOT 번호 정렬 순서 변경"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      LOT 번호
+                      <span className="text-xs">{lotSortOrder === "asc" ? "▲" : "▼"}</span>
+                    </span>
+                  </th>
                   <th className="p-3 border-b border-gray-300 font-semibold">소비기한</th>
                   <th className="p-3 border-b border-gray-300 font-semibold text-center w-28">상태</th>
                   <th className="p-3 border-b border-gray-300 font-bold text-center w-48">관리자 승인</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {scrapedItems
+                {[...scrapedItems]
                   .filter((item) => {
                     if (filterStatus === "문서대기") return item.status === "문서대기";
                     if (filterStatus === "승인/발급완료") return item.status !== "문서대기";
                     return true;
                   })
+                  .sort((a, b) => {
+                    const cmp = String(a.lotNo || "").localeCompare(String(b.lotNo || ""), "ko", {
+                      numeric: true,
+                      sensitivity: "base",
+                    });
+                    return lotSortOrder === "asc" ? cmp : -cmp;
+                  })
                   .slice(0, 100)
                   .map((item, idx) => {
                     const isPending = item.status === "문서대기";
                     return (
-                      <tr key={idx} className={`transition-colors ${isPending ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
+                      <tr key={item.lotNo || idx} className={`transition-colors ${isPending ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
                         <td className="p-3 text-gray-500 font-mono text-center text-xs">{item.scrapedAt}</td>
                         <td className="p-3 font-bold text-gray-900">{item.cleanName}</td>
                         <td className="p-3 text-blue-700 font-mono font-bold">{item.lotNo}</td>

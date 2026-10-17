@@ -106,6 +106,8 @@ export async function syncExcelToSupabase(parsedData: ParsedInventoryData[]) {
       }
     }
 
+    auditInventoryCache = null;
+
     return { 
       success: true, 
       message: `동기화 완료! (신규등록: ${newItemsToInsert.length}건 / 수량변경: ${itemsToUpdate.length}건)` 
@@ -161,6 +163,11 @@ export async function getAuditInventoryItems() {
       return true;
     });
 
+    // LOT 번호 기준 오름차순 정렬
+    filteredData.sort((a, b) =>
+      String(a.lot_no || '').localeCompare(String(b.lot_no || ''), 'ko', { numeric: true, sensitivity: 'base' })
+    );
+
     auditInventoryCache = { data: filteredData, expiry: Date.now() + 15000 };
     return { success: true, data: filteredData };
   } catch (error: any) {
@@ -198,6 +205,7 @@ export async function insertQuickProductionToSupabase(item: {
       .select();
 
     if (error) throw error;
+    auditInventoryCache = null;
     return { success: true, data };
   } catch (error: any) {
     console.error("insertQuickProductionToSupabase error:", error);
@@ -208,21 +216,44 @@ export async function insertQuickProductionToSupabase(item: {
 /**
  * 품질/감사 서류 발급 완료 시 상태 업데이트 ('승인/발급완료')
  */
-export async function updateAuditItemStatusToSupabase(id: string | number, status: string = '승인/발급완료') {
+export async function updateAuditItemStatusToSupabase(
+  id: string | number | undefined,
+  status: string = '승인/발급완료',
+  lotNo?: string
+) {
   try {
-    const { data, error } = await supabase
-      .from('ecount_inventory')
-      .update({ status })
-      .eq('id', id)
-      .select();
+    auditInventoryCache = null;
 
-    if (error) {
-      await supabase
-        .from('dashboard')
-        .update({ qc_status: status })
-        .eq('id', id);
+    if (id !== undefined && id !== null && id !== '') {
+      const { data, error } = await supabase
+        .from('ecount_inventory')
+        .update({ status })
+        .eq('id', id)
+        .select();
+
+      if (error || !data || data.length === 0) {
+        if (lotNo) {
+          await supabase
+            .from('ecount_inventory')
+            .update({ status })
+            .eq('lot_no', lotNo);
+        }
+        await supabase
+          .from('dashboard')
+          .update({ qc_status: status })
+          .eq('id', id);
+      }
+      return { success: true, data };
+    } else if (lotNo) {
+      const { data } = await supabase
+        .from('ecount_inventory')
+        .update({ status })
+        .eq('lot_no', lotNo)
+        .select();
+      return { success: true, data };
     }
-    return { success: true, data };
+
+    return { success: true };
   } catch (error: any) {
     console.error("updateAuditItemStatusToSupabase error:", error);
     return { success: false, message: error?.message || "DB 업데이트 오류" };

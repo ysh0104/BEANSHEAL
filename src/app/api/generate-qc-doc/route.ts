@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import PizZip from 'pizzip';
-import Docxtemplater from 'docxtemplater';
 import fs from 'fs';
 import path from 'path';
 import qcTemplateConfig from '@/config/qcTemplateMap.json';
@@ -43,14 +42,19 @@ function readTemplateFile(fileName: string): Buffer | null {
   return null;
 }
 
-// 품목명 및 접두사(원), 부), 반), 완)) 기준 템플릿 키 자동 분류 함수
+// 품목명 및 접두사(원), 부), 반), 완), [원료], [부자재] 등) 기준 템플릿 키 자동 분류 함수
 function resolveTemplateKey(productName: string, templateKey?: string): string {
   if (templateKey && TEMPLATE_PREFIX_MAP[templateKey]) {
     return templateKey;
   }
 
   const name = productName || "";
-  const cleanName = name.replace(/^[원부자반완]\)\s*/, '').replace(/\s*\[.*?\]\s*/g, '').trim();
+  const cleanName = name
+    .replace(/^[원부자반완]\)\s*/, '')
+    .replace(/^\[(원료|부자재|반제품|완제품|원|부|반|완)\]\s*/, '')
+    .replace(/^(원료|부자재|반제품|완제품)_\s*/, '')
+    .replace(/\s*\[.*?\]\s*/g, '')
+    .trim();
 
   // 1순위: 개별 품목명 맞춤 매핑 (itemMapping) 사전에 등록된 품목인지 검사 (최우선)
   for (const [customItemName, categoryKey] of Object.entries(ITEM_MAPPING)) {
@@ -61,80 +65,96 @@ function resolveTemplateKey(productName: string, templateKey?: string): string {
     }
   }
 
-  // 2순위: 원료 (원) 접두사 또는 원료 키워드)
-  if (name.startsWith("원)") || name.includes("원료")) {
-    if (name.includes("분말") || name.includes("파우더") || name.includes("고체")) {
-      return "원료_분말";
+  // 2순위: 원료 분류 (원), [원료], [원], 원료_ 또는 원료 키워드)
+  if (name.startsWith("원)") || name.startsWith("[원료]") || name.startsWith("[원]") || name.startsWith("원료_") || name.includes("원료")) {
+    if (name.includes("시녹스") || name.includes("주정") || name.includes("알콜") || name.includes("소독")) {
+      return "원료_시녹스마일드";
     }
-    if (name.includes("유기농")) {
-      return "원료_유기농";
+    if (name.includes("농축액") || name.includes("추출액") || name.includes("원액") || name.includes("액상") || name.includes("오일") || name.includes("시럽") || name.includes("액")) {
+      return "원료_액상";
     }
-    return "원료_액상";
+    return "원료_분말"; // 원료의 기본형은 분말
   }
 
-  // 2. 부자재 (부) 접두사 또는 부자재 키워드)
-  if (name.startsWith("부)") || name.includes("부자재")) {
-    if (name.includes("카톤")) return "부자재_카톤박스";
+  // 3순위: 부자재 분류 (부), [부자재], [부], 부자재_ 또는 부자재 키워드)
+  if (name.startsWith("부)") || name.startsWith("[부자재]") || name.startsWith("[부]") || name.startsWith("부자재_") || name.includes("부자재")) {
+    if (name.includes("시녹스") || name.includes("주정") || name.includes("알콜") || name.includes("소독")) {
+      return "부자재_시녹스마일드";
+    }
+    if (name.includes("카톤") || name.includes("외상자")) return "부자재_카톤박스";
     if (name.includes("단상자") || name.includes("상자") || name.includes("박스")) return "부자재_단상자";
     if (name.includes("병") || name.includes("유리병")) return "부자재_유리병";
     return "부자재_파우치";
   }
 
-  // 3. 반제품 (반) 접두사 또는 반제품 키워드)
-  if (name.startsWith("반)") || name.includes("반제품")) {
+  // 4순위: 반제품 분류 (반), [반제품], [반], 반제품_ 또는 반제품 키워드)
+  if (name.startsWith("반)") || name.startsWith("[반제품]") || name.startsWith("[반]") || name.startsWith("반제품_") || name.includes("반제품")) {
     if (name.includes("젤리")) return "반제품_젤리";
     return "반제품_액상";
   }
 
-  // 4. 완제품 접두사 (완) 또는 기본)
-  if (name.startsWith("완)") || name.includes("완제품")) {
+  // 5순위: 완제품 분류 (완), [완제품], [완], 완제품_ 또는 완제품 키워드)
+  if (name.startsWith("완)") || name.startsWith("[완제품]") || name.startsWith("[완]") || name.startsWith("완제품_") || name.includes("완제품")) {
     return "완제품_기본";
   }
 
-  // 5. 접두사 누락 시 품목명 키워드 정밀 자동 추론
+  // 6순위: 접두사 누락 시 품목명 키워드 정밀 자동 추론
   if (name.includes("농축액") || name.includes("추출액") || name.includes("원액") || name.includes("액상")) {
     return "원료_액상";
   }
-  if (name.includes("파우더") || name.includes("분말")) {
+  if (name.includes("파우더") || name.includes("분말") || name.includes("비타민") || name.includes("가르시니아") || name.includes("타우린")) {
     return "원료_분말";
+  }
+  if (name.includes("카톤") || name.includes("외상자")) {
+    return "부자재_카톤박스";
+  }
+  if (name.includes("단상자") || name.includes("상자")) {
+    return "부자재_단상자";
   }
   if (name.includes("파우치") || name.includes("스틱")) {
     return "부자재_파우치";
   }
-  if (name.includes("단상자") || name.includes("카톤")) {
-    return "부자재_단상자";
+  if (name.includes("시녹스") || name.includes("소독") || name.includes("주정")) {
+    return "부자재_시녹스마일드";
   }
 
   return "완제품_기본";
 }
 
 /**
- * HWPX 전용 XML 텍스트 치환 헬퍼 (Contents/section0.xml 무손상 데이터 주입)
+ * 범용 XML 텍스트 치환 헬퍼 (태그 분리 및 단일/이중 중괄호 {key}, {{key}} 완벽 대응)
  */
-function renderHwpxTemplate(content: Buffer, renderData: Record<string, any>): Buffer {
-  const zip = new PizZip(content);
-  const filesToReplace = ['Contents/section0.xml', 'Contents/header.xml', 'section0.xml'];
-
-  for (const fileName of filesToReplace) {
-    const file = zip.file(fileName);
-    if (!file) continue;
-
-    let xmlText = file.asText();
-    let modified = false;
-
-    for (const [key, val] of Object.entries(renderData)) {
-      const valStr = String(val ?? '');
-      const patterns = [`{{${key}}}`, `{${key}}`];
-      for (const p of patterns) {
-        if (xmlText.includes(p)) {
-          xmlText = xmlText.replaceAll(p, valStr);
-          modified = true;
-        }
-      }
+function replaceXmlPlaceholders(xmlText: string, data: Record<string, any>): { xmlText: string; modified: boolean } {
+  let modified = false;
+  const newXmlText = xmlText.replace(/\{+([\s\S]*?)\}+/g, (match, content) => {
+    // XML 태그 및 중괄호 제거하여 순수 키 추출
+    const cleanKey = content.replace(/<[^>]+>/g, '').replace(/[\{\}]/g, '').trim();
+    if (Object.prototype.hasOwnProperty.call(data, cleanKey)) {
+      modified = true;
+      return String(data[cleanKey] ?? '');
     }
+    return match;
+  });
+  return { xmlText: newXmlText, modified };
+}
 
-    if (modified) {
-      zip.file(fileName, xmlText);
+/**
+ * HWPX 및 DOCX 템플릿 내의 모든 XML 파일에 대해 치환 수행
+ */
+function renderZipTemplate(content: Buffer, renderData: Record<string, any>): Buffer {
+  const zip = new PizZip(content);
+  
+  for (const fileName of Object.keys(zip.files)) {
+    if (fileName.endsWith('.xml')) {
+      const file = zip.file(fileName);
+      if (!file) continue;
+
+      let xmlText = file.asText();
+      const { xmlText: newXmlText, modified } = replaceXmlPlaceholders(xmlText, renderData);
+
+      if (modified) {
+        zip.file(fileName, newXmlText);
+      }
     }
   }
 
@@ -166,7 +186,7 @@ export async function POST(req: Request) {
     }
     if (!docType) docType = 'log';
 
-    // 파일 포맷 결정 (.hwpx 및 .docx 100% XML 표준 기반)
+    // 파일 포맷 결정 (.hwpx 및 .docx 지원)
     const reqFormat = (body.format || body.fileFormat || 'hwpx').toLowerCase();
     const fileExt = reqFormat === 'docx' ? 'docx' : 'hwpx';
 
@@ -182,7 +202,7 @@ export async function POST(req: Request) {
     let content: Buffer | null = null;
     const prefix = TEMPLATE_PREFIX_MAP[finalTemplateKey] || 'qc_product_default';
     
-    // 100% 표준 XML 기반 템플릿만 탐색 (.hwpx / .docx)
+    // 탐색 확장자 순서 (.hwpx 우선, docx 순)
     const searchExtensions: string[] = fileExt === 'hwpx' ? ['.hwpx', '.docx'] : ['.docx', '.hwpx'];
 
     // 1) 품목/카테고리 전용 양식 탐색
@@ -212,7 +232,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 💡 날짜 연산 로직 완벽 분리
+    // 💡 날짜 연산 로직 분리
     const formatDate = (date: Date) => {
       return date.toLocaleDateString('ko-KR', {
         year: 'numeric',
@@ -230,7 +250,7 @@ export async function POST(req: Request) {
     futureDate.setDate(realToday.getDate() + 3);
     const dueDateStr = formatDate(futureDate); 
 
-    // [이름 세탁 및 대괄호 규격 분리기] - 원)가르시니아65% 등 풀네임 100% 보존
+    // [이름 세탁 및 대괄호 규격 분리기]
     let cleanProductName = (productName || '').replace(/^[원부자반완]\)\s*/, '');
     const specMatch = cleanProductName.match(/\[(.*?)\]/);
     const extractedSpec = specMatch ? specMatch[1] : (spec || "별도표기");
@@ -273,25 +293,8 @@ export async function POST(req: Request) {
       완료예정일: dueDateStr
     };
 
-    let buf: Buffer;
+    const buf = renderZipTemplate(content, renderData);
 
-    // HWPX 인 경우 XML Direct Injection, DOCX 인 경우 Docxtemplater 적용
-    if (fileExt === 'hwpx') {
-      try {
-        buf = renderHwpxTemplate(content, renderData);
-      } catch (e) {
-        const zip = new PizZip(content);
-        const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-        doc.render(renderData);
-        buf = doc.getZip().generate({ type: 'nodebuffer' });
-      }
-    } else {
-      const zip = new PizZip(content);
-      const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-      doc.render(renderData);
-      buf = doc.getZip().generate({ type: 'nodebuffer' });
-    }
-    
     const mimeType = contentTypeMap[fileExt] || contentTypeMap['hwpx'];
     const safeAsciiFileName = `QC_${docType}_${testNo}.${fileExt}`;
     const encodedFileName = encodeURIComponent(`${outputName}_${testNo}.${fileExt}`);
