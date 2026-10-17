@@ -388,15 +388,23 @@ async function syncLotsFromLedger(
   rows: EcountLedgerExcelRow[]
 ) {
   if (!prod_nm) return;
+  const cleanProdNm = (prod_nm.split(/재고수불부\s*\/\s*/).pop() || prod_nm)
+    .replace(/^\d{4}[\/.\-]\d{1,2}[\/.\-]\d{1,2}\s*~\s*\d{4}[\/.\-]\d{1,2}[\/.\-]\d{1,2}\s*\/\s*/g, "")
+    .trim();
+  if (!cleanProdNm) return;
 
   const lotBalances = getFifoLotBalances(rows);
 
-  for (const [lot_no, quantity] of lotBalances.entries()) {
+  for (const [rawLotNo, quantity] of lotBalances.entries()) {
     if (quantity <= 0) continue;
+    const lot_no = String(rawLotNo || "").trim();
+    // 로트번호가 없거나 대시(—, -), 공백 포함 다중 로트인 경우 ecount_inventory 오염 방지
+    if (!lot_no || lot_no === "—" || lot_no === "-" || /\s/.test(lot_no) || lot_no === prod_cd) continue;
+
     const { data: existing } = await supabase
       .from("ecount_inventory")
       .select("id")
-      .eq("item_name", prod_nm)
+      .eq("item_name", cleanProdNm)
       .eq("lot_no", lot_no)
       .maybeSingle();
 
@@ -404,7 +412,7 @@ async function syncLotsFromLedger(
       await supabase.from("ecount_inventory").update({ quantity }).eq("id", existing.id);
     } else {
       await supabase.from("ecount_inventory").insert({
-        item_name: prod_nm,
+        item_name: cleanProdNm,
         lot_no,
         quantity,
         expiry_date: "-",

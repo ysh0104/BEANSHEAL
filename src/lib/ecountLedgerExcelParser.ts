@@ -65,7 +65,8 @@ function extractProdFromRowsAbove(allRows: unknown[][], headerIndex: number): { 
     // 이카ount 제목: ... / 재고수불부 / 품목명 (코드) — 코드에 한글·하이픈 포함 (M00016-1, 대성-SM2)
     const titleMatch = line.match(/재고수불부\s*\/\s*(.+?)\s*\(([^)]+)\)\s*$/);
     if (titleMatch) {
-      return { prod_nm: titleMatch[1].trim(), prod_cd: titleMatch[2].trim() };
+      const cleanNm = (titleMatch[1].split(/재고수불부\s*\/\s*/).pop() || titleMatch[1]).trim();
+      return { prod_nm: cleanNm, prod_cd: titleMatch[2].trim() };
     }
 
     const parenMatches = [...line.matchAll(/\(([^)]+)\)/g)];
@@ -74,7 +75,9 @@ function extractProdFromRowsAbove(allRows: unknown[][], headerIndex: number): { 
       if (code && !/^\d{4}[\/.\-]/.test(code) && code.length <= 50) {
         let prod_nm = "";
         const nmMatch = line.match(/재고수불부\s*\/\s*(.+?)\s*\(/);
-        if (nmMatch) prod_nm = nmMatch[1].trim();
+        if (nmMatch) {
+          prod_nm = (nmMatch[1].split(/재고수불부\s*\/\s*/).pop() || nmMatch[1]).trim();
+        }
         return { prod_cd: code, prod_nm };
       }
     }

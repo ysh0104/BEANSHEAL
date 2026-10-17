@@ -64,6 +64,79 @@ const getCleanRecipeName = (rawName: string) => {
     .trim();
 };
 
+const sanitizeAuditItemName = (rawName: any): string => {
+  let name = String(rawName || "").trim();
+  if (!name) return "";
+  if (name.includes("재고수불부")) {
+    const parts = name.split(/재고수불부\s*\/\s*/);
+    name = (parts[parts.length - 1] || "").trim();
+  }
+  name = name.replace(/^\d{4}[\/.\-]\d{1,2}[\/.\-]\d{1,2}\s*~\s*\d{4}[\/.\-]\d{1,2}[\/.\-]\d{1,2}\s*\/\s*/g, "").trim();
+  name = name.replace(/\s*\([A-Za-z0-9_-]{3,20}\)\s*$/, "").trim();
+  return name;
+};
+
+const isValidSingleLotNo = (rawLot: any): boolean => {
+  const lot = String(rawLot || "").trim();
+  if (!lot || lot === "undefined" || lot === "null" || lot === "—" || lot === "-") return false;
+  if (/\s/.test(lot)) return false; // "250925Q2  251013Q3" 같은 다중 로트 오염 제외
+  if (!/\d/.test(lot)) return false;
+  return true;
+};
+
+const parseLotSortKey = (rawLot: string) => {
+  const raw = String(rawLot || "").trim();
+  const match = raw.match(/^(.*?)(20[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])|[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))([^0-9]*?)(\d+)?(.*)$/);
+  if (match) {
+    const lead = (match[1] || "").trim();
+    const datePart = match[2];
+    const fullDateStr = datePart.length === 6 ? `20${datePart}` : datePart;
+    const dateVal = parseInt(fullDateStr, 10) || 0;
+    const midPrefix = `${lead}${match[3] || ""}`.trim().toUpperCase();
+    const seqNum = match[4] !== undefined ? parseInt(match[4], 10) : 0;
+    const suffix = (match[5] || "").trim();
+    return { hasDate: true, dateVal, midPrefix, seqNum, suffix, raw };
+  }
+  return { hasDate: false, dateVal: 0, midPrefix: raw.toUpperCase(), seqNum: Number.MAX_SAFE_INTEGER, suffix: "", raw };
+};
+
+// 1순위: LOT 날짜 최신순(내림차순), 2순위: 같은 날짜 내 숫자 순서(오름차순 1 -> 2 -> 3)
+const compareLotNumbers = (lotA: string, lotB: string, dateDirection: "desc" | "asc" = "desc"): number => {
+  const a = parseLotSortKey(lotA);
+  const b = parseLotSortKey(lotB);
+  if (a.hasDate !== b.hasDate) return a.hasDate ? -1 : 1;
+  if (a.dateVal !== b.dateVal) {
+    return dateDirection === "desc" ? b.dateVal - a.dateVal : a.dateVal - b.dateVal;
+  }
+  if (a.seqNum !== b.seqNum) return a.seqNum - b.seqNum;
+  if (a.midPrefix !== b.midPrefix) {
+    return a.midPrefix.localeCompare(b.midPrefix, "ko", { numeric: true, sensitivity: "base" });
+  }
+  if (a.suffix !== b.suffix) {
+    return a.suffix.localeCompare(b.suffix, "ko", { numeric: true, sensitivity: "base" });
+  }
+  return a.raw.localeCompare(b.raw, "ko", { numeric: true, sensitivity: "base" });
+};
+
+const cleanAndDeduplicateAuditList = (list: any[]): any[] => {
+  const map = new Map<string, any>();
+  for (const it of list) {
+    if (!it) continue;
+    const cleanName = sanitizeAuditItemName(it.cleanName || it.rawItem?.item_name || "");
+    const lotNo = String(it.lotNo || it.rawItem?.lot_no || "").trim();
+    if (!cleanName || !isValidSingleLotNo(lotNo)) continue;
+    const key = `${cleanName.replace(/\s+/g, "")}_${lotNo}`;
+    const existing = map.get(key);
+    const updatedItem = { ...it, cleanName, lotNo };
+    if (!existing || (existing.status === "문서대기" && updatedItem.status !== "문서대기")) {
+      map.set(key, updatedItem);
+    }
+  }
+  const result = Array.from(map.values());
+  result.sort((a, b) => compareLotNumbers(a.lotNo, b.lotNo, "desc"));
+  return result;
+};
+
 function AuditPageContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") === "calibration" ? "calibration" : searchParams.get("tab") === "health" ? "health" : "documents";
@@ -96,7 +169,10 @@ function AuditPageContent() {
       if (cachedItems) {
         try {
           const parsed = JSON.parse(cachedItems);
-          if (Array.isArray(parsed) && parsed.length > 0) setScrapedItems(parsed);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const cleaned = cleanAndDeduplicateAuditList(parsed);
+            setScrapedItems(cleaned);
+          }
         } catch (e) {}
       }
       const cachedRecipes = localStorage.getItem("beansheal_recipe_options");
@@ -134,7 +210,7 @@ function AuditPageContent() {
 
   // 발급 완료된 LOT 번호를 로컬 세션에도 기억하여 15초 백그라운드 폴링 시 덮어씌워짐 방지
   const issuedLotsRef = useRef<Set<string>>(new Set());
-  const [lotSortOrder, setLotSortOrder] = useState<"asc" | "desc">("asc");
+  const [lotSortOrder, setLotSortOrder] = useState<"desc" | "asc">("desc");
 
   // Supabase ecount_inventory 데이터 실시간 로드 함수
   const fetchInventoryFromSupabase = async () => {
@@ -148,23 +224,22 @@ function AuditPageContent() {
             : `LOT-${item.id}`;
           const dbStatus = item.status || item.qc_status || '문서대기';
           const finalStatus = issuedLotsRef.current.has(lotNo) ? '승인/발급완료' : dbStatus;
+          const cleanName = sanitizeAuditItemName(item.item_name || item.name || item.product_name);
 
           return {
             scrapedAt: item.created_at 
               ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) 
               : '미상',
-            cleanName: item.item_name || item.name || item.product_name,
+            cleanName,
             lotNo: lotNo,
             expDate: formatExpDate(item.expiry_date || item.expiration_date),
             status: finalStatus,
-            rawItem: item
+            rawItem: { ...item, item_name: cleanName }
           };
         });
-        formatted.sort((a: any, b: any) =>
-          String(a.lotNo || '').localeCompare(String(b.lotNo || ''), 'ko', { numeric: true, sensitivity: 'base' })
-        );
-        setScrapedItems(formatted);
-        localStorage.setItem("beansheal_audit_items", JSON.stringify(formatted));
+        const cleaned = cleanAndDeduplicateAuditList(formatted);
+        setScrapedItems(cleaned);
+        localStorage.setItem("beansheal_audit_items", JSON.stringify(cleaned));
         setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
       } else {
         // Fallback to getDashboardItems if ecount_inventory is empty
@@ -173,20 +248,19 @@ function AuditPageContent() {
           const formatted = dashRes.data.map((item: any) => {
             const lotNo = item.lot_number || `LOT-${item.id}`;
             const dbStatus = item.qc_status || '문서대기';
+            const cleanName = sanitizeAuditItemName(item.name || item.product_name);
             return {
               scrapedAt: item.created_at ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '미상',
-              cleanName: item.name || item.product_name,
+              cleanName,
               lotNo,
               expDate: formatExpDate(item.expiration_date),
               status: issuedLotsRef.current.has(lotNo) ? '승인/발급완료' : dbStatus,
               rawItem: item
             };
           });
-          formatted.sort((a: any, b: any) =>
-            String(a.lotNo || '').localeCompare(String(b.lotNo || ''), 'ko', { numeric: true, sensitivity: 'base' })
-          );
-          setScrapedItems(formatted);
-          localStorage.setItem("beansheal_audit_items", JSON.stringify(formatted));
+          const cleaned = cleanAndDeduplicateAuditList(formatted);
+          setScrapedItems(cleaned);
+          localStorage.setItem("beansheal_audit_items", JSON.stringify(cleaned));
           setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
         }
       }
@@ -660,13 +734,13 @@ function AuditPageContent() {
                   <th className="p-3 border-b border-gray-300 font-semibold text-center w-24">수집/동기화 시간</th>
                   <th className="p-3 border-b border-gray-300 font-semibold">품목명</th>
                   <th
-                    onClick={() => setLotSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
+                    onClick={() => setLotSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
                     className="p-3 border-b border-gray-300 font-bold text-blue-800 cursor-pointer select-none hover:bg-gray-200 transition-colors"
-                    title="클릭하여 LOT 번호 정렬 순서 변경"
+                    title="클릭하여 LOT 날짜 정렬(최신순/과거순) 변경 (같은 날짜는 항상 1→2→3 숫자순)"
                   >
                     <span className="inline-flex items-center gap-1">
                       LOT 번호
-                      <span className="text-xs">{lotSortOrder === "asc" ? "▲" : "▼"}</span>
+                      <span className="text-xs">{lotSortOrder === "desc" ? "▼(최신순)" : "▲(과거순)"}</span>
                     </span>
                   </th>
                   <th className="p-3 border-b border-gray-300 font-semibold">소비기한</th>
@@ -681,13 +755,7 @@ function AuditPageContent() {
                     if (filterStatus === "승인/발급완료") return item.status !== "문서대기";
                     return true;
                   })
-                  .sort((a, b) => {
-                    const cmp = String(a.lotNo || "").localeCompare(String(b.lotNo || ""), "ko", {
-                      numeric: true,
-                      sensitivity: "base",
-                    });
-                    return lotSortOrder === "asc" ? cmp : -cmp;
-                  })
+                  .sort((a, b) => compareLotNumbers(a.lotNo, b.lotNo, lotSortOrder))
                   .slice(0, 100)
                   .map((item, idx) => {
                     const isPending = item.status === "문서대기";

@@ -124,8 +124,53 @@ let auditInventoryCache: { data: any[]; expiry: number } | null = null;
 
 const SYSTEM_STATUSES = ['SAFETY_STOCK', 'CALIBRATION', 'HEALTH_CHECK', 'MEMO', 'ITEM_MASTER'];
 
+function sanitizeInventoryItemName(rawName: any): string {
+  let name = String(rawName || '').trim();
+  if (!name) return '';
+  if (name.includes('재고수불부')) {
+    const parts = name.split(/재고수불부\s*\/\s*/);
+    name = (parts[parts.length - 1] || '').trim();
+  }
+  name = name.replace(/^\d{4}[\/.\-]\d{1,2}[\/.\-]\d{1,2}\s*~\s*\d{4}[\/.\-]\d{1,2}[\/.\-]\d{1,2}\s*\/\s*/g, '').trim();
+  name = name.replace(/\s*\([A-Za-z0-9_-]{3,20}\)\s*$/, '').trim();
+  return name;
+}
+
+function parseLotKeyForSort(rawLot: string) {
+  const raw = String(rawLot || '').trim();
+  const match = raw.match(/^(.*?)(20[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])|[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))([^0-9]*?)(\d+)?(.*)$/);
+  if (match) {
+    const lead = (match[1] || '').trim();
+    const datePart = match[2];
+    const fullDateStr = datePart.length === 6 ? `20${datePart}` : datePart;
+    const dateVal = parseInt(fullDateStr, 10) || 0;
+    const midPrefix = `${lead}${match[3] || ''}`.trim().toUpperCase();
+    const seqNum = match[4] !== undefined ? parseInt(match[4], 10) : 0;
+    const suffix = (match[5] || '').trim();
+    return { hasDate: true, dateVal, midPrefix, seqNum, suffix, raw };
+  }
+  return { hasDate: false, dateVal: 0, midPrefix: raw.toUpperCase(), seqNum: Number.MAX_SAFE_INTEGER, suffix: '', raw };
+}
+
+function compareLotNumbersServer(lotA: string, lotB: string): number {
+  const a = parseLotKeyForSort(lotA);
+  const b = parseLotKeyForSort(lotB);
+  if (a.hasDate !== b.hasDate) return a.hasDate ? -1 : 1;
+  // 1순위: 날짜 최신순 (내림차순: 최신 날짜가 위로)
+  if (a.dateVal !== b.dateVal) return b.dateVal - a.dateVal;
+  // 2순위: 같은 날짜 내에서는 숫자 순서대로 (오름차순: 1 -> 2 -> 3)
+  if (a.seqNum !== b.seqNum) return a.seqNum - b.seqNum;
+  if (a.midPrefix !== b.midPrefix) {
+    return a.midPrefix.localeCompare(b.midPrefix, 'ko', { numeric: true, sensitivity: 'base' });
+  }
+  if (a.suffix !== b.suffix) {
+    return a.suffix.localeCompare(b.suffix, 'ko', { numeric: true, sensitivity: 'base' });
+  }
+  return a.raw.localeCompare(b.raw, 'ko', { numeric: true, sensitivity: 'base' });
+}
+
 /**
- * Supabase ecount_inventory 테이블 전체 목록 조회 (시스템 예약 행 및 품목코드 대체 행 자동 필터링)
+ * Supabase ecount_inventory 테이블 전체 목록 조회 (시스템 예약 행, 오염된 수불부 헤더/다중로트 행 자동 정제 및 정렬)
  */
 export async function getAuditInventoryItems() {
   if (auditInventoryCache && auditInventoryCache.expiry > Date.now()) {
@@ -138,7 +183,7 @@ export async function getAuditInventoryItems() {
       .select('*')
       .not('status', 'in', '("SAFETY_STOCK","CALIBRATION","HEALTH_CHECK","MEMO","ITEM_MASTER")')
       .order('created_at', { ascending: false })
-      .limit(1000);
+      .limit(1500);
 
     if (error) {
       console.error("ecount_inventory fetch error:", error);
@@ -149,24 +194,80 @@ export async function getAuditInventoryItems() {
     const { data: masterItems } = await supabase.from('ecount_items').select('prod_cd');
     const masterProdCodes = new Set((masterItems || []).map(m => String(m.prod_cd).trim()));
 
-    const filteredData = (data || []).filter(item => {
+    const corruptIdsToDelete: (string | number)[] = [];
+    const corruptRowsToRename: { id: string | number; item_name: string }[] = [];
+    const dedupMap = new Map<string, any>();
+
+    for (const item of data || []) {
       const status = String(item.status || '').toUpperCase();
-      if (SYSTEM_STATUSES.includes(status)) return false;
+      if (SYSTEM_STATUSES.includes(status)) continue;
 
-      const lot = String(item.lot_no || '').trim();
-      // lot_no가 없거나 'undefined', 'null' 인 경우 거름
-      if (!lot || lot === 'undefined' || lot === 'null') return false;
+      const rawLot = String(item.lot_no || '').trim();
+      // lot_no가 없거나 비정상 기호('—', '-'), 공백으로 뭉친 다중 로트('250925Q2  251013Q3'), 숫자 미포함인 경우 제외
+      if (
+        !rawLot ||
+        rawLot === 'undefined' ||
+        rawLot === 'null' ||
+        rawLot === '—' ||
+        rawLot === '-' ||
+        /\s/.test(rawLot) ||
+        !/\d/.test(rawLot) ||
+        masterProdCodes.has(rawLot)
+      ) {
+        if (item.id && (rawLot === '—' || rawLot === '-' || /\s/.test(rawLot))) {
+          corruptIdsToDelete.push(item.id);
+        }
+        continue;
+      }
 
-      // lot_no가 단순 품목코드(예: M0001, 000010 등)와 100% 동일하면 엑셀 파싱 오류로 유입된 것으로 판단하여 제외
-      if (masterProdCodes.has(lot)) return false;
+      const origName = String(item.item_name || '').trim();
+      const cleanName = sanitizeInventoryItemName(origName);
+      if (!cleanName || cleanName === '소계' || cleanName === '합계' || cleanName === '총계') {
+        continue;
+      }
 
-      return true;
-    });
+      const wasCorruptName = origName !== cleanName;
+      const sanitizedItem = { ...item, item_name: cleanName, lot_no: rawLot };
+      const dedupKey = `${normalizeName(cleanName)}_${rawLot}`;
 
-    // LOT 번호 기준 오름차순 정렬
-    filteredData.sort((a, b) =>
-      String(a.lot_no || '').localeCompare(String(b.lot_no || ''), 'ko', { numeric: true, sensitivity: 'base' })
-    );
+      const existing = dedupMap.get(dedupKey);
+      if (!existing) {
+        dedupMap.set(dedupKey, { item: sanitizedItem, wasCorruptName });
+        if (wasCorruptName && item.id) {
+          corruptRowsToRename.push({ id: item.id, item_name: cleanName });
+        }
+      } else {
+        // 이미 동일 품목+LOT가 있는 경우: 승인/발급완료 상태나 정상 품목명 행을 우선 유지하고 오염 중복 행은 삭제
+        const existingApproved = existing.item.status && existing.item.status !== '문서대기';
+        const currentApproved = sanitizedItem.status && sanitizedItem.status !== '문서대기';
+
+        if (!existingApproved && currentApproved) {
+          if (existing.item.id && existing.wasCorruptName) corruptIdsToDelete.push(existing.item.id);
+          dedupMap.set(dedupKey, { item: sanitizedItem, wasCorruptName });
+        } else if (existing.wasCorruptName && !wasCorruptName) {
+          if (existing.item.id) corruptIdsToDelete.push(existing.item.id);
+          dedupMap.set(dedupKey, { item: sanitizedItem, wasCorruptName: false });
+        } else {
+          if (wasCorruptName && item.id) corruptIdsToDelete.push(item.id);
+        }
+      }
+    }
+
+    // 백그라운드에서 오염된 DB 행 자동 정화 (비동기)
+    if (corruptIdsToDelete.length > 0) {
+      void supabase.from('ecount_inventory').delete().in('id', corruptIdsToDelete.slice(0, 200));
+    }
+    const deleteSet = new Set(corruptIdsToDelete);
+    for (const r of corruptRowsToRename.slice(0, 50)) {
+      if (!deleteSet.has(r.id)) {
+        void supabase.from('ecount_inventory').update({ item_name: r.item_name }).eq('id', r.id);
+      }
+    }
+
+    const filteredData = Array.from(dedupMap.values()).map(v => v.item);
+
+    // LOT 번호 기준 정렬: 1순위 날짜 최신순(내림차순), 2순위 같은 날짜 내 숫자 순서(오름차순)
+    filteredData.sort((a, b) => compareLotNumbersServer(String(a.lot_no || ''), String(b.lot_no || '')));
 
     auditInventoryCache = { data: filteredData, expiry: Date.now() + 15000 };
     return { success: true, data: filteredData };
