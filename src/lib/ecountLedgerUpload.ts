@@ -401,21 +401,27 @@ async function syncLotsFromLedger(
     // 로트번호가 없거나 대시(—, -), 공백 포함 다중 로트인 경우 ecount_inventory 오염 방지
     if (!lot_no || lot_no === "—" || lot_no === "-" || /\s/.test(lot_no) || lot_no === prod_cd) continue;
 
-    const { data: existing } = await supabase
+    // lot_no 기준으로 기존 행을 먼저 찾아 기존 소비기한(expiry_date)이 '-'로 덮이거나 중복 생성되지 않도록 보호
+    const { data: existingList } = await supabase
       .from("ecount_inventory")
-      .select("id")
-      .eq("item_name", cleanProdNm)
-      .eq("lot_no", lot_no)
-      .maybeSingle();
+      .select("id, item_name, expiry_date")
+      .eq("lot_no", lot_no);
+
+    const existing = (existingList || []).find(
+      (r) => normalizeItemName(String(r.item_name || "")) === normalizeItemName(cleanProdNm)
+    ) || (existingList && existingList[0]);
 
     if (existing?.id) {
-      await supabase.from("ecount_inventory").update({ quantity }).eq("id", existing.id);
+      await supabase
+        .from("ecount_inventory")
+        .update({ quantity, item_name: cleanProdNm })
+        .eq("id", existing.id);
     } else {
       await supabase.from("ecount_inventory").insert({
         item_name: cleanProdNm,
         lot_no,
         quantity,
-        expiry_date: "-",
+        expiry_date: "제조일로부터 24개월",
         status: "문서대기",
       });
     }

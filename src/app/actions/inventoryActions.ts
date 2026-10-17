@@ -49,9 +49,20 @@ export async function syncExcelToSupabase(parsedData: ParsedInventoryData[]) {
       const dbItem = dbInventoryMap.get(key);
 
       if (dbItem) {
-        // 기존 로트: 엑셀 수량과 다르면 엑셀 수량으로 정확히 '덮어쓰기'
-        if (dbItem.quantity !== excelItem.quantity) {
-          itemsToUpdate.push({ id: dbItem.id, quantity: excelItem.quantity });
+        const hasRealExcelExp =
+          excelItem.expiryDate &&
+          excelItem.expiryDate !== '-' &&
+          excelItem.expiryDate !== '제조일로부터 24개월';
+        const needExpUpdate =
+          hasRealExcelExp && dbItem.expiry_date !== excelItem.expiryDate;
+
+        // 기존 로트: 엑셀 수량 또는 소비기한이 다르면 정확히 업데이트
+        if (dbItem.quantity !== excelItem.quantity || needExpUpdate) {
+          itemsToUpdate.push({
+            id: dbItem.id,
+            quantity: excelItem.quantity,
+            ...(needExpUpdate ? { expiry_date: excelItem.expiryDate } : {}),
+          });
         }
       } else {
         // 완전 신규 로트
@@ -75,7 +86,9 @@ export async function syncExcelToSupabase(parsedData: ParsedInventoryData[]) {
     }
     if (itemsToUpdate.length > 0) {
       for (const update of itemsToUpdate) {
-        await supabase.from('ecount_inventory').update({ quantity: update.quantity }).eq('id', update.id);
+        const patch: Record<string, any> = { quantity: update.quantity };
+        if (update.expiry_date) patch.expiry_date = update.expiry_date;
+        await supabase.from('ecount_inventory').update(patch).eq('id', update.id);
       }
     }
 
@@ -230,6 +243,11 @@ export async function getAuditInventoryItems() {
       const sanitizedItem = { ...item, item_name: cleanName, lot_no: rawLot };
       const dedupKey = `${normalizeName(cleanName)}_${rawLot}`;
 
+      const isRealExp = (exp: any) => {
+        const s = String(exp || '').trim();
+        return !!s && s !== '-' && s !== '—' && s !== 'undefined' && s !== 'null' && s !== '제조일로부터 24개월';
+      };
+
       const existing = dedupMap.get(dedupKey);
       if (!existing) {
         dedupMap.set(dedupKey, { item: sanitizedItem, wasCorruptName });
@@ -237,18 +255,33 @@ export async function getAuditInventoryItems() {
           corruptRowsToRename.push({ id: item.id, item_name: cleanName });
         }
       } else {
-        // 이미 동일 품목+LOT가 있는 경우: 승인/발급완료 상태나 정상 품목명 행을 우선 유지하고 오염 중복 행은 삭제
+        // 이미 동일 품목+LOT가 있는 경우: 실제 소비기한, 승인/발급완료 상태, 정상 품목명을 모두 보존하고 중복 '-' 행은 삭제
+        const existingRealExp = isRealExp(existing.item.expiry_date);
+        const currentRealExp = isRealExp(sanitizedItem.expiry_date);
+        const mergedExpiry = existingRealExp
+          ? existing.item.expiry_date
+          : currentRealExp
+          ? sanitizedItem.expiry_date
+          : existing.item.expiry_date || sanitizedItem.expiry_date;
+
         const existingApproved = existing.item.status && existing.item.status !== '문서대기';
         const currentApproved = sanitizedItem.status && sanitizedItem.status !== '문서대기';
+        const mergedStatus = existingApproved
+          ? existing.item.status
+          : currentApproved
+          ? sanitizedItem.status
+          : existing.item.status || '문서대기';
 
-        if (!existingApproved && currentApproved) {
-          if (existing.item.id && existing.wasCorruptName) corruptIdsToDelete.push(existing.item.id);
-          dedupMap.set(dedupKey, { item: sanitizedItem, wasCorruptName });
-        } else if (existing.wasCorruptName && !wasCorruptName) {
+        if ((!existingRealExp && currentRealExp) || (existing.wasCorruptName && !wasCorruptName)) {
           if (existing.item.id) corruptIdsToDelete.push(existing.item.id);
-          dedupMap.set(dedupKey, { item: sanitizedItem, wasCorruptName: false });
+          dedupMap.set(dedupKey, {
+            item: { ...sanitizedItem, expiry_date: mergedExpiry, status: mergedStatus },
+            wasCorruptName,
+          });
         } else {
-          if (wasCorruptName && item.id) corruptIdsToDelete.push(item.id);
+          existing.item.expiry_date = mergedExpiry;
+          existing.item.status = mergedStatus;
+          if (item.id) corruptIdsToDelete.push(item.id);
         }
       }
     }
