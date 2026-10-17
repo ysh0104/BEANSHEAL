@@ -780,16 +780,16 @@ function AuditPageContent() {
           </div>
 
           <div className="p-0 overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse table-auto">
+            <table className="w-full text-center text-sm border-collapse table-auto">
               <thead className="bg-gray-100 text-gray-700 whitespace-nowrap">
                 <tr>
-                  <th className="py-3 px-4 border-b border-gray-300 font-semibold">품목명</th>
+                  <th className="py-3 pl-8 pr-4 border-b border-gray-300 font-semibold text-center">품목명</th>
                   <th
                     onClick={() => setLotSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
-                    className="py-3 px-3 border-b border-gray-300 font-bold text-blue-800 cursor-pointer select-none hover:bg-gray-200 transition-colors w-36"
+                    className="py-3 px-3 border-b border-gray-300 font-bold text-blue-800 cursor-pointer select-none hover:bg-gray-200 transition-colors text-center w-36"
                     title="클릭하여 LOT 날짜 정렬(최신순/과거순) 변경 (같은 날짜는 항상 Q1→Q2→Q3 숫자순)"
                   >
-                    <span className="inline-flex items-center gap-1">
+                    <span className="inline-flex items-center justify-center gap-1">
                       LOT 번호
                       <span className="text-xs">{lotSortOrder === "desc" ? "▼(최신순)" : "▲(과거순)"}</span>
                     </span>
@@ -800,9 +800,9 @@ function AuditPageContent() {
                   >
                     표시서 단위수량
                   </th>
-                  <th className="py-3 px-3 border-b border-gray-300 font-semibold w-36">소비기한</th>
+                  <th className="py-3 px-3 border-b border-gray-300 font-semibold text-center w-36">소비기한</th>
                   <th className="py-3 px-3 border-b border-gray-300 font-semibold text-center w-28">상태</th>
-                  <th className="py-3 px-4 border-b border-gray-300 font-bold text-center w-40">관리자 승인</th>
+                  <th className="py-3 pl-3 pr-6 border-b border-gray-300 font-bold text-center w-40">관리자 승인</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -821,10 +821,10 @@ function AuditPageContent() {
 
                     return (
                       <tr key={item.lotNo || idx} className={`transition-colors ${isPending ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
-                        <td className="py-2.5 px-4 font-bold text-gray-900 max-w-[300px] truncate" title={item.cleanName}>
+                        <td className="py-2.5 pl-8 pr-4 font-bold text-gray-900 text-center max-w-[320px] truncate" title={item.cleanName}>
                           {item.cleanName}
                         </td>
-                        <td className="py-2.5 px-3 text-blue-700 font-mono font-bold whitespace-nowrap">{item.lotNo}</td>
+                        <td className="py-2.5 px-3 text-blue-700 font-mono font-bold text-center whitespace-nowrap">{item.lotNo}</td>
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           <input
                             type="text"
@@ -839,13 +839,13 @@ function AuditPageContent() {
                             title="품목당 1회만 입력하면 모든 LOT의 품질관리표시서 수량/단위 칸에 자동 적용됩니다 (예: 25kg, 20kg)"
                           />
                         </td>
-                        <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">{item.expDate}</td>
+                        <td className="py-2.5 px-3 text-gray-600 text-center whitespace-nowrap">{item.expDate}</td>
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           <span className={`px-2.5 py-1 rounded text-xs font-bold border ${item.status === '문서대기' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
                             {item.status}
                           </span>
                         </td>
-                        <td className="py-2.5 px-4 text-center whitespace-nowrap">
+                        <td className="py-2.5 pl-3 pr-6 text-center whitespace-nowrap">
                           {item.status === '문서대기' ? (
                             <button 
                               onClick={() => handleDownloadQCBatch(item)} 
