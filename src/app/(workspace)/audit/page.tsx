@@ -780,31 +780,29 @@ function AuditPageContent() {
           </div>
 
           <div className="p-0 overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap border-collapse">
-              <thead className="bg-gray-100 text-gray-700">
+            <table className="w-full text-left text-sm border-collapse table-auto">
+              <thead className="bg-gray-100 text-gray-700 whitespace-nowrap">
                 <tr>
-                  <th className="p-3 border-b border-gray-300 font-semibold text-center w-24">수집/동기화 시간</th>
-                  <th className="p-3 border-b border-gray-300 font-semibold">품목명</th>
+                  <th className="py-3 px-4 border-b border-gray-300 font-semibold">품목명</th>
                   <th
                     onClick={() => setLotSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
-                    className="p-3 border-b border-gray-300 font-bold text-blue-800 cursor-pointer select-none hover:bg-gray-200 transition-colors"
-                    title="클릭하여 LOT 날짜 정렬(최신순/과거순) 변경 (같은 날짜는 항상 1→2→3 숫자순)"
+                    className="py-3 px-3 border-b border-gray-300 font-bold text-blue-800 cursor-pointer select-none hover:bg-gray-200 transition-colors w-36"
+                    title="클릭하여 LOT 날짜 정렬(최신순/과거순) 변경 (같은 날짜는 항상 Q1→Q2→Q3 숫자순)"
                   >
                     <span className="inline-flex items-center gap-1">
                       LOT 번호
                       <span className="text-xs">{lotSortOrder === "desc" ? "▼(최신순)" : "▲(과거순)"}</span>
                     </span>
                   </th>
-                  <th className="p-3 border-b border-gray-300 font-semibold text-right w-28">입고 총수량</th>
                   <th
-                    className="p-3 border-b border-gray-300 font-bold text-emerald-800 w-40"
+                    className="py-3 px-3 border-b border-gray-300 font-bold text-emerald-800 text-center w-36"
                     title="한 번 입력하면 해당 품목의 단위규격이 자동 저장되어 이후 입고분에도 품질관리표시서에 자동 반영됩니다."
                   >
-                    표시서 단위수량 <span className="text-[11px] font-semibold text-emerald-600">(자동기억)</span>
+                    표시서 단위수량
                   </th>
-                  <th className="p-3 border-b border-gray-300 font-semibold">소비기한</th>
-                  <th className="p-3 border-b border-gray-300 font-semibold text-center w-28">상태</th>
-                  <th className="p-3 border-b border-gray-300 font-bold text-center w-48">관리자 승인</th>
+                  <th className="py-3 px-3 border-b border-gray-300 font-semibold w-36">소비기한</th>
+                  <th className="py-3 px-3 border-b border-gray-300 font-semibold text-center w-28">상태</th>
+                  <th className="py-3 px-4 border-b border-gray-300 font-bold text-center w-40">관리자 승인</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -818,26 +816,22 @@ function AuditPageContent() {
                   .slice(0, 100)
                   .map((item, idx) => {
                     const isPending = item.status === "문서대기";
-                    const rawQtyVal = item.rawItem?.total_qty ?? item.rawItem?.qty ?? item.rawItem?.quantity ?? item.rawItem?.expected_qty ?? item.quantity ?? "";
-                    const formattedTotalQty = rawQtyVal !== "" && rawQtyVal !== null && rawQtyVal !== undefined
-                      ? (typeof rawQtyVal === "number" ? `${rawQtyVal.toLocaleString()} kg` : (/^\d+(\.\d+)?$/.test(String(rawQtyVal).trim()) ? `${Number(rawQtyVal).toLocaleString()} kg` : String(rawQtyVal)))
-                      : "-";
                     const itemSpecKey = normalizeItemSpecKey(item.cleanName);
                     const savedUnitSpec = itemUnitSpecs[itemSpecKey] || "";
 
                     return (
                       <tr key={item.lotNo || idx} className={`transition-colors ${isPending ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
-                        <td className="p-3 text-gray-500 font-mono text-center text-xs">{item.scrapedAt}</td>
-                        <td className="p-3 font-bold text-gray-900">{item.cleanName}</td>
-                        <td className="p-3 text-blue-700 font-mono font-bold">{item.lotNo}</td>
-                        <td className="p-3 text-right font-mono text-gray-700 font-semibold">{formattedTotalQty}</td>
-                        <td className="p-3">
+                        <td className="py-2.5 px-4 font-bold text-gray-900 max-w-[300px] truncate" title={item.cleanName}>
+                          {item.cleanName}
+                        </td>
+                        <td className="py-2.5 px-3 text-blue-700 font-mono font-bold whitespace-nowrap">{item.lotNo}</td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           <input
                             type="text"
                             value={savedUnitSpec}
                             onChange={(e) => handleUnitSpecChange(item.cleanName, e.target.value)}
                             placeholder="예: 25kg"
-                            className={`w-28 text-xs font-bold px-2.5 py-1.5 rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                            className={`w-24 text-center text-xs font-bold px-2 py-1.5 rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
                               savedUnitSpec
                                 ? "bg-emerald-50/70 border-emerald-300 text-emerald-900"
                                 : "bg-white border-gray-300 text-gray-700 placeholder:text-gray-400"
@@ -845,24 +839,24 @@ function AuditPageContent() {
                             title="품목당 1회만 입력하면 모든 LOT의 품질관리표시서 수량/단위 칸에 자동 적용됩니다 (예: 25kg, 20kg)"
                           />
                         </td>
-                        <td className="p-3 text-gray-600">{item.expDate}</td>
-                        <td className="p-3 text-center">
+                        <td className="py-2.5 px-3 text-gray-600 whitespace-nowrap">{item.expDate}</td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           <span className={`px-2.5 py-1 rounded text-xs font-bold border ${item.status === '문서대기' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
                             {item.status}
                           </span>
                         </td>
-                        <td className="p-3 text-center">
+                        <td className="py-2.5 px-4 text-center whitespace-nowrap">
                           {item.status === '문서대기' ? (
                             <button 
                               onClick={() => handleDownloadQCBatch(item)} 
-                              className="bg-blue-600 text-white text-xs px-4 py-2 font-bold rounded shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
+                              className="bg-blue-600 text-white text-xs px-3.5 py-1.5 font-bold rounded shadow-xs hover:bg-blue-700 transition-colors cursor-pointer"
                             >
                               검토 및 서류 발급
                             </button>
                           ) : (
                             <button 
                               onClick={() => handleDownloadQCBatch(item)} 
-                              className="bg-gray-200 text-gray-500 text-xs px-4 py-2 font-bold rounded hover:bg-gray-300 transition-colors cursor-pointer"
+                              className="bg-gray-200 text-gray-500 text-xs px-3.5 py-1.5 font-bold rounded hover:bg-gray-300 transition-colors cursor-pointer"
                             >
                               서류 재발급
                             </button>
@@ -871,7 +865,7 @@ function AuditPageContent() {
                       </tr>
                     );
                   })}
-                {scrapedItems.length === 0 && (<tr><td colSpan={8} className="text-center py-12 text-gray-500 font-medium bg-gray-50">조건에 맞는 로트 데이터가 없습니다.</td></tr>)}
+                {scrapedItems.length === 0 && (<tr><td colSpan={6} className="text-center py-12 text-gray-500 font-medium bg-gray-50">조건에 맞는 로트 데이터가 없습니다.</td></tr>)}
               </tbody>
             </table>
           </div>
