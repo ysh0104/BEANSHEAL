@@ -88,21 +88,23 @@ const isValidSingleLotNo = (rawLot: any): boolean => {
 
 const parseLotSortKey = (rawLot: string) => {
   const raw = String(rawLot || "").trim();
-  const match = raw.match(/^(.*?)(20[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])|[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))([^0-9]*?)(\d+)?(.*)$/);
-  if (match) {
-    const lead = (match[1] || "").trim();
-    const datePart = match[2];
+  const dateMatch = raw.match(/^([^0-9]*?)(20\d{6}|\d{6})(.*)$/);
+  if (dateMatch) {
+    const lead = (dateMatch[1] || "").trim();
+    const datePart = dateMatch[2];
+    const rest = (dateMatch[3] || "").trim();
     const fullDateStr = datePart.length === 6 ? `20${datePart}` : datePart;
     const dateVal = parseInt(fullDateStr, 10) || 0;
-    const midPrefix = `${lead}${match[3] || ""}`.trim().toUpperCase();
-    const seqNum = match[4] !== undefined ? parseInt(match[4], 10) : 0;
-    const suffix = (match[5] || "").trim();
+    const seqMatch = rest.match(/^([^0-9]*)(\d+)(.*)$/);
+    const midPrefix = `${lead}${seqMatch ? seqMatch[1] : rest}`.trim().toUpperCase();
+    const seqNum = seqMatch ? parseInt(seqMatch[2], 10) : 0;
+    const suffix = (seqMatch ? seqMatch[3] : "").trim().toUpperCase();
     return { hasDate: true, dateVal, midPrefix, seqNum, suffix, raw };
   }
   return { hasDate: false, dateVal: 0, midPrefix: raw.toUpperCase(), seqNum: Number.MAX_SAFE_INTEGER, suffix: "", raw };
 };
 
-// 1순위: LOT 날짜 최신순(내림차순), 2순위: 같은 날짜 내 숫자 순서(오름차순 1 -> 2 -> 3)
+// 1순위: LOT 날짜 최신순(내림차순), 2순위: 같은 날짜 내 숫자 순서(오름차순 Q1 -> Q2 -> Q3)
 const compareLotNumbers = (lotA: string, lotB: string, dateDirection: "desc" | "asc" = "desc"): number => {
   const a = parseLotSortKey(lotA);
   const b = parseLotSortKey(lotB);
@@ -112,12 +114,12 @@ const compareLotNumbers = (lotA: string, lotB: string, dateDirection: "desc" | "
   }
   if (a.seqNum !== b.seqNum) return a.seqNum - b.seqNum;
   if (a.midPrefix !== b.midPrefix) {
-    return a.midPrefix.localeCompare(b.midPrefix, "ko", { numeric: true, sensitivity: "base" });
+    return a.midPrefix.localeCompare(b.midPrefix, "en", { numeric: true, sensitivity: "base" });
   }
   if (a.suffix !== b.suffix) {
-    return a.suffix.localeCompare(b.suffix, "ko", { numeric: true, sensitivity: "base" });
+    return a.suffix.localeCompare(b.suffix, "en", { numeric: true, sensitivity: "base" });
   }
-  return a.raw.localeCompare(b.raw, "ko", { numeric: true, sensitivity: "base" });
+  return a.raw.localeCompare(b.raw, "en", { numeric: true, sensitivity: "base" });
 };
 
 const normalizeItemSpecKey = (rawName: string): string => {
