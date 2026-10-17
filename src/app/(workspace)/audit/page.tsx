@@ -780,10 +780,10 @@ function AuditPageContent() {
           </div>
 
           <div className="p-0 overflow-x-auto">
-            <table className="w-full text-center text-sm border-collapse table-auto">
+            <table className="w-full text-left text-sm border-collapse table-auto">
               <thead className="bg-gray-100 text-gray-700 whitespace-nowrap">
                 <tr>
-                  <th className="py-3 pl-8 pr-4 border-b border-gray-300 font-semibold text-center">품목명</th>
+                  <th className="py-3 pl-10 pr-4 border-b border-gray-300 font-semibold text-left">품목명</th>
                   <th
                     onClick={() => setLotSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
                     className="py-3 px-3 border-b border-gray-300 font-bold text-blue-800 cursor-pointer select-none hover:bg-gray-200 transition-colors text-center w-36"
@@ -821,7 +821,7 @@ function AuditPageContent() {
 
                     return (
                       <tr key={item.lotNo || idx} className={`transition-colors ${isPending ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
-                        <td className="py-2.5 pl-8 pr-4 font-bold text-gray-900 text-center max-w-[320px] truncate" title={item.cleanName}>
+                        <td className="py-2.5 pl-10 pr-4 font-bold text-gray-900 text-left max-w-[320px] truncate" title={item.cleanName}>
                           {item.cleanName}
                         </td>
                         <td className="py-2.5 px-3 text-blue-700 font-mono font-bold text-center whitespace-nowrap">{item.lotNo}</td>
