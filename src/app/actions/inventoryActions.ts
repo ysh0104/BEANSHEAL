@@ -173,15 +173,15 @@ function compareLotNumbersServer(lotA: string, lotB: string): number {
   if (a.hasDate !== b.hasDate) return a.hasDate ? -1 : 1;
   // 1순위: 날짜 최신순 (내림차순: 최신 날짜가 위로)
   if (a.dateVal !== b.dateVal) return b.dateVal - a.dateVal;
-  // 2순위: 같은 날짜 내에서는 숫자 순서대로 (오름차순: Q1 -> Q2 -> Q3)
-  if (a.seqNum !== b.seqNum) return a.seqNum - b.seqNum;
+  // 2순위: 같은 날짜 내에서도 최신 순번이 위로 (내림차순: Q3 -> Q2 -> Q1)
+  if (a.seqNum !== b.seqNum) return b.seqNum - a.seqNum;
   if (a.midPrefix !== b.midPrefix) {
-    return a.midPrefix.localeCompare(b.midPrefix, 'en', { numeric: true, sensitivity: 'base' });
+    return b.midPrefix.localeCompare(a.midPrefix, 'en', { numeric: true, sensitivity: 'base' });
   }
   if (a.suffix !== b.suffix) {
-    return a.suffix.localeCompare(b.suffix, 'en', { numeric: true, sensitivity: 'base' });
+    return b.suffix.localeCompare(a.suffix, 'en', { numeric: true, sensitivity: 'base' });
   }
-  return a.raw.localeCompare(b.raw, 'en', { numeric: true, sensitivity: 'base' });
+  return b.raw.localeCompare(a.raw, 'en', { numeric: true, sensitivity: 'base' });
 }
 
 /**

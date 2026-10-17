@@ -104,22 +104,22 @@ const parseLotSortKey = (rawLot: string) => {
   return { hasDate: false, dateVal: 0, midPrefix: raw.toUpperCase(), seqNum: Number.MAX_SAFE_INTEGER, suffix: "", raw };
 };
 
-// 1순위: LOT 날짜 최신순(내림차순), 2순위: 같은 날짜 내 숫자 순서(오름차순 Q1 -> Q2 -> Q3)
-const compareLotNumbers = (lotA: string, lotB: string, dateDirection: "desc" | "asc" = "desc"): number => {
+// 1순위: LOT 날짜 최신순(내림차순), 2순위: 같은 날짜 내 최신 순번이 위로(Q3 -> Q2 -> Q1 내림차순)
+const compareLotNumbers = (lotA: string, lotB: string): number => {
   const a = parseLotSortKey(lotA);
   const b = parseLotSortKey(lotB);
   if (a.hasDate !== b.hasDate) return a.hasDate ? -1 : 1;
   if (a.dateVal !== b.dateVal) {
-    return dateDirection === "desc" ? b.dateVal - a.dateVal : a.dateVal - b.dateVal;
+    return b.dateVal - a.dateVal;
   }
-  if (a.seqNum !== b.seqNum) return a.seqNum - b.seqNum;
+  if (a.seqNum !== b.seqNum) return b.seqNum - a.seqNum;
   if (a.midPrefix !== b.midPrefix) {
-    return a.midPrefix.localeCompare(b.midPrefix, "en", { numeric: true, sensitivity: "base" });
+    return b.midPrefix.localeCompare(a.midPrefix, "en", { numeric: true, sensitivity: "base" });
   }
   if (a.suffix !== b.suffix) {
-    return a.suffix.localeCompare(b.suffix, "en", { numeric: true, sensitivity: "base" });
+    return b.suffix.localeCompare(a.suffix, "en", { numeric: true, sensitivity: "base" });
   }
-  return a.raw.localeCompare(b.raw, "en", { numeric: true, sensitivity: "base" });
+  return b.raw.localeCompare(a.raw, "en", { numeric: true, sensitivity: "base" });
 };
 
 const normalizeItemSpecKey = (rawName: string): string => {
@@ -145,7 +145,7 @@ const cleanAndDeduplicateAuditList = (list: any[]): any[] => {
     }
   }
   const result = Array.from(map.values());
-  result.sort((a, b) => compareLotNumbers(a.lotNo, b.lotNo, "desc"));
+  result.sort((a, b) => compareLotNumbers(a.lotNo, b.lotNo));
   return result;
 };
 
@@ -784,15 +784,8 @@ function AuditPageContent() {
               <thead className="bg-gray-100 text-gray-700 whitespace-nowrap">
                 <tr>
                   <th className="py-3 pl-10 pr-4 border-b border-gray-300 font-semibold text-left">품목명</th>
-                  <th
-                    onClick={() => setLotSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
-                    className="py-3 px-3 border-b border-gray-300 font-bold text-blue-800 cursor-pointer select-none hover:bg-gray-200 transition-colors text-center w-36"
-                    title="클릭하여 LOT 날짜 정렬(최신순/과거순) 변경 (같은 날짜는 항상 Q1→Q2→Q3 숫자순)"
-                  >
-                    <span className="inline-flex items-center justify-center gap-1">
-                      LOT 번호
-                      <span className="text-xs">{lotSortOrder === "desc" ? "▼(최신순)" : "▲(과거순)"}</span>
-                    </span>
+                  <th className="py-3 px-3 border-b border-gray-300 font-bold text-blue-800 text-center w-36">
+                    LOT 번호
                   </th>
                   <th
                     className="py-3 px-3 border-b border-gray-300 font-bold text-emerald-800 text-center w-36"
@@ -812,7 +805,7 @@ function AuditPageContent() {
                     if (filterStatus === "승인/발급완료") return item.status !== "문서대기";
                     return true;
                   })
-                  .sort((a, b) => compareLotNumbers(a.lotNo, b.lotNo, lotSortOrder))
+                  .sort((a, b) => compareLotNumbers(a.lotNo, b.lotNo))
                   .slice(0, 100)
                   .map((item, idx) => {
                     const isPending = item.status === "문서대기";
