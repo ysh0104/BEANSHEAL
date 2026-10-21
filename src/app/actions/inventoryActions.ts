@@ -242,7 +242,8 @@ export async function getAuditInventoryItems() {
       }
 
       const wasCorruptName = origName !== cleanName;
-      const sanitizedItem = { ...item, item_name: cleanName, lot_no: rawLot };
+      const isNoExpPackaging = /단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(cleanName);
+      const sanitizedItem = { ...item, item_name: cleanName, lot_no: rawLot, ...(isNoExpPackaging ? { expiry_date: '' } : {}) };
       const dedupKey = `${normalizeName(cleanName)}_${rawLot}`;
 
       const isRealExp = (exp: any) => {

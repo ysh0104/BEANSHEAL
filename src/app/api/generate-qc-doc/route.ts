@@ -292,6 +292,8 @@ export async function POST(req: Request) {
 
     const docQty = docType === 'label' ? formattedUnitQty : finalQty;
     const finalSpec = formattedUnitQty && formattedUnitQty !== finalQty ? formattedUnitQty : extractedSpec;
+    const isNoExpiryPackaging = finalTemplateKey === '부자재_단상자' || finalTemplateKey === '부자재_카톤박스' || finalTemplateKey === '부자재_파우치' || /단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(productName);
+    const finalExpiry = isNoExpiryPackaging ? "" : (expiryDate || "제조일로부터 24개월");
 
     const renderData = {
       제품명: cleanProductName, 
@@ -303,8 +305,8 @@ export async function POST(req: Request) {
       수량: docQty,
       제조수량: finalQty,                
       오늘날짜: todayStr,      
-      유통기한: expiryDate || "제조일로부터 24개월",  
-      소비기한: expiryDate || "제조일로부터 24개월",    
+      유통기한: finalExpiry,  
+      소비기한: finalExpiry,    
       규격: finalSpec,
       제조번호: mfgNo || lotNo,         
       접수일자: finalTestDate,

@@ -139,7 +139,8 @@ const cleanAndDeduplicateAuditList = (list: any[]): any[] => {
     if (!cleanName || !isValidSingleLotNo(lotNo)) continue;
     const key = `${cleanName.replace(/\s+/g, "")}_${lotNo}`;
     const existing = map.get(key);
-    const updatedItem = { ...it, cleanName, lotNo };
+    const isNoExp = /단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(cleanName);
+    const updatedItem = { ...it, cleanName, lotNo, ...(isNoExp ? { expDate: "" } : {}) };
     if (!existing || (existing.status === "문서대기" && updatedItem.status !== "문서대기")) {
       map.set(key, updatedItem);
     }
@@ -228,7 +229,8 @@ function AuditPageContent() {
   const [mfgDate, setMfgDate] = useState("");
   const [mfgHistory, setMfgHistory] = useState<any[]>([]);
 
-  const formatExpDate = (rawDate: any) => {
+  const formatExpDate = (rawDate: any, itemName?: string) => {
+    if (itemName && /단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(itemName)) return '';
     if (!rawDate) return '제조일로부터 24개월';
     const str = String(rawDate).trim();
     if (!str || str === '-' || str === 'undefined' || str === 'null') return '제조일로부터 24개월';
@@ -271,7 +273,7 @@ function AuditPageContent() {
               : '미상',
             cleanName,
             lotNo: lotNo,
-            expDate: formatExpDate(item.expiry_date || item.expiration_date),
+            expDate: formatExpDate(item.expiry_date || item.expiration_date, cleanName),
             status: finalStatus,
             rawItem: { ...item, item_name: cleanName }
           };
@@ -292,7 +294,7 @@ function AuditPageContent() {
               scrapedAt: item.created_at ? new Date(item.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '미상',
               cleanName,
               lotNo,
-              expDate: formatExpDate(item.expiration_date),
+              expDate: formatExpDate(item.expiration_date, cleanName),
               status: issuedLotsRef.current.has(lotNo) ? '승인/발급완료' : dbStatus,
               rawItem: item
             };
