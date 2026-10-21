@@ -123,7 +123,7 @@ export const parseEcountExcel = async (file: File): Promise<ParsedInventoryData[
               itemName,
               lotNo,
               quantity: finalQuantity,
-              expiryDate: /단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(itemName) ? '' : (expiryDate || '제조일로부터 24개월')
+              expiryDate: /^[부자]\)|^\[(부자재|부)\]|단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(itemName.trim()) ? '' : (expiryDate || '제조일로부터 24개월')
             });
           }
         }

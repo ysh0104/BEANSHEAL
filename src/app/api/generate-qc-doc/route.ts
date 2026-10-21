@@ -283,7 +283,7 @@ export async function POST(req: Request) {
     const lotDateStr = extractDateFromLot(lotNo);
     const finalMfgDate = cleanDateStr(mfgDate) || lotDateStr || cleanDateStr(testDate) || todayStr;
     const finalTestDate = cleanDateStr(testDate) || lotDateStr || todayStr;
-    const isNoExpiryPackaging = finalTemplateKey === '부자재_단상자' || finalTemplateKey === '부자재_카톤박스' || finalTemplateKey === '부자재_파우치' || /단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(productName);
+    const isNoExpiryPackaging = finalTemplateKey.startsWith('부자재_') || /^[부자]\)|^\[(부자재|부)\]/.test(productName.trim()) || /단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(productName);
     const qtyUnit = isNoExpiryPackaging ? 'EA' : 'kg';
     const formatQtyWithUnit = (val: any) => {
       if (val === undefined || val === null || String(val).trim() === '') return '';
