@@ -825,7 +825,7 @@ function AuditPageContent() {
                             type="text"
                             value={savedUnitSpec}
                             onChange={(e) => handleUnitSpecChange(item.cleanName, e.target.value)}
-                            placeholder="예: 25kg"
+                            placeholder={/단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(item.cleanName) ? "예: 1,000EA" : "예: 25kg"}
                             className={`w-24 text-center text-xs font-bold px-2 py-1.5 rounded border transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
                               savedUnitSpec
                                 ? "bg-emerald-50/70 border-emerald-300 text-emerald-900"

@@ -283,16 +283,25 @@ export async function POST(req: Request) {
     const lotDateStr = extractDateFromLot(lotNo);
     const finalMfgDate = cleanDateStr(mfgDate) || lotDateStr || cleanDateStr(testDate) || todayStr;
     const finalTestDate = cleanDateStr(testDate) || lotDateStr || todayStr;
-    const finalQty = qty ? (typeof qty === 'number' ? `${qty.toLocaleString()} kg` : (/^\d+(\.\d+)?$/.test(String(qty).trim()) ? `${Number(qty).toLocaleString()} kg` : String(qty))) : "별도표기";
+    const isNoExpiryPackaging = finalTemplateKey === '부자재_단상자' || finalTemplateKey === '부자재_카톤박스' || finalTemplateKey === '부자재_파우치' || /단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(productName);
+    const qtyUnit = isNoExpiryPackaging ? 'EA' : 'kg';
+    const formatQtyWithUnit = (val: any) => {
+      if (val === undefined || val === null || String(val).trim() === '') return '';
+      if (typeof val === 'number') return `${val.toLocaleString()} ${qtyUnit}`;
+      const s = String(val).trim();
+      const numOnly = s.replace(/,/g, '');
+      if (/^\d+(\.\d+)?$/.test(numOnly)) return `${Number(numOnly).toLocaleString()} ${qtyUnit}`;
+      return isNoExpiryPackaging ? s.replace(/kg$/i, 'EA') : s;
+    };
+    const finalQty = formatQtyWithUnit(qty) || "별도표기";
 
     // 품질관리표시서(label) 전용 단위 포장수량 계산 (예: 총 입고량 75kg여도 단위규격 25kg 적용)
     const formattedUnitQty = unitQty
-      ? (/^\d+(\.\d+)?$/.test(unitQty) ? `${Number(unitQty).toLocaleString()} kg` : unitQty)
+      ? formatQtyWithUnit(unitQty)
       : (extractedSpec && extractedSpec !== "별도표기" ? extractedSpec : finalQty);
 
     const docQty = docType === 'label' ? formattedUnitQty : finalQty;
     const finalSpec = formattedUnitQty && formattedUnitQty !== finalQty ? formattedUnitQty : extractedSpec;
-    const isNoExpiryPackaging = finalTemplateKey === '부자재_단상자' || finalTemplateKey === '부자재_카톤박스' || finalTemplateKey === '부자재_파우치' || /단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(productName);
     const finalExpiry = isNoExpiryPackaging ? "" : (expiryDate || "제조일로부터 24개월");
 
     const renderData = {
