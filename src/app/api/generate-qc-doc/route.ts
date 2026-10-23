@@ -82,7 +82,7 @@ function resolveTemplateKey(productName: string, templateKey?: string): string {
       return "부자재_시녹스마일드";
     }
     if (name.includes("카톤") || name.includes("외상자")) return "부자재_카톤박스";
-    if (name.includes("단상자") || name.includes("상자") || name.includes("박스")) return "부자재_단상자";
+    if (name.includes("단상자") || name.includes("내부간지") || name.includes("간지") || name.includes("상자") || name.includes("박스")) return "부자재_단상자";
     if (name.includes("병") || name.includes("유리병")) return "부자재_유리병";
     return "부자재_파우치";
   }
@@ -108,7 +108,7 @@ function resolveTemplateKey(productName: string, templateKey?: string): string {
   if (name.includes("카톤") || name.includes("외상자")) {
     return "부자재_카톤박스";
   }
-  if (name.includes("단상자") || name.includes("상자")) {
+  if (name.includes("단상자") || name.includes("내부간지") || name.includes("간지") || name.includes("상자")) {
     return "부자재_단상자";
   }
   if (name.includes("파우치") || name.includes("스틱")) {
@@ -283,7 +283,7 @@ export async function POST(req: Request) {
     const lotDateStr = extractDateFromLot(lotNo);
     const finalMfgDate = cleanDateStr(mfgDate) || lotDateStr || cleanDateStr(testDate) || todayStr;
     const finalTestDate = cleanDateStr(testDate) || lotDateStr || todayStr;
-    const isNoExpiryPackaging = finalTemplateKey.startsWith('부자재_') || /^[부자]\)|^\[(부자재|부)\]/.test(productName.trim()) || /단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(productName);
+    const isNoExpiryPackaging = finalTemplateKey.startsWith('부자재_') || /^[부자]\)|^\[(부자재|부)\]/.test(productName.trim()) || /단상자|내부간지|간지|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(productName);
     const qtyUnit = isNoExpiryPackaging ? 'EA' : 'kg';
     const formatQtyWithUnit = (val: any) => {
       if (val === undefined || val === null || String(val).trim() === '') return '';

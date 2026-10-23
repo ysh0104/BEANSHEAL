@@ -32,7 +32,7 @@ const analyzeItemTemplate = (productName: string) => {
     }
     mainType = "부자재";
     if (productName.includes('파우치') || productName.includes('비닐')) subType = "파우치";
-    else if (productName.includes('단상자')) subType = "단상자";
+    else if (productName.includes('단상자') || productName.includes('내부간지') || productName.includes('간지')) subType = "단상자";
     else if (productName.includes('카톤') || productName.includes('박스')) subType = "카톤박스";
     else subType = "기본";
   } 
