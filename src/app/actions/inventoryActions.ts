@@ -242,8 +242,13 @@ export async function getAuditInventoryItems() {
       }
 
       const wasCorruptName = origName !== cleanName;
-      const isNoExpPackaging = /^[부자]\)|^\[(부자재|부)\]|단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(cleanName);
-      const sanitizedItem = { ...item, item_name: cleanName, lot_no: rawLot, ...(isNoExpPackaging ? { expiry_date: '' } : {}) };
+      const isNoExpPackaging = !/^[원반완]\)/.test(cleanName) && /^[부자]\)|^\[(부자재|부)\]|단상자|내부간지|간지|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(cleanName);
+      const rawExpStr = String(item.expiry_date || '').trim();
+      const normalizedExp = isNoExpPackaging ? '' : (!rawExpStr || rawExpStr === '-' || rawExpStr === '—' || rawExpStr === 'undefined' || rawExpStr === 'null' ? '제조일로부터 24개월' : rawExpStr);
+      const sanitizedItem = { ...item, item_name: cleanName, lot_no: rawLot, expiry_date: normalizedExp };
+      if (item.id && rawExpStr !== normalizedExp) {
+        void supabase.from('ecount_inventory').update({ expiry_date: normalizedExp }).eq('id', item.id);
+      }
       const dedupKey = `${normalizeName(cleanName)}_${rawLot}`;
 
       const isRealExp = (exp: any) => {

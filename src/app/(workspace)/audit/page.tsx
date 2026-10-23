@@ -38,7 +38,8 @@ const analyzeItemTemplate = (productName: string) => {
   } 
   else if (productName.startsWith('원)')) {
     mainType = "원료";
-    if (productName.includes('분말') || productName.includes('파우더') || productName.includes('원두') || productName.includes('생두') || productName.includes('커피') || productName.includes('덱스트린') || productName.includes('비타민')) subType = "분말";
+    if (productName.includes('액상') || productName.includes('농축액') || productName.includes('추출액') || productName.includes('원액')) subType = "액상";
+    else if (productName.includes('분말') || productName.includes('파우더') || productName.includes('원두') || productName.includes('생두') || productName.includes('커피') || productName.includes('덱스트린') || productName.includes('비타민')) subType = "분말";
     else if (productName.includes('액상') || productName.includes('농축액') || productName.includes('유기농')) subType = "액상";
     else subType = "기본";
   }
@@ -139,8 +140,10 @@ const cleanAndDeduplicateAuditList = (list: any[]): any[] => {
     if (!cleanName || !isValidSingleLotNo(lotNo)) continue;
     const key = `${cleanName.replace(/\s+/g, "")}_${lotNo}`;
     const existing = map.get(key);
-    const isNoExp = /^[부자]\)|^\[(부자재|부)\]|단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(cleanName);
-    const updatedItem = { ...it, cleanName, lotNo, ...(isNoExp ? { expDate: "" } : {}) };
+    const isNoExp = !/^[원반완]\)/.test(cleanName) && /^[부자]\)|^\[(부자재|부)\]|단상자|내부간지|간지|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(cleanName);
+    const curExp = String(it.expDate || it.rawItem?.expiry_date || it.rawItem?.expiration_date || "").trim();
+    const validExp = isNoExp ? "" : (!curExp || curExp === "-" || curExp === "—" || curExp === "undefined" || curExp === "null" ? "제조일로부터 24개월" : curExp);
+    const updatedItem = { ...it, cleanName, lotNo, expDate: validExp };
     if (!existing || (existing.status === "문서대기" && updatedItem.status !== "문서대기")) {
       map.set(key, updatedItem);
     }
@@ -230,10 +233,10 @@ function AuditPageContent() {
   const [mfgHistory, setMfgHistory] = useState<any[]>([]);
 
   const formatExpDate = (rawDate: any, itemName?: string) => {
-    if (itemName && /^[부자]\)|^\[(부자재|부)\]|단상자|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(itemName.trim())) return '';
+    if (itemName && !/^[원반완]\)/.test(itemName.trim()) && /^[부자]\)|^\[(부자재|부)\]|단상자|내부간지|간지|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(itemName.trim())) return '';
     if (!rawDate) return '제조일로부터 24개월';
     const str = String(rawDate).trim();
-    if (!str || str === '-' || str === 'undefined' || str === 'null') return '제조일로부터 24개월';
+    if (!str || str === '-' || str === '—' || str === 'undefined' || str === 'null') return '제조일로부터 24개월';
     if (str.includes('T')) {
       const datePart = str.split('T')[0];
       if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;

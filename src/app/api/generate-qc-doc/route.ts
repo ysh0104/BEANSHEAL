@@ -283,7 +283,7 @@ export async function POST(req: Request) {
     const lotDateStr = extractDateFromLot(lotNo);
     const finalMfgDate = cleanDateStr(mfgDate) || lotDateStr || cleanDateStr(testDate) || todayStr;
     const finalTestDate = cleanDateStr(testDate) || lotDateStr || todayStr;
-    const isNoExpiryPackaging = finalTemplateKey.startsWith('부자재_') || /^[부자]\)|^\[(부자재|부)\]/.test(productName.trim()) || /단상자|내부간지|간지|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(productName);
+    const isNoExpiryPackaging = !/^[원반완]\)/.test(productName.trim()) && (finalTemplateKey.startsWith('부자재_') || /^[부자]\)|^\[(부자재|부)\]/.test(productName.trim()) || /단상자|내부간지|간지|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(productName));
     const qtyUnit = isNoExpiryPackaging ? 'EA' : 'kg';
     const formatQtyWithUnit = (val: any) => {
       if (val === undefined || val === null || String(val).trim() === '') return '';
@@ -302,7 +302,9 @@ export async function POST(req: Request) {
 
     const docQty = docType === 'label' ? formattedUnitQty : finalQty;
     const finalSpec = formattedUnitQty && formattedUnitQty !== finalQty ? formattedUnitQty : extractedSpec;
-    const finalExpiry = isNoExpiryPackaging ? "" : (expiryDate || "제조일로부터 24개월");
+    const cleanExpStr = String(expiryDate || '').trim();
+    const validExpStr = (!cleanExpStr || cleanExpStr === '-' || cleanExpStr === '—' || cleanExpStr === 'undefined' || cleanExpStr === 'null') ? "제조일로부터 24개월" : cleanExpStr;
+    const finalExpiry = isNoExpiryPackaging ? "" : validExpStr;
 
     const renderData = {
       제품명: cleanProductName, 
