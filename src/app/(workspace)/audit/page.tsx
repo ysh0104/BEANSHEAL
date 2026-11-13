@@ -202,8 +202,7 @@ function AuditPageContent() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("beansheal_audit_items");
-      const cachedItems = localStorage.getItem("beansheal_audit_items_v3");
+      const cachedItems = localStorage.getItem("beansheal_audit_items_v3") || localStorage.getItem("beansheal_audit_items");
       if (cachedItems) {
         try {
           const parsed = JSON.parse(cachedItems);

@@ -188,24 +188,7 @@ function compareLotNumbersServer(lotA: string, lotB: string): number {
  * Supabase ecount_inventory 테이블 전체 목록 조회 (시스템 예약 행, 오염된 수불부 헤더/다중로트 행 자동 정제 및 정렬)
  */
 export async function getAuditInventoryItems() {
-  try {
-    // 1회성 오염 상태 자동 초기화: 과거 동일 LOT 번호 일괄 업데이트 버그로 인해 클릭하지 않은 품목까지 '승인/발급완료'로 변경된 행들을 '문서대기'로 복원
-    const { data: resetCheck } = await supabase
-      .from('memo_presets')
-      .select('id')
-      .eq('id', 'qc_status_reset_v3')
-      .maybeSingle();
-    if (!resetCheck) {
-      auditInventoryCache = null;
-      await supabase
-        .from('ecount_inventory')
-        .update({ status: '문서대기' })
-        .eq('status', '승인/발급완료');
-      await supabase
-        .from('memo_presets')
-        .upsert({ id: 'qc_status_reset_v3', title: 'QC 상태 오염 1회 초기화 완료', content: new Date().toISOString() });
-    }
-  } catch (e) {}
+
   if (auditInventoryCache && auditInventoryCache.expiry > Date.now()) {
     return { success: true, data: auditInventoryCache.data };
   }
