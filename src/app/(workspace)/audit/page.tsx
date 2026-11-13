@@ -131,6 +131,8 @@ const normalizeItemSpecKey = (rawName: string): string => {
     .toLowerCase();
 };
 
+const getItemLotKey = (itemName: string, lotNo: string): string => `${normalizeItemSpecKey(itemName)}_${String(lotNo || "").trim()}`;
+
 const cleanAndDeduplicateAuditList = (list: any[]): any[] => {
   const map = new Map<string, any>();
   for (const it of list) {
@@ -143,7 +145,8 @@ const cleanAndDeduplicateAuditList = (list: any[]): any[] => {
     const isNoExp = !/^[원반완]\)/.test(cleanName) && /^[부자]\)|^\[(부자재|부)\]|단상자|내부간지|간지|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(cleanName);
     const curExp = String(it.expDate || it.rawItem?.expiry_date || it.rawItem?.expiration_date || "").trim();
     const validExp = isNoExp ? "" : (!curExp || curExp === "-" || curExp === "—" || curExp === "undefined" || curExp === "null" ? "제조일로부터 24개월" : curExp);
-    const updatedItem = { ...it, cleanName, lotNo, expDate: validExp };
+    const normalizedStatus = it.status === "승인/발급완료" ? "승인/발급완료" : "문서대기";
+    const updatedItem = { ...it, cleanName, lotNo, expDate: validExp, status: normalizedStatus };
     if (!existing || (existing.status === "문서대기" && updatedItem.status !== "문서대기")) {
       map.set(key, updatedItem);
     }
@@ -199,7 +202,8 @@ function AuditPageContent() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const cachedItems = localStorage.getItem("beansheal_audit_items");
+      localStorage.removeItem("beansheal_audit_items");
+      const cachedItems = localStorage.getItem("beansheal_audit_items_v3");
       if (cachedItems) {
         try {
           const parsed = JSON.parse(cachedItems);
@@ -267,8 +271,10 @@ function AuditPageContent() {
             ? rawLot 
             : `LOT-${item.id}`;
           const dbStatus = item.status || item.qc_status || '문서대기';
-          const finalStatus = issuedLotsRef.current.has(lotNo) ? '승인/발급완료' : dbStatus;
           const cleanName = sanitizeAuditItemName(item.item_name || item.name || item.product_name);
+
+          const finalStatus = issuedLotsRef.current.has(getItemLotKey(cleanName, lotNo)) ? '승인/발급완료' : (dbStatus === '승인/발급완료' ? '승인/발급완료' : '문서대기');
+
 
           return {
             scrapedAt: item.created_at 
@@ -283,7 +289,7 @@ function AuditPageContent() {
         });
         const cleaned = cleanAndDeduplicateAuditList(formatted);
         setScrapedItems(cleaned);
-        localStorage.setItem("beansheal_audit_items", JSON.stringify(cleaned));
+        localStorage.setItem("beansheal_audit_items_v3", JSON.stringify(cleaned));
         setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
       } else {
         // Fallback to getDashboardItems if ecount_inventory is empty
@@ -298,13 +304,13 @@ function AuditPageContent() {
               cleanName,
               lotNo,
               expDate: formatExpDate(item.expiration_date, cleanName),
-              status: issuedLotsRef.current.has(lotNo) ? '승인/발급완료' : dbStatus,
+              status: issuedLotsRef.current.has(getItemLotKey(cleanName, lotNo)) ? '승인/발급완료' : (dbStatus === '승인/발급완료' ? '승인/발급완료' : '문서대기'),
               rawItem: item
             };
           });
           const cleaned = cleanAndDeduplicateAuditList(formatted);
           setScrapedItems(cleaned);
-          localStorage.setItem("beansheal_audit_items", JSON.stringify(cleaned));
+          localStorage.setItem("beansheal_audit_items_v3", JSON.stringify(cleaned));
           setLastSyncTime(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }));
         }
       }
@@ -462,27 +468,47 @@ function AuditPageContent() {
 
   const docFormat = "docx";
 
+  const handleResetItemStatus = async (item: any) => {
+    const rawName = item.rawItem?.item_name || item.cleanName || "";
+    const lotNumber = item.lotNo || item.rawItem?.lot_no || "";
+    const targetKey = getItemLotKey(rawName, lotNumber);
+    issuedLotsRef.current.delete(targetKey);
+    setScrapedItems((prev) => {
+      const next = prev.map((it) =>
+        (item.rawItem?.id && it.rawItem?.id === item.rawItem?.id) || getItemLotKey(it.cleanName, it.lotNo) === targetKey
+          ? { ...it, status: "문서대기" }
+          : it
+      );
+      try {
+        localStorage.setItem("beansheal_audit_items_v3", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+    void updateAuditItemStatusToSupabase(item.rawItem?.id, "문서대기", lotNumber, rawName);
+  };
+
   const handleDownloadQCBatch = async (item: any) => {
     try {
       const rawName = item.rawItem?.item_name || item.cleanName || "";
       const lotNumber = item.lotNo || item.rawItem?.lot_no || "LOT-0000";
 
       // ⚡ 0초 즉시 UI 상태 전환 ('문서대기' -> '승인/발급완료' / '서류 재발급' 버튼으로 즉시 변경)
-      issuedLotsRef.current.add(lotNumber);
+      const targetKey = getItemLotKey(rawName, lotNumber);
+      issuedLotsRef.current.add(targetKey);
       setScrapedItems((prev) => {
         const next = prev.map((it) =>
-          it.lotNo === item.lotNo || (item.rawItem?.id && it.rawItem?.id === item.rawItem?.id)
+          (item.rawItem?.id && it.rawItem?.id === item.rawItem?.id) || getItemLotKey(it.cleanName, it.lotNo) === targetKey
             ? { ...it, status: "승인/발급완료" }
             : it
         );
         try {
-          localStorage.setItem("beansheal_audit_items", JSON.stringify(next));
+          localStorage.setItem("beansheal_audit_items_v3", JSON.stringify(next));
         } catch (e) {}
         return next;
       });
 
       // 백그라운드 Supabase DB 상태 즉시 업데이트
-      void updateAuditItemStatusToSupabase(item.rawItem?.id, "승인/발급완료", lotNumber);
+      void updateAuditItemStatusToSupabase(item.rawItem?.id, "승인/발급완료", lotNumber, rawName);
 
       // 원료/부자재/반제품/완제품 품목 성격별 필수 발급 서류 목록 (4~5종)
       const isSemiOrProduct = rawName.startsWith("반)") || rawName.startsWith("완)") || rawName.includes("반제품") || rawName.includes("완제품");
@@ -818,7 +844,7 @@ function AuditPageContent() {
                     const savedUnitSpec = itemUnitSpecs[itemSpecKey] || "";
 
                     return (
-                      <tr key={item.lotNo || idx} className={`transition-colors ${isPending ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
+                      <tr key={`${item.cleanName}_${item.lotNo}_${idx}`} className={`transition-colors ${isPending ? 'bg-white hover:bg-blue-50' : 'bg-gray-50'}`}>
                         <td className="py-2.5 pl-10 pr-4 font-bold text-gray-900 text-left max-w-[320px] truncate" title={item.cleanName}>
                           {item.cleanName}
                         </td>
@@ -839,7 +865,11 @@ function AuditPageContent() {
                         </td>
                         <td className="py-2.5 px-3 text-gray-600 text-center whitespace-nowrap">{item.expDate}</td>
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          <span className={`px-2.5 py-1 rounded text-xs font-bold border ${item.status === '문서대기' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-green-100 text-green-800 border-green-200'}`}>
+                          <span
+                            onClick={() => { if (item.status !== '문서대기') void handleResetItemStatus(item); }}
+                            title={item.status !== '문서대기' ? "클릭하면 '문서대기' 상태로 되돌립니다" : undefined}
+                            className={`px-2.5 py-1 rounded text-xs font-bold border ${item.status === '문서대기' ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-green-100 text-green-800 border-green-200 cursor-pointer hover:bg-green-200 transition-colors'}`}
+                          >
                             {item.status}
                           </span>
                         </td>

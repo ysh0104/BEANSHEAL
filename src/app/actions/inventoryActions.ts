@@ -188,6 +188,24 @@ function compareLotNumbersServer(lotA: string, lotB: string): number {
  * Supabase ecount_inventory 테이블 전체 목록 조회 (시스템 예약 행, 오염된 수불부 헤더/다중로트 행 자동 정제 및 정렬)
  */
 export async function getAuditInventoryItems() {
+  try {
+    // 1회성 오염 상태 자동 초기화: 과거 동일 LOT 번호 일괄 업데이트 버그로 인해 클릭하지 않은 품목까지 '승인/발급완료'로 변경된 행들을 '문서대기'로 복원
+    const { data: resetCheck } = await supabase
+      .from('memo_presets')
+      .select('id')
+      .eq('id', 'qc_status_reset_v3')
+      .maybeSingle();
+    if (!resetCheck) {
+      auditInventoryCache = null;
+      await supabase
+        .from('ecount_inventory')
+        .update({ status: '문서대기' })
+        .eq('status', '승인/발급완료');
+      await supabase
+        .from('memo_presets')
+        .upsert({ id: 'qc_status_reset_v3', title: 'QC 상태 오염 1회 초기화 완료', content: new Date().toISOString() });
+    }
+  } catch (e) {}
   if (auditInventoryCache && auditInventoryCache.expiry > Date.now()) {
     return { success: true, data: auditInventoryCache.data };
   }
@@ -245,7 +263,8 @@ export async function getAuditInventoryItems() {
       const isNoExpPackaging = !/^[원반완]\)/.test(cleanName) && /^[부자]\)|^\[(부자재|부)\]|단상자|내부간지|간지|카톤|외상자|박스|상자|파우치|스틱|필름|비닐/.test(cleanName);
       const rawExpStr = String(item.expiry_date || '').trim();
       const normalizedExp = isNoExpPackaging ? '' : (!rawExpStr || rawExpStr === '-' || rawExpStr === '—' || rawExpStr === 'undefined' || rawExpStr === 'null' ? '제조일로부터 24개월' : rawExpStr);
-      const sanitizedItem = { ...item, item_name: cleanName, lot_no: rawLot, expiry_date: normalizedExp };
+      const normalizedStatus = item.status === '승인/발급완료' ? '승인/발급완료' : '문서대기';
+      const sanitizedItem = { ...item, item_name: cleanName, lot_no: rawLot, expiry_date: normalizedExp, status: normalizedStatus };
       if (item.id && rawExpStr !== normalizedExp) {
         void supabase.from('ecount_inventory').update({ expiry_date: normalizedExp }).eq('id', item.id);
       }
@@ -361,7 +380,8 @@ export async function insertQuickProductionToSupabase(item: {
 export async function updateAuditItemStatusToSupabase(
   id: string | number | undefined,
   status: string = '승인/발급완료',
-  lotNo?: string
+  lotNo?: string,
+  itemName?: string
 ) {
   try {
     auditInventoryCache = null;
@@ -378,7 +398,9 @@ export async function updateAuditItemStatusToSupabase(
           await supabase
             .from('ecount_inventory')
             .update({ status })
-            .eq('lot_no', lotNo);
+            .eq('lot_no', lotNo)
+        .eq('item_name', itemName || '')
+            ;
         }
         await supabase
           .from('dashboard')
@@ -391,6 +413,7 @@ export async function updateAuditItemStatusToSupabase(
         .from('ecount_inventory')
         .update({ status })
         .eq('lot_no', lotNo)
+        .eq('item_name', itemName || '')
         .select();
       return { success: true, data };
     }
